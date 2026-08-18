@@ -1020,7 +1020,7 @@ export default function App() {
           </div>
           <h1 className="text-4xl sm:text-5xl mb-3" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</h1>
           <p className="text-sm sm:text-base max-w-xl mb-6" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>
-            Iqtisodiyot boʻyicha mavzular, testlar va yangiliklar — hammaga ochiq, roʻyxatdan oʻtishsiz.
+            Barcha soha vakillari uchun mos mavzular, testlar va yangiliklar.
           </p>
           <div className="flex gap-6 pt-4" style={{ borderTop: `1px solid ${C.coverLine}` }}>
             {[['Mavzular', courses.length], ['Testlar', tests.length], ['Yangiliklar', news.length]].map(([label, val]) => (
