@@ -780,7 +780,7 @@ function AboutView() {
     <div>
       <SectionHeading eyebrow="Platforma haqida" title="Biz haqimizda" />
       <div className="space-y-4 max-w-2xl text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>
-        <p>"UpCourse Uz" — iqtisodiyot fanini oʻrganuvchilar uchun yaratilgan ochiq taʼlim platformasi. Maqsadimiz — iqtisodiy bilimlarni sodda, tizimli va hammabop shaklda taqdim etish.</p>
+        <p>"UpCourse Uz" — O'z ustida ishlab rivojlanadiganlar uchun yaratilgan ochiq taʼlim platformasi. Maqsadimiz — jamiyat va ilm-fan taraqqiyoti ravnaqiga o‘z hissamizni qo‘shish. Bilimlarni sodda, tizimli va hammabop shaklda taqdim etish.</p>
         <p>Platformada roʻyxatdan oʻtish yoki profil yaratish shart emas: barcha kurslar, testlar va yangiliklar istalgan foydalanuvchi uchun istalgan paytda ochiq.</p>
         <p>Kontent doimiy ravishda yangilanib boriladi — yangi mavzular, testlar va eʼlonlar muntazam qoʻshiladi.</p>
       </div>
