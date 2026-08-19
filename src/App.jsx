@@ -146,10 +146,20 @@ async function sbRequest(path, options = {}) {
   return res.json();
 }
 
-const sbSelect = (table) => sbRequest(`${table}?select=*&order=created_at.asc`);
+const sbSelect = (table, fields = '*') => sbRequest(`${table}?select=${fields}&order=created_at.asc`);
 const sbInsert = (table, row) => sbRequest(table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
 const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+/* Roʻyxat holatida faqat yengil ustunlar olinadi — katta matn (content)
+   va savollar (questions) shu bosqichda yuklanmaydi, tezlik uchun. Ular
+   foydalanuvchi mavzuni/testni ochganidagina alohida soʻrov bilan olinadi. */
+const COURSE_LIST_FIELDS = 'id,category_id,title,summary,author,status,created_at';
+
+async function fetchFullCourse(id) {
+  const rows = await sbRequest(`courses?id=eq.${encodeURIComponent(id)}&select=*`);
+  return rows && rows[0] ? courseFromRow(rows[0]) : null;
+}
 
 /* Row (snake_case, matches SQL columns) <-> app object (camelCase) */
 const categoryToRow = (c) => ({ id: c.id, name: c.name });
@@ -479,7 +489,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCategory, onGoToCommunity }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCategory, onGoToCommunity, ensureCourseLoaded }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -490,7 +500,19 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCa
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
 
+  useEffect(() => {
+    const id = openId || editId;
+    if (id) ensureCourseLoaded(id);
+  }, [openId, editId, ensureCourseLoaded]);
+
   if (editing) {
+    if (editing.content === undefined) {
+      return (
+        <div className="flex items-center gap-2 py-24 justify-center" style={{ color: C.inkSoft }}>
+          <Loader2 className="animate-spin" size={20} /> <span style={fontBody}>Yuklanmoqda...</span>
+        </div>
+      );
+    }
     return (
       <div>
         <button
@@ -507,6 +529,13 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCa
   }
 
   if (active) {
+    if (active.content === undefined) {
+      return (
+        <div className="flex items-center gap-2 py-24 justify-center" style={{ color: C.inkSoft }}>
+          <Loader2 className="animate-spin" size={20} /> <span style={fontBody}>Yuklanmoqda...</span>
+        </div>
+      );
+    }
     return (
       <div>
         <button
@@ -906,10 +935,21 @@ function TestsView({ tests, categories, updateTest, deleteTest, deleteCategory, 
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory }) {
+function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, ensureCourseLoaded }) {
   const active = courses.find((c) => c.id === openId);
 
+  useEffect(() => {
+    if (openId) ensureCourseLoaded(openId);
+  }, [openId, ensureCourseLoaded]);
+
   if (active) {
+    if (active.content === undefined) {
+      return (
+        <div className="flex items-center gap-2 py-24 justify-center" style={{ color: C.inkSoft }}>
+          <Loader2 className="animate-spin" size={20} /> <span style={fontBody}>Yuklanmoqda...</span>
+        </div>
+      );
+    }
     return (
       <div>
         <button
@@ -1045,7 +1085,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
   );
 }
 
-function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest }) {
+function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, ensureCourseLoaded }) {
   const [subTab, setSubTab] = useState(null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
@@ -1089,6 +1129,7 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
         onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); }}
         onCloseForm={() => setCourseFormOpen(false)}
         prefillCategory={prefillCategory}
+        ensureCourseLoaded={ensureCourseLoaded}
       />
     );
   }
@@ -1310,6 +1351,20 @@ export default function App() {
     });
   }, []);
 
+  /* Roʻyxatda faqat yengil maʼlumot bor (content/questions yoʻq). Mavzu
+     yoki test ochilganda shu funksiyalar toʻliq matnni alohida yuklab,
+     mavjud roʻyxatdagi elementga qoʻshib qoʻyadi (faqat bir marta). */
+  const ensureCourseLoaded = useCallback(async (id) => {
+    const existing = courses.find((c) => c.id === id);
+    if (!existing || existing.content !== undefined) return;
+    try {
+      const full = await fetchFullCourse(id);
+      if (full) setCourses((prev) => prev.map((c) => (c.id === id ? { ...c, content: full.content } : c)));
+    } catch (e) {
+      setActionError('Mavzu matnini yuklashda xatolik yuz berdi.');
+    }
+  }, [courses]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -1320,7 +1375,7 @@ export default function App() {
       }
       try {
         let [catRows, courseRows, testRows, newsRows] = await Promise.all([
-          sbSelect('categories'), sbSelect('courses'), sbSelect('tests'), sbSelect('news'),
+          sbSelect('categories'), sbSelect('courses', COURSE_LIST_FIELDS), sbSelect('tests'), sbSelect('news'),
         ]);
 
         if (catRows.length === 0 && courseRows.length === 0 && testRows.length === 0 && newsRows.length === 0) {
@@ -1330,7 +1385,7 @@ export default function App() {
           await Promise.all(SEED_TESTS.map((t) => sbInsert('tests', testToRow(t))));
           await Promise.all(SEED_NEWS.map((n) => sbInsert('news', newsToRow(n))));
           [catRows, courseRows, testRows, newsRows] = await Promise.all([
-            sbSelect('categories'), sbSelect('courses'), sbSelect('tests'), sbSelect('news'),
+            sbSelect('categories'), sbSelect('courses', COURSE_LIST_FIELDS), sbSelect('tests'), sbSelect('news'),
           ]);
         }
 
@@ -1606,7 +1661,7 @@ export default function App() {
               </div>
             )}
             <PaperPanel>
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} ensureCourseLoaded={ensureCourseLoaded} />}
               {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
               {tab === 'hamjamiyat' && (
                 <HamjamiyatView
@@ -1621,6 +1676,7 @@ export default function App() {
                   submitTest={submitTest}
                   approveTest={approveTest}
                   deleteTest={deleteTest}
+                  ensureCourseLoaded={ensureCourseLoaded}
                 />
               )}
               {tab === 'yangiliklar' && <NewsView news={news} addNews={addNews} deleteNews={deleteNews} />}
