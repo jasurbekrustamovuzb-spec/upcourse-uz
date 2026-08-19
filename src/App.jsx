@@ -146,26 +146,16 @@ async function sbRequest(path, options = {}) {
   return res.json();
 }
 
-const sbSelect = (table, fields = '*') => sbRequest(`${table}?select=${fields}&order=created_at.asc`);
+const sbSelect = (table) => sbRequest(`${table}?select=*&order=created_at.asc`);
 const sbInsert = (table, row) => sbRequest(table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
 const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
 
-/* Roʻyxat holatida faqat yengil ustunlar olinadi — katta matn (content)
-   va savollar (questions) shu bosqichda yuklanmaydi, tezlik uchun. Ular
-   foydalanuvchi mavzuni/testni ochganidagina alohida soʻrov bilan olinadi. */
-const COURSE_LIST_FIELDS = 'id,category_id,title,summary,author,status,created_at';
-
-async function fetchFullCourse(id) {
-  const rows = await sbRequest(`courses?id=eq.${encodeURIComponent(id)}&select=*`);
-  return rows && rows[0] ? courseFromRow(rows[0]) : null;
-}
-
 /* Row (snake_case, matches SQL columns) <-> app object (camelCase) */
 const categoryToRow = (c) => ({ id: c.id, name: c.name });
 const categoryFromRow = (r) => ({ id: r.id, name: r.name });
-const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, author: c.author || '', status: c.status || 'approved' });
-const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, author: r.author || '', status: r.status || 'approved' });
+const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', status: c.status || 'approved' });
+const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', status: r.status || 'approved' });
 const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', status: t.status || 'approved' });
 const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', status: r.status || 'approved' });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
@@ -278,6 +268,104 @@ function EmptyState({ text, cta }) {
     <div className="py-10 text-center border border-dashed rounded-sm" style={{ borderColor: C.rule, color: C.inkSoft }}>
       <p style={{ ...fontBody }} className="mb-1">{text}</p>
       {cta && <p className="text-sm" style={{ ...fontBody }}>{cta}</p>}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  YouTube video — embedded only after the user clicks play, so it    */
+/*  never affects page-load speed. Uses YouTube's own embedded player, */
+/*  which already has fullscreen, a scrub bar, and play/pause built in. */
+/* ------------------------------------------------------------------ */
+
+function extractYouTubeId(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('/')[0] || null;
+    if (u.hostname.includes('youtube.com')) {
+      if (u.pathname === '/watch') return u.searchParams.get('v');
+      const m = u.pathname.match(/\/(embed|shorts)\/([^/?]+)/);
+      if (m) return m[2];
+    }
+  } catch (e) {
+    // not a valid URL
+  }
+  return null;
+}
+
+function YouTubeEmbed({ url }) {
+  const [playing, setPlaying] = useState(false);
+  const videoId = extractYouTubeId(url);
+  if (!videoId) return null;
+
+  return (
+    <div className="max-w-2xl mx-auto my-5">
+      <div
+        className="relative w-full overflow-hidden rounded-sm"
+        style={{ aspectRatio: '16 / 9', background: '#000', border: `1px solid ${C.rule}` }}
+      >
+        {playing ? (
+          <iframe
+            className="absolute inset-0 w-full h-full"
+            src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+            title="YouTube video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        ) : (
+          <button
+            onClick={() => setPlaying(true)}
+            className="absolute inset-0 w-full h-full group focus-visible:outline focus-visible:outline-2"
+            style={{ outlineColor: C.gold }}
+            aria-label="Videoni ishga tushirish"
+          >
+            <img
+              src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+            />
+            <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(20,30,20,0.25)' }}>
+              <span
+                className="flex items-center justify-center rounded-full transition-transform group-hover:scale-105"
+                style={{ width: 62, height: 62, background: 'rgba(20,30,20,0.72)', border: `2px solid ${C.goldSoft}` }}
+              >
+                <PlayIcon />
+              </span>
+            </span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M8 5.5v13l11-6.5-11-6.5z" fill="#FBFAF3" />
+    </svg>
+  );
+}
+
+/* Splits course text on blank-line-separated paragraphs and renders the
+   video wherever the author placed a "{{video}}" marker paragraph; if no
+   marker was used but a video exists, it's shown after the text. */
+function CourseBody({ content, videoUrl }) {
+  const paragraphs = (content || '').split('\n\n');
+  const marker = '{{video}}';
+  const hasMarker = paragraphs.some((p) => p.trim().toLowerCase() === marker);
+  return (
+    <div className="space-y-4 max-w-2xl">
+      {paragraphs.map((p, i) =>
+        p.trim().toLowerCase() === marker ? (
+          videoUrl ? <YouTubeEmbed key={i} url={videoUrl} /> : null
+        ) : (
+          <p key={i} className="text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>{p}</p>
+        )
+      )}
+      {videoUrl && !hasMarker && <YouTubeEmbed url={videoUrl} />}
     </div>
   );
 }
@@ -430,6 +518,7 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
   const [newId, setNewId] = useState(null);
 
   if (newId) {
@@ -440,8 +529,8 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
     if (!title.trim() || !content.trim()) return;
     if (!lockedCategoryId && !categoryName.trim()) return;
     const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), summary: summary.trim(), content: content.trim() }
-      : { categoryName: categoryName.trim(), author: author.trim(), title: title.trim(), summary: summary.trim(), content: content.trim() };
+      ? { categoryId: lockedCategoryId, title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() }
+      : { categoryName: categoryName.trim(), author: author.trim(), title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -453,7 +542,8 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
       )}
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Masalan: Bozor muvozanati" />
       <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} placeholder="Bir jumlada mavzu haqida" />
-      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing..." textarea rows={7} />
+      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing... Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
+      <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       {!lockedCategoryId && (
         <TextField label="Tuzuvchi (ixtiyoriy)" value={author} onChange={setAuthor} placeholder="Ismingiz yoki taxallusingiz" />
       )}
@@ -469,10 +559,11 @@ function EditCourseForm({ course, onSave, onDone }) {
   const [title, setTitle] = useState(course.title);
   const [summary, setSummary] = useState(course.summary || '');
   const [content, setContent] = useState(course.content);
+  const [videoUrl, setVideoUrl] = useState(course.videoUrl || '');
 
   async function submit() {
     if (!title.trim() || !content.trim()) return;
-    const ok = await onSave({ categoryId: course.categoryId, title: title.trim(), summary: summary.trim(), content: content.trim() });
+    const ok = await onSave({ categoryId: course.categoryId, title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() });
     if (ok) onDone();
   }
 
@@ -480,7 +571,8 @@ function EditCourseForm({ course, onSave, onDone }) {
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} />
       <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} />
-      <TextField label="Dars matni" value={content} onChange={setContent} textarea rows={7} />
+      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
+      <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       <div className="flex gap-3 mt-2">
         <SolidButton onClick={submit} icon={Check}>Saqlash</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
@@ -489,7 +581,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCategory, onGoToCommunity, ensureCourseLoaded }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCategory, onGoToCommunity }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -500,19 +592,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCa
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
 
-  useEffect(() => {
-    const id = openId || editId;
-    if (id) ensureCourseLoaded(id);
-  }, [openId, editId, ensureCourseLoaded]);
-
   if (editing) {
-    if (editing.content === undefined) {
-      return (
-        <div className="flex items-center gap-2 py-24 justify-center" style={{ color: C.inkSoft }}>
-          <Loader2 className="animate-spin" size={20} /> <span style={fontBody}>Yuklanmoqda...</span>
-        </div>
-      );
-    }
     return (
       <div>
         <button
@@ -529,13 +609,6 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCa
   }
 
   if (active) {
-    if (active.content === undefined) {
-      return (
-        <div className="flex items-center gap-2 py-24 justify-center" style={{ color: C.inkSoft }}>
-          <Loader2 className="animate-spin" size={20} /> <span style={fontBody}>Yuklanmoqda...</span>
-        </div>
-      );
-    }
     return (
       <div>
         <button
@@ -546,11 +619,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCa
           <ArrowLeft size={15} /> {activeCategory ? activeCategory.name : 'Barcha mavzular'}
         </button>
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
-        <div className="space-y-4 max-w-2xl">
-          {active.content.split('\n\n').map((p, i) => (
-            <p key={i} className="text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>{p}</p>
-          ))}
-        </div>
+        <CourseBody content={active.content} videoUrl={active.videoUrl} />
       </div>
     );
   }
@@ -935,21 +1004,10 @@ function TestsView({ tests, categories, updateTest, deleteTest, deleteCategory, 
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, ensureCourseLoaded }) {
+function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory }) {
   const active = courses.find((c) => c.id === openId);
 
-  useEffect(() => {
-    if (openId) ensureCourseLoaded(openId);
-  }, [openId, ensureCourseLoaded]);
-
   if (active) {
-    if (active.content === undefined) {
-      return (
-        <div className="flex items-center gap-2 py-24 justify-center" style={{ color: C.inkSoft }}>
-          <Loader2 className="animate-spin" size={20} /> <span style={fontBody}>Yuklanmoqda...</span>
-        </div>
-      );
-    }
     return (
       <div>
         <button
@@ -960,11 +1018,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
           <ArrowLeft size={15} /> Hamjamiyat mavzulari
         </button>
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
-        <div className="space-y-4 max-w-2xl">
-          {active.content.split('\n\n').map((p, i) => (
-            <p key={i} className="text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>{p}</p>
-          ))}
-        </div>
+        <CourseBody content={active.content} videoUrl={active.videoUrl} />
       </div>
     );
   }
@@ -1085,7 +1139,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
   );
 }
 
-function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, ensureCourseLoaded }) {
+function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest }) {
   const [subTab, setSubTab] = useState(null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
@@ -1129,7 +1183,6 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
         onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); }}
         onCloseForm={() => setCourseFormOpen(false)}
         prefillCategory={prefillCategory}
-        ensureCourseLoaded={ensureCourseLoaded}
       />
     );
   }
@@ -1351,20 +1404,6 @@ export default function App() {
     });
   }, []);
 
-  /* Roʻyxatda faqat yengil maʼlumot bor (content/questions yoʻq). Mavzu
-     yoki test ochilganda shu funksiyalar toʻliq matnni alohida yuklab,
-     mavjud roʻyxatdagi elementga qoʻshib qoʻyadi (faqat bir marta). */
-  const ensureCourseLoaded = useCallback(async (id) => {
-    const existing = courses.find((c) => c.id === id);
-    if (!existing || existing.content !== undefined) return;
-    try {
-      const full = await fetchFullCourse(id);
-      if (full) setCourses((prev) => prev.map((c) => (c.id === id ? { ...c, content: full.content } : c)));
-    } catch (e) {
-      setActionError('Mavzu matnini yuklashda xatolik yuz berdi.');
-    }
-  }, [courses]);
-
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -1375,7 +1414,7 @@ export default function App() {
       }
       try {
         let [catRows, courseRows, testRows, newsRows] = await Promise.all([
-          sbSelect('categories'), sbSelect('courses', COURSE_LIST_FIELDS), sbSelect('tests'), sbSelect('news'),
+          sbSelect('categories'), sbSelect('courses'), sbSelect('tests'), sbSelect('news'),
         ]);
 
         if (catRows.length === 0 && courseRows.length === 0 && testRows.length === 0 && newsRows.length === 0) {
@@ -1385,7 +1424,7 @@ export default function App() {
           await Promise.all(SEED_TESTS.map((t) => sbInsert('tests', testToRow(t))));
           await Promise.all(SEED_NEWS.map((n) => sbInsert('news', newsToRow(n))));
           [catRows, courseRows, testRows, newsRows] = await Promise.all([
-            sbSelect('categories'), sbSelect('courses', COURSE_LIST_FIELDS), sbSelect('tests'), sbSelect('news'),
+            sbSelect('categories'), sbSelect('courses'), sbSelect('tests'), sbSelect('news'),
           ]);
         }
 
@@ -1451,7 +1490,7 @@ export default function App() {
         return null;
       }
     }
-    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, author: data.author || '', status: 'pending' };
+    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: data.author || '', status: 'pending' };
     try {
       await sbInsert('courses', courseToRow(row));
       setCourses([row, ...courses]);
@@ -1661,7 +1700,7 @@ export default function App() {
               </div>
             )}
             <PaperPanel>
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} ensureCourseLoaded={ensureCourseLoaded} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
               {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
               {tab === 'hamjamiyat' && (
                 <HamjamiyatView
@@ -1676,7 +1715,6 @@ export default function App() {
                   submitTest={submitTest}
                   approveTest={approveTest}
                   deleteTest={deleteTest}
-                  ensureCourseLoaded={ensureCourseLoaded}
                 />
               )}
               {tab === 'yangiliklar' && <NewsView news={news} addNews={addNews} deleteNews={deleteNews} />}
