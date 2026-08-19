@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
-  Paperclip, RotateCcw
+  Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -148,15 +148,16 @@ async function sbRequest(path, options = {}) {
 
 const sbSelect = (table) => sbRequest(`${table}?select=*&order=created_at.asc`);
 const sbInsert = (table, row) => sbRequest(table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
+const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
 
 /* Row (snake_case, matches SQL columns) <-> app object (camelCase) */
 const categoryToRow = (c) => ({ id: c.id, name: c.name });
 const categoryFromRow = (r) => ({ id: r.id, name: r.name });
-const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content });
-const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content });
-const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions });
-const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions });
+const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, status: c.status || 'approved' });
+const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, status: r.status || 'approved' });
+const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, status: t.status || 'approved' });
+const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, status: r.status || 'approved' });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
 
@@ -173,6 +174,50 @@ function EntryNumber({ n }) {
     >
       №{String(n).padStart(2, '0')}
     </span>
+  );
+}
+
+function ItemMenu({ actions }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div className="relative flex-shrink-0" ref={ref} onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="p-2 rounded-full transition-colors"
+        style={{ color: C.inkSoft }}
+        title="Amallar"
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 z-20 rounded-sm overflow-hidden"
+          style={{ background: C.white, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.18)', minWidth: '150px' }}
+        >
+          {actions.map((a, i) => (
+            <button
+              key={i}
+              onClick={() => { setOpen(false); a.onClick(); }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-colors"
+              style={{ ...fontBody, color: a.danger ? C.red : C.ink, background: 'transparent' }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.paperSoft)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <a.icon size={14} /> {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -345,38 +390,125 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, addCat
 /*  Kurslar (Courses)                                                  */
 /* ------------------------------------------------------------------ */
 
-function AddCourseForm({ categoryId, onAdd, onDone }) {
+function SuccessPanel({ onView, onDone }) {
+  return (
+    <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.white, border: `1px solid ${C.cover}` }}>
+      <Check size={22} style={{ color: C.cover }} className="mx-auto mb-2" />
+      <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.ink }}>Sizning loyihangiz muvaffaqiyatli qoʻshildi!</div>
+      <div className="flex gap-3 justify-center">
+        <SolidButton onClick={onView} icon={ChevronRight}>Koʻrish</SolidButton>
+        <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
+      </div>
+    </div>
+  );
+}
+
+function CategoryPicker({ categories, value, onChange }) {
+  return (
+    <label className="block mb-4">
+      <span className="block text-xs mb-1 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Soha</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-transparent outline-none py-2 text-[15px]"
+        style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
+      >
+        {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function AddCourseForm({ categories, lockedCategoryId, onSubmit, onDone, onView }) {
+  const [categoryId, setCategoryId] = useState(lockedCategoryId || (categories[0] ? categories[0].id : ''));
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
+  const [newId, setNewId] = useState(null);
+
+  if (!lockedCategoryId && categories.length === 0) {
+    return (
+      <div className="mt-6 p-5 rounded-sm text-sm" style={{ ...fontBody, background: C.white, border: `1px solid ${C.rule}`, color: C.inkSoft }}>
+        Avval kamida bitta soha yaratilishi kerak. <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
+      </div>
+    );
+  }
+
+  if (newId) {
+    return <SuccessPanel onView={() => onView(newId)} onDone={onDone} />;
+  }
 
   async function submit() {
-    if (!title.trim() || !content.trim()) return;
-    const ok = await onAdd({ categoryId, title: title.trim(), summary: summary.trim(), content: content.trim() });
-    if (ok) onDone();
+    if (!title.trim() || !content.trim() || !categoryId) return;
+    const id = await onSubmit({ categoryId, title: title.trim(), summary: summary.trim(), content: content.trim() });
+    if (id) setNewId(id);
   }
 
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+      {!lockedCategoryId && <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} />}
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Masalan: Bozor muvozanati" />
       <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} placeholder="Bir jumlada mavzu haqida" />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing..." textarea rows={7} />
       <div className="flex gap-3 mt-2">
-        <SolidButton onClick={submit} icon={Check}>Mavzuni saqlash</SolidButton>
+        <SolidButton onClick={submit} icon={Check}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
       </div>
     </div>
   );
 }
 
-function CoursesView({ courses, categories, addCourse, deleteCourse, addCategory, deleteCategory }) {
+function EditCourseForm({ course, onSave, onDone }) {
+  const [title, setTitle] = useState(course.title);
+  const [summary, setSummary] = useState(course.summary || '');
+  const [content, setContent] = useState(course.content);
+
+  async function submit() {
+    if (!title.trim() || !content.trim()) return;
+    const ok = await onSave({ categoryId: course.categoryId, title: title.trim(), summary: summary.trim(), content: content.trim() });
+    if (ok) onDone();
+  }
+
+  return (
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+      <TextField label="Mavzu nomi" value={title} onChange={setTitle} />
+      <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} />
+      <TextField label="Dars matni" value={content} onChange={setContent} textarea rows={7} />
+      <div className="flex gap-3 mt-2">
+        <SolidButton onClick={submit} icon={Check}>Saqlash</SolidButton>
+        <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
+      </div>
+    </div>
+  );
+}
+
+function CoursesView({ courses, categories, submitCourse, updateCourse, deleteCourse, addCategory, deleteCategory, onViewCourse }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
+  const [editId, setEditId] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
 
-  const active = courses.find((c) => c.id === openId);
+  const approved = courses.filter((c) => c.status !== 'pending');
+  const active = approved.find((c) => c.id === openId);
+  const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
-  const inCategory = courses.filter((c) => c.categoryId === categoryId);
+  const inCategory = approved.filter((c) => c.categoryId === categoryId);
+
+  if (editing) {
+    return (
+      <div>
+        <button
+          onClick={() => setEditId(null)}
+          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Ortga
+        </button>
+        <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
+        <EditCourseForm course={editing} onSave={(data) => updateCourse(editing.id, data, editing.title)} onDone={() => setEditId(null)} />
+      </div>
+    );
+  }
 
   if (active) {
     return (
@@ -404,7 +536,7 @@ function CoursesView({ courses, categories, addCourse, deleteCourse, addCategory
         <SectionHeading eyebrow={`${categories.length} ta soha`} title="Kurslar" />
         <CategoryGrid
           categories={categories}
-          itemsByCategory={courses.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
+          itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
           itemLabel="mavzu"
           onSelect={setCategoryId}
           addCategory={addCategory}
@@ -442,8 +574,11 @@ function CoursesView({ courses, categories, addCourse, deleteCourse, addCategory
                   {c.summary && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
                 </div>
               </div>
-              <div className="flex items-center flex-shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
-                <IconButtonDelete onClick={() => deleteCourse(c.id, c.title)} />
+              <div className="flex items-center flex-shrink-0 gap-1">
+                <ItemMenu actions={[
+                  { label: 'Tahrirlash', icon: Pencil, onClick: () => setEditId(c.id) },
+                  { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
+                ]} />
                 <ChevronRight size={16} style={{ color: C.gold }} />
               </div>
             </div>
@@ -452,7 +587,7 @@ function CoursesView({ courses, categories, addCourse, deleteCourse, addCategory
       )}
 
       {formOpen ? (
-        <AddCourseForm categoryId={categoryId} onAdd={addCourse} onDone={() => setFormOpen(false)} />
+        <AddCourseForm categories={categories} lockedCategoryId={categoryId} onSubmit={submitCourse} onDone={() => setFormOpen(false)} onView={onViewCourse} />
       ) : (
         <div className="mt-6">
           <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
@@ -466,10 +601,7 @@ function CoursesView({ courses, categories, addCourse, deleteCourse, addCategory
 /*  Testlar (Tests / Quizzes)                                          */
 /* ------------------------------------------------------------------ */
 
-function AddTestForm({ categoryId, onAdd, onDone }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [questions, setQuestions] = useState([]);
+function QuestionBuilder({ questions, setQuestions }) {
   const [qText, setQText] = useState('');
   const [opts, setOpts] = useState(['', '', '', '']);
   const [correct, setCorrect] = useState(0);
@@ -486,17 +618,8 @@ function AddTestForm({ categoryId, onAdd, onDone }) {
     setQuestions(questions.filter((q) => q.id !== id));
   }
 
-  async function submit() {
-    if (!title.trim() || questions.length === 0) return;
-    const ok = await onAdd({ categoryId, title: title.trim(), description: description.trim(), questions });
-    if (ok) onDone();
-  }
-
   return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
-      <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
-      <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} placeholder="Test haqida qisqacha" />
-
+    <>
       {questions.length > 0 && (
         <div className="mb-4 space-y-2">
           {questions.map((q, i) => (
@@ -536,9 +659,67 @@ function AddTestForm({ categoryId, onAdd, onDone }) {
         <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
         <GhostButton onClick={addQuestion} icon={Plus}>Savolni testga qoʻshish</GhostButton>
       </div>
+    </>
+  );
+}
 
+function AddTestForm({ categories, lockedCategoryId, onSubmit, onDone, onView }) {
+  const [categoryId, setCategoryId] = useState(lockedCategoryId || (categories[0] ? categories[0].id : ''));
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [newId, setNewId] = useState(null);
+
+  if (!lockedCategoryId && categories.length === 0) {
+    return (
+      <div className="mt-6 p-5 rounded-sm text-sm" style={{ ...fontBody, background: C.white, border: `1px solid ${C.rule}`, color: C.inkSoft }}>
+        Avval kamida bitta soha yaratilishi kerak. <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
+      </div>
+    );
+  }
+
+  if (newId) {
+    return <SuccessPanel onView={() => onView(newId)} onDone={onDone} />;
+  }
+
+  async function submit() {
+    if (!title.trim() || questions.length === 0 || !categoryId) return;
+    const id = await onSubmit({ categoryId, title: title.trim(), description: description.trim(), questions });
+    if (id) setNewId(id);
+  }
+
+  return (
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+      {!lockedCategoryId && <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} />}
+      <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
+      <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} placeholder="Test haqida qisqacha" />
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} />
       <div className="flex gap-3">
-        <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Testni saqlash</SolidButton>
+        <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Yuborish</SolidButton>
+        <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
+      </div>
+    </div>
+  );
+}
+
+function EditTestForm({ test, onSave, onDone }) {
+  const [title, setTitle] = useState(test.title);
+  const [description, setDescription] = useState(test.description || '');
+  const [questions, setQuestions] = useState(test.questions);
+
+  async function submit() {
+    if (!title.trim() || questions.length === 0) return;
+    const ok = await onSave({ categoryId: test.categoryId, title: title.trim(), description: description.trim(), questions });
+    if (ok) onDone();
+  }
+
+  return (
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+      <TextField label="Test nomi" value={title} onChange={setTitle} />
+      <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} />
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} />
+      <div className="flex gap-3">
+        <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Saqlash</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
       </div>
     </div>
@@ -631,15 +812,35 @@ function QuizView({ test, onExit }) {
   );
 }
 
-function TestsView({ tests, categories, addTest, deleteTest, addCategory, deleteCategory }) {
+function TestsView({ tests, categories, submitTest, updateTest, deleteTest, addCategory, deleteCategory, onViewTest }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
+  const [editId, setEditId] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
-  const active = tests.find((t) => t.id === activeId);
+
+  const approved = tests.filter((t) => t.status !== 'pending');
+  const active = approved.find((t) => t.id === activeId);
+  const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
-  const inCategory = tests.filter((t) => t.categoryId === categoryId);
+  const inCategory = approved.filter((t) => t.categoryId === categoryId);
 
   if (active) return <QuizView test={active} onExit={() => setActiveId(null)} />;
+
+  if (editing) {
+    return (
+      <div>
+        <button
+          onClick={() => setEditId(null)}
+          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Ortga
+        </button>
+        <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
+        <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={() => setEditId(null)} />
+      </div>
+    );
+  }
 
   if (!categoryId) {
     return (
@@ -647,7 +848,7 @@ function TestsView({ tests, categories, addTest, deleteTest, addCategory, delete
         <SectionHeading eyebrow={`${categories.length} ta soha`} title="Testlar" />
         <CategoryGrid
           categories={categories}
-          itemsByCategory={tests.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+          itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
           itemLabel="test"
           onSelect={setCategoryId}
           addCategory={addCategory}
@@ -682,7 +883,10 @@ function TestsView({ tests, categories, addTest, deleteTest, addCategory, delete
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                <IconButtonDelete onClick={() => deleteTest(t.id, t.title)} />
+                <ItemMenu actions={[
+                  { label: 'Tahrirlash', icon: Pencil, onClick: () => setEditId(t.id) },
+                  { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+                ]} />
                 <button
                   onClick={() => setActiveId(t.id)}
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
@@ -697,12 +901,237 @@ function TestsView({ tests, categories, addTest, deleteTest, addCategory, delete
       )}
 
       {formOpen ? (
-        <AddTestForm categoryId={categoryId} onAdd={addTest} onDone={() => setFormOpen(false)} />
+        <AddTestForm categories={categories} lockedCategoryId={categoryId} onSubmit={submitTest} onDone={() => setFormOpen(false)} onView={onViewTest} />
       ) : (
         <div className="mt-6">
           <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi test qoʻshish</GhostButton>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Hamjamiyat (Community) — user-submitted courses & tests, pending    */
+/*  admin approval before they appear in the main Kurslar/Testlar       */
+/* ------------------------------------------------------------------ */
+
+function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse }) {
+  const [formOpen, setFormOpen] = useState(false);
+  const active = courses.find((c) => c.id === openId);
+
+  if (active) {
+    return (
+      <div>
+        <button
+          onClick={() => setOpenId(null)}
+          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Hamjamiyat mavzulari
+        </button>
+        <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
+        <div className="space-y-4 max-w-2xl">
+          {active.content.split('\n\n').map((p, i) => (
+            <p key={i} className="text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>{p}</p>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+      >
+        <ArrowLeft size={15} /> Hamjamiyat
+      </button>
+      <SectionHeading eyebrow={`${courses.length} ta kutilmoqda`} title="Hamjamiyat — Kurslar" />
+      {courses.length === 0 ? (
+        <EmptyState text="Hozircha foydalanuvchilar mavzu qoʻshmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-4">
+          {courses.map((c, i) => (
+            <div
+              key={c.id}
+              className="group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+              style={{ background: C.white, border: `1px solid ${C.rule}` }}
+              onClick={() => setOpenId(c.id)}
+            >
+              <div className="flex items-start min-w-0">
+                <EntryNumber n={i + 1} />
+                <div className="min-w-0">
+                  <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
+                  {c.summary && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                </div>
+              </div>
+              <div className="flex items-center flex-shrink-0 gap-1">
+                <ItemMenu actions={[
+                  { label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) },
+                  { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
+                ]} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {formOpen ? (
+        <AddCourseForm categories={categories} onSubmit={submitCourse} onDone={() => setFormOpen(false)} onView={setOpenId} />
+      ) : (
+        <div className="mt-6">
+          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest }) {
+  const [formOpen, setFormOpen] = useState(false);
+  const active = tests.find((t) => t.id === openId);
+
+  if (active) return <QuizView test={active} onExit={() => setOpenId(null)} />;
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+      >
+        <ArrowLeft size={15} /> Hamjamiyat
+      </button>
+      <SectionHeading eyebrow={`${tests.length} ta kutilmoqda`} title="Hamjamiyat — Testlar" />
+      {tests.length === 0 ? (
+        <EmptyState text="Hozircha foydalanuvchilar test qoʻshmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-4">
+          {tests.map((t, i) => (
+            <div key={t.id} className="flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+              <div className="flex items-start min-w-0">
+                <EntryNumber n={i + 1} />
+                <div className="min-w-0">
+                  <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+                  {t.description && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
+                  <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                <ItemMenu actions={[
+                  { label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) },
+                  { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+                ]} />
+                <button
+                  onClick={() => setOpenId(t.id)}
+                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
+                  style={{ ...fontBody, color: C.white, background: C.cover }}
+                >
+                  <Award size={13} /> Boshlash
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {formOpen ? (
+        <AddTestForm categories={categories} onSubmit={submitTest} onDone={() => setFormOpen(false)} onView={setOpenId} />
+      ) : (
+        <div className="mt-6">
+          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi test qoʻshish</GhostButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest }) {
+  const [subTab, setSubTab] = useState(null);
+  const [openCourseId, setOpenCourseId] = useState(null);
+  const [openTestId, setOpenTestId] = useState(null);
+
+  useEffect(() => {
+    if (target) {
+      setSubTab(target.type);
+      if (target.type === 'kurslar') setOpenCourseId(target.id);
+      if (target.type === 'testlar') setOpenTestId(target.id);
+      onConsumeTarget();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+
+  const pendingCourses = courses.filter((c) => c.status === 'pending');
+  const pendingTests = tests.filter((t) => t.status === 'pending');
+
+  if (subTab === 'kurslar') {
+    return (
+      <CommunityCoursesView
+        courses={pendingCourses}
+        categories={categories}
+        openId={openCourseId}
+        setOpenId={setOpenCourseId}
+        onBack={() => setSubTab(null)}
+        submitCourse={submitCourse}
+        approveCourse={approveCourse}
+        deleteCourse={deleteCourse}
+      />
+    );
+  }
+  if (subTab === 'testlar') {
+    return (
+      <CommunityTestsView
+        tests={pendingTests}
+        categories={categories}
+        openId={openTestId}
+        setOpenId={setOpenTestId}
+        onBack={() => setSubTab(null)}
+        submitTest={submitTest}
+        approveTest={approveTest}
+        deleteTest={deleteTest}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeading eyebrow="Foydalanuvchilar tuzgan" title="Hamjamiyat" />
+      <p className="text-sm mb-6" style={{ ...fontBody, color: C.inkSoft }}>
+        Bu yerda foydalanuvchilar tomonidan yaratilgan mavzu va testlar joylashadi. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga oʻtadi.
+      </p>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <button
+          onClick={() => setSubTab('kurslar')}
+          className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5"
+          style={{ background: C.white, border: `1px solid ${C.rule}` }}
+        >
+          <div className="flex items-center gap-3">
+            <BookOpen size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>Kurslar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingCourses.length} ta kutilmoqda</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button
+          onClick={() => setSubTab('testlar')}
+          className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5"
+          style={{ background: C.white, border: `1px solid ${C.rule}` }}
+        >
+          <div className="flex items-center gap-3">
+            <ListChecks size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>Testlar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingTests.length} ta kutilmoqda</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -841,6 +1270,7 @@ function PasswordModal({ label, onConfirm, onCancel }) {
 const TABS = [
   { id: 'kurslar', label: 'Kurslar', icon: BookOpen },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
+  { id: 'hamjamiyat', label: 'Hamjamiyat', icon: Users },
   { id: 'yangiliklar', label: 'Yangiliklar', icon: Newspaper },
   { id: 'about', label: 'Biz haqimizda', icon: Info },
 ];
@@ -855,6 +1285,10 @@ export default function App() {
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [pendingConfirm, setPendingConfirm] = useState(null);
+  const [communityTarget, setCommunityTarget] = useState(null);
+
+  function viewCourseInCommunity(id) { setTab('hamjamiyat'); setCommunityTarget({ type: 'kurslar', id }); }
+  function viewTestInCommunity(id) { setTab('hamjamiyat'); setCommunityTarget({ type: 'testlar', id }); }
 
   const requestAdmin = useCallback((label) => {
     return new Promise((resolve) => {
@@ -925,16 +1359,39 @@ export default function App() {
     }
   }
 
-  async function addCourse(data) {
-    if (!(await requestAdmin('Yangi mavzu qoʻshish'))) return false;
-    const row = { ...data, id: uid() };
+  async function submitCourse(data) {
+    const row = { ...data, id: uid(), status: 'pending' };
     try {
       await sbInsert('courses', courseToRow(row));
       setCourses([row, ...courses]);
       setActionError(null);
-      return true;
+      return row.id;
     } catch (e) {
       setActionError('Mavzuni saqlashda xatolik yuz berdi.');
+      return null;
+    }
+  }
+  async function approveCourse(id, title) {
+    if (!(await requestAdmin(`"${title}" mavzusini tasdiqlash`))) return false;
+    try {
+      await sbUpdate('courses', id, { status: 'approved' });
+      setCourses(courses.map((c) => (c.id === id ? { ...c, status: 'approved' } : c)));
+      setActionError(null);
+      return true;
+    } catch (e) {
+      setActionError('Tasdiqlashda xatolik yuz berdi.');
+      return false;
+    }
+  }
+  async function updateCourse(id, data, title) {
+    if (!(await requestAdmin(`"${title}" mavzusini tahrirlash`))) return false;
+    try {
+      await sbUpdate('courses', id, courseToRow({ id, status: 'approved', ...data }));
+      setCourses(courses.map((c) => (c.id === id ? { ...c, ...data } : c)));
+      setActionError(null);
+      return true;
+    } catch (e) {
+      setActionError('Tahrirlashda xatolik yuz berdi.');
       return false;
     }
   }
@@ -951,16 +1408,39 @@ export default function App() {
     }
   }
 
-  async function addTest(data) {
-    if (!(await requestAdmin('Yangi test qoʻshish'))) return false;
-    const row = { ...data, id: uid() };
+  async function submitTest(data) {
+    const row = { ...data, id: uid(), status: 'pending' };
     try {
       await sbInsert('tests', testToRow(row));
       setTests([row, ...tests]);
       setActionError(null);
-      return true;
+      return row.id;
     } catch (e) {
       setActionError('Testni saqlashda xatolik yuz berdi.');
+      return null;
+    }
+  }
+  async function approveTest(id, title) {
+    if (!(await requestAdmin(`"${title}" testini tasdiqlash`))) return false;
+    try {
+      await sbUpdate('tests', id, { status: 'approved' });
+      setTests(tests.map((t) => (t.id === id ? { ...t, status: 'approved' } : t)));
+      setActionError(null);
+      return true;
+    } catch (e) {
+      setActionError('Tasdiqlashda xatolik yuz berdi.');
+      return false;
+    }
+  }
+  async function updateTest(id, data, title) {
+    if (!(await requestAdmin(`"${title}" testini tahrirlash`))) return false;
+    try {
+      await sbUpdate('tests', id, testToRow({ id, status: 'approved', ...data }));
+      setTests(tests.map((t) => (t.id === id ? { ...t, ...data } : t)));
+      setActionError(null);
+      return true;
+    } catch (e) {
+      setActionError('Tahrirlashda xatolik yuz berdi.');
       return false;
     }
   }
@@ -1024,7 +1504,7 @@ export default function App() {
             Barcha soha vakillari uchun mos mavzular, testlar va yangiliklar.
           </p>
           <div className="flex gap-6 pt-4" style={{ borderTop: `1px solid ${C.coverLine}` }}>
-            {[['Mavzular', courses.length], ['Testlar', tests.length], ['Yangiliklar', news.length]].map(([label, val]) => (
+            {[['Mavzular', courses.filter((c) => c.status !== 'pending').length], ['Testlar', tests.filter((t) => t.status !== 'pending').length], ['Yangiliklar', news.length]].map(([label, val]) => (
               <div key={label}>
                 <div className="text-xl" style={{ ...fontMono, color: C.gold }}>{String(val).padStart(2, '0')}</div>
                 <div className="text-xs uppercase tracking-wide" style={{ ...fontBody, color: 'rgba(251,250,243,0.55)' }}>{label}</div>
@@ -1081,8 +1561,23 @@ export default function App() {
               </div>
             )}
             <PaperPanel>
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} addCourse={addCourse} deleteCourse={deleteCourse} addCategory={addCategory} deleteCategory={deleteCategory} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} addTest={addTest} deleteTest={deleteTest} addCategory={addCategory} deleteCategory={deleteCategory} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} submitCourse={submitCourse} updateCourse={updateCourse} deleteCourse={deleteCourse} addCategory={addCategory} deleteCategory={deleteCategory} onViewCourse={viewCourseInCommunity} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} submitTest={submitTest} updateTest={updateTest} deleteTest={deleteTest} addCategory={addCategory} deleteCategory={deleteCategory} onViewTest={viewTestInCommunity} />}
+              {tab === 'hamjamiyat' && (
+                <HamjamiyatView
+                  courses={courses}
+                  tests={tests}
+                  categories={categories}
+                  target={communityTarget}
+                  onConsumeTarget={() => setCommunityTarget(null)}
+                  submitCourse={submitCourse}
+                  approveCourse={approveCourse}
+                  deleteCourse={deleteCourse}
+                  submitTest={submitTest}
+                  approveTest={approveTest}
+                  deleteTest={deleteTest}
+                />
+              )}
               {tab === 'yangiliklar' && <NewsView news={news} addNews={addNews} deleteNews={deleteNews} />}
               {tab === 'about' && <AboutView />}
             </PaperPanel>
