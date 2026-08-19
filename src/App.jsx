@@ -154,10 +154,10 @@ const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(i
 /* Row (snake_case, matches SQL columns) <-> app object (camelCase) */
 const categoryToRow = (c) => ({ id: c.id, name: c.name });
 const categoryFromRow = (r) => ({ id: r.id, name: r.name });
-const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, status: c.status || 'approved' });
-const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, status: r.status || 'approved' });
-const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, status: t.status || 'approved' });
-const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, status: r.status || 'approved' });
+const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, author: c.author || '', status: c.status || 'approved' });
+const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, author: r.author || '', status: r.status || 'approved' });
+const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', status: t.status || 'approved' });
+const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', status: r.status || 'approved' });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
 
@@ -420,36 +420,38 @@ function CategoryPicker({ categories, value, onChange }) {
 }
 
 function AddCourseForm({ categories, lockedCategoryId, onSubmit, onDone, onView }) {
-  const [categoryId, setCategoryId] = useState(lockedCategoryId || (categories[0] ? categories[0].id : ''));
+  const [categoryName, setCategoryName] = useState('');
+  const [author, setAuthor] = useState('');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [newId, setNewId] = useState(null);
-
-  if (!lockedCategoryId && categories.length === 0) {
-    return (
-      <div className="mt-6 p-5 rounded-sm text-sm" style={{ ...fontBody, background: C.white, border: `1px solid ${C.rule}`, color: C.inkSoft }}>
-        Avval kamida bitta soha yaratilishi kerak. <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
-      </div>
-    );
-  }
 
   if (newId) {
     return <SuccessPanel onView={() => onView(newId)} onDone={onDone} />;
   }
 
   async function submit() {
-    if (!title.trim() || !content.trim() || !categoryId) return;
-    const id = await onSubmit({ categoryId, title: title.trim(), summary: summary.trim(), content: content.trim() });
+    if (!title.trim() || !content.trim()) return;
+    if (!lockedCategoryId && !categoryName.trim()) return;
+    const payload = lockedCategoryId
+      ? { categoryId: lockedCategoryId, title: title.trim(), summary: summary.trim(), content: content.trim() }
+      : { categoryName: categoryName.trim(), author: author.trim(), title: title.trim(), summary: summary.trim(), content: content.trim() };
+    const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
 
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
-      {!lockedCategoryId && <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} />}
+      {!lockedCategoryId && (
+        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
+      )}
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Masalan: Bozor muvozanati" />
       <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} placeholder="Bir jumlada mavzu haqida" />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing..." textarea rows={7} />
+      {!lockedCategoryId && (
+        <TextField label="Tuzuvchi (ixtiyoriy)" value={author} onChange={setAuthor} placeholder="Ismingiz yoki taxallusingiz" />
+      )}
       <div className="flex gap-3 mt-2">
         <SolidButton onClick={submit} icon={Check}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
@@ -664,38 +666,41 @@ function QuestionBuilder({ questions, setQuestions }) {
 }
 
 function AddTestForm({ categories, lockedCategoryId, onSubmit, onDone, onView }) {
-  const [categoryId, setCategoryId] = useState(lockedCategoryId || (categories[0] ? categories[0].id : ''));
+  const [categoryName, setCategoryName] = useState('');
+  const [author, setAuthor] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [questions, setQuestions] = useState([]);
   const [newId, setNewId] = useState(null);
 
-  if (!lockedCategoryId && categories.length === 0) {
-    return (
-      <div className="mt-6 p-5 rounded-sm text-sm" style={{ ...fontBody, background: C.white, border: `1px solid ${C.rule}`, color: C.inkSoft }}>
-        Avval kamida bitta soha yaratilishi kerak. <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
-      </div>
-    );
-  }
-
   if (newId) {
     return <SuccessPanel onView={() => onView(newId)} onDone={onDone} />;
   }
 
+  const canSubmit = title.trim() && questions.length > 0 && (lockedCategoryId || categoryName.trim());
+
   async function submit() {
-    if (!title.trim() || questions.length === 0 || !categoryId) return;
-    const id = await onSubmit({ categoryId, title: title.trim(), description: description.trim(), questions });
+    if (!canSubmit) return;
+    const payload = lockedCategoryId
+      ? { categoryId: lockedCategoryId, title: title.trim(), description: description.trim(), questions }
+      : { categoryName: categoryName.trim(), author: author.trim(), title: title.trim(), description: description.trim(), questions };
+    const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
 
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
-      {!lockedCategoryId && <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} />}
+      {!lockedCategoryId && (
+        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
+      )}
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
       <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} placeholder="Test haqida qisqacha" />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} />
+      {!lockedCategoryId && (
+        <TextField label="Tuzuvchi (ixtiyoriy)" value={author} onChange={setAuthor} placeholder="Ismingiz yoki taxallusingiz" />
+      )}
       <div className="flex gap-3">
-        <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Yuborish</SolidButton>
+        <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
       </div>
     </div>
@@ -964,8 +969,12 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
               <div className="flex items-start min-w-0">
                 <EntryNumber n={i + 1} />
                 <div className="min-w-0">
+                  <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
+                    {categories.find((cat) => cat.id === c.categoryId)?.name || 'Soha koʻrsatilmagan'}
+                  </div>
                   <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                   {c.summary && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                  {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
                 </div>
               </div>
               <div className="flex items-center flex-shrink-0 gap-1">
@@ -1015,9 +1024,13 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
               <div className="flex items-start min-w-0">
                 <EntryNumber n={i + 1} />
                 <div className="min-w-0">
+                  <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
+                    {categories.find((cat) => cat.id === t.categoryId)?.name || 'Soha koʻrsatilmagan'}
+                  </div>
                   <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                   <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                  {t.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -1359,8 +1372,30 @@ export default function App() {
     }
   }
 
+  /* Hamjamiyat orqali kelgan erkin "soha nomi"ni mavjud sohaga bogʻlaydi
+     yoki (topilmasa) parolsiz yangi soha yaratadi. */
+  async function resolveCategoryId(name) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return null;
+    const existing = categories.find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
+    if (existing) return existing.id;
+    const row = { id: uid(), name: trimmed };
+    await sbInsert('categories', categoryToRow(row));
+    setCategories((prev) => [...prev, row]);
+    return row.id;
+  }
+
   async function submitCourse(data) {
-    const row = { ...data, id: uid(), status: 'pending' };
+    let categoryId = data.categoryId;
+    if (!categoryId && data.categoryName) {
+      try {
+        categoryId = await resolveCategoryId(data.categoryName);
+      } catch (e) {
+        setActionError('Sohani yaratishda xatolik yuz berdi.');
+        return null;
+      }
+    }
+    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, author: data.author || '', status: 'pending' };
     try {
       await sbInsert('courses', courseToRow(row));
       setCourses([row, ...courses]);
@@ -1409,7 +1444,16 @@ export default function App() {
   }
 
   async function submitTest(data) {
-    const row = { ...data, id: uid(), status: 'pending' };
+    let categoryId = data.categoryId;
+    if (!categoryId && data.categoryName) {
+      try {
+        categoryId = await resolveCategoryId(data.categoryName);
+      } catch (e) {
+        setActionError('Sohani yaratishda xatolik yuz berdi.');
+        return null;
+      }
+    }
+    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, author: data.author || '', status: 'pending' };
     try {
       await sbInsert('tests', testToRow(row));
       setTests([row, ...tests]);
