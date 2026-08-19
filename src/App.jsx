@@ -341,12 +341,11 @@ function AddCategoryForm({ onAdd, onDone }) {
   );
 }
 
-function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, addCategory, deleteCategory }) {
-  const [formOpen, setFormOpen] = useState(false);
+function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, deleteCategory, onGoToCommunity }) {
   return (
     <div>
       {categories.length === 0 ? (
-        <EmptyState text="Hozircha soha qoʻshilmagan." cta="Quyidagi tugma orqali birinchi sohani qoʻshing." />
+        <EmptyState text="Hozircha soha qoʻshilmagan." cta="Quyidagi tugma orqali Hamjamiyat boʻlimida birinchi sohani qoʻshing." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {categories.map((cat, i) => {
@@ -375,13 +374,9 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, addCat
         </div>
       )}
 
-      {formOpen ? (
-        <AddCategoryForm onAdd={addCategory} onDone={() => setFormOpen(false)} />
-      ) : (
-        <div className="mt-6">
-          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi soha qoʻshish</GhostButton>
-        </div>
-      )}
+      <div className="mt-6">
+        <GhostButton onClick={onGoToCommunity} icon={Plus}>Yangi soha qoʻshish</GhostButton>
+      </div>
     </div>
   );
 }
@@ -419,8 +414,8 @@ function CategoryPicker({ categories, value, onChange }) {
   );
 }
 
-function AddCourseForm({ categories, lockedCategoryId, onSubmit, onDone, onView }) {
-  const [categoryName, setCategoryName] = useState('');
+function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
+  const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [author, setAuthor] = useState('');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
@@ -484,11 +479,10 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, submitCourse, updateCourse, deleteCourse, addCategory, deleteCategory, onViewCourse }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCategory, onGoToCommunity }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
-  const [formOpen, setFormOpen] = useState(false);
 
   const approved = courses.filter((c) => c.status !== 'pending');
   const active = approved.find((c) => c.id === openId);
@@ -541,8 +535,8 @@ function CoursesView({ courses, categories, submitCourse, updateCourse, deleteCo
           itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
           itemLabel="mavzu"
           onSelect={setCategoryId}
-          addCategory={addCategory}
           deleteCategory={deleteCategory}
+          onGoToCommunity={() => onGoToCommunity('kurslar')}
         />
       </div>
     );
@@ -559,7 +553,7 @@ function CoursesView({ courses, categories, submitCourse, updateCourse, deleteCo
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta mavzu`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
       {inCategory.length === 0 ? (
-        <EmptyState text="Bu sohada hozircha mavzu qoʻshilmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
+        <EmptyState text="Bu sohada hozircha mavzu qoʻshilmagan." cta="Quyidagi tugma orqali Hamjamiyat boʻlimida birinchi mavzuni qoʻshing." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((c, i) => (
@@ -588,13 +582,9 @@ function CoursesView({ courses, categories, submitCourse, updateCourse, deleteCo
         </div>
       )}
 
-      {formOpen ? (
-        <AddCourseForm categories={categories} lockedCategoryId={categoryId} onSubmit={submitCourse} onDone={() => setFormOpen(false)} onView={onViewCourse} />
-      ) : (
-        <div className="mt-6">
-          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
-        </div>
-      )}
+      <div className="mt-6">
+        <GhostButton onClick={() => onGoToCommunity('kurslar', activeCategory ? activeCategory.name : '')} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
+      </div>
     </div>
   );
 }
@@ -665,8 +655,8 @@ function QuestionBuilder({ questions, setQuestions }) {
   );
 }
 
-function AddTestForm({ categories, lockedCategoryId, onSubmit, onDone, onView }) {
-  const [categoryName, setCategoryName] = useState('');
+function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
+  const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [author, setAuthor] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -817,11 +807,10 @@ function QuizView({ test, onExit }) {
   );
 }
 
-function TestsView({ tests, categories, submitTest, updateTest, deleteTest, addCategory, deleteCategory, onViewTest }) {
+function TestsView({ tests, categories, updateTest, deleteTest, deleteCategory, onGoToCommunity }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
-  const [formOpen, setFormOpen] = useState(false);
 
   const approved = tests.filter((t) => t.status !== 'pending');
   const active = approved.find((t) => t.id === activeId);
@@ -856,8 +845,8 @@ function TestsView({ tests, categories, submitTest, updateTest, deleteTest, addC
           itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
           itemLabel="test"
           onSelect={setCategoryId}
-          addCategory={addCategory}
           deleteCategory={deleteCategory}
+          onGoToCommunity={() => onGoToCommunity('testlar')}
         />
       </div>
     );
@@ -874,7 +863,7 @@ function TestsView({ tests, categories, submitTest, updateTest, deleteTest, addC
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
       {inCategory.length === 0 ? (
-        <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
+        <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali Hamjamiyat boʻlimida birinchi testni qoʻshing." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((t, i) => (
@@ -905,13 +894,9 @@ function TestsView({ tests, categories, submitTest, updateTest, deleteTest, addC
         </div>
       )}
 
-      {formOpen ? (
-        <AddTestForm categories={categories} lockedCategoryId={categoryId} onSubmit={submitTest} onDone={() => setFormOpen(false)} onView={onViewTest} />
-      ) : (
-        <div className="mt-6">
-          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi test qoʻshish</GhostButton>
-        </div>
-      )}
+      <div className="mt-6">
+        <GhostButton onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} icon={Plus}>Yangi test qoʻshish</GhostButton>
+      </div>
     </div>
   );
 }
@@ -921,8 +906,7 @@ function TestsView({ tests, categories, submitTest, updateTest, deleteTest, addC
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse }) {
-  const [formOpen, setFormOpen] = useState(false);
+function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory }) {
   const active = courses.find((c) => c.id === openId);
 
   if (active) {
@@ -989,18 +973,17 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
       )}
 
       {formOpen ? (
-        <AddCourseForm categories={categories} onSubmit={submitCourse} onDone={() => setFormOpen(false)} onView={setOpenId} />
+        <AddCourseForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitCourse} onDone={onCloseForm} onView={setOpenId} />
       ) : (
         <div className="mt-6">
-          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
+          <GhostButton onClick={onOpenForm} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
         </div>
       )}
     </div>
   );
 }
 
-function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest }) {
-  const [formOpen, setFormOpen] = useState(false);
+function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory }) {
   const active = tests.find((t) => t.id === openId);
 
   if (active) return <QuizView test={active} onExit={() => setOpenId(null)} />;
@@ -1052,10 +1035,10 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
       )}
 
       {formOpen ? (
-        <AddTestForm categories={categories} onSubmit={submitTest} onDone={() => setFormOpen(false)} onView={setOpenId} />
+        <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={onCloseForm} onView={setOpenId} />
       ) : (
         <div className="mt-6">
-          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi test qoʻshish</GhostButton>
+          <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
         </div>
       )}
     </div>
@@ -1066,12 +1049,23 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
   const [subTab, setSubTab] = useState(null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
+  const [courseFormOpen, setCourseFormOpen] = useState(false);
+  const [testFormOpen, setTestFormOpen] = useState(false);
+  const [prefillCategory, setPrefillCategory] = useState('');
 
   useEffect(() => {
     if (target) {
       setSubTab(target.type);
-      if (target.type === 'kurslar') setOpenCourseId(target.id);
-      if (target.type === 'testlar') setOpenTestId(target.id);
+      if (target.action === 'add') {
+        setOpenCourseId(null);
+        setOpenTestId(null);
+        setPrefillCategory(target.prefillCategory || '');
+        if (target.type === 'kurslar') setCourseFormOpen(true);
+        if (target.type === 'testlar') setTestFormOpen(true);
+      } else {
+        if (target.type === 'kurslar') setOpenCourseId(target.id);
+        if (target.type === 'testlar') setOpenTestId(target.id);
+      }
       onConsumeTarget();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1091,6 +1085,10 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
         submitCourse={submitCourse}
         approveCourse={approveCourse}
         deleteCourse={deleteCourse}
+        formOpen={courseFormOpen}
+        onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); }}
+        onCloseForm={() => setCourseFormOpen(false)}
+        prefillCategory={prefillCategory}
       />
     );
   }
@@ -1105,6 +1103,10 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
         submitTest={submitTest}
         approveTest={approveTest}
         deleteTest={deleteTest}
+        formOpen={testFormOpen}
+        onOpenForm={() => { setPrefillCategory(''); setTestFormOpen(true); }}
+        onCloseForm={() => setTestFormOpen(false)}
+        prefillCategory={prefillCategory}
       />
     );
   }
@@ -1300,8 +1302,7 @@ export default function App() {
   const [pendingConfirm, setPendingConfirm] = useState(null);
   const [communityTarget, setCommunityTarget] = useState(null);
 
-  function viewCourseInCommunity(id) { setTab('hamjamiyat'); setCommunityTarget({ type: 'kurslar', id }); }
-  function viewTestInCommunity(id) { setTab('hamjamiyat'); setCommunityTarget({ type: 'testlar', id }); }
+  function goToCommunity(kind, prefillCategory) { setTab('hamjamiyat'); setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '' }); }
 
   const requestAdmin = useCallback((label) => {
     return new Promise((resolve) => {
@@ -1605,8 +1606,8 @@ export default function App() {
               </div>
             )}
             <PaperPanel>
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} submitCourse={submitCourse} updateCourse={updateCourse} deleteCourse={deleteCourse} addCategory={addCategory} deleteCategory={deleteCategory} onViewCourse={viewCourseInCommunity} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} submitTest={submitTest} updateTest={updateTest} deleteTest={deleteTest} addCategory={addCategory} deleteCategory={deleteCategory} onViewTest={viewTestInCommunity} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
               {tab === 'hamjamiyat' && (
                 <HamjamiyatView
                   courses={courses}
