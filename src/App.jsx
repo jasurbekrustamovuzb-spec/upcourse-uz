@@ -25,21 +25,33 @@ const LIGHT_PALETTE = {
   ink: '#262A1E',
   inkSoft: '#5C6152',
   white: '#FBFAF3',
+  surface: '#FBFAF3',
+  successTint: 'rgba(31,61,43,0.10)',
+  dangerTint: 'rgba(168,67,58,0.10)',
+  selectedTint: 'rgba(184,134,59,0.08)',
+  dangerBannerTint: 'rgba(168,67,58,0.08)',
+  accent: '#1F3D2B',
 };
 
 const DARK_PALETTE = {
   cover: '#1F3D2B',
   coverDeep: '#0F1B12',
   coverLine: 'rgba(184,134,59,0.35)',
-  paper: '#171C18',
-  paperSoft: '#1D231E',
-  rule: '#3A4238',
-  red: '#D9776A',
-  gold: '#C79A54',
-  goldSoft: '#DCC28F',
-  ink: '#EDE7D8',
-  inkSoft: '#9BA398',
-  white: '#20261F',
+  paper: '#141815',
+  paperSoft: '#1A1F1B',
+  rule: '#3D453D',
+  red: '#E08A7D',
+  gold: '#D4AC6E',
+  goldSoft: '#E4CC9C',
+  ink: '#F0EBDD',
+  inkSoft: '#B7BEB2',
+  white: '#FBFAF3',
+  surface: '#232A22',
+  successTint: 'rgba(94,168,118,0.22)',
+  dangerTint: 'rgba(224,138,125,0.22)',
+  selectedTint: 'rgba(212,172,110,0.18)',
+  dangerBannerTint: 'rgba(224,138,125,0.14)',
+  accent: '#8FCB9E',
 };
 
 const C = { ...LIGHT_PALETTE };
@@ -222,7 +234,7 @@ function ItemMenu({ actions }) {
       {open && (
         <div
           className="absolute right-0 top-full mt-1 z-20 rounded-sm overflow-hidden"
-          style={{ background: C.white, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.18)', minWidth: '150px' }}
+          style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.18)', minWidth: '150px' }}
         >
           {actions.map((a, i) => (
             <button
@@ -281,7 +293,7 @@ function SearchBox({ value, onChange, placeholder }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="w-full pl-11 pr-4 py-3 rounded-sm text-base outline-none focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.ink, background: C.white, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+        style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
       />
       {value && (
         <button
@@ -463,7 +475,7 @@ function GhostButton({ children, onClick, icon: Icon, type }) {
       type={type || 'button'}
       onClick={onClick}
       className="inline-flex items-center gap-2 px-4 py-2 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
-      style={{ ...fontBody, color: C.cover, border: `1px solid ${C.cover}`, outlineColor: C.gold }}
+      style={{ ...fontBody, color: C.accent, border: `1px solid ${C.accent}`, outlineColor: C.gold }}
     >
       {Icon && <Icon size={15} />}
       {children}
@@ -500,7 +512,7 @@ function AddCategoryForm({ onAdd, onDone }) {
   }
 
   return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Soha nomi" value={name} onChange={setName} placeholder="Masalan: Marketing, Huquqshunoslik, Dasturlash" />
       <div className="flex gap-3 mt-2">
         <SolidButton onClick={submit} icon={Check}>Sohani saqlash</SolidButton>
@@ -521,7 +533,7 @@ function RenameCategoryModal({ category, onSave, onCancel }) {
       <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm p-6 rounded-sm"
-        style={{ background: C.white, border: `1px solid ${C.rule}`, boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}
+        style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}
       >
         <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.gold }}>Sohani tahrirlash</div>
         <TextField label="Soha nomi" value={name} onChange={setName} />
@@ -549,7 +561,7 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
               <div
                 key={cat.id}
                 className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                 onClick={() => onSelect(cat.id)}
               >
                 <div className="flex items-start min-w-0">
@@ -597,8 +609,8 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
 
 function SuccessPanel({ onView, onDone }) {
   return (
-    <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.white, border: `1px solid ${C.cover}` }}>
-      <Check size={22} style={{ color: C.cover }} className="mx-auto mb-2" />
+    <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
+      <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
       <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>Sizning loyihangiz muvaffaqiyatli qoʻshildi!</div>
       <div className="flex gap-3 justify-center">
         <SolidButton onClick={onView} icon={ChevronRight}>Koʻrish</SolidButton>
@@ -648,7 +660,7 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   }
 
   return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       {!lockedCategoryId && (
         <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
       )}
@@ -680,7 +692,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   }
 
   return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} />
       <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
@@ -768,7 +780,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                         <div
                           key={cat.id}
                           className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                          style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                           onClick={() => setCategoryId(cat.id)}
                         >
                           <div className="min-w-0">
@@ -791,7 +803,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                       <div
                         key={c.id}
                         className="min-w-0 group flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                        style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                        style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                         onClick={() => setOpenId(c.id)}
                       >
                         <div className="min-w-0">
@@ -842,7 +854,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             <div
               key={c.id}
               className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-              style={{ background: C.white, border: `1px solid ${C.rule}` }}
+              style={{ background: C.surface, border: `1px solid ${C.rule}` }}
               onClick={() => setOpenId(c.id)}
             >
               <div className="flex items-start min-w-0">
@@ -961,7 +973,7 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
   }
 
   return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       {!lockedCategoryId && (
         <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
       )}
@@ -991,7 +1003,7 @@ function EditTestForm({ test, onSave, onDone }) {
   }
 
   return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Test nomi" value={title} onChange={setTitle} />
       <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} />
@@ -1051,12 +1063,12 @@ function QuizView({ test, onExit }) {
             <div className="space-y-2">
               {q.options.map((opt, oi) => {
                 const isSelected = answers[q.id] === oi;
-                let bg = C.white, border = C.rule, textColor = C.ink;
+                let bg = C.surface, border = C.rule, textColor = C.ink;
                 if (submitted) {
-                  if (oi === q.correct) { bg = 'rgba(31,61,43,0.10)'; border = C.cover; }
-                  else if (isSelected && oi !== q.correct) { bg = 'rgba(168,67,58,0.10)'; border = C.red; }
+                  if (oi === q.correct) { bg = C.successTint; border = C.accent; }
+                  else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
                 } else if (isSelected) {
-                  border = C.gold; bg = 'rgba(184,134,59,0.08)';
+                  border = C.gold; bg = C.selectedTint;
                 }
                 return (
                   <button
@@ -1068,7 +1080,7 @@ function QuizView({ test, onExit }) {
                   >
                     <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
                     <span>{opt}</span>
-                    {submitted && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.cover }} />}
+                    {submitted && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
                     {submitted && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
                   </button>
                 );
@@ -1150,7 +1162,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                         <div
                           key={cat.id}
                           className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                          style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                           onClick={() => setCategoryId(cat.id)}
                         >
                           <div className="min-w-0">
@@ -1170,7 +1182,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {matchedTests.map((t) => (
-                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
                         <div className="min-w-0">
                           <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
                             {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
@@ -1222,7 +1234,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((t, i) => (
-            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
               <div className="flex items-start min-w-0">
                 <EntryNumber n={i + 1} />
                 <div className="min-w-0">
@@ -1306,7 +1318,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
                 <div
                   key={cat.id}
                   className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                  style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                  style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                   onClick={() => setCategoryId(cat.id)}
                 >
                   <div className="flex items-start min-w-0">
@@ -1349,7 +1361,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
           <div
             key={c.id}
             className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-            style={{ background: C.white, border: `1px solid ${C.rule}` }}
+            style={{ background: C.surface, border: `1px solid ${C.rule}` }}
             onClick={() => setOpenId(c.id)}
           >
             <div className="flex items-start min-w-0">
@@ -1411,7 +1423,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                 <div
                   key={cat.id}
                   className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                  style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                  style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                   onClick={() => setCategoryId(cat.id)}
                 >
                   <div className="flex items-start min-w-0">
@@ -1451,7 +1463,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
       <SectionHeading eyebrow={`${inCategory.length} ta kutilmoqda`} title={activeCategory ? activeCategory.name : 'Testlar'} />
       <div className="grid sm:grid-cols-2 gap-4">
         {inCategory.map((t, i) => (
-          <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+          <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
             <div className="flex items-start min-w-0">
               <EntryNumber n={i + 1} />
               <div className="min-w-0">
@@ -1565,7 +1577,7 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
         <button
           onClick={() => setSubTab('kurslar')}
           className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5"
-          style={{ background: C.white, border: `1px solid ${C.rule}` }}
+          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
         >
           <div className="flex items-center gap-3">
             <BookOpen size={20} style={{ color: C.gold }} />
@@ -1579,7 +1591,7 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
         <button
           onClick={() => setSubTab('testlar')}
           className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5"
-          style={{ background: C.white, border: `1px solid ${C.rule}` }}
+          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
         >
           <div className="flex items-center gap-3">
             <ListChecks size={20} style={{ color: C.gold }} />
@@ -1610,7 +1622,7 @@ function AddNewsForm({ onAdd, onDone }) {
   }
 
   return (
-    <div className="mb-6 p-5 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+    <div className="mb-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Sarlavha" value={title} onChange={setTitle} placeholder="Yangilik sarlavhasi" />
       <TextField label="Matn" value={content} onChange={setContent} placeholder="Yangilik matni..." textarea rows={5} />
       <div className="flex gap-3">
@@ -1642,7 +1654,7 @@ function NewsView({ news, addNews, deleteNews }) {
       ) : (
         <div className="space-y-4 max-w-2xl">
           {sorted.map((n) => (
-            <div key={n.id} className="p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+            <div key={n.id} className="p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-xs mb-1" style={{ ...fontMono, color: C.gold }}>{formatDate(n.date)}</div>
@@ -1698,7 +1710,7 @@ function PasswordModal({ label, onConfirm, onCancel }) {
       <div
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm p-6 rounded-sm"
-        style={{ background: C.white, border: `1px solid ${C.rule}`, boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}
+        style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}
       >
         <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.gold }}>Tasdiqlash</div>
         <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>{label} uchun parolni kiriting:</div>
@@ -2055,7 +2067,7 @@ export default function App() {
 
       {/* Tab nav */}
       <nav className="max-w-5xl mx-auto px-5 sm:px-8 -mt-5 relative z-10">
-        <div className="flex gap-1 p-1.5 rounded-sm overflow-x-auto" style={{ background: C.white, border: `1px solid ${C.rule}`, boxShadow: '0 6px 16px rgba(31,61,43,0.12)' }}>
+        <div className="flex gap-1 p-1.5 rounded-sm overflow-x-auto" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 6px 16px rgba(31,61,43,0.12)' }}>
           {TABS.map((t) => {
             const Icon = t.icon;
             const activeTab = tab === t.id;
@@ -2088,13 +2100,13 @@ export default function App() {
             <span style={fontBody}>Yuklanmoqda...</span>
           </div>
         ) : error ? (
-          <div className="p-5 rounded-sm text-[15px]" style={{ ...fontBody, background: 'rgba(168,67,58,0.08)', border: `1px solid ${C.red}`, color: C.red }}>
+          <div className="p-5 rounded-sm text-[15px]" style={{ ...fontBody, background: C.dangerBannerTint, border: `1px solid ${C.red}`, color: C.red }}>
             {error}
           </div>
         ) : (
           <>
             {actionError && (
-              <div className="flex items-center justify-between gap-3 p-3 mb-4 rounded-sm text-[15px]" style={{ ...fontBody, background: 'rgba(168,67,58,0.08)', border: `1px solid ${C.red}`, color: C.red }}>
+              <div className="flex items-center justify-between gap-3 p-3 mb-4 rounded-sm text-[15px]" style={{ ...fontBody, background: C.dangerBannerTint, border: `1px solid ${C.red}`, color: C.red }}>
                 <span>{actionError}</span>
                 <button onClick={() => setActionError(null)}><X size={15} /></button>
               </div>
