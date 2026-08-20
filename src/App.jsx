@@ -248,8 +248,8 @@ function PaperPanel({ children }) {
         boxShadow: '0 8px 24px rgba(31,61,43,0.10)',
       }}
     >
-      <div className="absolute top-0 bottom-0 w-[2px]" style={{ left: '2.75rem', background: C.red, opacity: 0.55 }} />
-      <div className="pl-14 pr-5 py-6 sm:pl-16 sm:pr-8 sm:py-8">{children}</div>
+      <div className="absolute top-0 bottom-0 w-[2px] left-7 sm:left-11" style={{ background: C.red, opacity: 0.55 }} />
+      <div className="pl-9 pr-3 py-6 sm:pl-16 sm:pr-8 sm:py-8">{children}</div>
     </div>
   );
 }
@@ -349,23 +349,51 @@ function PlayIcon() {
   );
 }
 
-/* Splits course text on blank-line-separated paragraphs and renders the
-   video wherever the author placed a "{{video}}" marker paragraph; if no
-   marker was used but a video exists, it's shown after the text. */
+/* Renders course text line-by-line: a blank line starts a new paragraph,
+   consecutive lines within a paragraph keep their line breaks (so numbered
+   lists like "1." / "2." stay on separate lines), and a line that's just
+   "{{video}}" is replaced with the video player exactly where it was typed —
+   whether it's separated by one Enter or a blank line. */
 function CourseBody({ content, videoUrl }) {
-  const paragraphs = (content || '').split('\n\n');
   const marker = '{{video}}';
-  const hasMarker = paragraphs.some((p) => p.trim().toLowerCase() === marker);
+  const lines = (content || '').split('\n');
+  const blocks = [];
+  let buffer = [];
+  const flush = () => {
+    if (buffer.length) { blocks.push({ type: 'text', lines: buffer }); buffer = []; }
+  };
+  let videoInserted = false;
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (trimmed.toLowerCase() === marker) {
+      flush();
+      blocks.push({ type: 'video' });
+      videoInserted = true;
+    } else if (trimmed === '') {
+      flush();
+    } else {
+      buffer.push(line);
+    }
+  });
+  flush();
+  if (videoUrl && !videoInserted) blocks.push({ type: 'video' });
+
   return (
     <div className="space-y-4 max-w-2xl">
-      {paragraphs.map((p, i) =>
-        p.trim().toLowerCase() === marker ? (
+      {blocks.map((b, i) =>
+        b.type === 'video' ? (
           videoUrl ? <YouTubeEmbed key={i} url={videoUrl} /> : null
         ) : (
-          <p key={i} className="text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>{p}</p>
+          <p key={i} className="text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>
+            {b.lines.map((l, j) => (
+              <React.Fragment key={j}>
+                {l}
+                {j < b.lines.length - 1 && <br />}
+              </React.Fragment>
+            ))}
+          </p>
         )
       )}
-      {videoUrl && !hasMarker && <YouTubeEmbed url={videoUrl} />}
     </div>
   );
 }
@@ -439,19 +467,45 @@ function AddCategoryForm({ onAdd, onDone }) {
   );
 }
 
-function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, deleteCategory, onGoToCommunity }) {
+function RenameCategoryModal({ category, onSave, onCancel }) {
+  const [name, setName] = useState(category.name);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(20,30,20,0.55)' }}
+      onClick={onCancel}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm p-6 rounded-sm"
+        style={{ background: C.white, border: `1px solid ${C.rule}`, boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}
+      >
+        <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.gold }}>Sohani tahrirlash</div>
+        <TextField label="Soha nomi" value={name} onChange={setName} />
+        <div className="flex gap-3 mt-2">
+          <SolidButton onClick={() => onSave(name)} icon={Check}>Saqlash</SolidButton>
+          <GhostButton onClick={onCancel} icon={X}>Bekor qilish</GhostButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity }) {
+  const [renaming, setRenaming] = useState(null);
+
   return (
     <div>
       {categories.length === 0 ? (
         <EmptyState text="Hozircha soha qoʻshilmagan." cta="Quyidagi tugma orqali Hamjamiyat boʻlimida birinchi sohani qoʻshing." />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
           {categories.map((cat, i) => {
             const count = itemsByCategory[cat.id] || 0;
             return (
               <div
                 key={cat.id}
-                className="group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                className="group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                 style={{ background: C.white, border: `1px solid ${C.rule}` }}
                 onClick={() => onSelect(cat.id)}
               >
@@ -462,8 +516,11 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, delete
                     <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
                   </div>
                 </div>
-                <div className="flex items-center flex-shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
-                  <IconButtonDelete onClick={() => deleteCategory(cat.id, cat.name)} />
+                <div className="flex items-center flex-shrink-0 gap-1">
+                  <ItemMenu actions={[
+                    { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
+                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) },
+                  ]} />
                   <ChevronRight size={16} style={{ color: C.gold }} />
                 </div>
               </div>
@@ -475,6 +532,17 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, delete
       <div className="mt-6">
         <GhostButton onClick={onGoToCommunity} icon={Plus}>Yangi soha qoʻshish</GhostButton>
       </div>
+
+      {renaming && (
+        <RenameCategoryModal
+          category={renaming}
+          onCancel={() => setRenaming(null)}
+          onSave={async (newName) => {
+            const ok = await renameCategory(renaming.id, renaming.name, newName);
+            if (ok) setRenaming(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -581,7 +649,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCategory, onGoToCommunity }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -633,6 +701,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCa
           itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
           itemLabel="mavzu"
           onSelect={setCategoryId}
+          renameCategory={renameCategory}
           deleteCategory={deleteCategory}
           onGoToCommunity={() => onGoToCommunity('kurslar')}
         />
@@ -666,6 +735,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, deleteCa
                 <div className="min-w-0">
                   <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                   {c.summary && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                  {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
                 </div>
               </div>
               <div className="flex items-center flex-shrink-0 gap-1">
@@ -905,7 +975,7 @@ function QuizView({ test, onExit }) {
   );
 }
 
-function TestsView({ tests, categories, updateTest, deleteTest, deleteCategory, onGoToCommunity }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -943,6 +1013,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, deleteCategory, 
           itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
           itemLabel="test"
           onSelect={setCategoryId}
+          renameCategory={renameCategory}
           deleteCategory={deleteCategory}
           onGoToCommunity={() => onGoToCommunity('testlar')}
         />
@@ -972,6 +1043,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, deleteCategory, 
                   <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                   <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                  {t.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -1005,7 +1077,11 @@ function TestsView({ tests, categories, updateTest, deleteTest, deleteCategory, 
 /* ------------------------------------------------------------------ */
 
 function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory }) {
+  const [categoryId, setCategoryId] = useState(null);
   const active = courses.find((c) => c.id === openId);
+  const activeCategory = categories.find((c) => c.id === categoryId);
+  const inCategory = courses.filter((c) => c.categoryId === categoryId);
+  const categoriesWithPending = categories.filter((cat) => courses.some((c) => c.categoryId === cat.id));
 
   if (active) {
     return (
@@ -1018,7 +1094,57 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
           <ArrowLeft size={15} /> Hamjamiyat mavzulari
         </button>
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
+        {active.author && <div className="text-xs mb-4" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {active.author}</div>}
         <CourseBody content={active.content} videoUrl={active.videoUrl} />
+      </div>
+    );
+  }
+
+  if (!categoryId) {
+    return (
+      <div>
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Hamjamiyat
+        </button>
+        <SectionHeading eyebrow={`${courses.length} ta kutilmoqda`} title="Hamjamiyat — Kurslar" />
+        {categoriesWithPending.length === 0 ? (
+          <EmptyState text="Hozircha foydalanuvchilar mavzu qoʻshmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+            {categoriesWithPending.map((cat, i) => {
+              const count = courses.filter((c) => c.categoryId === cat.id).length;
+              return (
+                <div
+                  key={cat.id}
+                  className="group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                  style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                  onClick={() => setCategoryId(cat.id)}
+                >
+                  <div className="flex items-start min-w-0">
+                    <EntryNumber n={i + 1} />
+                    <div className="min-w-0">
+                      <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta kutilmoqda</div>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {formOpen ? (
+          <AddCourseForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitCourse} onDone={onCloseForm} onView={setOpenId} />
+        ) : (
+          <div className="mt-6">
+            <GhostButton onClick={onOpenForm} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
+          </div>
+        )}
       </div>
     );
   }
@@ -1026,48 +1152,41 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
   return (
     <div>
       <button
-        onClick={onBack}
+        onClick={() => setCategoryId(null)}
         className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
-        <ArrowLeft size={15} /> Hamjamiyat
+        <ArrowLeft size={15} /> Hamjamiyat — barcha sohalar
       </button>
-      <SectionHeading eyebrow={`${courses.length} ta kutilmoqda`} title="Hamjamiyat — Kurslar" />
-      {courses.length === 0 ? (
-        <EmptyState text="Hozircha foydalanuvchilar mavzu qoʻshmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
-      ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
-          {courses.map((c, i) => (
-            <div
-              key={c.id}
-              className="group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-              style={{ background: C.white, border: `1px solid ${C.rule}` }}
-              onClick={() => setOpenId(c.id)}
-            >
-              <div className="flex items-start min-w-0">
-                <EntryNumber n={i + 1} />
-                <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
-                    {categories.find((cat) => cat.id === c.categoryId)?.name || 'Soha koʻrsatilmagan'}
-                  </div>
-                  <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
-                  {c.summary && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
-                  {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
-                </div>
-              </div>
-              <div className="flex items-center flex-shrink-0 gap-1">
-                <ItemMenu actions={[
-                  { label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) },
-                  { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
-                ]} />
+      <SectionHeading eyebrow={`${inCategory.length} ta kutilmoqda`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
+      <div className="grid sm:grid-cols-2 gap-4">
+        {inCategory.map((c, i) => (
+          <div
+            key={c.id}
+            className="group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+            style={{ background: C.white, border: `1px solid ${C.rule}` }}
+            onClick={() => setOpenId(c.id)}
+          >
+            <div className="flex items-start min-w-0">
+              <EntryNumber n={i + 1} />
+              <div className="min-w-0">
+                <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
+                {c.summary && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
               </div>
             </div>
-          ))}
-        </div>
-      )}
+            <div className="flex items-center flex-shrink-0 gap-1">
+              <ItemMenu actions={[
+                { label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) },
+                { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
+              ]} />
+            </div>
+          </div>
+        ))}
+      </div>
 
       {formOpen ? (
-        <AddCourseForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitCourse} onDone={onCloseForm} onView={setOpenId} />
+        <AddCourseForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitCourse} onDone={onCloseForm} onView={setOpenId} />
       ) : (
         <div className="mt-6">
           <GhostButton onClick={onOpenForm} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
@@ -1078,58 +1197,104 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
 }
 
 function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory }) {
+  const [categoryId, setCategoryId] = useState(null);
   const active = tests.find((t) => t.id === openId);
+  const activeCategory = categories.find((c) => c.id === categoryId);
+  const inCategory = tests.filter((t) => t.categoryId === categoryId);
+  const categoriesWithPending = categories.filter((cat) => tests.some((t) => t.categoryId === cat.id));
 
   if (active) return <QuizView test={active} onExit={() => setOpenId(null)} />;
+
+  if (!categoryId) {
+    return (
+      <div>
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Hamjamiyat
+        </button>
+        <SectionHeading eyebrow={`${tests.length} ta kutilmoqda`} title="Hamjamiyat — Testlar" />
+        {categoriesWithPending.length === 0 ? (
+          <EmptyState text="Hozircha foydalanuvchilar test qoʻshmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
+        ) : (
+          <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+            {categoriesWithPending.map((cat, i) => {
+              const count = tests.filter((t) => t.categoryId === cat.id).length;
+              return (
+                <div
+                  key={cat.id}
+                  className="group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                  style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                  onClick={() => setCategoryId(cat.id)}
+                >
+                  <div className="flex items-start min-w-0">
+                    <EntryNumber n={i + 1} />
+                    <div className="min-w-0">
+                      <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta kutilmoqda</div>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {formOpen ? (
+          <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={onCloseForm} onView={setOpenId} />
+        ) : (
+          <div className="mt-6">
+            <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
       <button
-        onClick={onBack}
+        onClick={() => setCategoryId(null)}
         className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
-        <ArrowLeft size={15} /> Hamjamiyat
+        <ArrowLeft size={15} /> Hamjamiyat — barcha sohalar
       </button>
-      <SectionHeading eyebrow={`${tests.length} ta kutilmoqda`} title="Hamjamiyat — Testlar" />
-      {tests.length === 0 ? (
-        <EmptyState text="Hozircha foydalanuvchilar test qoʻshmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
-      ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
-          {tests.map((t, i) => (
-            <div key={t.id} className="flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
-              <div className="flex items-start min-w-0">
-                <EntryNumber n={i + 1} />
-                <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
-                    {categories.find((cat) => cat.id === t.categoryId)?.name || 'Soha koʻrsatilmagan'}
-                  </div>
-                  <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                  {t.description && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
-                  <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
-                  {t.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                <ItemMenu actions={[
-                  { label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) },
-                  { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
-                ]} />
-                <button
-                  onClick={() => setOpenId(t.id)}
-                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
-                  style={{ ...fontBody, color: C.white, background: C.cover }}
-                >
-                  <Award size={13} /> Boshlash
-                </button>
+      <SectionHeading eyebrow={`${inCategory.length} ta kutilmoqda`} title={activeCategory ? activeCategory.name : 'Testlar'} />
+      <div className="grid sm:grid-cols-2 gap-4">
+        {inCategory.map((t, i) => (
+          <div key={t.id} className="flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+            <div className="flex items-start min-w-0">
+              <EntryNumber n={i + 1} />
+              <div className="min-w-0">
+                <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+                {t.description && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
+                <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                {t.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
               </div>
             </div>
-          ))}
-        </div>
-      )}
+            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+              <ItemMenu actions={[
+                { label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) },
+                { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+              ]} />
+              <button
+                onClick={() => setOpenId(t.id)}
+                className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
+                style={{ ...fontBody, color: C.white, background: C.cover }}
+              >
+                <Award size={13} /> Boshlash
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {formOpen ? (
-        <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={onCloseForm} onView={setOpenId} />
+        <AddTestForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitTest} onDone={onCloseForm} onView={setOpenId} />
       ) : (
         <div className="mt-6">
           <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
@@ -1452,6 +1617,19 @@ export default function App() {
       return false;
     }
   }
+  async function renameCategory(id, oldName, newName) {
+    if (!newName.trim() || newName.trim() === oldName) return false;
+    if (!(await requestAdmin(`"${oldName}" sohasini "${newName.trim()}" ga oʻzgartirish`))) return false;
+    try {
+      await sbUpdate('categories', id, categoryToRow({ id, name: newName.trim() }));
+      setCategories(categories.map((c) => (c.id === id ? { ...c, name: newName.trim() } : c)));
+      setActionError(null);
+      return true;
+    } catch (e) {
+      setActionError('Soha nomini oʻzgartirishda xatolik yuz berdi.');
+      return false;
+    }
+  }
   async function deleteCategory(id, name) {
     if (!(await requestAdmin(`"${name}" sohasini oʻchirish`))) return false;
     try {
@@ -1623,7 +1801,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full" style={{ background: C.paper }}>
+    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: C.paper }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
         * { box-sizing: border-box; }
@@ -1700,8 +1878,8 @@ export default function App() {
               </div>
             )}
             <PaperPanel>
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
               {tab === 'hamjamiyat' && (
                 <HamjamiyatView
                   courses={courses}
