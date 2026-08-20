@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
-  Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users
+  Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -207,7 +207,7 @@ function ItemMenu({ actions }) {
             <button
               key={i}
               onClick={() => { setOpen(false); a.onClick(); }}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-[15px] text-left transition-colors"
               style={{ ...fontBody, color: a.danger ? C.red : C.ink, background: 'transparent' }}
               onMouseEnter={(e) => (e.currentTarget.style.background = C.paperSoft)}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
@@ -239,17 +239,39 @@ function IconButtonDelete({ onClick, label }) {
 function PaperPanel({ children }) {
   return (
     <div
-      className="relative rounded-sm overflow-hidden"
+      className="rounded-lg"
       style={{
         background: C.paperSoft,
-        backgroundImage:
-          `repeating-linear-gradient(to bottom, transparent, transparent 2.6em, ${C.rule}55 2.6em, ${C.rule}55 calc(2.6em + 1px))`,
         border: `1px solid ${C.rule}`,
-        boxShadow: '0 8px 24px rgba(31,61,43,0.10)',
+        boxShadow: '0 8px 24px rgba(31,61,43,0.08)',
       }}
     >
-      <div className="absolute top-0 bottom-0 w-[2px] left-7 sm:left-11" style={{ background: C.red, opacity: 0.55 }} />
-      <div className="pl-9 pr-3 py-6 sm:pl-16 sm:pr-8 sm:py-8">{children}</div>
+      <div className="px-4 py-6 sm:px-8 sm:py-8">{children}</div>
+    </div>
+  );
+}
+
+function SearchBox({ value, onChange, placeholder }) {
+  return (
+    <div className="relative mb-5">
+      <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full pl-11 pr-4 py-3 rounded-sm text-base outline-none focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.ink, background: C.white, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+      />
+      {value && (
+        <button
+          onClick={() => onChange('')}
+          className="absolute top-1/2 -translate-y-1/2 right-3.5 p-1 rounded-full"
+          style={{ color: C.inkSoft }}
+          aria-label="Tozalash"
+        >
+          <X size={16} />
+        </button>
+      )}
     </div>
   );
 }
@@ -267,7 +289,7 @@ function EmptyState({ text, cta }) {
   return (
     <div className="py-10 text-center border border-dashed rounded-sm" style={{ borderColor: C.rule, color: C.inkSoft }}>
       <p style={{ ...fontBody }} className="mb-1">{text}</p>
-      {cta && <p className="text-sm" style={{ ...fontBody }}>{cta}</p>}
+      {cta && <p className="text-[15px]" style={{ ...fontBody }}>{cta}</p>}
     </div>
   );
 }
@@ -384,7 +406,7 @@ function CourseBody({ content, videoUrl }) {
         b.type === 'video' ? (
           videoUrl ? <YouTubeEmbed key={i} url={videoUrl} /> : null
         ) : (
-          <p key={i} className="text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>
+          <p key={i} className="text-base leading-7" style={{ ...fontBody, color: C.ink }}>
             {b.lines.map((l, j) => (
               <React.Fragment key={j}>
                 {l}
@@ -403,7 +425,7 @@ function TextField({ label, value, onChange, placeholder, textarea, rows }) {
     value,
     onChange: (e) => onChange(e.target.value),
     placeholder,
-    className: 'w-full bg-transparent outline-none py-2 text-[15px]',
+    className: 'w-full bg-transparent outline-none py-2 text-base',
     style: { ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` },
   };
   return (
@@ -419,7 +441,7 @@ function GhostButton({ children, onClick, icon: Icon, type }) {
     <button
       type={type || 'button'}
       onClick={onClick}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-sm text-sm transition-colors focus-visible:outline focus-visible:outline-2"
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
       style={{ ...fontBody, color: C.cover, border: `1px solid ${C.cover}`, outlineColor: C.gold }}
     >
       {Icon && <Icon size={15} />}
@@ -434,7 +456,7 @@ function SolidButton({ children, onClick, icon: Icon, type, disabled }) {
       type={type || 'button'}
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-sm text-sm font-medium transition-opacity focus-visible:outline focus-visible:outline-2 disabled:opacity-40"
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-sm text-[15px] font-medium transition-opacity focus-visible:outline focus-visible:outline-2 disabled:opacity-40"
       style={{ ...fontBody, color: C.white, background: C.cover, outlineColor: C.gold }}
     >
       {Icon && <Icon size={15} />}
@@ -512,7 +534,7 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
                 <div className="flex items-start min-w-0">
                   <EntryNumber n={i + 1} />
                   <div className="min-w-0">
-                    <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                    <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                     <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
                   </div>
                 </div>
@@ -555,7 +577,7 @@ function SuccessPanel({ onView, onDone }) {
   return (
     <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.white, border: `1px solid ${C.cover}` }}>
       <Check size={22} style={{ color: C.cover }} className="mx-auto mb-2" />
-      <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.ink }}>Sizning loyihangiz muvaffaqiyatli qoʻshildi!</div>
+      <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>Sizning loyihangiz muvaffaqiyatli qoʻshildi!</div>
       <div className="flex gap-3 justify-center">
         <SolidButton onClick={onView} icon={ChevronRight}>Koʻrish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
@@ -571,7 +593,7 @@ function CategoryPicker({ categories, value, onChange }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-transparent outline-none py-2 text-[15px]"
+        className="w-full bg-transparent outline-none py-2 text-base"
         style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
       >
         {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -653,19 +675,24 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
+  const [query, setQuery] = useState('');
 
   const approved = courses.filter((c) => c.status !== 'pending');
   const active = approved.find((c) => c.id === openId);
   const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
+  const q = query.trim().toLowerCase();
+  const searchResults = q
+    ? approved.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q))
+    : null;
 
   if (editing) {
     return (
       <div>
         <button
           onClick={() => setEditId(null)}
-          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Ortga
@@ -681,7 +708,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
       <div>
         <button
           onClick={() => setOpenId(null)}
-          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> {activeCategory ? activeCategory.name : 'Barcha mavzular'}
@@ -696,15 +723,42 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     return (
       <div>
         <SectionHeading eyebrow={`${categories.length} ta soha`} title="Kurslar" />
-        <CategoryGrid
-          categories={categories}
-          itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
-          itemLabel="mavzu"
-          onSelect={setCategoryId}
-          renameCategory={renameCategory}
-          deleteCategory={deleteCategory}
-          onGoToCommunity={() => onGoToCommunity('kurslar')}
-        />
+        <SearchBox value={query} onChange={setQuery} placeholder="Mavzu nomi boʻyicha qidirish..." />
+        {searchResults ? (
+          searchResults.length === 0 ? (
+            <EmptyState text="Hech narsa topilmadi." cta="Boshqa soʻz bilan qidirib koʻring." />
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {searchResults.map((c, i) => (
+                <div
+                  key={c.id}
+                  className="group flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                  style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                  onClick={() => setOpenId(c.id)}
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
+                      {categories.find((cat) => cat.id === c.categoryId)?.name || ''}
+                    </div>
+                    <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
+                    {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                  </div>
+                  <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <CategoryGrid
+            categories={categories}
+            itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
+            itemLabel="mavzu"
+            onSelect={setCategoryId}
+            renameCategory={renameCategory}
+            deleteCategory={deleteCategory}
+            onGoToCommunity={() => onGoToCommunity('kurslar')}
+          />
+        )}
       </div>
     );
   }
@@ -713,7 +767,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     <div>
       <button
         onClick={() => setCategoryId(null)}
-        className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
         <ArrowLeft size={15} /> Barcha sohalar
@@ -733,8 +787,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
               <div className="flex items-start min-w-0">
                 <EntryNumber n={i + 1} />
                 <div className="min-w-0">
-                  <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
-                  {c.summary && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                  <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
+                  {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
                   {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
                 </div>
               </div>
@@ -784,7 +838,7 @@ function QuestionBuilder({ questions, setQuestions }) {
         <div className="mb-4 space-y-2">
           {questions.map((q, i) => (
             <div key={q.id} className="flex items-start justify-between p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
-              <div className="text-sm min-w-0" style={{ ...fontBody, color: C.ink }}>
+              <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
                 <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
               </div>
               <button onClick={() => removeQuestion(q.id)} className="flex-shrink-0 ml-3" style={{ color: C.inkSoft }}><X size={15} /></button>
@@ -811,7 +865,7 @@ function QuestionBuilder({ questions, setQuestions }) {
               value={o}
               onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
               placeholder={`Variant ${String.fromCharCode(65 + i)}`}
-              className="w-full bg-transparent outline-none py-1.5 text-sm"
+              className="w-full bg-transparent outline-none py-1.5 text-[15px]"
               style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
             />
           </div>
@@ -910,14 +964,14 @@ function QuizView({ test, onExit }) {
     <div>
       <button
         onClick={onExit}
-        className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
         <ArrowLeft size={15} /> Barcha testlar
       </button>
 
       <h3 className="text-2xl sm:text-3xl mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-      {test.description && <p className="text-sm mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+      {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
 
       {submitted && (
         <div className="flex items-center gap-3 p-4 mb-6 rounded-sm" style={{ background: C.cover }}>
@@ -931,7 +985,7 @@ function QuizView({ test, onExit }) {
       <div className="space-y-6 max-w-2xl">
         {test.questions.map((q, qi) => (
           <div key={q.id}>
-            <div className="text-[15px] mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+            <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
               <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
             </div>
             <div className="space-y-2">
@@ -949,7 +1003,7 @@ function QuizView({ test, onExit }) {
                     key={oi}
                     onClick={() => select(q.id, oi)}
                     disabled={submitted}
-                    className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-sm transition-colors focus-visible:outline focus-visible:outline-2"
+                    className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
                     style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: textColor, outlineColor: C.gold }}
                   >
                     <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
@@ -979,12 +1033,17 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
+  const [query, setQuery] = useState('');
 
   const approved = tests.filter((t) => t.status !== 'pending');
   const active = approved.find((t) => t.id === activeId);
   const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
+  const q = query.trim().toLowerCase();
+  const searchResults = q
+    ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
+    : null;
 
   if (active) return <QuizView test={active} onExit={() => setActiveId(null)} />;
 
@@ -993,7 +1052,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
       <div>
         <button
           onClick={() => setEditId(null)}
-          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Ortga
@@ -1008,15 +1067,43 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
     return (
       <div>
         <SectionHeading eyebrow={`${categories.length} ta soha`} title="Testlar" />
-        <CategoryGrid
-          categories={categories}
-          itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
-          itemLabel="test"
-          onSelect={setCategoryId}
-          renameCategory={renameCategory}
-          deleteCategory={deleteCategory}
-          onGoToCommunity={() => onGoToCommunity('testlar')}
-        />
+        <SearchBox value={query} onChange={setQuery} placeholder="Test nomi boʻyicha qidirish..." />
+        {searchResults ? (
+          searchResults.length === 0 ? (
+            <EmptyState text="Hech narsa topilmadi." cta="Boshqa soʻz bilan qidirib koʻring." />
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {searchResults.map((t) => (
+                <div key={t.id} className="flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
+                      {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
+                    </div>
+                    <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+                    <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                  </div>
+                  <button
+                    onClick={() => setActiveId(t.id)}
+                    className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
+                    style={{ ...fontBody, color: C.white, background: C.cover }}
+                  >
+                    <Award size={13} /> Boshlash
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <CategoryGrid
+            categories={categories}
+            itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            itemLabel="test"
+            onSelect={setCategoryId}
+            renameCategory={renameCategory}
+            deleteCategory={deleteCategory}
+            onGoToCommunity={() => onGoToCommunity('testlar')}
+          />
+        )}
       </div>
     );
   }
@@ -1025,7 +1112,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
     <div>
       <button
         onClick={() => setCategoryId(null)}
-        className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
         <ArrowLeft size={15} /> Barcha sohalar
@@ -1040,8 +1127,8 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
               <div className="flex items-start min-w-0">
                 <EntryNumber n={i + 1} />
                 <div className="min-w-0">
-                  <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                  {t.description && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
+                  <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+                  {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                   <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                   {t.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
                 </div>
@@ -1088,7 +1175,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
       <div>
         <button
           onClick={() => setOpenId(null)}
-          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Hamjamiyat mavzulari
@@ -1105,7 +1192,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
       <div>
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Hamjamiyat
@@ -1127,7 +1214,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
                   <div className="flex items-start min-w-0">
                     <EntryNumber n={i + 1} />
                     <div className="min-w-0">
-                      <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                      <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                       <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta kutilmoqda</div>
                     </div>
                   </div>
@@ -1153,7 +1240,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
     <div>
       <button
         onClick={() => setCategoryId(null)}
-        className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
         <ArrowLeft size={15} /> Hamjamiyat — barcha sohalar
@@ -1170,8 +1257,8 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
             <div className="flex items-start min-w-0">
               <EntryNumber n={i + 1} />
               <div className="min-w-0">
-                <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
-                {c.summary && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
+                {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
                 {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
               </div>
             </div>
@@ -1210,7 +1297,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
       <div>
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Hamjamiyat
@@ -1232,7 +1319,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                   <div className="flex items-start min-w-0">
                     <EntryNumber n={i + 1} />
                     <div className="min-w-0">
-                      <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                      <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                       <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta kutilmoqda</div>
                     </div>
                   </div>
@@ -1258,7 +1345,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
     <div>
       <button
         onClick={() => setCategoryId(null)}
-        className="inline-flex items-center gap-1 text-sm mb-5 focus-visible:outline focus-visible:outline-2"
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
         <ArrowLeft size={15} /> Hamjamiyat — barcha sohalar
@@ -1270,8 +1357,8 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
             <div className="flex items-start min-w-0">
               <EntryNumber n={i + 1} />
               <div className="min-w-0">
-                <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                {t.description && <div className="text-sm mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
+                <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+                {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                 <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                 {t.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
               </div>
@@ -1373,7 +1460,7 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
   return (
     <div>
       <SectionHeading eyebrow="Foydalanuvchilar tuzgan" title="Hamjamiyat" />
-      <p className="text-sm mb-6" style={{ ...fontBody, color: C.inkSoft }}>
+      <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>
         Bu yerda foydalanuvchilar tomonidan yaratilgan mavzu va testlar joylashadi. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga oʻtadi.
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
@@ -1385,7 +1472,7 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
           <div className="flex items-center gap-3">
             <BookOpen size={20} style={{ color: C.gold }} />
             <div>
-              <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>Kurslar</div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kurslar</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingCourses.length} ta kutilmoqda</div>
             </div>
           </div>
@@ -1399,7 +1486,7 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
           <div className="flex items-center gap-3">
             <ListChecks size={20} style={{ color: C.gold }} />
             <div>
-              <div className="font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>Testlar</div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Testlar</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingTests.length} ta kutilmoqda</div>
             </div>
           </div>
@@ -1461,8 +1548,8 @@ function NewsView({ news, addNews, deleteNews }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-xs mb-1" style={{ ...fontMono, color: C.gold }}>{formatDate(n.date)}</div>
-                  <div className="font-medium text-[15px] mb-1" style={{ ...fontBody, color: C.ink }}>{n.title}</div>
-                  <p className="text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
+                  <div className="font-medium text-base mb-1" style={{ ...fontBody, color: C.ink }}>{n.title}</div>
+                  <p className="text-[15px] leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
                 </div>
                 <IconButtonDelete onClick={() => deleteNews(n.id, n.title)} />
               </div>
@@ -1482,7 +1569,7 @@ function AboutView() {
   return (
     <div>
       <SectionHeading eyebrow="Platforma haqida" title="Biz haqimizda" />
-      <div className="space-y-4 max-w-2xl text-[15px] leading-7" style={{ ...fontBody, color: C.ink }}>
+      <div className="space-y-4 max-w-2xl text-base leading-7" style={{ ...fontBody, color: C.ink }}>
         <p>"UpCourse Uz" — O'z ustida ishlab rivojlanadiganlar uchun yaratilgan ochiq taʼlim platformasi. Maqsadimiz — jamiyat va ilm-fan taraqqiyoti ravnaqiga o‘z hissamizni qo‘shish. Bilimlarni sodda, tizimli va hammabop shaklda taqdim etish.</p>
         <p>Platformada roʻyxatdan oʻtish yoki profil yaratish shart emas: barcha kurslar, testlar va yangiliklar istalgan foydalanuvchi uchun istalgan paytda ochiq.</p>
         <p>Kontent doimiy ravishda yangilanib boriladi — yangi mavzular, testlar va eʼlonlar muntazam qoʻshiladi.</p> 
@@ -1516,14 +1603,14 @@ function PasswordModal({ label, onConfirm, onCancel }) {
         style={{ background: C.white, border: `1px solid ${C.rule}`, boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}
       >
         <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.gold }}>Tasdiqlash</div>
-        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.ink }}>{label} uchun parolni kiriting:</div>
+        <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>{label} uchun parolni kiriting:</div>
         <input
           autoFocus
           type="password"
           value={value}
           onChange={(e) => { setValue(e.target.value); setErr(false); }}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-          className="w-full bg-transparent outline-none py-2 mb-1 text-[15px]"
+          className="w-full bg-transparent outline-none py-2 mb-1 text-base"
           style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${err ? C.red : C.rule}` }}
           placeholder="Parol"
         />
@@ -1817,7 +1904,7 @@ export default function App() {
             <span className="text-xs tracking-[0.25em] uppercase" style={{ ...fontMono, color: C.goldSoft }}>Ochiq taʼlim platformasi</span>
           </div>
           <h1 className="text-4xl sm:text-5xl mb-3" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</h1>
-          <p className="text-sm sm:text-base max-w-xl mb-6" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>
+          <p className="text-[15px] sm:text-base max-w-xl mb-6" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>
             Barcha soha vakillari uchun mos mavzular, testlar va yangiliklar.
           </p>
           <div className="flex gap-6 pt-4" style={{ borderTop: `1px solid ${C.coverLine}` }}>
@@ -1841,7 +1928,7 @@ export default function App() {
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-sm text-sm whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-sm text-[15px] whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2"
                 style={{
                   ...fontBody,
                   color: activeTab ? C.white : C.inkSoft,
@@ -1866,13 +1953,13 @@ export default function App() {
             <span style={fontBody}>Yuklanmoqda...</span>
           </div>
         ) : error ? (
-          <div className="p-5 rounded-sm text-sm" style={{ ...fontBody, background: 'rgba(168,67,58,0.08)', border: `1px solid ${C.red}`, color: C.red }}>
+          <div className="p-5 rounded-sm text-[15px]" style={{ ...fontBody, background: 'rgba(168,67,58,0.08)', border: `1px solid ${C.red}`, color: C.red }}>
             {error}
           </div>
         ) : (
           <>
             {actionError && (
-              <div className="flex items-center justify-between gap-3 p-3 mb-4 rounded-sm text-sm" style={{ ...fontBody, background: 'rgba(168,67,58,0.08)', border: `1px solid ${C.red}`, color: C.red }}>
+              <div className="flex items-center justify-between gap-3 p-3 mb-4 rounded-sm text-[15px]" style={{ ...fontBody, background: 'rgba(168,67,58,0.08)', border: `1px solid ${C.red}`, color: C.red }}>
                 <span>{actionError}</span>
                 <button onClick={() => setActionError(null)}><X size={15} /></button>
               </div>
