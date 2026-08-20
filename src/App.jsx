@@ -152,8 +152,8 @@ const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComp
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
 
 /* Row (snake_case, matches SQL columns) <-> app object (camelCase) */
-const categoryToRow = (c) => ({ id: c.id, name: c.name });
-const categoryFromRow = (r) => ({ id: r.id, name: r.name });
+const categoryToRow = (c) => ({ id: c.id, name: c.name, author: c.author || '' });
+const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || '' });
 const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', status: c.status || 'approved' });
 const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', status: r.status || 'approved' });
 const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', status: t.status || 'approved' });
@@ -536,6 +536,7 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
                   <div className="min-w-0">
                     <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                     <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
+                    {cat.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {cat.author}</div>}
                   </div>
                 </div>
                 <div className="flex items-center flex-shrink-0 gap-1">
@@ -683,9 +684,10 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
   const q = query.trim().toLowerCase();
-  const searchResults = q
-    ? approved.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q))
-    : null;
+  const matchedCategories = q ? categories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedCourses = q ? approved.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q)) : [];
+  const isSearching = q.length > 0;
+  const noSearchResults = isSearching && matchedCategories.length === 0 && matchedCourses.length === 0;
 
   if (editing) {
     return (
@@ -723,29 +725,61 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     return (
       <div>
         <SectionHeading eyebrow={`${categories.length} ta soha`} title="Kurslar" />
-        <SearchBox value={query} onChange={setQuery} placeholder="Mavzu nomi boʻyicha qidirish..." />
-        {searchResults ? (
-          searchResults.length === 0 ? (
+        <SearchBox value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
+        {isSearching ? (
+          noSearchResults ? (
             <EmptyState text="Hech narsa topilmadi." cta="Boshqa soʻz bilan qidirib koʻring." />
           ) : (
-            <div className="grid sm:grid-cols-2 gap-3">
-              {searchResults.map((c, i) => (
-                <div
-                  key={c.id}
-                  className="min-w-0 group flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                  style={{ background: C.white, border: `1px solid ${C.rule}` }}
-                  onClick={() => setOpenId(c.id)}
-                >
-                  <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
-                      {categories.find((cat) => cat.id === c.categoryId)?.name || ''}
-                    </div>
-                    <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
-                    {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+            <div className="space-y-6">
+              {matchedCategories.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Sohalar</div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {matchedCategories.map((cat) => {
+                      const count = approved.filter((c) => c.categoryId === cat.id).length;
+                      return (
+                        <div
+                          key={cat.id}
+                          className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                          style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                          onClick={() => setCategoryId(cat.id)}
+                        >
+                          <div className="min-w-0">
+                            <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                            <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta mavzu</div>
+                            {cat.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {cat.author}</div>}
+                          </div>
+                          <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                        </div>
+                      );
+                    })}
                   </div>
-                  <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
                 </div>
-              ))}
+              )}
+              {matchedCourses.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Mavzular</div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {matchedCourses.map((c) => (
+                      <div
+                        key={c.id}
+                        className="min-w-0 group flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                        style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                        onClick={() => setOpenId(c.id)}
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
+                            {categories.find((cat) => cat.id === c.categoryId)?.name || ''}
+                          </div>
+                          <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
+                          {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                        </div>
+                        <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )
         ) : (
@@ -789,7 +823,6 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                 <div className="min-w-0">
                   <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                   {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
-                  {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
                 </div>
               </div>
               <div className="flex items-center flex-shrink-0 gap-1">
@@ -1041,9 +1074,10 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
   const q = query.trim().toLowerCase();
-  const searchResults = q
-    ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
-    : null;
+  const matchedCategories = q ? categories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
+  const isSearching = q.length > 0;
+  const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
 
   if (active) return <QuizView test={active} onExit={() => setActiveId(null)} />;
 
@@ -1067,30 +1101,62 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
     return (
       <div>
         <SectionHeading eyebrow={`${categories.length} ta soha`} title="Testlar" />
-        <SearchBox value={query} onChange={setQuery} placeholder="Test nomi boʻyicha qidirish..." />
-        {searchResults ? (
-          searchResults.length === 0 ? (
+        <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
+        {isSearching ? (
+          noSearchResults ? (
             <EmptyState text="Hech narsa topilmadi." cta="Boshqa soʻz bilan qidirib koʻring." />
           ) : (
-            <div className="grid sm:grid-cols-2 gap-3">
-              {searchResults.map((t) => (
-                <div key={t.id} className="flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
-                  <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
-                      {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
-                    </div>
-                    <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                    <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+            <div className="space-y-6">
+              {matchedCategories.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Sohalar</div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {matchedCategories.map((cat) => {
+                      const count = approved.filter((t) => t.categoryId === cat.id).length;
+                      return (
+                        <div
+                          key={cat.id}
+                          className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                          style={{ background: C.white, border: `1px solid ${C.rule}` }}
+                          onClick={() => setCategoryId(cat.id)}
+                        >
+                          <div className="min-w-0">
+                            <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                            <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta test</div>
+                            {cat.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {cat.author}</div>}
+                          </div>
+                          <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                        </div>
+                      );
+                    })}
                   </div>
-                  <button
-                    onClick={() => setActiveId(t.id)}
-                    className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
-                    style={{ ...fontBody, color: C.white, background: C.cover }}
-                  >
-                    <Award size={13} /> Boshlash
-                  </button>
                 </div>
-              ))}
+              )}
+              {matchedTests.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {matchedTests.map((t) => (
+                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+                        <div className="min-w-0">
+                          <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
+                            {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
+                          </div>
+                          <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+                          <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                        </div>
+                        <button
+                          onClick={() => setActiveId(t.id)}
+                          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
+                          style={{ ...fontBody, color: C.white, background: C.cover }}
+                        >
+                          <Award size={13} /> Boshlash
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )
         ) : (
@@ -1130,7 +1196,6 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                   <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
-                  {t.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -1733,13 +1798,16 @@ export default function App() {
   }
 
   /* Hamjamiyat orqali kelgan erkin "soha nomi"ni mavjud sohaga bogʻlaydi
-     yoki (topilmasa) parolsiz yangi soha yaratadi. */
-  async function resolveCategoryId(name) {
+     yoki (topilmasa) parolsiz yangi soha yaratadi. Soha birinchi marta
+     yaratilganda kim yozgan boʻlsa, shu "tuzuvchi" boʻlib qoladi — keyin
+     boshqa odam shu sohaga mavzu qoʻshsa ham, sohaning tuzuvchisi
+     oʻzgarmaydi. */
+  async function resolveCategoryId(name, author) {
     const trimmed = (name || '').trim();
     if (!trimmed) return null;
     const existing = categories.find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
     if (existing) return existing.id;
-    const row = { id: uid(), name: trimmed };
+    const row = { id: uid(), name: trimmed, author: (author || '').trim() };
     await sbInsert('categories', categoryToRow(row));
     setCategories((prev) => [...prev, row]);
     return row.id;
@@ -1749,7 +1817,7 @@ export default function App() {
     let categoryId = data.categoryId;
     if (!categoryId && data.categoryName) {
       try {
-        categoryId = await resolveCategoryId(data.categoryName);
+        categoryId = await resolveCategoryId(data.categoryName, data.author);
       } catch (e) {
         setActionError('Sohani yaratishda xatolik yuz berdi.');
         return null;
@@ -1807,7 +1875,7 @@ export default function App() {
     let categoryId = data.categoryId;
     if (!categoryId && data.categoryName) {
       try {
-        categoryId = await resolveCategoryId(data.categoryName);
+        categoryId = await resolveCategoryId(data.categoryName, data.author);
       } catch (e) {
         setActionError('Sohani yaratishda xatolik yuz berdi.');
         return null;
