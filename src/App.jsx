@@ -527,7 +527,7 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
             return (
               <div
                 key={cat.id}
-                className="group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                 style={{ background: C.white, border: `1px solid ${C.rule}` }}
                 onClick={() => onSelect(cat.id)}
               >
@@ -732,7 +732,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
               {searchResults.map((c, i) => (
                 <div
                   key={c.id}
-                  className="group flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                  className="min-w-0 group flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                   style={{ background: C.white, border: `1px solid ${C.rule}` }}
                   onClick={() => setOpenId(c.id)}
                 >
@@ -780,7 +780,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           {inCategory.map((c, i) => (
             <div
               key={c.id}
-              className="group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+              className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
               style={{ background: C.white, border: `1px solid ${C.rule}` }}
               onClick={() => setOpenId(c.id)}
             >
@@ -1123,7 +1123,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((t, i) => (
-            <div key={t.id} className="flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
               <div className="flex items-start min-w-0">
                 <EntryNumber n={i + 1} />
                 <div className="min-w-0">
@@ -1207,7 +1207,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
               return (
                 <div
                   key={cat.id}
-                  className="group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                  className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                   style={{ background: C.white, border: `1px solid ${C.rule}` }}
                   onClick={() => setCategoryId(cat.id)}
                 >
@@ -1250,7 +1250,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
         {inCategory.map((c, i) => (
           <div
             key={c.id}
-            className="group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+            className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
             style={{ background: C.white, border: `1px solid ${C.rule}` }}
             onClick={() => setOpenId(c.id)}
           >
@@ -1312,7 +1312,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
               return (
                 <div
                   key={cat.id}
-                  className="group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                  className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                   style={{ background: C.white, border: `1px solid ${C.rule}` }}
                   onClick={() => setCategoryId(cat.id)}
                 >
@@ -1353,7 +1353,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
       <SectionHeading eyebrow={`${inCategory.length} ta kutilmoqda`} title={activeCategory ? activeCategory.name : 'Testlar'} />
       <div className="grid sm:grid-cols-2 gap-4">
         {inCategory.map((t, i) => (
-          <div key={t.id} className="flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
+          <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.white, border: `1px solid ${C.rule}` }}>
             <div className="flex items-start min-w-0">
               <EntryNumber n={i + 1} />
               <div className="min-w-0">
