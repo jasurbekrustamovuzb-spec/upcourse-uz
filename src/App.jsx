@@ -2,13 +2,17 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
-  Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search
+  Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
+  Sun, Moon
 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
 /*  Design tokens — "ledger book" system                              */
+/*  C obyekti mutatsiya qilinadi (theme almashganda) — shu sababli    */
+/*  butun ilova bo'ylab bitta manba orqali kunduzgi/tungi rejim       */
+/*  qo'llaniladi.                                                     */
 /* ------------------------------------------------------------------ */
-const C = {
+const LIGHT_PALETTE = {
   cover: '#1F3D2B',
   coverDeep: '#142A1B',
   coverLine: 'rgba(184,134,59,0.35)',
@@ -22,6 +26,23 @@ const C = {
   inkSoft: '#5C6152',
   white: '#FBFAF3',
 };
+
+const DARK_PALETTE = {
+  cover: '#1F3D2B',
+  coverDeep: '#0F1B12',
+  coverLine: 'rgba(184,134,59,0.35)',
+  paper: '#171C18',
+  paperSoft: '#1D231E',
+  rule: '#3A4238',
+  red: '#D9776A',
+  gold: '#C79A54',
+  goldSoft: '#DCC28F',
+  ink: '#EDE7D8',
+  inkSoft: '#9BA398',
+  white: '#20261F',
+};
+
+const C = { ...LIGHT_PALETTE };
 
 const fontDisplay = { fontFamily: "'Fraunces', Georgia, serif" };
 const fontBody = { fontFamily: "'Inter', system-ui, sans-serif" };
@@ -152,8 +173,8 @@ const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComp
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
 
 /* Row (snake_case, matches SQL columns) <-> app object (camelCase) */
-const categoryToRow = (c) => ({ id: c.id, name: c.name, author: c.author || '' });
-const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || '' });
+const categoryToRow = (c) => ({ id: c.id, name: c.name, author: c.author || '', status: c.status || 'approved' });
+const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || '', status: r.status || 'approved' });
 const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', status: c.status || 'approved' });
 const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', status: r.status || 'approved' });
 const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', status: t.status || 'approved' });
@@ -672,22 +693,28 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
 
+  const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = courses.filter((c) => c.status !== 'pending');
   const active = approved.find((c) => c.id === openId);
   const editing = approved.find((c) => c.id === editId);
-  const activeCategory = categories.find((c) => c.id === categoryId);
+  const activeCategory = approvedCategories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
   const q = query.trim().toLowerCase();
-  const matchedCategories = q ? categories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
   const matchedCourses = q ? approved.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedCourses.length === 0;
+
+  useEffect(() => {
+    if (onReadingChange) onReadingChange(!!active);
+    return () => { if (onReadingChange) onReadingChange(false); };
+  }, [active, onReadingChange]);
 
   if (editing) {
     return (
@@ -724,7 +751,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
-        <SectionHeading eyebrow={`${categories.length} ta soha`} title="Kurslar" />
+        <SectionHeading eyebrow={`${approvedCategories.length} ta soha`} title="Kurslar" />
         <SearchBox value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
         {isSearching ? (
           noSearchResults ? (
@@ -784,7 +811,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           )
         ) : (
           <CategoryGrid
-            categories={categories}
+            categories={approvedCategories}
             itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
             itemLabel="mavzu"
             onSelect={setCategoryId}
@@ -1062,22 +1089,28 @@ function QuizView({ test, onExit }) {
   );
 }
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
 
+  const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = tests.filter((t) => t.status !== 'pending');
   const active = approved.find((t) => t.id === activeId);
   const editing = approved.find((t) => t.id === editId);
-  const activeCategory = categories.find((c) => c.id === categoryId);
+  const activeCategory = approvedCategories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
   const q = query.trim().toLowerCase();
-  const matchedCategories = q ? categories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
   const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
+
+  useEffect(() => {
+    if (onReadingChange) onReadingChange(!!active);
+    return () => { if (onReadingChange) onReadingChange(false); };
+  }, [active, onReadingChange]);
 
   if (active) return <QuizView test={active} onExit={() => setActiveId(null)} />;
 
@@ -1100,7 +1133,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   if (!categoryId) {
     return (
       <div>
-        <SectionHeading eyebrow={`${categories.length} ta soha`} title="Testlar" />
+        <SectionHeading eyebrow={`${approvedCategories.length} ta soha`} title="Testlar" />
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
         {isSearching ? (
           noSearchResults ? (
@@ -1161,7 +1194,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
           )
         ) : (
           <CategoryGrid
-            categories={categories}
+            categories={approvedCategories}
             itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
             itemLabel="test"
             onSelect={setCategoryId}
@@ -1712,8 +1745,20 @@ export default function App() {
   const [actionError, setActionError] = useState(null);
   const [pendingConfirm, setPendingConfirm] = useState(null);
   const [communityTarget, setCommunityTarget] = useState(null);
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('upcourse-theme') === 'dark' ? 'dark' : 'light'; } catch { return 'light'; }
+  });
+  const [readingActive, setReadingActive] = useState(false);
+
+  Object.assign(C, theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE);
+
+  useEffect(() => {
+    try { localStorage.setItem('upcourse-theme', theme); } catch {}
+  }, [theme]);
 
   function goToCommunity(kind, prefillCategory) { setTab('hamjamiyat'); setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '' }); }
+
+  const handleReadingChange = useCallback((v) => setReadingActive(v), []);
 
   const requestAdmin = useCallback((label) => {
     return new Promise((resolve) => {
@@ -1807,7 +1852,7 @@ export default function App() {
     if (!trimmed) return null;
     const existing = categories.find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
     if (existing) return existing.id;
-    const row = { id: uid(), name: trimmed, author: (author || '').trim() };
+    const row = { id: uid(), name: trimmed, author: (author || '').trim(), status: 'pending' };
     await sbInsert('categories', categoryToRow(row));
     setCategories((prev) => [...prev, row]);
     return row.id;
@@ -1839,6 +1884,12 @@ export default function App() {
     try {
       await sbUpdate('courses', id, { status: 'approved' });
       setCourses(courses.map((c) => (c.id === id ? { ...c, status: 'approved' } : c)));
+      const course = courses.find((c) => c.id === id);
+      const cat = course && categories.find((c) => c.id === course.categoryId && c.status === 'pending');
+      if (cat) {
+        await sbUpdate('categories', cat.id, { status: 'approved' });
+        setCategories((prev) => prev.map((c) => (c.id === cat.id ? { ...c, status: 'approved' } : c)));
+      }
       setActionError(null);
       return true;
     } catch (e) {
@@ -1897,6 +1948,12 @@ export default function App() {
     try {
       await sbUpdate('tests', id, { status: 'approved' });
       setTests(tests.map((t) => (t.id === id ? { ...t, status: 'approved' } : t)));
+      const test = tests.find((t) => t.id === id);
+      const cat = test && categories.find((c) => c.id === test.categoryId && c.status === 'pending');
+      if (cat) {
+        await sbUpdate('categories', cat.id, { status: 'approved' });
+        setCategories((prev) => prev.map((c) => (c.id === cat.id ? { ...c, status: 'approved' } : c)));
+      }
       setActionError(null);
       return true;
     } catch (e) {
@@ -1966,7 +2023,17 @@ export default function App() {
 
       {/* Masthead */}
       <header style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
-        <div className="max-w-5xl mx-auto px-5 sm:px-8 pt-10 pb-8">
+        <div className="max-w-5xl mx-auto px-5 sm:px-8 pt-10 pb-8 relative">
+          {!readingActive && (
+            <button
+              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              aria-label={theme === 'dark' ? 'Kunduzgi rejimga oʻtish' : 'Tungi rejimga oʻtish'}
+              className="absolute top-2 right-5 sm:right-8 w-8 h-8 flex items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2"
+              style={{ border: `1px solid ${C.coverLine}`, color: C.goldSoft, outlineColor: C.gold }}
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+          )}
           <div className="flex items-center gap-2 mb-4">
             <GraduationCap size={20} style={{ color: C.gold }} />
             <span className="text-xs tracking-[0.25em] uppercase" style={{ ...fontMono, color: C.goldSoft }}>Ochiq taʼlim platformasi</span>
@@ -2033,8 +2100,8 @@ export default function App() {
               </div>
             )}
             <PaperPanel>
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} />}
               {tab === 'hamjamiyat' && (
                 <HamjamiyatView
                   courses={courses}
