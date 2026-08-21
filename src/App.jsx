@@ -3,7 +3,7 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Heart
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -189,9 +189,9 @@ const sbUpsert = (table, row) => sbRequest(`${table}`, { method: 'POST', headers
 const categoryToRow = (c) => ({ id: c.id, name: c.name, author: c.author || '', author_id: c.authorId || null, status: c.status || 'approved' });
 const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', author_id: c.authorId || null, status: c.status || 'approved' });
-const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
+const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', likeCount: r.like_count || 0 });
 const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', author_id: t.authorId || null, status: t.status || 'approved' });
-const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
+const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', likeCount: r.like_count || 0 });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
 const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin });
@@ -267,6 +267,24 @@ function IconButtonDelete({ onClick, label }) {
       onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
     >
       <Trash2 size={16} />
+    </button>
+  );
+}
+
+/* Juda ixcham layk tugmasi — joy egallamasligi uchun faqat yurak belgisi
+   + son. Kartaning bosilishi (ochilishi)ga xalaqit bermasligi uchun
+   oʻzining bosilishini alohida ushlab qoladi (stopPropagation). */
+function LikeButton({ liked, count, onToggle }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      className="inline-flex items-center gap-1 flex-shrink-0 px-1.5 py-1 rounded-full transition-colors"
+      style={{ color: liked ? C.red : C.inkSoft }}
+      aria-label={liked ? 'Layk olib tashlash' : 'Layk bosish'}
+      title={liked ? 'Layk olib tashlash' : 'Layk bosish'}
+    >
+      <Heart size={14} fill={liked ? C.red : 'none'} />
+      <span className="text-xs" style={fontMono}>{count}</span>
     </button>
   );
 }
@@ -715,7 +733,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, likedCourseIds, onToggleLike }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -834,7 +852,10 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                           <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                           {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
                         </div>
-                        <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                        <div className="flex items-center flex-shrink-0 gap-1">
+                          <LikeButton liked={likedCourseIds.has(c.id)} count={c.likeCount || 0} onToggle={() => onToggleLike(c.id)} />
+                          <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -887,6 +908,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                 </div>
               </div>
               <div className="flex items-center flex-shrink-0 gap-1">
+                <LikeButton liked={likedCourseIds.has(c.id)} count={c.likeCount || 0} onToggle={() => onToggleLike(c.id)} />
                 {isAdmin && (
                   <ItemMenu actions={[
                     { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(c.id) },
@@ -1131,7 +1153,7 @@ function QuizView({ test, onExit }) {
   );
 }
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, likedTestIds, onToggleLike }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -1226,13 +1248,16 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                           <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                           <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                         </div>
-                        <button
-                          onClick={() => goTest(t.id)}
-                          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
-                          style={{ ...fontBody, color: C.white, background: C.cover }}
-                        >
-                          <Award size={13} /> Boshlash
-                        </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <LikeButton liked={likedTestIds.has(t.id)} count={t.likeCount || 0} onToggle={() => onToggleLike(t.id)} />
+                          <button
+                            onClick={() => goTest(t.id)}
+                            className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
+                            style={{ ...fontBody, color: C.white, background: C.cover }}
+                          >
+                            <Award size={13} /> Boshlash
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1281,12 +1306,15 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                {isAdmin && (
-                  <ItemMenu actions={[
-                    { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
-                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
-                  ]} />
-                )}
+                <div className="flex items-center gap-1">
+                  <LikeButton liked={likedTestIds.has(t.id)} count={t.likeCount || 0} onToggle={() => onToggleLike(t.id)} />
+                  {isAdmin && (
+                    <ItemMenu actions={[
+                      { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
+                      { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+                    ]} />
+                  )}
+                </div>
                 <button
                   onClick={() => goTest(t.id)}
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
@@ -2093,6 +2121,8 @@ export default function App() {
     try { return localStorage.getItem('upcourse-theme') === 'dark' ? 'dark' : 'light'; } catch { return 'light'; }
   });
   const [readingActive, setReadingActive] = useState(false);
+  const [likedCourseIds, setLikedCourseIds] = useState(() => new Set());
+  const [likedTestIds, setLikedTestIds] = useState(() => new Set());
 
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
@@ -2157,7 +2187,69 @@ export default function App() {
     await sbSignOut();
     setSession(null);
     setProfile(null);
+    setLikedCourseIds(new Set());
+    setLikedTestIds(new Set());
     setTab('kurslar');
+  }
+
+  /* Foydalanuvchi kirgach, uning oʻzi bosgan laykларини yuklab olamiz —
+     shunda yurak belgisi toʻgʻri (toʻldirilgan/boʻsh) holatda koʻrinadi. */
+  useEffect(() => {
+    let cancelled = false;
+    const myId = session?.user?.id;
+    if (!myId) { setLikedCourseIds(new Set()); setLikedTestIds(new Set()); return; }
+    (async () => {
+      try {
+        const [courseLikeRows, testLikeRows] = await Promise.all([
+          sbSelect('course_likes', `user_id=eq.${myId}`),
+          sbSelect('test_likes', `user_id=eq.${myId}`),
+        ]);
+        if (cancelled) return;
+        setLikedCourseIds(new Set(courseLikeRows.map((r) => r.course_id)));
+        setLikedTestIds(new Set(testLikeRows.map((r) => r.test_id)));
+      } catch (e) {
+        // jim — layklar ikkinchi darajali funksiya, xatolik sahifani buzmasin
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
+
+  async function toggleCourseLike(courseId) {
+    if (!session) { setTab('profil'); return; }
+    const myId = session.user.id;
+    const alreadyLiked = likedCourseIds.has(courseId);
+    try {
+      if (alreadyLiked) {
+        await sbRequest(`course_likes?course_id=eq.${encodeURIComponent(courseId)}&user_id=eq.${encodeURIComponent(myId)}`, { method: 'DELETE' });
+        setLikedCourseIds((prev) => { const n = new Set(prev); n.delete(courseId); return n; });
+        setCourses((prev) => prev.map((c) => (c.id === courseId ? { ...c, likeCount: Math.max(0, (c.likeCount || 0) - 1) } : c)));
+      } else {
+        await sbInsert('course_likes', { id: uid(), course_id: courseId, user_id: myId });
+        setLikedCourseIds((prev) => new Set(prev).add(courseId));
+        setCourses((prev) => prev.map((c) => (c.id === courseId ? { ...c, likeCount: (c.likeCount || 0) + 1 } : c)));
+      }
+    } catch (e) {
+      setActionError('Layk bosishda xatolik yuz berdi.');
+    }
+  }
+
+  async function toggleTestLike(testId) {
+    if (!session) { setTab('profil'); return; }
+    const myId = session.user.id;
+    const alreadyLiked = likedTestIds.has(testId);
+    try {
+      if (alreadyLiked) {
+        await sbRequest(`test_likes?test_id=eq.${encodeURIComponent(testId)}&user_id=eq.${encodeURIComponent(myId)}`, { method: 'DELETE' });
+        setLikedTestIds((prev) => { const n = new Set(prev); n.delete(testId); return n; });
+        setTests((prev) => prev.map((t) => (t.id === testId ? { ...t, likeCount: Math.max(0, (t.likeCount || 0) - 1) } : t)));
+      } else {
+        await sbInsert('test_likes', { id: uid(), test_id: testId, user_id: myId });
+        setLikedTestIds((prev) => new Set(prev).add(testId));
+        setTests((prev) => prev.map((t) => (t.id === testId ? { ...t, likeCount: (t.likeCount || 0) + 1 } : t)));
+      }
+    } catch (e) {
+      setActionError('Layk bosishda xatolik yuz berdi.');
+    }
   }
 
   function goToCommunity(kind, prefillCategory) { setTab('profil'); setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '' }); }
@@ -2491,8 +2583,8 @@ export default function App() {
               </div>
             )}
             <PaperPanel>
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} likedCourseIds={likedCourseIds} onToggleLike={toggleCourseLike} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} likedTestIds={likedTestIds} onToggleLike={toggleTestLike} />}
               {tab === 'profil' && (
                 <ProfileView
                   session={session}
