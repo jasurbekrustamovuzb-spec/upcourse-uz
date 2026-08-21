@@ -2404,13 +2404,71 @@ export default function App() {
 
   return (
     <NavContext.Provider value={nav}>
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: C.paper }}>
+    <div className="min-h-screen w-full overflow-x-hidden lg:flex" style={{ background: C.paper }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
         * { box-sizing: border-box; }
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline-offset: 2px; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       `}</style>
+
+      {/* Desktop sidebar nav */}
+      <aside
+        className="hidden lg:flex lg:flex-col lg:w-60 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:z-20"
+        style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})`, borderRight: `1px solid ${C.coverLine}` }}
+      >
+        <div className="flex items-center gap-2 px-6 pt-8 pb-6">
+          <GraduationCap size={20} style={{ color: C.gold }} />
+          <span style={{ ...fontDisplay, color: C.white, fontWeight: 700, fontSize: '1.15rem' }}>UpCourse Uz</span>
+        </div>
+        <nav className="flex-1 px-3 flex flex-col gap-1 overflow-y-auto">
+          {(isAdmin ? [...TABS, ADMIN_TAB] : TABS).map((t) => {
+            const Icon = t.icon;
+            const activeTab = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => { const prevTab = tab; setTab(t.id); if (t.id !== prevTab) nav.pushNav(() => setTab(prevTab)); }}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[15px] text-left transition-colors focus-visible:outline focus-visible:outline-2"
+                style={{
+                  ...fontBody,
+                  color: activeTab ? C.cover : 'rgba(251,250,243,0.78)',
+                  background: activeTab ? C.gold : 'transparent',
+                  outlineColor: C.gold,
+                  fontWeight: activeTab ? 600 : 400,
+                }}
+              >
+                <Icon size={16} />
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* Mobile bottom nav */}
+      <nav
+        className="lg:hidden fixed bottom-0 inset-x-0 z-30 flex"
+        style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})`, borderTop: `1px solid ${C.coverLine}` }}
+      >
+        {(isAdmin ? [...TABS, ADMIN_TAB] : TABS).map((t) => {
+          const Icon = t.icon;
+          const activeTab = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => { const prevTab = tab; setTab(t.id); if (t.id !== prevTab) nav.pushNav(() => setTab(prevTab)); }}
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 min-w-0 transition-colors focus-visible:outline focus-visible:outline-2"
+              style={{ color: activeTab ? C.gold : 'rgba(251,250,243,0.62)', outlineColor: C.gold }}
+            >
+              <Icon size={18} />
+              <span className="text-[10px] leading-none truncate max-w-full px-1" style={fontBody}>{t.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="flex-1 min-w-0 pb-20 lg:pb-0">
 
       {/* Masthead */}
       <header style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
@@ -2443,33 +2501,6 @@ export default function App() {
           </div>
         </div>
       </header>
-
-      {/* Tab nav */}
-      <nav className="max-w-5xl mx-auto px-5 sm:px-8 -mt-5 relative z-10">
-        <div className="flex gap-1 p-1.5 rounded-sm overflow-x-auto" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 6px 16px rgba(31,61,43,0.12)' }}>
-          {(isAdmin ? [...TABS, ADMIN_TAB] : TABS).map((t) => {
-            const Icon = t.icon;
-            const activeTab = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => { const prevTab = tab; setTab(t.id); if (t.id !== prevTab) nav.pushNav(() => setTab(prevTab)); }}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-sm text-[15px] whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2"
-                style={{
-                  ...fontBody,
-                  color: activeTab ? C.white : C.inkSoft,
-                  background: activeTab ? C.cover : 'transparent',
-                  outlineColor: C.gold,
-                  fontWeight: activeTab ? 600 : 400,
-                }}
-              >
-                <Icon size={15} />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
 
       {/* Content */}
       <main className="max-w-5xl mx-auto px-5 sm:px-8 py-8">
@@ -2545,6 +2576,8 @@ export default function App() {
           <span>UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()}</span>
         </div>
       </footer>
+
+      </div>
     </div>
     </NavContext.Provider>
   );
