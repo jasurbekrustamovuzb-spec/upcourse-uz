@@ -3,8 +3,9 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3
 } from 'lucide-react';
+import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
 /* ------------------------------------------------------------------ */
 /*  Design tokens — "ledger book" system                              */
@@ -131,13 +132,6 @@ function formatDate(iso) {
   }
 }
 
-/* Simple in-app password gate: typing the correct password confirms the
-   action. Not real security (the password lives in the page code), just a
-   filter against casual visitors. Uses an on-page modal instead of
-   window.prompt/confirm/alert, since native browser dialogs don't reliably
-   work inside the sandboxed artifact preview. */
-const ADMIN_PASSWORD = 'admin2026';
-
 /* ------------------------------------------------------------------ */
 /*  Supabase connection                                                */
 /*                                                                      */
@@ -161,12 +155,18 @@ function isSupabaseConfigured() {
   );
 }
 
+/* Har bir so'rovga joriy foydalanuvchining login tokenini (bo'lsa) yoki
+   aks holda umumiy "anon" kalitni qo'shadi. Supabase'dagi RLS (Row Level
+   Security) qoidalari aynan shu token orqali "bu odam kim, admin yoki
+   yo'q, o'ziniki qaysi qatorlar" ekanini biladi. */
 async function sbRequest(path, options = {}) {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token || SUPABASE_ANON_KEY;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },
@@ -179,20 +179,22 @@ async function sbRequest(path, options = {}) {
   return res.json();
 }
 
-const sbSelect = (table) => sbRequest(`${table}?select=*&order=created_at.asc`);
+const sbSelect = (table, filter) => sbRequest(`${table}?select=*&order=created_at.asc${filter ? `&${filter}` : ''}`);
 const sbInsert = (table, row) => sbRequest(table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
 const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+const sbUpsert = (table, row) => sbRequest(`${table}`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(row) });
 
 /* Row (snake_case, matches SQL columns) <-> app object (camelCase) */
-const categoryToRow = (c) => ({ id: c.id, name: c.name, author: c.author || '', status: c.status || 'approved' });
-const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || '', status: r.status || 'approved' });
-const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', status: c.status || 'approved' });
-const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', status: r.status || 'approved' });
-const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', status: t.status || 'approved' });
-const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', status: r.status || 'approved' });
+const categoryToRow = (c) => ({ id: c.id, name: c.name, author: c.author || '', author_id: c.authorId || null, status: c.status || 'approved' });
+const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
+const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', author_id: c.authorId || null, status: c.status || 'approved' });
+const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
+const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', author_id: t.authorId || null, status: t.status || 'approved' });
+const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
+const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin });
 
 
 /* ------------------------------------------------------------------ */
@@ -546,13 +548,13 @@ function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity }) {
+function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin }) {
   const [renaming, setRenaming] = useState(null);
 
   return (
     <div>
       {categories.length === 0 ? (
-        <EmptyState text="Hozircha soha qoʻshilmagan." cta="Quyidagi tugma orqali Hamjamiyat boʻlimida birinchi sohani qoʻshing." />
+        <EmptyState text="Hozircha soha qoʻshilmagan." cta="Quyidagi tugma orqali birinchi sohani qoʻshing." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
           {categories.map((cat, i) => {
@@ -573,10 +575,12 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
                   </div>
                 </div>
                 <div className="flex items-center flex-shrink-0 gap-1">
-                  <ItemMenu actions={[
-                    { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
-                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) },
-                  ]} />
+                  {isAdmin && (
+                    <ItemMenu actions={[
+                      { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
+                      { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) },
+                    ]} />
+                  )}
                   <ChevronRight size={16} style={{ color: C.gold }} />
                 </div>
               </div>
@@ -638,7 +642,6 @@ function CategoryPicker({ categories, value, onChange }) {
 
 function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
-  const [author, setAuthor] = useState('');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
@@ -646,7 +649,17 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   const [newId, setNewId] = useState(null);
 
   if (newId) {
-    return <SuccessPanel onView={() => onView(newId)} onDone={onDone} />;
+    return (
+      <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
+        <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
+        <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Mavzungiz yuborildi!</div>
+        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.</div>
+        <div className="flex gap-3 justify-center">
+          <SolidButton onClick={() => onView(newId)} icon={ChevronRight}>Koʻrish</SolidButton>
+          <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
+        </div>
+      </div>
+    );
   }
 
   async function submit() {
@@ -654,7 +667,7 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
     if (!lockedCategoryId && !categoryName.trim()) return;
     const payload = lockedCategoryId
       ? { categoryId: lockedCategoryId, title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() }
-      : { categoryName: categoryName.trim(), author: author.trim(), title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() };
+      : { categoryName: categoryName.trim(), title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -668,9 +681,6 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
       <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} placeholder="Bir jumlada mavzu haqida" />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing... Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
-      {!lockedCategoryId && (
-        <TextField label="Tuzuvchi (ixtiyoriy)" value={author} onChange={setAuthor} placeholder="Ismingiz yoki taxallusingiz" />
-      )}
       <div className="flex gap-3 mt-2">
         <SolidButton onClick={submit} icon={Check}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
@@ -705,17 +715,19 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
 
+  const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = courses.filter((c) => c.status !== 'pending');
-  const active = approved.find((c) => c.id === openId);
+  const viewable = isAdmin ? courses : courses.filter((c) => c.status !== 'pending' || c.authorId === myId);
+  const active = viewable.find((c) => c.id === openId);
   const editing = approved.find((c) => c.id === editId);
-  const activeCategory = approvedCategories.find((c) => c.id === categoryId);
+  const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
   const q = query.trim().toLowerCase();
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
@@ -754,6 +766,11 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         >
           <ArrowLeft size={15} /> {activeCategory ? activeCategory.name : 'Barcha mavzular'}
         </button>
+        {active.status === 'pending' && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Clock3 size={13} /> Tekshirilmoqda — hozircha faqat sizga koʻrinadi
+          </div>
+        )}
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
         <CourseBody content={active.content} videoUrl={active.videoUrl} />
       </div>
@@ -830,6 +847,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             renameCategory={renameCategory}
             deleteCategory={deleteCategory}
             onGoToCommunity={() => onGoToCommunity('kurslar')}
+            isAdmin={isAdmin}
           />
         )}
       </div>
@@ -847,7 +865,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta mavzu`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
       {inCategory.length === 0 ? (
-        <EmptyState text="Bu sohada hozircha mavzu qoʻshilmagan." cta="Quyidagi tugma orqali Hamjamiyat boʻlimida birinchi mavzuni qoʻshing." />
+        <EmptyState text="Bu sohada hozircha mavzu qoʻshilmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((c, i) => (
@@ -865,10 +883,12 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                 </div>
               </div>
               <div className="flex items-center flex-shrink-0 gap-1">
-                <ItemMenu actions={[
-                  { label: 'Tahrirlash', icon: Pencil, onClick: () => setEditId(c.id) },
-                  { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
-                ]} />
+                {isAdmin && (
+                  <ItemMenu actions={[
+                    { label: 'Tahrirlash', icon: Pencil, onClick: () => setEditId(c.id) },
+                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
+                  ]} />
+                )}
                 <ChevronRight size={16} style={{ color: C.gold }} />
               </div>
             </div>
@@ -951,14 +971,23 @@ function QuestionBuilder({ questions, setQuestions }) {
 
 function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
-  const [author, setAuthor] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [questions, setQuestions] = useState([]);
   const [newId, setNewId] = useState(null);
 
   if (newId) {
-    return <SuccessPanel onView={() => onView(newId)} onDone={onDone} />;
+    return (
+      <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
+        <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
+        <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Testingiz yuborildi!</div>
+        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.</div>
+        <div className="flex gap-3 justify-center">
+          <SolidButton onClick={() => onView(newId)} icon={ChevronRight}>Koʻrish</SolidButton>
+          <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
+        </div>
+      </div>
+    );
   }
 
   const canSubmit = title.trim() && questions.length > 0 && (lockedCategoryId || categoryName.trim());
@@ -967,7 +996,7 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
     if (!canSubmit) return;
     const payload = lockedCategoryId
       ? { categoryId: lockedCategoryId, title: title.trim(), description: description.trim(), questions }
-      : { categoryName: categoryName.trim(), author: author.trim(), title: title.trim(), description: description.trim(), questions };
+      : { categoryName: categoryName.trim(), title: title.trim(), description: description.trim(), questions };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -980,9 +1009,6 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
       <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} placeholder="Test haqida qisqacha" />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} />
-      {!lockedCategoryId && (
-        <TextField label="Tuzuvchi (ixtiyoriy)" value={author} onChange={setAuthor} placeholder="Ismingiz yoki taxallusingiz" />
-      )}
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
@@ -1101,17 +1127,19 @@ function QuizView({ test, onExit }) {
   );
 }
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
 
+  const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = tests.filter((t) => t.status !== 'pending');
-  const active = approved.find((t) => t.id === activeId);
+  const viewable = isAdmin ? tests : tests.filter((t) => t.status !== 'pending' || t.authorId === myId);
+  const active = viewable.find((t) => t.id === activeId);
   const editing = approved.find((t) => t.id === editId);
-  const activeCategory = approvedCategories.find((c) => c.id === categoryId);
+  const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
   const q = query.trim().toLowerCase();
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
@@ -1213,6 +1241,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
             renameCategory={renameCategory}
             deleteCategory={deleteCategory}
             onGoToCommunity={() => onGoToCommunity('testlar')}
+            isAdmin={isAdmin}
           />
         )}
       </div>
@@ -1230,7 +1259,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
       {inCategory.length === 0 ? (
-        <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali Hamjamiyat boʻlimida birinchi testni qoʻshing." />
+        <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((t, i) => (
@@ -1244,10 +1273,12 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                <ItemMenu actions={[
-                  { label: 'Tahrirlash', icon: Pencil, onClick: () => setEditId(t.id) },
-                  { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
-                ]} />
+                {isAdmin && (
+                  <ItemMenu actions={[
+                    { label: 'Tahrirlash', icon: Pencil, onClick: () => setEditId(t.id) },
+                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+                  ]} />
+                )}
                 <button
                   onClick={() => setActiveId(t.id)}
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
@@ -1273,12 +1304,16 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory }) {
+function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin' }) {
   const [categoryId, setCategoryId] = useState(null);
   const active = courses.find((c) => c.id === openId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = courses.filter((c) => c.categoryId === categoryId);
   const categoriesWithPending = categories.filter((cat) => courses.some((c) => c.categoryId === cat.id));
+  const isMine = mode === 'mine';
+  const backLabel = isMine ? 'Profil' : 'Admin panel';
+  const heading = isMine ? 'Mening mavzularim' : 'Hamjamiyat — Kurslar';
+  const countLabel = isMine ? `${courses.length} ta` : `${courses.length} ta kutilmoqda`;
 
   if (active) {
     return (
@@ -1288,8 +1323,13 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
-          <ArrowLeft size={15} /> Hamjamiyat mavzulari
+          <ArrowLeft size={15} /> {heading}
         </button>
+        {active.status === 'pending' && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Clock3 size={13} /> Tekshirilmoqda
+          </div>
+        )}
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
         {active.author && <div className="text-xs mb-4" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {active.author}</div>}
         <CourseBody content={active.content} videoUrl={active.videoUrl} />
@@ -1305,11 +1345,11 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
-          <ArrowLeft size={15} /> Hamjamiyat
+          <ArrowLeft size={15} /> {backLabel}
         </button>
-        <SectionHeading eyebrow={`${courses.length} ta kutilmoqda`} title="Hamjamiyat — Kurslar" />
+        <SectionHeading eyebrow={countLabel} title={heading} />
         {categoriesWithPending.length === 0 ? (
-          <EmptyState text="Hozircha foydalanuvchilar mavzu qoʻshmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
+          <EmptyState text={isMine ? 'Hozircha mavzu qoʻshmagansiz.' : 'Hozircha foydalanuvchilar mavzu qoʻshmagan.'} cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
         ) : (
           <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
             {categoriesWithPending.map((cat, i) => {
@@ -1325,7 +1365,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
                     <EntryNumber n={i + 1} />
                     <div className="min-w-0">
                       <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta kutilmoqda</div>
+                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div>
                     </div>
                   </div>
                   <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
@@ -1353,9 +1393,9 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
         className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
-        <ArrowLeft size={15} /> Hamjamiyat — barcha sohalar
+        <ArrowLeft size={15} /> {heading} — barcha sohalar
       </button>
-      <SectionHeading eyebrow={`${inCategory.length} ta kutilmoqda`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
+      <SectionHeading eyebrow={`${inCategory.length} ta`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
       <div className="grid sm:grid-cols-2 gap-4">
         {inCategory.map((c, i) => (
           <div
@@ -1370,12 +1410,17 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
                 <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                 {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
                 {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
+                {isMine && (
+                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : C.accent }}>
+                    {c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center flex-shrink-0 gap-1">
               <ItemMenu actions={[
-                { label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) },
-                { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
+                ...(approveCourse ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) }] : []),
+                ...(!isMine || c.status === 'pending' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) }] : []),
               ]} />
             </div>
           </div>
@@ -1393,12 +1438,16 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
   );
 }
 
-function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory }) {
+function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin' }) {
   const [categoryId, setCategoryId] = useState(null);
   const active = tests.find((t) => t.id === openId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = tests.filter((t) => t.categoryId === categoryId);
   const categoriesWithPending = categories.filter((cat) => tests.some((t) => t.categoryId === cat.id));
+  const isMine = mode === 'mine';
+  const backLabel = isMine ? 'Profil' : 'Admin panel';
+  const heading = isMine ? 'Mening testlarim' : 'Hamjamiyat — Testlar';
+  const countLabel = isMine ? `${tests.length} ta` : `${tests.length} ta kutilmoqda`;
 
   if (active) return <QuizView test={active} onExit={() => setOpenId(null)} />;
 
@@ -1410,11 +1459,11 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
-          <ArrowLeft size={15} /> Hamjamiyat
+          <ArrowLeft size={15} /> {backLabel}
         </button>
-        <SectionHeading eyebrow={`${tests.length} ta kutilmoqda`} title="Hamjamiyat — Testlar" />
+        <SectionHeading eyebrow={countLabel} title={heading} />
         {categoriesWithPending.length === 0 ? (
-          <EmptyState text="Hozircha foydalanuvchilar test qoʻshmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
+          <EmptyState text={isMine ? 'Hozircha test qoʻshmagansiz.' : 'Hozircha foydalanuvchilar test qoʻshmagan.'} cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
         ) : (
           <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
             {categoriesWithPending.map((cat, i) => {
@@ -1430,7 +1479,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                     <EntryNumber n={i + 1} />
                     <div className="min-w-0">
                       <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta kutilmoqda</div>
+                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div>
                     </div>
                   </div>
                   <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
@@ -1458,9 +1507,9 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
         className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
-        <ArrowLeft size={15} /> Hamjamiyat — barcha sohalar
+        <ArrowLeft size={15} /> {heading} — barcha sohalar
       </button>
-      <SectionHeading eyebrow={`${inCategory.length} ta kutilmoqda`} title={activeCategory ? activeCategory.name : 'Testlar'} />
+      <SectionHeading eyebrow={`${inCategory.length} ta`} title={activeCategory ? activeCategory.name : 'Testlar'} />
       <div className="grid sm:grid-cols-2 gap-4">
         {inCategory.map((t, i) => (
           <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
@@ -1471,12 +1520,17 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                 {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                 <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                 {t.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
+                {isMine && (
+                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : C.accent }}>
+                    {t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2 flex-shrink-0">
               <ItemMenu actions={[
-                { label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) },
-                { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+                ...(approveTest ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
+                ...(!isMine || t.status === 'pending' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
               ]} />
               <button
                 onClick={() => setOpenId(t.id)}
@@ -1501,7 +1555,240 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
   );
 }
 
-function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest }) {
+function AdminCategoriesView({ categories, courses, tests, renameCategory, deleteCategory, onBack }) {
+  const [renaming, setRenaming] = useState(null);
+  const countFor = (id) => courses.filter((c) => c.categoryId === id).length + tests.filter((t) => t.categoryId === id).length;
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+      >
+        <ArrowLeft size={15} /> Admin panel
+      </button>
+      <SectionHeading eyebrow={`${categories.length} ta soha`} title="Sohalarni boshqarish" />
+      {categories.length === 0 ? (
+        <EmptyState text="Hozircha soha yoʻq." />
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+          {categories.map((cat, i) => (
+            <div key={cat.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <div className="flex items-start min-w-0">
+                <EntryNumber n={i + 1} />
+                <div className="min-w-0">
+                  <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                  <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{countFor(cat.id)} ta material</div>
+                  {cat.status === 'pending' && (
+                    <div className="text-xs mt-1 inline-flex items-center gap-1" style={{ ...fontMono, color: C.gold }}><Clock3 size={12} /> Tekshirilmoqda</div>
+                  )}
+                </div>
+              </div>
+              <ItemMenu actions={[
+                { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
+                { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) },
+              ]} />
+            </div>
+          ))}
+        </div>
+      )}
+      {renaming && (
+        <RenameCategoryModal
+          category={renaming}
+          onCancel={() => setRenaming(null)}
+          onSave={async (newName) => {
+            const ok = await renameCategory(renaming.id, renaming.name, newName);
+            if (ok) setRenaming(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AdminNewsView({ news, addNews, deleteNews, onBack }) {
+  const [formOpen, setFormOpen] = useState(false);
+  const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  return (
+    <div>
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+      >
+        <ArrowLeft size={15} /> Admin panel
+      </button>
+      <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklarni boshqarish" />
+
+      {formOpen ? (
+        <AddNewsForm onAdd={addNews} onDone={() => setFormOpen(false)} />
+      ) : (
+        <div className="mb-6">
+          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi yangilik qoʻshish</GhostButton>
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
+        <EmptyState text="Hozircha yangilik yoʻq." />
+      ) : (
+        <div className="space-y-4 max-w-2xl">
+          {sorted.map((n) => (
+            <div key={n.id} className="p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs mb-1" style={{ ...fontMono, color: C.gold }}>{formatDate(n.date)}</div>
+                  <div className="font-medium text-base mb-1" style={{ ...fontBody, color: C.ink }}>{n.title}</div>
+                  <p className="text-[15px] leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
+                </div>
+                <IconButtonDelete onClick={() => deleteNews(n.id, n.title)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, renameCategory, deleteCategory, addNews, deleteNews }) {
+  const [subTab, setSubTab] = useState(null);
+  const [openCourseId, setOpenCourseId] = useState(null);
+  const [openTestId, setOpenTestId] = useState(null);
+
+  const pendingCourses = courses.filter((c) => c.status === 'pending');
+  const pendingTests = tests.filter((t) => t.status === 'pending');
+
+  if (subTab === 'kurslar') {
+    return (
+      <CommunityCoursesView
+        mode="admin"
+        courses={pendingCourses}
+        categories={categories}
+        openId={openCourseId}
+        setOpenId={setOpenCourseId}
+        onBack={() => setSubTab(null)}
+        submitCourse={submitCourse}
+        approveCourse={approveCourse}
+        deleteCourse={deleteCourse}
+        formOpen={false}
+        onOpenForm={() => {}}
+        onCloseForm={() => {}}
+        prefillCategory=""
+      />
+    );
+  }
+  if (subTab === 'testlar') {
+    return (
+      <CommunityTestsView
+        mode="admin"
+        tests={pendingTests}
+        categories={categories}
+        openId={openTestId}
+        setOpenId={setOpenTestId}
+        onBack={() => setSubTab(null)}
+        submitTest={submitTest}
+        approveTest={approveTest}
+        deleteTest={deleteTest}
+        formOpen={false}
+        onOpenForm={() => {}}
+        onCloseForm={() => {}}
+        prefillCategory=""
+      />
+    );
+  }
+  if (subTab === 'sohalar') {
+    return <AdminCategoriesView categories={categories} courses={courses} tests={tests} renameCategory={renameCategory} deleteCategory={deleteCategory} onBack={() => setSubTab(null)} />;
+  }
+  if (subTab === 'yangiliklar') {
+    return <AdminNewsView news={news} addNews={addNews} deleteNews={deleteNews} onBack={() => setSubTab(null)} />;
+  }
+
+  return (
+    <div>
+      <SectionHeading eyebrow="Faqat administrator uchun" title="Admin panel" />
+      <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>
+        Foydalanuvchilar yuborgan mavzu va testlarni shu yerda tekshirasiz. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga chiqadi va hammaga ochiq boʻladi.
+      </p>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <button onClick={() => setSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <BookOpen size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kurslar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingCourses.length} ta kutilmoqda</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => setSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <ListChecks size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Testlar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingTests.length} ta kutilmoqda</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => setSubTab('sohalar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <ShieldCheck size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Sohalar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{categories.length} ta soha</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => setSubTab('yangiliklar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Newspaper size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Yangiliklar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{news.length} ta eʼlon</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Profil — login (Google), roʻyxatdan oʻtish, "Mening kurslarim"      */
+/* ------------------------------------------------------------------ */
+
+function ProfileSetupForm({ defaultFirstName, defaultLastName, onSave }) {
+  const [firstName, setFirstName] = useState(defaultFirstName || '');
+  const [lastName, setLastName] = useState(defaultLastName || '');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!firstName.trim() || !lastName.trim()) return;
+    setBusy(true);
+    await onSave(firstName.trim(), lastName.trim());
+    setBusy(false);
+  }
+
+  return (
+    <div className="max-w-sm mx-auto mt-10 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+      <UserCircle2 size={28} style={{ color: C.gold }} className="mx-auto mb-2" />
+      <div className="text-lg mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Profilni tugating</div>
+      <div className="text-left">
+        <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
+        <TextField label="Familiya" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
+      </div>
+      <SolidButton onClick={submit} icon={Check} disabled={busy || !firstName.trim() || !lastName.trim()}>
+        {busy ? 'Saqlanmoqda...' : 'Davom etish'}
+      </SolidButton>
+    </div>
+  );
+}
+
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin }) {
   const [subTab, setSubTab] = useState(null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
@@ -1527,19 +1814,48 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
-  const pendingCourses = courses.filter((c) => c.status === 'pending');
-  const pendingTests = tests.filter((t) => t.status === 'pending');
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="max-w-sm mx-auto mt-10 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <UserCircle2 size={28} style={{ color: C.gold }} className="mx-auto mb-2" />
+        <div className="text-lg mb-2" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Profil</div>
+        <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
+          Oʻz kursingizni yaratish, testlar tuzish va ularni kuzatib borish uchun hisob yarating. Kurslarni oʻrganish va testlarni ishlash uchun ro'yxatdan o'tish shart emas.
+        </p>
+        <SolidButton onClick={signInWithGoogle} icon={LogIn}>Google orqali kirish</SolidButton>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    const meta = session.user?.user_metadata || {};
+    const guessFirst = (meta.given_name || (meta.full_name || meta.name || '').split(' ')[0] || '');
+    const guessLast = (meta.family_name || (meta.full_name || meta.name || '').split(' ').slice(1).join(' ') || '');
+    return <ProfileSetupForm defaultFirstName={guessFirst} defaultLastName={guessLast} onSave={onSaveProfile} />;
+  }
+
+  const myCourses = courses.filter((c) => c.authorId === session.user.id);
+  const myTests = tests.filter((t) => t.authorId === session.user.id);
 
   if (subTab === 'kurslar') {
     return (
       <CommunityCoursesView
-        courses={pendingCourses}
+        mode="mine"
+        courses={myCourses}
         categories={categories}
         openId={openCourseId}
         setOpenId={setOpenCourseId}
         onBack={() => setSubTab(null)}
         submitCourse={submitCourse}
-        approveCourse={approveCourse}
+        approveCourse={null}
         deleteCourse={deleteCourse}
         formOpen={courseFormOpen}
         onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); }}
@@ -1551,13 +1867,14 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
   if (subTab === 'testlar') {
     return (
       <CommunityTestsView
-        tests={pendingTests}
+        mode="mine"
+        tests={myTests}
         categories={categories}
         openId={openTestId}
         setOpenId={setOpenTestId}
         onBack={() => setSubTab(null)}
         submitTest={submitTest}
-        approveTest={approveTest}
+        approveTest={null}
         deleteTest={deleteTest}
         formOpen={testFormOpen}
         onOpenForm={() => { setPrefillCategory(''); setTestFormOpen(true); }}
@@ -1569,35 +1886,44 @@ function HamjamiyatView({ courses, tests, categories, target, onConsumeTarget, s
 
   return (
     <div>
-      <SectionHeading eyebrow="Foydalanuvchilar tuzgan" title="Hamjamiyat" />
-      <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>
-        Bu yerda foydalanuvchilar tomonidan yaratilgan mavzu va testlar joylashadi. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga oʻtadi.
-      </p>
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="flex items-start justify-between gap-3 mb-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <UserCircle2 size={32} style={{ color: C.gold }} />
+          <div className="min-w-0">
+            <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{profile.firstName} {profile.lastName}</div>
+            <div className="text-xs truncate" style={{ ...fontMono, color: C.inkSoft }}>{profile.email}</div>
+            {isAdmin && (
+              <div className="text-xs mt-1 inline-flex items-center gap-1" style={{ ...fontMono, color: C.gold }}><ShieldCheck size={12} /> Administrator</div>
+            )}
+          </div>
+        </div>
         <button
-          onClick={() => setSubTab('kurslar')}
-          className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5"
-          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+          onClick={onSignOut}
+          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
+          style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}
         >
+          <LogOut size={13} /> Chiqish
+        </button>
+      </div>
+
+      <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
+      <div className="grid sm:grid-cols-2 gap-4">
+        <button onClick={() => setSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <BookOpen size={20} style={{ color: C.gold }} />
             <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kurslar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingCourses.length} ta kutilmoqda</div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening mavzularim</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myCourses.length} ta</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
-        <button
-          onClick={() => setSubTab('testlar')}
-          className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5"
-          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-        >
+        <button onClick={() => setSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <ListChecks size={20} style={{ color: C.gold }} />
             <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Testlar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingTests.length} ta kutilmoqda</div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening testlarim</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myTests.length} ta</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
@@ -1633,21 +1959,12 @@ function AddNewsForm({ onAdd, onDone }) {
   );
 }
 
-function NewsView({ news, addNews, deleteNews }) {
-  const [formOpen, setFormOpen] = useState(false);
+function NewsView({ news }) {
   const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   return (
     <div>
       <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklar" />
-
-      {formOpen ? (
-        <AddNewsForm onAdd={addNews} onDone={() => setFormOpen(false)} />
-      ) : (
-        <div className="mb-6">
-          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi yangilik qoʻshish</GhostButton>
-        </div>
-      )}
 
       {sorted.length === 0 ? (
         <EmptyState text="Hozircha yangilik yoʻq." />
@@ -1655,13 +1972,10 @@ function NewsView({ news, addNews, deleteNews }) {
         <div className="space-y-4 max-w-2xl">
           {sorted.map((n) => (
             <div key={n.id} className="p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs mb-1" style={{ ...fontMono, color: C.gold }}>{formatDate(n.date)}</div>
-                  <div className="font-medium text-base mb-1" style={{ ...fontBody, color: C.ink }}>{n.title}</div>
-                  <p className="text-[15px] leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
-                </div>
-                <IconButtonDelete onClick={() => deleteNews(n.id, n.title)} />
+              <div className="min-w-0">
+                <div className="text-xs mb-1" style={{ ...fontMono, color: C.gold }}>{formatDate(n.date)}</div>
+                <div className="font-medium text-base mb-1" style={{ ...fontBody, color: C.ink }}>{n.title}</div>
+                <p className="text-[15px] leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
               </div>
             </div>
           ))}
@@ -1689,51 +2003,6 @@ function AboutView() {
   );
 }
 
-function PasswordModal({ label, onConfirm, onCancel }) {
-  const [value, setValue] = useState('');
-  const [err, setErr] = useState(false);
-
-  function handleSubmit() {
-    if (value === ADMIN_PASSWORD) {
-      onConfirm();
-    } else {
-      setErr(true);
-    }
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(20,30,20,0.55)' }}
-      onClick={onCancel}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm p-6 rounded-sm"
-        style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 12px 32px rgba(0,0,0,0.25)' }}
-      >
-        <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.gold }}>Tasdiqlash</div>
-        <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>{label} uchun parolni kiriting:</div>
-        <input
-          autoFocus
-          type="password"
-          value={value}
-          onChange={(e) => { setValue(e.target.value); setErr(false); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-          className="w-full bg-transparent outline-none py-2 mb-1 text-base"
-          style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${err ? C.red : C.rule}` }}
-          placeholder="Parol"
-        />
-        {err && <div className="text-xs mb-2" style={{ ...fontBody, color: C.red }}>Parol notoʻgʻri.</div>}
-        <div className="flex gap-3 mt-4">
-          <SolidButton onClick={handleSubmit} icon={Check}>Tasdiqlash</SolidButton>
-          <GhostButton onClick={onCancel} icon={X}>Bekor qilish</GhostButton>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /*  App shell                                                          */
 /* ------------------------------------------------------------------ */
@@ -1741,10 +2010,11 @@ function PasswordModal({ label, onConfirm, onCancel }) {
 const TABS = [
   { id: 'kurslar', label: 'Kurslar', icon: BookOpen },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
-  { id: 'hamjamiyat', label: 'Hamjamiyat', icon: Users },
+  { id: 'profil', label: 'Profil', icon: UserCircle2 },
   { id: 'yangiliklar', label: 'Yangiliklar', icon: Newspaper },
   { id: 'about', label: 'Biz haqimizda', icon: Info },
 ];
+const ADMIN_TAB = { id: 'admin', label: 'Admin panel', icon: ShieldCheck };
 
 export default function App() {
   const [tab, setTab] = useState('kurslar');
@@ -1755,12 +2025,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [pendingConfirm, setPendingConfirm] = useState(null);
   const [communityTarget, setCommunityTarget] = useState(null);
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('upcourse-theme') === 'dark' ? 'dark' : 'light'; } catch { return 'light'; }
   });
   const [readingActive, setReadingActive] = useState(false);
+
+  const isAdmin = !!profile?.isAdmin;
 
   Object.assign(C, theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE);
 
@@ -1768,15 +2042,52 @@ export default function App() {
     try { localStorage.setItem('upcourse-theme', theme); } catch {}
   }, [theme]);
 
-  function goToCommunity(kind, prefillCategory) { setTab('hamjamiyat'); setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '' }); }
+  /* Google orqali kirish holatini kuzatish + profil qatorini yuklash */
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProfile(uid) {
+      try {
+        const rows = await sbSelect('profiles', `id=eq.${uid}`);
+        if (!cancelled) setProfile(rows[0] ? profileFromRow(rows[0]) : null);
+      } catch (e) {
+        if (!cancelled) setProfile(null);
+      }
+    }
+    supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      setSession(data.session || null);
+      if (data.session) loadProfile(data.session.user.id).then(() => !cancelled && setAuthLoading(false));
+      else setAuthLoading(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession || null);
+      if (newSession) loadProfile(newSession.user.id);
+      else setProfile(null);
+    });
+    return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); };
+  }, []);
+
+  async function saveProfile(firstName, lastName) {
+    if (!session) return;
+    const row = { id: session.user.id, first_name: firstName, last_name: lastName, email: session.user.email || '' };
+    try {
+      await sbUpsert('profiles', row);
+      setProfile(profileFromRow(row));
+    } catch (e) {
+      setActionError('Profilni saqlashda xatolik yuz berdi.');
+    }
+  }
+
+  async function handleSignOut() {
+    await sbSignOut();
+    setSession(null);
+    setProfile(null);
+    setTab('kurslar');
+  }
+
+  function goToCommunity(kind, prefillCategory) { setTab('profil'); setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '' }); }
 
   const handleReadingChange = useCallback((v) => setReadingActive(v), []);
-
-  const requestAdmin = useCallback((label) => {
-    return new Promise((resolve) => {
-      setPendingConfirm({ label, resolve });
-    });
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -1787,20 +2098,9 @@ export default function App() {
         return;
       }
       try {
-        let [catRows, courseRows, testRows, newsRows] = await Promise.all([
+        const [catRows, courseRows, testRows, newsRows] = await Promise.all([
           sbSelect('categories'), sbSelect('courses'), sbSelect('tests'), sbSelect('news'),
         ]);
-
-        if (catRows.length === 0 && courseRows.length === 0 && testRows.length === 0 && newsRows.length === 0) {
-          // Baza boʻsh — birinchi marta ochilganda namuna kontent bilan toʻldiramiz.
-          await Promise.all(SEED_CATEGORIES.map((c) => sbInsert('categories', categoryToRow(c))));
-          await Promise.all(SEED_COURSES.map((c) => sbInsert('courses', courseToRow(c))));
-          await Promise.all(SEED_TESTS.map((t) => sbInsert('tests', testToRow(t))));
-          await Promise.all(SEED_NEWS.map((n) => sbInsert('news', newsToRow(n))));
-          [catRows, courseRows, testRows, newsRows] = await Promise.all([
-            sbSelect('categories'), sbSelect('courses'), sbSelect('tests'), sbSelect('news'),
-          ]);
-        }
 
         setCategories(catRows.map(categoryFromRow));
         setCourses(courseRows.map(courseFromRow));
@@ -1814,8 +2114,8 @@ export default function App() {
   }, []);
 
   async function addCategory(data) {
-    if (!(await requestAdmin('Yangi soha qoʻshish'))) return false;
-    const row = { id: uid(), name: data.name };
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
+    const row = { id: uid(), name: data.name, authorId: session?.user?.id };
     try {
       await sbInsert('categories', categoryToRow(row));
       setCategories([...categories, row]);
@@ -1828,9 +2128,9 @@ export default function App() {
   }
   async function renameCategory(id, oldName, newName) {
     if (!newName.trim() || newName.trim() === oldName) return false;
-    if (!(await requestAdmin(`"${oldName}" sohasini "${newName.trim()}" ga oʻzgartirish`))) return false;
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
-      await sbUpdate('categories', id, categoryToRow({ id, name: newName.trim() }));
+      await sbUpdate('categories', id, { name: newName.trim() });
       setCategories(categories.map((c) => (c.id === id ? { ...c, name: newName.trim() } : c)));
       setActionError(null);
       return true;
@@ -1840,7 +2140,7 @@ export default function App() {
     }
   }
   async function deleteCategory(id, name) {
-    if (!(await requestAdmin(`"${name}" sohasini oʻchirish`))) return false;
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbDelete('categories', id);
       setCategories(categories.filter((c) => c.id !== id));
@@ -1854,33 +2154,32 @@ export default function App() {
     }
   }
 
-  /* Hamjamiyat orqali kelgan erkin "soha nomi"ni mavjud sohaga bogʻlaydi
-     yoki (topilmasa) parolsiz yangi soha yaratadi. Soha birinchi marta
-     yaratilganda kim yozgan boʻlsa, shu "tuzuvchi" boʻlib qoladi — keyin
-     boshqa odam shu sohaga mavzu qoʻshsa ham, sohaning tuzuvchisi
-     oʻzgarmaydi. */
-  async function resolveCategoryId(name, author) {
+  /* Kurs/test qoʻshilganda erkin "soha nomi"ni mavjud sohaga bogʻlaydi
+     yoki (topilmasa) admin tekshiruvi kutilayotgan yangi soha yaratadi. */
+  async function resolveCategoryId(name, authorId, authorName) {
     const trimmed = (name || '').trim();
     if (!trimmed) return null;
     const existing = categories.find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
     if (existing) return existing.id;
-    const row = { id: uid(), name: trimmed, author: (author || '').trim(), status: 'pending' };
+    const row = { id: uid(), name: trimmed, author: authorName || '', authorId, status: 'pending' };
     await sbInsert('categories', categoryToRow(row));
     setCategories((prev) => [...prev, row]);
     return row.id;
   }
 
   async function submitCourse(data) {
+    if (!session) { setActionError('Mavzu qoʻshish uchun avval Google orqali kiring.'); return null; }
+    const authorName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : '';
     let categoryId = data.categoryId;
     if (!categoryId && data.categoryName) {
       try {
-        categoryId = await resolveCategoryId(data.categoryName, data.author);
+        categoryId = await resolveCategoryId(data.categoryName, session.user.id, authorName);
       } catch (e) {
         setActionError('Sohani yaratishda xatolik yuz berdi.');
         return null;
       }
     }
-    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: data.author || '', status: 'pending' };
+    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: authorName, authorId: session.user.id, status: 'pending' };
     try {
       await sbInsert('courses', courseToRow(row));
       setCourses([row, ...courses]);
@@ -1892,7 +2191,7 @@ export default function App() {
     }
   }
   async function approveCourse(id, title) {
-    if (!(await requestAdmin(`"${title}" mavzusini tasdiqlash`))) return false;
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbUpdate('courses', id, { status: 'approved' });
       setCourses(courses.map((c) => (c.id === id ? { ...c, status: 'approved' } : c)));
@@ -1910,7 +2209,7 @@ export default function App() {
     }
   }
   async function updateCourse(id, data, title) {
-    if (!(await requestAdmin(`"${title}" mavzusini tahrirlash`))) return false;
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbUpdate('courses', id, courseToRow({ id, status: 'approved', ...data }));
       setCourses(courses.map((c) => (c.id === id ? { ...c, ...data } : c)));
@@ -1922,7 +2221,8 @@ export default function App() {
     }
   }
   async function deleteCourse(id, title) {
-    if (!(await requestAdmin(`"${title}" mavzusini oʻchirish`))) return false;
+    const mine = courses.find((c) => c.id === id)?.authorId === session?.user?.id;
+    if (!isAdmin && !mine) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbDelete('courses', id);
       setCourses(courses.filter((c) => c.id !== id));
@@ -1935,16 +2235,18 @@ export default function App() {
   }
 
   async function submitTest(data) {
+    if (!session) { setActionError('Test qoʻshish uchun avval Google orqali kiring.'); return null; }
+    const authorName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : '';
     let categoryId = data.categoryId;
     if (!categoryId && data.categoryName) {
       try {
-        categoryId = await resolveCategoryId(data.categoryName, data.author);
+        categoryId = await resolveCategoryId(data.categoryName, session.user.id, authorName);
       } catch (e) {
         setActionError('Sohani yaratishda xatolik yuz berdi.');
         return null;
       }
     }
-    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, author: data.author || '', status: 'pending' };
+    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, author: authorName, authorId: session.user.id, status: 'pending' };
     try {
       await sbInsert('tests', testToRow(row));
       setTests([row, ...tests]);
@@ -1956,7 +2258,7 @@ export default function App() {
     }
   }
   async function approveTest(id, title) {
-    if (!(await requestAdmin(`"${title}" testini tasdiqlash`))) return false;
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbUpdate('tests', id, { status: 'approved' });
       setTests(tests.map((t) => (t.id === id ? { ...t, status: 'approved' } : t)));
@@ -1974,7 +2276,7 @@ export default function App() {
     }
   }
   async function updateTest(id, data, title) {
-    if (!(await requestAdmin(`"${title}" testini tahrirlash`))) return false;
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbUpdate('tests', id, testToRow({ id, status: 'approved', ...data }));
       setTests(tests.map((t) => (t.id === id ? { ...t, ...data } : t)));
@@ -1986,7 +2288,8 @@ export default function App() {
     }
   }
   async function deleteTest(id, title) {
-    if (!(await requestAdmin(`"${title}" testini oʻchirish`))) return false;
+    const mine = tests.find((t) => t.id === id)?.authorId === session?.user?.id;
+    if (!isAdmin && !mine) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbDelete('tests', id);
       setTests(tests.filter((t) => t.id !== id));
@@ -1999,7 +2302,7 @@ export default function App() {
   }
 
   async function addNews(data) {
-    if (!(await requestAdmin('Yangi yangilik eʼlon qilish'))) return false;
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     const row = { ...data, id: uid() };
     try {
       await sbInsert('news', newsToRow(row));
@@ -2012,7 +2315,7 @@ export default function App() {
     }
   }
   async function deleteNews(id, title) {
-    if (!(await requestAdmin(`"${title}" yangiligini oʻchirish`))) return false;
+    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbDelete('news', id);
       setNews(news.filter((n) => n.id !== id));
@@ -2068,7 +2371,7 @@ export default function App() {
       {/* Tab nav */}
       <nav className="max-w-5xl mx-auto px-5 sm:px-8 -mt-5 relative z-10">
         <div className="flex gap-1 p-1.5 rounded-sm overflow-x-auto" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 6px 16px rgba(31,61,43,0.12)' }}>
-          {TABS.map((t) => {
+          {(isAdmin ? [...TABS, ADMIN_TAB] : TABS).map((t) => {
             const Icon = t.icon;
             const activeTab = tab === t.id;
             return (
@@ -2112,24 +2415,48 @@ export default function App() {
               </div>
             )}
             <PaperPanel>
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} />}
-              {tab === 'hamjamiyat' && (
-                <HamjamiyatView
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
+              {tab === 'profil' && (
+                <ProfileView
+                  session={session}
+                  profile={profile}
+                  authLoading={authLoading}
+                  onSaveProfile={saveProfile}
+                  onSignOut={handleSignOut}
                   courses={courses}
                   tests={tests}
                   categories={categories}
-                  target={communityTarget}
-                  onConsumeTarget={() => setCommunityTarget(null)}
                   submitCourse={submitCourse}
                   approveCourse={approveCourse}
                   deleteCourse={deleteCourse}
                   submitTest={submitTest}
                   approveTest={approveTest}
                   deleteTest={deleteTest}
+                  target={communityTarget}
+                  onConsumeTarget={() => setCommunityTarget(null)}
+                  isAdmin={isAdmin}
                 />
               )}
-              {tab === 'yangiliklar' && <NewsView news={news} addNews={addNews} deleteNews={deleteNews} />}
+              {tab === 'admin' && isAdmin && (
+                <AdminPanelView
+                  courses={courses}
+                  tests={tests}
+                  categories={categories}
+                  news={news}
+                  submitCourse={submitCourse}
+                  approveCourse={approveCourse}
+                  deleteCourse={deleteCourse}
+                  submitTest={submitTest}
+                  approveTest={approveTest}
+                  deleteTest={deleteTest}
+                  renameCategory={renameCategory}
+                  deleteCategory={deleteCategory}
+                  addNews={addNews}
+                  deleteNews={deleteNews}
+                />
+              )}
+              {tab === 'yangiliklar' && <NewsView news={news} />}
               {tab === 'about' && <AboutView />}
             </PaperPanel>
           </>
@@ -2142,14 +2469,6 @@ export default function App() {
           <span>UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()}</span>
         </div>
       </footer>
-
-      {pendingConfirm && (
-        <PasswordModal
-          label={pendingConfirm.label}
-          onConfirm={() => { pendingConfirm.resolve(true); setPendingConfirm(null); }}
-          onCancel={() => { pendingConfirm.resolve(false); setPendingConfirm(null); }}
-        />
-      )}
     </div>
   );
 }
