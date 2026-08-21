@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
@@ -720,6 +720,10 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
+  const { pushNav, back } = useContext(NavContext);
+  const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
+  const goCourse = (id) => { setOpenId(id); pushNav(() => setOpenId(null)); };
+  const goEdit = (id) => { setEditId(id); pushNav(() => setEditId(null)); };
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
@@ -744,14 +748,14 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     return (
       <div>
         <button
-          onClick={() => setEditId(null)}
+          onClick={back}
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Ortga
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
-        <EditCourseForm course={editing} onSave={(data) => updateCourse(editing.id, data, editing.title)} onDone={() => setEditId(null)} />
+        <EditCourseForm course={editing} onSave={(data) => updateCourse(editing.id, data, editing.title)} onDone={back} />
       </div>
     );
   }
@@ -760,7 +764,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     return (
       <div>
         <button
-          onClick={() => setOpenId(null)}
+          onClick={back}
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
@@ -798,7 +802,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                           key={cat.id}
                           className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                           style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                          onClick={() => setCategoryId(cat.id)}
+                          onClick={() => goCategory(cat.id)}
                         >
                           <div className="min-w-0">
                             <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
@@ -821,7 +825,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                         key={c.id}
                         className="min-w-0 group flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                         style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                        onClick={() => setOpenId(c.id)}
+                        onClick={() => goCourse(c.id)}
                       >
                         <div className="min-w-0">
                           <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
@@ -843,7 +847,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             categories={approvedCategories}
             itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
             itemLabel="mavzu"
-            onSelect={setCategoryId}
+            onSelect={goCategory}
             renameCategory={renameCategory}
             deleteCategory={deleteCategory}
             onGoToCommunity={() => onGoToCommunity('kurslar')}
@@ -857,7 +861,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   return (
     <div>
       <button
-        onClick={() => setCategoryId(null)}
+        onClick={back}
         className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
@@ -873,7 +877,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
               key={c.id}
               className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
               style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-              onClick={() => setOpenId(c.id)}
+              onClick={() => goCourse(c.id)}
             >
               <div className="flex items-start min-w-0">
                 <EntryNumber n={i + 1} />
@@ -885,7 +889,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
               <div className="flex items-center flex-shrink-0 gap-1">
                 {isAdmin && (
                   <ItemMenu actions={[
-                    { label: 'Tahrirlash', icon: Pencil, onClick: () => setEditId(c.id) },
+                    { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(c.id) },
                     { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
                   ]} />
                 )}
@@ -1132,6 +1136,10 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
+  const { pushNav, back } = useContext(NavContext);
+  const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
+  const goTest = (id) => { setActiveId(id); pushNav(() => setActiveId(null)); };
+  const goEdit = (id) => { setEditId(id); pushNav(() => setEditId(null)); };
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
@@ -1152,20 +1160,20 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
     return () => { if (onReadingChange) onReadingChange(false); };
   }, [active, onReadingChange]);
 
-  if (active) return <QuizView test={active} onExit={() => setActiveId(null)} />;
+  if (active) return <QuizView test={active} onExit={back} />;
 
   if (editing) {
     return (
       <div>
         <button
-          onClick={() => setEditId(null)}
+          onClick={back}
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Ortga
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
-        <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={() => setEditId(null)} />
+        <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
       </div>
     );
   }
@@ -1191,7 +1199,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                           key={cat.id}
                           className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                           style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                          onClick={() => setCategoryId(cat.id)}
+                          onClick={() => goCategory(cat.id)}
                         >
                           <div className="min-w-0">
                             <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
@@ -1219,7 +1227,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                           <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                         </div>
                         <button
-                          onClick={() => setActiveId(t.id)}
+                          onClick={() => goTest(t.id)}
                           className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
                           style={{ ...fontBody, color: C.white, background: C.cover }}
                         >
@@ -1237,7 +1245,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
             categories={approvedCategories}
             itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
             itemLabel="test"
-            onSelect={setCategoryId}
+            onSelect={goCategory}
             renameCategory={renameCategory}
             deleteCategory={deleteCategory}
             onGoToCommunity={() => onGoToCommunity('testlar')}
@@ -1251,7 +1259,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   return (
     <div>
       <button
-        onClick={() => setCategoryId(null)}
+        onClick={back}
         className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
@@ -1275,12 +1283,12 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
                 {isAdmin && (
                   <ItemMenu actions={[
-                    { label: 'Tahrirlash', icon: Pencil, onClick: () => setEditId(t.id) },
+                    { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
                     { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
                   ]} />
                 )}
                 <button
-                  onClick={() => setActiveId(t.id)}
+                  onClick={() => goTest(t.id)}
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
                   style={{ ...fontBody, color: C.white, background: C.cover }}
                 >
@@ -1306,6 +1314,9 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 
 function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin' }) {
   const [categoryId, setCategoryId] = useState(null);
+  const { pushNav, back } = useContext(NavContext);
+  const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
+  const goOpen = (id) => { setOpenId(id); pushNav(() => setOpenId(null)); };
   const active = courses.find((c) => c.id === openId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = courses.filter((c) => c.categoryId === categoryId);
@@ -1319,7 +1330,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
     return (
       <div>
         <button
-          onClick={() => setOpenId(null)}
+          onClick={back}
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
@@ -1341,7 +1352,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
     return (
       <div>
         <button
-          onClick={onBack}
+          onClick={back}
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
@@ -1359,7 +1370,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
                   key={cat.id}
                   className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                   style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                  onClick={() => setCategoryId(cat.id)}
+                  onClick={() => goCategory(cat.id)}
                 >
                   <div className="flex items-start min-w-0">
                     <EntryNumber n={i + 1} />
@@ -1376,7 +1387,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
         )}
 
         {formOpen ? (
-          <AddCourseForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitCourse} onDone={onCloseForm} onView={setOpenId} />
+          <AddCourseForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitCourse} onDone={back} onView={goOpen} />
         ) : (
           <div className="mt-6">
             <GhostButton onClick={onOpenForm} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
@@ -1389,7 +1400,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
   return (
     <div>
       <button
-        onClick={() => setCategoryId(null)}
+        onClick={back}
         className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
@@ -1402,7 +1413,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
             key={c.id}
             className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
             style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-            onClick={() => setOpenId(c.id)}
+            onClick={() => goOpen(c.id)}
           >
             <div className="flex items-start min-w-0">
               <EntryNumber n={i + 1} />
@@ -1428,7 +1439,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
       </div>
 
       {formOpen ? (
-        <AddCourseForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitCourse} onDone={onCloseForm} onView={setOpenId} />
+        <AddCourseForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitCourse} onDone={back} onView={goOpen} />
       ) : (
         <div className="mt-6">
           <GhostButton onClick={onOpenForm} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
@@ -1440,6 +1451,9 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
 
 function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin' }) {
   const [categoryId, setCategoryId] = useState(null);
+  const { pushNav, back } = useContext(NavContext);
+  const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
+  const goOpen = (id) => { setOpenId(id); pushNav(() => setOpenId(null)); };
   const active = tests.find((t) => t.id === openId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = tests.filter((t) => t.categoryId === categoryId);
@@ -1449,13 +1463,13 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
   const heading = isMine ? 'Mening testlarim' : 'Hamjamiyat — Testlar';
   const countLabel = isMine ? `${tests.length} ta` : `${tests.length} ta kutilmoqda`;
 
-  if (active) return <QuizView test={active} onExit={() => setOpenId(null)} />;
+  if (active) return <QuizView test={active} onExit={back} />;
 
   if (!categoryId) {
     return (
       <div>
         <button
-          onClick={onBack}
+          onClick={back}
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
@@ -1473,7 +1487,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                   key={cat.id}
                   className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                   style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                  onClick={() => setCategoryId(cat.id)}
+                  onClick={() => goCategory(cat.id)}
                 >
                   <div className="flex items-start min-w-0">
                     <EntryNumber n={i + 1} />
@@ -1490,7 +1504,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
         )}
 
         {formOpen ? (
-          <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={onCloseForm} onView={setOpenId} />
+          <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} />
         ) : (
           <div className="mt-6">
             <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
@@ -1503,7 +1517,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
   return (
     <div>
       <button
-        onClick={() => setCategoryId(null)}
+        onClick={back}
         className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
@@ -1533,7 +1547,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                 ...(!isMine || t.status === 'pending' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
               ]} />
               <button
-                onClick={() => setOpenId(t.id)}
+                onClick={() => goOpen(t.id)}
                 className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
                 style={{ ...fontBody, color: C.white, background: C.cover }}
               >
@@ -1545,7 +1559,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
       </div>
 
       {formOpen ? (
-        <AddTestForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitTest} onDone={onCloseForm} onView={setOpenId} />
+        <AddTestForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} />
       ) : (
         <div className="mt-6">
           <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
@@ -1557,12 +1571,13 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
 
 function AdminCategoriesView({ categories, courses, tests, renameCategory, deleteCategory, onBack }) {
   const [renaming, setRenaming] = useState(null);
+  const { back } = useContext(NavContext);
   const countFor = (id) => courses.filter((c) => c.categoryId === id).length + tests.filter((t) => t.categoryId === id).length;
 
   return (
     <div>
       <button
-        onClick={onBack}
+        onClick={back}
         className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
@@ -1609,12 +1624,14 @@ function AdminCategoriesView({ categories, courses, tests, renameCategory, delet
 
 function AdminNewsView({ news, addNews, deleteNews, onBack }) {
   const [formOpen, setFormOpen] = useState(false);
+  const { pushNav, back } = useContext(NavContext);
+  const openForm = () => { setFormOpen(true); pushNav(() => setFormOpen(false)); };
   const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   return (
     <div>
       <button
-        onClick={onBack}
+        onClick={back}
         className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
         style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
       >
@@ -1623,10 +1640,10 @@ function AdminNewsView({ news, addNews, deleteNews, onBack }) {
       <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklarni boshqarish" />
 
       {formOpen ? (
-        <AddNewsForm onAdd={addNews} onDone={() => setFormOpen(false)} />
+        <AddNewsForm onAdd={addNews} onDone={back} />
       ) : (
         <div className="mb-6">
-          <GhostButton onClick={() => setFormOpen(true)} icon={Plus}>Yangi yangilik qoʻshish</GhostButton>
+          <GhostButton onClick={openForm} icon={Plus}>Yangi yangilik qoʻshish</GhostButton>
         </div>
       )}
 
@@ -1656,6 +1673,8 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
   const [subTab, setSubTab] = useState(null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
+  const { pushNav } = useContext(NavContext);
+  const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
   const pendingCourses = courses.filter((c) => c.status === 'pending');
   const pendingTests = tests.filter((t) => t.status === 'pending');
@@ -1712,7 +1731,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
         Foydalanuvchilar yuborgan mavzu va testlarni shu yerda tekshirasiz. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga chiqadi va hammaga ochiq boʻladi.
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
-        <button onClick={() => setSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <BookOpen size={20} style={{ color: C.gold }} />
             <div>
@@ -1722,7 +1741,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
-        <button onClick={() => setSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <button onClick={() => goSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <ListChecks size={20} style={{ color: C.gold }} />
             <div>
@@ -1732,7 +1751,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
-        <button onClick={() => setSubTab('sohalar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <button onClick={() => goSubTab('sohalar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <ShieldCheck size={20} style={{ color: C.gold }} />
             <div>
@@ -1742,7 +1761,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
-        <button onClick={() => setSubTab('yangiliklar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <button onClick={() => goSubTab('yangiliklar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <Newspaper size={20} style={{ color: C.gold }} />
             <div>
@@ -1795,19 +1814,22 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   const [courseFormOpen, setCourseFormOpen] = useState(false);
   const [testFormOpen, setTestFormOpen] = useState(false);
   const [prefillCategory, setPrefillCategory] = useState('');
+  const { pushNav } = useContext(NavContext);
+  const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
   useEffect(() => {
     if (target) {
       setSubTab(target.type);
+      pushNav(() => setSubTab(null));
       if (target.action === 'add') {
         setOpenCourseId(null);
         setOpenTestId(null);
         setPrefillCategory(target.prefillCategory || '');
-        if (target.type === 'kurslar') setCourseFormOpen(true);
-        if (target.type === 'testlar') setTestFormOpen(true);
+        if (target.type === 'kurslar') { setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }
+        if (target.type === 'testlar') { setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }
       } else {
-        if (target.type === 'kurslar') setOpenCourseId(target.id);
-        if (target.type === 'testlar') setOpenTestId(target.id);
+        if (target.type === 'kurslar') { setOpenCourseId(target.id); pushNav(() => setOpenCourseId(null)); }
+        if (target.type === 'testlar') { setOpenTestId(target.id); pushNav(() => setOpenTestId(null)); }
       }
       onConsumeTarget();
     }
@@ -1858,7 +1880,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         approveCourse={null}
         deleteCourse={deleteCourse}
         formOpen={courseFormOpen}
-        onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); }}
+        onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }}
         onCloseForm={() => setCourseFormOpen(false)}
         prefillCategory={prefillCategory}
       />
@@ -1877,7 +1899,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         approveTest={null}
         deleteTest={deleteTest}
         formOpen={testFormOpen}
-        onOpenForm={() => { setPrefillCategory(''); setTestFormOpen(true); }}
+        onOpenForm={() => { setPrefillCategory(''); setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }}
         onCloseForm={() => setTestFormOpen(false)}
         prefillCategory={prefillCategory}
       />
@@ -1908,7 +1930,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
 
       <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
       <div className="grid sm:grid-cols-2 gap-4">
-        <button onClick={() => setSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <BookOpen size={20} style={{ color: C.gold }} />
             <div>
@@ -1918,7 +1940,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
-        <button onClick={() => setSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <button onClick={() => goSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <ListChecks size={20} style={{ color: C.gold }} />
             <div>
@@ -2007,6 +2029,44 @@ function AboutView() {
 /*  App shell                                                          */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/*  Telefon/brauzerning "orqaga" tugmasi saytning ichki "Ortga"          */
+/*  tugmalari bilan bir xil ishlashi uchun: har safar chuqurroq          */
+/*  bo'limga o'tilganda (mavzu ochilganda, kategoriya tanlanganda va     */
+/*  hokazo) tarixga bitta "belgi" qo'shiladi. Qurilma orqaga tugmasi     */
+/*  bosilganda o'sha belgi "yechiladi" va aynan shu joyning ichki        */
+/*  "ortga" funksiyasi chaqiriladi — sahifadan yoki hisobdan chiqib      */
+/*  ketish o'rniga.                                                      */
+const NavContext = React.createContext({ pushNav: () => {}, back: () => {} });
+
+function useNavStack() {
+  const stackRef = useRef([]);
+
+  useEffect(() => {
+    function onPopState() {
+      const undo = stackRef.current.pop();
+      if (undo) undo();
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const pushNav = useCallback((undoFn) => {
+    stackRef.current.push(undoFn);
+    try { window.history.pushState({ upcourseNav: true }, ''); } catch {}
+  }, []);
+
+  const back = useCallback(() => {
+    if (stackRef.current.length > 0) {
+      window.history.back();
+    }
+  }, []);
+
+  return { pushNav, back };
+}
+
+/* ------------------------------------------------------------------ */
+
 const TABS = [
   { id: 'kurslar', label: 'Kurslar', icon: BookOpen },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
@@ -2035,6 +2095,7 @@ export default function App() {
   const [readingActive, setReadingActive] = useState(false);
 
   const isAdmin = !!profile?.isAdmin;
+  const nav = useNavStack();
 
   Object.assign(C, theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE);
 
@@ -2053,18 +2114,32 @@ export default function App() {
         if (!cancelled) setProfile(null);
       }
     }
-    supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      setSession(data.session || null);
-      if (data.session) loadProfile(data.session.user.id).then(() => !cancelled && setAuthLoading(false));
-      else setAuthLoading(false);
-    });
+    function refreshSession() {
+      supabase.auth.getSession().then(({ data }) => {
+        if (cancelled) return;
+        setSession(data.session || null);
+        if (data.session) loadProfile(data.session.user.id).then(() => !cancelled && setAuthLoading(false));
+        else { setProfile(null); setAuthLoading(false); }
+      });
+    }
+    refreshSession();
+    // Google orqali kirishdan qaytgach, URL'dagi token qoldig'ini tozalab,
+    // tarixni "toza" holatga keltiramiz — orqaga tugmasi Google sahifasiga
+    // emas, saytning o'zida ishlashi uchun.
+    if (window.location.hash.includes('access_token') || window.location.search.includes('code=')) {
+      try { window.history.replaceState({}, '', window.location.pathname); } catch {}
+    }
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession || null);
       if (newSession) loadProfile(newSession.user.id);
       else setProfile(null);
     });
-    return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); };
+    // Telefon brauzerlari sahifani "bfcache"dan tiklaganda (masalan orqaga
+    // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu payt
+    // login holatini qayta tekshiramiz.
+    function onPageShow(e) { if (e.persisted) refreshSession(); }
+    window.addEventListener('pageshow', onPageShow);
+    return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); window.removeEventListener('pageshow', onPageShow); };
   }, []);
 
   async function saveProfile(firstName, lastName) {
@@ -2328,6 +2403,7 @@ export default function App() {
   }
 
   return (
+    <NavContext.Provider value={nav}>
     <div className="min-h-screen w-full overflow-x-hidden" style={{ background: C.paper }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
@@ -2377,7 +2453,7 @@ export default function App() {
             return (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => { const prevTab = tab; setTab(t.id); if (t.id !== prevTab) nav.pushNav(() => setTab(prevTab)); }}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-sm text-[15px] whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2"
                 style={{
                   ...fontBody,
@@ -2470,5 +2546,6 @@ export default function App() {
         </div>
       </footer>
     </div>
+    </NavContext.Provider>
   );
 }
