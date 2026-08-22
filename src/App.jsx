@@ -3,7 +3,7 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Link2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -280,6 +280,38 @@ function ItemMenu({ actions }) {
         </div>
       )}
     </div>
+  );
+}
+
+/* Testni ijtimoiy tarmoqlarda ulashish uchun toʻgʻridan-toʻgʻri havola
+   (masalan upcourse-uz.vercel.app/test/abc123) nusxalanadi. Havola
+   bosilganda sayt shu testni avtomatik ochadi (App komponentidagi
+   deep-link mantigʻiga qarang). */
+function CopyLinkButton({ testId, compact }) {
+  const [copied, setCopied] = useState(false);
+
+  function copy(e) {
+    e.stopPropagation();
+    const url = `${window.location.origin}/test/${testId}`;
+    try {
+      navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) { /* clipboard mavjud boʻlmasa e'tiborsiz qoldiriladi */ }
+  }
+
+  return (
+    <button
+      onClick={copy}
+      title="Havolani nusxalash"
+      className={`inline-flex items-center gap-1 flex-shrink-0 rounded-sm transition-colors ${compact ? 'p-2' : 'text-xs px-3 py-1.5'}`}
+      style={compact
+        ? { color: copied ? C.accent : C.inkSoft }
+        : { ...fontBody, color: copied ? C.accent : C.inkSoft, border: `1px solid ${C.rule}` }}
+    >
+      <Link2 size={compact ? 16 : 13} />
+      {!compact && (copied ? 'Nusxalandi' : 'Havola')}
+    </button>
   );
 }
 
@@ -1090,7 +1122,10 @@ function QuizView({ test, onExit }) {
         <ArrowLeft size={15} /> Barcha testlar
       </button>
 
-      <h3 className="text-2xl sm:text-3xl mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <h3 className="text-2xl sm:text-3xl min-w-0" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+        <CopyLinkButton testId={test.id} />
+      </div>
       {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
 
       {submitted && (
@@ -1149,7 +1184,7 @@ function QuizView({ test, onExit }) {
   );
 }
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, deepLinkTestId, onConsumeDeepLink }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -1172,6 +1207,16 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
+
+  /* Ulashilgan havola (masalan /test/abc123) orqali kirilganda — testni
+     ro'yxatlar bo'ylab qidirmasdan, to'g'ridan-to'g'ri ochib beramiz. */
+  useEffect(() => {
+    if (!deepLinkTestId) return;
+    const found = viewable.some((t) => t.id === deepLinkTestId);
+    if (found) setActiveId(deepLinkTestId);
+    if (onConsumeDeepLink) onConsumeDeepLink();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkTestId, tests]);
 
   useEffect(() => {
     if (onReadingChange) onReadingChange(!!active);
@@ -1244,13 +1289,16 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                           <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                           <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                         </div>
-                        <button
-                          onClick={() => goTest(t.id)}
-                          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
-                          style={{ ...fontBody, color: C.white, background: C.cover }}
-                        >
-                          <Award size={13} /> Boshlash
-                        </button>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <CopyLinkButton testId={t.id} compact />
+                          <button
+                            onClick={() => goTest(t.id)}
+                            className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
+                            style={{ ...fontBody, color: C.white, background: C.cover }}
+                          >
+                            <Award size={13} /> Boshlash
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1299,12 +1347,15 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                {isAdmin && (
-                  <ItemMenu actions={[
-                    { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
-                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
-                  ]} />
-                )}
+                <div className="flex items-center gap-1">
+                  <CopyLinkButton testId={t.id} compact />
+                  {isAdmin && (
+                    <ItemMenu actions={[
+                      { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
+                      { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+                    ]} />
+                  )}
+                </div>
                 <button
                   onClick={() => goTest(t.id)}
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
@@ -2338,8 +2389,19 @@ function getTabMeta(id) {
   return ALL_TABS_META.find((t) => t.id === id) || TABS[0];
 }
 
+/* /test/abc123 koʻrinishidagi havoladan test ID'sini ajratib oladi. */
+function getDeepLinkTestId() {
+  try {
+    const m = window.location.pathname.match(/^\/test\/([^/?#]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export default function App() {
-  const [tab, setTab] = useState('kurslar');
+  const [tab, setTab] = useState(() => (getDeepLinkTestId() ? 'testlar' : 'kurslar'));
+  const [deepLinkTestId, setDeepLinkTestId] = useState(getDeepLinkTestId);
   const [categories, setCategories] = useState([]);
   const [courses, setCourses] = useState([]);
   const [tests, setTests] = useState([]);
@@ -2870,7 +2932,7 @@ export default function App() {
             )}
             <PaperPanel key={tab} className="app-fade-slide">
               {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} deepLinkTestId={deepLinkTestId} onConsumeDeepLink={() => { setDeepLinkTestId(null); try { window.history.replaceState({}, '', '/'); } catch (e) {} }} />}
               {tab === 'profil' && (
                 <ProfileView
                   session={session}
