@@ -3,7 +3,7 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -2067,13 +2067,17 @@ function useNavStack() {
 
 /* ------------------------------------------------------------------ */
 
+/* Asosiy navigatsiya — mobil pastki panel va desktop yon panelda ishlatiladi.
+   "Kurs yaratish" markaziy tugmasi alohida, TABS ichida emas.
+   "Biz haqimizda" va "Admin panel" ushbu asosiy 4 ta band ichiga kirmaydi —
+   ular sarlavha/footer orqali ochiladi (pastga qarang). */
 const TABS = [
-  { id: 'kurslar', label: 'Kurslar', icon: BookOpen },
+  { id: 'kurslar', label: 'Bosh sahifa', icon: Home },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
-  { id: 'profil', label: 'Profil', icon: UserCircle2 },
   { id: 'yangiliklar', label: 'Yangiliklar', icon: Newspaper },
-  { id: 'about', label: 'Biz haqimizda', icon: Info },
+  { id: 'profil', label: 'Profil', icon: UserCircle2 },
 ];
+const ABOUT_TAB = { id: 'about', label: 'Biz haqimizda', icon: Info };
 const ADMIN_TAB = { id: 'admin', label: 'Admin panel', icon: ShieldCheck };
 
 export default function App() {
@@ -2402,15 +2406,112 @@ export default function App() {
     }
   }
 
+  function goTo(id) {
+    const prevTab = tab;
+    setTab(id);
+    if (id !== prevTab) nav.pushNav(() => setTab(prevTab));
+  }
+
+  function handleCreateClick() {
+    // Login bo'lmasa ham Profil bo'limiga o'tadi — u yerda ro'yxatdan
+    // o'tish/kirish so'raladi, keyin kurs yaratish formasi ochiladi.
+    goToCommunity('kurslar');
+  }
+
   return (
     <NavContext.Provider value={nav}>
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: C.paper }}>
+    <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
         * { box-sizing: border-box; }
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline-offset: 2px; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       `}</style>
+
+      {/* Desktop yon navigatsiya paneli — mobil ekranlarda yashirin */}
+      {!readingActive && (
+        <aside
+          className="hidden md:flex md:flex-col md:w-56 md:shrink-0 md:sticky md:top-0 md:h-screen px-4 py-6"
+          style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}
+        >
+          <div className="flex items-center gap-2 px-2 mb-8">
+            <GraduationCap size={20} style={{ color: C.gold }} />
+            <span className="text-[15px]" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const activeTab = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => goTo(t.id)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+                  style={{
+                    ...fontBody,
+                    color: activeTab ? C.cover : 'rgba(251,250,243,0.8)',
+                    background: activeTab ? C.gold : 'transparent',
+                    outlineColor: C.gold,
+                    fontWeight: activeTab ? 600 : 400,
+                  }}
+                >
+                  <Icon size={16} />
+                  {t.label}
+                </button>
+              );
+            })}
+            <button
+              onClick={handleCreateClick}
+              className="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+              style={{ ...fontBody, color: C.cover, background: C.goldSoft, outlineColor: C.gold, fontWeight: 600 }}
+            >
+              <Plus size={16} />
+              Kurs yaratish
+            </button>
+          </div>
+          <div className="flex-1" />
+          <div className="flex flex-col gap-1 pt-3" style={{ borderTop: `1px solid ${C.coverLine}` }}>
+            {isAdmin && (
+              <button
+                onClick={() => goTo('admin')}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[14px] transition-colors"
+                style={{
+                  ...fontBody,
+                  color: tab === 'admin' ? C.cover : 'rgba(251,250,243,0.8)',
+                  background: tab === 'admin' ? C.gold : 'transparent',
+                  fontWeight: tab === 'admin' ? 600 : 400,
+                }}
+              >
+                <ShieldCheck size={16} />
+                Admin panel
+              </button>
+            )}
+            <button
+              onClick={() => goTo('about')}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[14px] transition-colors"
+              style={{
+                ...fontBody,
+                color: tab === 'about' ? C.cover : 'rgba(251,250,243,0.8)',
+                background: tab === 'about' ? C.gold : 'transparent',
+                fontWeight: tab === 'about' ? 600 : 400,
+              }}
+            >
+              <Info size={16} />
+              Biz haqimizda
+            </button>
+            <button
+              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[14px]"
+              style={{ ...fontBody, color: 'rgba(251,250,243,0.8)' }}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              {theme === 'dark' ? 'Kunduzgi rejim' : 'Tungi rejim'}
+            </button>
+          </div>
+        </aside>
+      )}
+
+      <div className="flex-1 min-w-0 pb-24 md:pb-0">
 
       {/* Masthead */}
       <header style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
@@ -2419,7 +2520,7 @@ export default function App() {
             <button
               onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
               aria-label={theme === 'dark' ? 'Kunduzgi rejimga oʻtish' : 'Tungi rejimga oʻtish'}
-              className="absolute top-2 right-5 sm:right-8 w-8 h-8 flex items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2"
+              className="md:hidden absolute top-2 right-5 sm:right-8 w-8 h-8 flex items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2"
               style={{ border: `1px solid ${C.coverLine}`, color: C.goldSoft, outlineColor: C.gold }}
             >
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
@@ -2443,33 +2544,6 @@ export default function App() {
           </div>
         </div>
       </header>
-
-      {/* Tab nav */}
-      <nav className="max-w-5xl mx-auto px-5 sm:px-8 -mt-5 relative z-10">
-        <div className="flex gap-1 p-1.5 rounded-sm overflow-x-auto" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 6px 16px rgba(31,61,43,0.12)' }}>
-          {(isAdmin ? [...TABS, ADMIN_TAB] : TABS).map((t) => {
-            const Icon = t.icon;
-            const activeTab = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => { const prevTab = tab; setTab(t.id); if (t.id !== prevTab) nav.pushNav(() => setTab(prevTab)); }}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-sm text-[15px] whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2"
-                style={{
-                  ...fontBody,
-                  color: activeTab ? C.white : C.inkSoft,
-                  background: activeTab ? C.cover : 'transparent',
-                  outlineColor: C.gold,
-                  fontWeight: activeTab ? 600 : 400,
-                }}
-              >
-                <Icon size={15} />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
 
       {/* Content */}
       <main className="max-w-5xl mx-auto px-5 sm:px-8 py-8">
@@ -2543,8 +2617,68 @@ export default function App() {
         <div className="flex items-center gap-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
           <Paperclip size={12} />
           <span>UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()}</span>
+          <span style={{ color: C.rule }}>·</span>
+          <button onClick={() => goTo('about')} className="underline underline-offset-2">Biz haqimizda</button>
+          {isAdmin && (
+            <>
+              <span style={{ color: C.rule }}>·</span>
+              <button onClick={() => goTo('admin')} className="underline underline-offset-2">Admin panel</button>
+            </>
+          )}
         </div>
       </footer>
+
+      </div>
+
+      {/* Mobil pastki navigatsiya paneli */}
+      {!readingActive && (
+        <nav
+          className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center justify-around px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-2"
+          style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})`, borderTop: `1px solid ${C.coverLine}` }}
+          aria-label="Asosiy navigatsiya"
+        >
+          {TABS.slice(0, 2).map((t) => {
+            const Icon = t.icon;
+            const activeTab = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => goTo(t.id)}
+                className="flex flex-col items-center gap-1 px-3 py-1 focus-visible:outline focus-visible:outline-2"
+                style={{ color: activeTab ? C.gold : 'rgba(251,250,243,0.65)', outlineColor: C.gold }}
+              >
+                <Icon size={20} strokeWidth={activeTab ? 2.3 : 1.8} />
+                <span className="text-[10px]" style={fontBody}>{t.label}</span>
+              </button>
+            );
+          })}
+
+          <button
+            onClick={handleCreateClick}
+            aria-label="Kurs yaratish"
+            className="flex items-center justify-center w-11 h-11 rounded-full -mt-4 shadow-lg focus-visible:outline focus-visible:outline-2"
+            style={{ background: C.gold, color: C.cover, outlineColor: C.goldSoft }}
+          >
+            <Plus size={22} strokeWidth={2.4} />
+          </button>
+
+          {TABS.slice(2).map((t) => {
+            const Icon = t.icon;
+            const activeTab = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => goTo(t.id)}
+                className="flex flex-col items-center gap-1 px-3 py-1 focus-visible:outline focus-visible:outline-2"
+                style={{ color: activeTab ? C.gold : 'rgba(251,250,243,0.65)', outlineColor: C.gold }}
+              >
+                <Icon size={20} strokeWidth={activeTab ? 2.3 : 1.8} />
+                <span className="text-[10px]" style={fontBody}>{t.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
     </div>
     </NavContext.Provider>
   );
