@@ -3,7 +3,8 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Link2
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Link2,
+  MessageCircle, Send
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -2286,6 +2287,289 @@ function AddNewsForm({ onAdd, onDone }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Hamjamiyat — foydalanuvchi qidiruvi, follow va matnli xabarlashuv   */
+/* ------------------------------------------------------------------ */
+
+function UserResultRow({ user, isMe, isFollowing, onToggleFollow, onMessage }) {
+  return (
+    <div className="flex items-center justify-between gap-3 p-3 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: bannerGradient(user.bannerKey) }}>
+          <UserCircle2 size={20} style={{ color: '#fff' }} />
+        </div>
+        <div className="min-w-0">
+          <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{user.firstName} {user.lastName}</div>
+          <div className="text-xs truncate" style={{ ...fontMono, color: C.gold }}>@{user.username}</div>
+        </div>
+      </div>
+      {!isMe && (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={() => onMessage(user)} className="p-2 rounded-full transition-colors" style={{ color: C.inkSoft, border: `1px solid ${C.rule}` }} title="Xabar yozish">
+            <MessageCircle size={14} />
+          </button>
+          <button
+            onClick={() => onToggleFollow(user.id)}
+            className="text-xs px-3 py-1.5 rounded-sm transition-colors"
+            style={{ ...fontBody, color: isFollowing ? C.ink : C.white, background: isFollowing ? 'transparent' : C.cover, border: `1px solid ${isFollowing ? C.rule : C.cover}` }}
+          >
+            {isFollowing ? 'Follow qilingan' : 'Follow'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChatThread({ otherUser, myId, messages, onSend, onBack }) {
+  const [text, setText] = useState('');
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length]);
+
+  function submit(e) {
+    e.preventDefault();
+    const t = text.trim();
+    if (!t) return;
+    onSend(t);
+    setText('');
+  }
+
+  return (
+    <div className="flex flex-col" style={{ height: '65vh' }}>
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-1 text-[15px] mb-3 focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+      >
+        <ArrowLeft size={15} /> Suhbatlar
+      </button>
+      <div className="flex items-center gap-2 mb-3 pb-3" style={{ borderBottom: `1px solid ${C.rule}` }}>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: bannerGradient(otherUser.bannerKey) }}>
+          <UserCircle2 size={18} style={{ color: '#fff' }} />
+        </div>
+        <div className="min-w-0">
+          <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{otherUser.firstName} {otherUser.lastName}</div>
+          <div className="text-xs truncate" style={{ ...fontMono, color: C.gold }}>@{otherUser.username}</div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+        {messages.length === 0 && (
+          <div className="text-sm text-center py-8" style={{ ...fontBody, color: C.inkSoft }}>Hozircha xabar yoʻq. Birinchi boʻlib yozing.</div>
+        )}
+        {messages.map((m) => (
+          <div key={m.id} className="flex" style={{ justifyContent: m.senderId === myId ? 'flex-end' : 'flex-start' }}>
+            <div
+              className="max-w-[75%] px-3 py-2 rounded-sm text-[14px]"
+              style={{ ...fontBody, background: m.senderId === myId ? C.cover : C.paperSoft, color: m.senderId === myId ? C.white : C.ink, border: m.senderId === myId ? 'none' : `1px solid ${C.rule}` }}
+            >
+              {m.content}
+            </div>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      <form onSubmit={submit} className="flex gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.rule}` }}>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Xabar yozing..."
+          className="flex-1 bg-transparent outline-none px-3 py-2 rounded-sm text-[15px]"
+          style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
+        />
+        <SolidButton type="submit" icon={Send}>Yuborish</SolidButton>
+      </form>
+    </div>
+  );
+}
+
+function HamjamiyatView({ session, onRequireLogin }) {
+  const [subTab, setSubTab] = useState('odamlar');
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [followingIds, setFollowingIds] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [conversationsLoaded, setConversationsLoaded] = useState(false);
+  const [activeUser, setActiveUser] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const myId = session?.user?.id;
+  const searchTimer = useRef(null);
+
+  useEffect(() => {
+    if (!myId) { setFollowingIds([]); return; }
+    (async () => {
+      try {
+        const rows = await sbSelect('follows', `follower_id=eq.${myId}`);
+        setFollowingIds(rows.map((r) => r.following_id));
+      } catch (e) { /* jimgina o'tkazib yuboramiz */ }
+    })();
+  }, [myId]);
+
+  useEffect(() => {
+    if (subTab !== 'xabarlar' || !myId || conversationsLoaded) return;
+    loadConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subTab, myId]);
+
+  async function loadConversations() {
+    try {
+      const rows = await sbRequest(`messages?select=*&or=(sender_id.eq.${myId},receiver_id.eq.${myId})&order=created_at.desc`);
+      const byUser = new Map();
+      for (const r of rows) {
+        const otherId = r.sender_id === myId ? r.receiver_id : r.sender_id;
+        if (!byUser.has(otherId)) byUser.set(otherId, r);
+      }
+      const otherIds = [...byUser.keys()];
+      if (otherIds.length === 0) { setConversations([]); setConversationsLoaded(true); return; }
+      const profs = await sbRequest(`profiles?select=id,username,first_name,last_name,banner_key&id=in.(${otherIds.join(',')})`);
+      const list = otherIds.map((id) => {
+        const p = profs.find((x) => x.id === id);
+        const last = byUser.get(id);
+        return {
+          user: p ? profileFromRow(p) : { id, username: '', firstName: 'Foydalanuvchi', lastName: '', bannerKey: 'green' },
+          lastText: last.content,
+        };
+      });
+      setConversations(list);
+    } catch (e) { setConversations([]); }
+    setConversationsLoaded(true);
+  }
+
+  function onQueryChange(v) {
+    setQuery(v);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const trimmed = v.trim();
+    if (trimmed.length < 2) { setResults([]); setSearching(false); return; }
+    setSearching(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const rows = await sbRequest(`profiles?select=id,username,first_name,last_name,banner_key&username=ilike.*${encodeURIComponent(trimmed)}*&limit=20`);
+        setResults(rows.map(profileFromRow));
+      } catch (e) { setResults([]); }
+      setSearching(false);
+    }, 350);
+  }
+
+  async function toggleFollow(targetId) {
+    if (!myId) { onRequireLogin(); return; }
+    const isF = followingIds.includes(targetId);
+    try {
+      if (isF) {
+        const rows = await sbSelect('follows', `follower_id=eq.${myId}&following_id=eq.${targetId}`);
+        if (rows[0]) await sbDelete('follows', rows[0].id);
+        setFollowingIds(followingIds.filter((id) => id !== targetId));
+      } else {
+        await sbInsert('follows', { id: uid(), follower_id: myId, following_id: targetId });
+        setFollowingIds([...followingIds, targetId]);
+      }
+    } catch (e) { /* jimgina o'tkazib yuboramiz */ }
+  }
+
+  async function openChat(userRow) {
+    if (!myId) { onRequireLogin(); return; }
+    setActiveUser(userRow);
+    setMessages([]);
+    try {
+      const rows = await sbRequest(
+        `messages?select=*&or=(and(sender_id.eq.${myId},receiver_id.eq.${userRow.id}),and(sender_id.eq.${userRow.id},receiver_id.eq.${myId}))&order=created_at.asc`
+      );
+      setMessages(rows.map((r) => ({ id: r.id, senderId: r.sender_id, content: r.content })));
+    } catch (e) { setMessages([]); }
+  }
+
+  async function sendMessage(text) {
+    if (!activeUser || !myId) return;
+    const row = { id: uid(), sender_id: myId, receiver_id: activeUser.id, content: text };
+    setMessages((prev) => [...prev, { id: row.id, senderId: myId, content: text }]);
+    try { await sbInsert('messages', row); } catch (e) { /* optimistik ko'rinish qoladi */ }
+  }
+
+  if (activeUser) {
+    return (
+      <ChatThread
+        otherUser={activeUser}
+        myId={myId}
+        messages={messages}
+        onSend={sendMessage}
+        onBack={() => { setActiveUser(null); setConversationsLoaded(false); }}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeading eyebrow="Foydalanuvchilar bilan aloqa" title="Hamjamiyat" />
+      <div className="flex gap-1 p-1 rounded-sm mb-5 w-fit" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+        <button
+          onClick={() => setSubTab('odamlar')}
+          className="px-3 py-1.5 rounded-sm text-sm transition-colors"
+          style={{ ...fontBody, background: subTab === 'odamlar' ? C.cover : 'transparent', color: subTab === 'odamlar' ? C.white : C.inkSoft }}
+        >
+          Odamlar
+        </button>
+        <button
+          onClick={() => setSubTab('xabarlar')}
+          className="px-3 py-1.5 rounded-sm text-sm transition-colors"
+          style={{ ...fontBody, background: subTab === 'xabarlar' ? C.cover : 'transparent', color: subTab === 'xabarlar' ? C.white : C.inkSoft }}
+        >
+          Xabarlar
+        </button>
+      </div>
+
+      {subTab === 'odamlar' ? (
+        <div>
+          <SearchBox value={query} onChange={onQueryChange} placeholder="Username boʻyicha qidiring..." />
+          {query.trim().length > 0 && query.trim().length < 2 && (
+            <div className="text-sm mt-2" style={{ ...fontBody, color: C.inkSoft }}>Kamida 2 ta harf kiriting.</div>
+          )}
+          <div className="space-y-2 mt-3">
+            {results.map((u) => (
+              <UserResultRow
+                key={u.id}
+                user={u}
+                isMe={u.id === myId}
+                isFollowing={followingIds.includes(u.id)}
+                onToggleFollow={toggleFollow}
+                onMessage={openChat}
+              />
+            ))}
+            {!searching && query.trim().length >= 2 && results.length === 0 && (
+              <EmptyState text="Hech kim topilmadi." />
+            )}
+          </div>
+        </div>
+      ) : !myId ? (
+        <EmptyState text="Xabarlarni koʻrish uchun profilga kiring." cta="Profil boʻlimidan Google orqali kiring." />
+      ) : conversations.length === 0 ? (
+        <EmptyState text="Hozircha suhbatlaringiz yoʻq." cta="\u201COdamlar\u201D boʻlimidan kimnidir toping va xabar yozing." />
+      ) : (
+        <div className="space-y-2">
+          {conversations.map((c) => (
+            <div
+              key={c.user.id}
+              className="flex items-center gap-3 p-3 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+              style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+              onClick={() => openChat(c.user)}
+            >
+              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: bannerGradient(c.user.bannerKey) }}>
+                <UserCircle2 size={20} style={{ color: '#fff' }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.user.firstName} {c.user.lastName}</div>
+                <div className="text-sm truncate" style={{ ...fontBody, color: C.inkSoft }}>{c.lastText}</div>
+              </div>
+              <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NewsView({ news }) {
   const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
@@ -2379,12 +2663,13 @@ function useNavStack() {
 const TABS = [
   { id: 'kurslar', label: 'Bosh sahifa', icon: Home },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
-  { id: 'yangiliklar', label: 'Yangiliklar', icon: Newspaper },
+  { id: 'hamjamiyat', label: 'Hamjamiyat', icon: MessageCircle },
   { id: 'profil', label: 'Profil', icon: UserCircle2 },
 ];
 const ABOUT_TAB = { id: 'about', label: 'Biz haqimizda', icon: Info };
 const ADMIN_TAB = { id: 'admin', label: 'Admin panel', icon: ShieldCheck };
-const ALL_TABS_META = [...TABS, ABOUT_TAB, ADMIN_TAB];
+const NEWS_TAB = { id: 'yangiliklar', label: 'Yangiliklar', icon: Newspaper };
+const ALL_TABS_META = [...TABS, ABOUT_TAB, ADMIN_TAB, NEWS_TAB];
 function getTabMeta(id) {
   return ALL_TABS_META.find((t) => t.id === id) || TABS[0];
 }
@@ -2972,6 +3257,7 @@ export default function App() {
                   deleteNews={deleteNews}
                 />
               )}
+              {tab === 'hamjamiyat' && <HamjamiyatView session={session} onRequireLogin={() => goTo('profil')} />}
               {tab === 'yangiliklar' && <NewsView news={news} />}
               {tab === 'about' && <AboutView />}
             </PaperPanel>
@@ -2985,6 +3271,8 @@ export default function App() {
           <span>UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()}</span>
           <span style={{ color: C.rule }}>·</span>
           <button onClick={() => goTo('about')} className="underline underline-offset-2">Biz haqimizda</button>
+          <span style={{ color: C.rule }}>·</span>
+          <button onClick={() => goTo('yangiliklar')} className="underline underline-offset-2">Yangiliklar</button>
           {isAdmin && (
             <>
               <span style={{ color: C.rule }}>·</span>
