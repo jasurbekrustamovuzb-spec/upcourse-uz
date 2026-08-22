@@ -752,7 +752,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
   const q = query.trim().toLowerCase();
-  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((c) => c.categoryId === cat.id)) : [];
   const matchedCourses = q ? approved.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedCourses.length === 0;
@@ -802,7 +802,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
-        <SectionHeading eyebrow={`${approvedCategories.length} ta soha`} title="Kurslar" />
+        <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
         <SearchBox value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
         {isSearching ? (
           noSearchResults ? (
@@ -862,7 +862,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           )
         ) : (
           <CategoryGrid
-            categories={approvedCategories}
+            categories={approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id))}
             itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
             itemLabel="mavzu"
             onSelect={goCategory}
@@ -1168,7 +1168,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
   const q = query.trim().toLowerCase();
-  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((t) => t.categoryId === cat.id)) : [];
   const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
@@ -1199,7 +1199,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   if (!categoryId) {
     return (
       <div>
-        <SectionHeading eyebrow={`${approvedCategories.length} ta soha`} title="Testlar" />
+        <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
         {isSearching ? (
           noSearchResults ? (
@@ -1260,7 +1260,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
           )
         ) : (
           <CategoryGrid
-            categories={approvedCategories}
+            categories={approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id))}
             itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
             itemLabel="test"
             onSelect={goCategory}
@@ -2498,6 +2498,15 @@ export default function App() {
   async function deleteCategory(id, name) {
     if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
+      // Shu sohaga tegishli barcha mavzu va testlarni ham bazadan o'chiramiz —
+      // aks holda ular "egasiz" (orphan) qatorlar sifatida bazada qolib,
+      // hajmni bekorga band qilib turaveradi.
+      const relatedCourses = courses.filter((c) => c.categoryId === id);
+      const relatedTests = tests.filter((t) => t.categoryId === id);
+      await Promise.all([
+        ...relatedCourses.map((c) => sbDelete('courses', c.id)),
+        ...relatedTests.map((t) => sbDelete('tests', t.id)),
+      ]);
       await sbDelete('categories', id);
       setCategories(categories.filter((c) => c.id !== id));
       setCourses(courses.filter((c) => c.categoryId !== id));
