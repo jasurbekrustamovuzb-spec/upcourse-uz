@@ -3,9 +3,25 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
+  Trophy, Medal
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
+
+/* ------------------------------------------------------------------ */
+/*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
+/*  Bu kod modul yuklanishi bilanoq (React render boshlanishidan       */
+/*  oldin) ishga tushadi va shrift so'rovini fon rejimida boshlaydi —  */
+/*  sahifa render qilinishini kutib turmaydi, "Yuklanmoqda" jarayonini */
+/*  tezlashtiradi.                                                     */
+/* ------------------------------------------------------------------ */
+if (typeof document !== 'undefined' && !document.getElementById('upcourse-fonts')) {
+  const fontLink = document.createElement('link');
+  fontLink.id = 'upcourse-fonts';
+  fontLink.rel = 'stylesheet';
+  fontLink.href = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap";
+  document.head.appendChild(fontLink);
+}
 
 /* ------------------------------------------------------------------ */
 /*  Design tokens — "ledger book" system                              */
@@ -32,6 +48,13 @@ const LIGHT_PALETTE = {
   selectedTint: 'rgba(184,134,59,0.08)',
   dangerBannerTint: 'rgba(168,67,58,0.08)',
   accent: '#1F3D2B',
+  /* Faqat "Jonli test" bo'limi uchun — iliq, quvnoq aksent */
+  live: '#C9622A',
+  liveSoft: '#E8A874',
+  liveDeep: '#7A3A16',
+  liveTint: 'rgba(201,98,42,0.10)',
+  silver: '#8B8F86',
+  bronze: '#A9713F',
 };
 
 const DARK_PALETTE = {
@@ -53,6 +76,13 @@ const DARK_PALETTE = {
   selectedTint: 'rgba(212,172,110,0.18)',
   dangerBannerTint: 'rgba(224,138,125,0.14)',
   accent: '#8FCB9E',
+  /* Faqat "Jonli test" bo'limi uchun — iliq, quvnoq aksent */
+  live: '#E8965A',
+  liveSoft: '#F0B888',
+  liveDeep: '#3D2411',
+  liveTint: 'rgba(232,150,90,0.18)',
+  silver: '#AEB3A8',
+  bronze: '#C89566',
 };
 
 const C = { ...LIGHT_PALETTE };
@@ -824,15 +854,15 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, ensureCourseContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  const goCourse = (id) => { setOpenId(id); pushNav(() => setOpenId(null)); };
-  const goEdit = (id) => { setEditId(id); pushNav(() => setEditId(null)); };
+  const goCourse = (id) => { if (ensureCourseContent) ensureCourseContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
+  const goEdit = (id) => { if (ensureCourseContent) ensureCourseContent(id); setEditId(id); pushNav(() => setEditId(null)); };
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
@@ -871,7 +901,13 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           <ArrowLeft size={15} /> Ortga
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
-        <EditCourseForm course={editing} onSave={(data) => updateCourse(editing.id, data, editing.title)} onDone={back} />
+        {editing.content === undefined ? (
+          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
+            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+          </div>
+        ) : (
+          <EditCourseForm course={editing} onSave={(data) => updateCourse(editing.id, data, editing.title)} onDone={back} />
+        )}
       </div>
     );
   }
@@ -897,7 +933,13 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             <ShareButton url={buildShareUrl({ course: active.id })} title={active.title} />
           </div>
         </div>
-        <CourseBody content={active.content} videoUrl={active.videoUrl} />
+        {active.content === undefined ? (
+          <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+          </div>
+        ) : (
+          <CourseBody content={active.content} videoUrl={active.videoUrl} />
+        )}
       </div>
     );
   }
@@ -1266,23 +1308,31 @@ function LiveLeaderboardList({ participants }) {
     const as = a.score ?? -1, bs = b.score ?? -1;
     return bs - as;
   });
+  const rankStyle = [
+    { icon: Trophy, color: C.live },
+    { icon: Medal, color: C.silver },
+    { icon: Medal, color: C.bronze },
+  ];
   return (
     <div className="space-y-2 max-w-sm">
-      {sorted.map((p, i) => (
-        <div
-          key={p.id}
-          className="flex items-center justify-between px-4 py-2.5 rounded-sm text-[14px]"
-          style={{ ...fontBody, background: i < 3 ? C.cover : C.surface, border: `1px solid ${C.rule}`, color: i < 3 ? C.white : C.ink }}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <span style={{ ...fontMono, color: i < 3 ? C.gold : C.inkSoft }}>{i + 1}.</span>
-            <span className="truncate">{p.name}</span>
+      {sorted.map((p, i) => {
+        const rank = rankStyle[i];
+        return (
+          <div
+            key={p.id}
+            className="app-fade-slide flex items-center justify-between px-4 py-2.5 rounded-2xl text-[14px]"
+            style={{ ...fontBody, background: i < 3 ? C.cover : C.surface, border: `1px solid ${i < 3 ? C.live : C.rule}`, color: i < 3 ? C.white : C.ink }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {rank ? <rank.icon size={15} style={{ color: rank.color, flexShrink: 0 }} /> : <span style={{ ...fontMono, color: C.inkSoft }}>{i + 1}.</span>}
+              <span className="truncate">{p.name}</span>
+            </div>
+            <span className="flex-shrink-0" style={{ ...fontMono, color: i < 3 ? C.liveSoft : C.inkSoft }}>
+              {p.score != null ? `${p.score}/${p.total}` : 'ishlamoqda...'}
+            </span>
           </div>
-          <span className="flex-shrink-0" style={{ ...fontMono, color: i < 3 ? C.gold : C.inkSoft }}>
-            {p.score != null ? `${p.score}/${p.total}` : 'ishlamoqda...'}
-          </span>
-        </div>
-      ))}
+        );
+      })}
       {sorted.length === 0 && <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Hali hech kim yoʻq.</div>}
     </div>
   );
@@ -1338,7 +1388,7 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
         <select
           value={testId}
           onChange={(e) => setTestId(e.target.value)}
-          className="w-full mb-4 px-3 py-2.5 rounded-sm text-[15px] outline-none"
+          className="w-full mb-4 px-3 py-2.5 rounded-2xl text-[15px] outline-none"
           style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
         >
           {tests.map((t) => (
@@ -1349,7 +1399,7 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
         <select
           value={duration}
           onChange={(e) => setDuration(Number(e.target.value))}
-          className="w-full mb-4 px-3 py-2.5 rounded-sm text-[15px] outline-none"
+          className="w-full mb-4 px-3 py-2.5 rounded-2xl text-[15px] outline-none"
           style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
         >
           <option value={180}>3 daqiqa</option>
@@ -1421,9 +1471,9 @@ function LiveHostLobby({ room, setRoom, onExit }) {
     <div>
       <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Bekor qilish</button>
       <SectionHeading eyebrow="Kutish zali" title="Qatnashchilarni kuting" />
-      <div className="p-6 rounded-sm mb-6 text-center max-w-xs" style={{ background: C.cover }}>
-        <div className="text-xs uppercase tracking-widest mb-2" style={{ ...fontMono, color: C.goldSoft }}>Xona kodi</div>
-        <div className="text-4xl mb-4" style={{ ...fontMono, color: C.gold, fontWeight: 700, letterSpacing: '0.1em' }}>{room.code}</div>
+      <div className="p-6 rounded-3xl mb-6 text-center max-w-xs" style={{ background: `linear-gradient(135deg, ${C.coverDeep} 0%, ${C.liveDeep} 100%)`, border: `1px solid ${C.live}` }}>
+        <div className="text-xs uppercase tracking-widest mb-2" style={{ ...fontMono, color: C.liveSoft }}>Xona kodi</div>
+        <div className="text-4xl mb-4" style={{ ...fontMono, color: C.live, fontWeight: 700, letterSpacing: '0.16em' }}>{room.code}</div>
         <div className="flex items-center justify-center gap-3">
           <button onClick={copyCode} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>{copied ? 'Nusxalandi ✓' : 'Kodni nusxalash'}</button>
           <span style={{ color: 'rgba(251,250,243,0.35)' }}>·</span>
@@ -1436,7 +1486,7 @@ function LiveHostLobby({ room, setRoom, onExit }) {
       <div className="text-[14px] mb-3" style={{ ...fontMono, color: C.inkSoft }}>{participants.length} kishi qoʻshildi</div>
       <div className="space-y-2 mb-6 max-w-sm">
         {participants.map((p) => (
-          <div key={p.id} className="px-3 py-2 rounded-sm text-[14px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>{p.name}</div>
+          <div key={p.id} className="app-fade-slide px-3 py-2 rounded-2xl text-[14px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>{p.name}</div>
         ))}
         {participants.length === 0 && <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Hali hech kim qoʻshilmadi. Kodni ulashing...</div>}
       </div>
@@ -1527,7 +1577,10 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     <div>
       <div className="flex items-center justify-between mb-5 gap-3">
         <h3 className="text-xl sm:text-2xl min-w-0 truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-[15px] flex-shrink-0" style={{ ...fontMono, color: remaining <= 30 ? C.red : C.gold, background: C.cover }}>
+        <div
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] flex-shrink-0 ${remaining <= 10 && remaining > 0 ? 'live-pulse' : ''}`}
+          style={{ ...fontMono, color: remaining <= 10 ? C.white : C.live, background: remaining <= 10 ? C.red : C.liveTint, fontWeight: 600 }}
+        >
           <Clock3 size={14} /> {mm}:{ss}
         </div>
       </div>
@@ -1535,7 +1588,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
         {test.questions.map((q, qi) => (
           <div key={q.id}>
             <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
-              <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
+              <span style={{ ...fontMono, color: C.live }}>{qi + 1}.</span> {q.text}
             </div>
             <div className="space-y-2">
               {q.options.map((opt, oi) => {
@@ -1545,8 +1598,8 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
                     key={oi}
                     onClick={() => select(q.id, oi)}
                     disabled={submitted}
-                    className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
-                    style={{ ...fontBody, background: isSelected ? C.selectedTint : C.surface, border: `1px solid ${isSelected ? C.gold : C.rule}`, color: C.ink, outlineColor: C.gold }}
+                    className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+                    style={{ ...fontBody, background: isSelected ? C.liveTint : C.surface, border: `1px solid ${isSelected ? C.live : C.rule}`, color: C.ink, outlineColor: C.live }}
                   >
                     <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
                     <span>{opt}</span>
@@ -1644,18 +1697,18 @@ function LiveQuizHub({ tests, session, onExit, initialCode }) {
         </p>
         <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
           {session ? (
-            <button onClick={() => setMode('host-setup')} className="min-w-0 p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <Users size={20} style={{ color: C.gold }} className="mb-2" />
+            <button onClick={() => setMode('host-setup')} className="min-w-0 p-5 rounded-2xl text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <Users size={20} style={{ color: C.live }} className="mb-2" />
               <div className="font-medium" style={{ ...fontBody, color: C.ink }}>Xona ochish</div>
               <div className="text-[13px] mt-1" style={{ ...fontBody, color: C.inkSoft }}>Testni tanlang, kod yarating, qatnashchilarni kuting.</div>
             </button>
           ) : (
-            <div className="p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <div className="p-5 rounded-2xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
               <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Xona ochish uchun tizimga kiring.</div>
             </div>
           )}
-          <button onClick={() => setMode('join-form')} className="min-w-0 p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-            <Award size={20} style={{ color: C.gold }} className="mb-2" />
+          <button onClick={() => setMode('join-form')} className="min-w-0 p-5 rounded-2xl text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <Award size={20} style={{ color: C.live }} className="mb-2" />
             <div className="font-medium" style={{ ...fontBody, color: C.ink }}>Xonaga qoʻshilish</div>
             <div className="text-[13px] mt-1" style={{ ...fontBody, color: C.inkSoft }}>6 xonali kodni kiriting, ismingizni yozing — hisob shart emas.</div>
           </button>
@@ -1750,7 +1803,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         <button
           onClick={goLive}
           className="inline-flex items-center gap-2 px-4 py-2.5 mb-5 rounded-full text-[14px] focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.white, background: C.cover, outlineColor: C.gold, fontWeight: 500 }}
+          style={{ ...fontBody, color: C.white, background: C.live, outlineColor: C.liveSoft, fontWeight: 500 }}
         >
           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#e5484d' }} />
           Jonli test rejimi — guruh bo'lib bir vaqtda ishlang
@@ -1885,11 +1938,11 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin' }) {
+function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  const goOpen = (id) => { setOpenId(id); pushNav(() => setOpenId(null)); };
+  const goOpen = (id) => { if (ensureCourseContent) ensureCourseContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
   const active = courses.find((c) => c.id === openId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = courses.filter((c) => c.categoryId === categoryId);
@@ -1916,7 +1969,13 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
         )}
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
         {active.author && <div className="text-xs mb-4" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {active.author}</div>}
-        <CourseBody content={active.content} videoUrl={active.videoUrl} />
+        {active.content === undefined ? (
+          <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+          </div>
+        ) : (
+          <CourseBody content={active.content} videoUrl={active.videoUrl} />
+        )}
       </div>
     );
   }
@@ -2242,7 +2301,7 @@ function AdminNewsView({ news, addNews, deleteNews, onBack }) {
   );
 }
 
-function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, renameCategory, deleteCategory, addNews, deleteNews }) {
+function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent }) {
   const [subTab, setSubTab] = useState(null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
@@ -2268,6 +2327,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
         onOpenForm={() => {}}
         onCloseForm={() => {}}
         prefillCategory=""
+        ensureCourseContent={ensureCourseContent}
       />
     );
   }
@@ -2555,7 +2615,7 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
   );
 }
 
-function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin }) {
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -2642,6 +2702,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }}
         onCloseForm={() => setCourseFormOpen(false)}
         prefillCategory={prefillCategory}
+        ensureCourseContent={ensureCourseContent}
       />
     );
   }
@@ -3016,6 +3077,23 @@ export default function App() {
 
   const handleReadingChange = useCallback((v) => setReadingActive(v), []);
 
+  /* Mavzu ro'yxati boshida faqat sarlavha/qisqacha ta'rif yuklanadi (tez).
+     Dars matni (content) og'ir bo'lgani uchun faqat shu mavzu ochilganda
+     yoki tahrirlash uchun kerak bo'lganda alohida so'raladi. */
+  const ensureCourseContent = useCallback(async (id) => {
+    try {
+      const rows = await sbRequest(`courses?select=content,video_url&id=eq.${encodeURIComponent(id)}`);
+      if (rows[0]) {
+        setCourses((prev) => prev.map((c) => (c.id === id && c.content === undefined
+          ? { ...c, content: rows[0].content, videoUrl: rows[0].video_url || c.videoUrl || '' }
+          : c)));
+      }
+    } catch (e) {
+      // Jim tarzda o'tkazib yuborish — mavzu ochilganda "Yuklanmoqda..." holatida qoladi,
+      // foydalanuvchi qayta urinib ko'rishi mumkin.
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -3025,8 +3103,11 @@ export default function App() {
         return;
       }
       try {
+        const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
         const [catRows, courseRows, testRows, newsRows] = await Promise.all([
-          sbSelect('categories'), sbSelect('courses'), sbSelect('tests'), sbSelect('news'),
+          sbSelect('categories'),
+          sbRequest(`courses?select=${courseListCols}&order=created_at.asc`),
+          sbSelect('tests'), sbSelect('news'),
         ]);
 
         setCategories(catRows.map(categoryFromRow));
@@ -3279,7 +3360,6 @@ export default function App() {
     <NavContext.Provider value={nav}>
     <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
         * { box-sizing: border-box; }
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline-offset: 2px; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -3293,6 +3373,17 @@ export default function App() {
         .app-fade-slide { animation: appFadeSlide 220ms ease; }
         @media (prefers-reduced-motion: reduce) {
           .app-fade-slide { animation: none; }
+        }
+
+        /* Jonli test — taymer oxirgi soniyalarda sekin "nafas olish" effekti
+           (diqqat tortish uchun, konfetti emas) */
+        @keyframes livePulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.55; }
+        }
+        .live-pulse { animation: livePulse 1s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .live-pulse { animation: none; }
         }
 
         /* Navigatsiya tugmalari — faol holat va bosilish silliq o'tishi */
@@ -3440,7 +3531,7 @@ export default function App() {
               </div>
             )}
             <PaperPanel key={tab} className="app-fade-slide">
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : null} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : null} ensureCourseContent={ensureCourseContent} />}
               {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} />}
               {tab === 'profil' && (
                 <ProfileView
@@ -3461,6 +3552,7 @@ export default function App() {
                   target={communityTarget}
                   onConsumeTarget={() => setCommunityTarget(null)}
                   isAdmin={isAdmin}
+                  ensureCourseContent={ensureCourseContent}
                 />
               )}
               {tab === 'admin' && isAdmin && (
@@ -3479,6 +3571,7 @@ export default function App() {
                   deleteCategory={deleteCategory}
                   addNews={addNews}
                   deleteNews={deleteNews}
+                  ensureCourseContent={ensureCourseContent}
                 />
               )}
               {tab === 'yangiliklar' && <NewsView news={news} />}
