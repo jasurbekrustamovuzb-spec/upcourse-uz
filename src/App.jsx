@@ -3,7 +3,7 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -118,6 +118,29 @@ const SEED_NEWS = [
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/* --- Ulashish havolalari (kurs/test/profil/jonli xona) --- */
+function buildShareUrl(params) {
+  try {
+    const url = new URL(window.location.origin + window.location.pathname);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    return url.toString();
+  } catch (e) {
+    return '';
+  }
+}
+/* Sahifa ochilgandayoq URL'dagi ?course=/?test=/?live=/?u= parametrlarini o'qiydi.
+   Faqat bir marta, ilova ilk yuklanganda chaqiriladi. */
+function parseDeepLink() {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('course')) return { type: 'course', value: p.get('course') };
+    if (p.get('test')) return { type: 'test', value: p.get('test') };
+    if (p.get('live')) return { type: 'live', value: p.get('live').toUpperCase() };
+    if (p.get('u')) return { type: 'profile', value: p.get('u') };
+  } catch (e) { /* URL o'qib bo'lmasa, oddiy holatda ochiladi */ }
+  return null;
 }
 
 function formatDate(iso) {
@@ -369,6 +392,42 @@ function SectionHeading({ eyebrow, title }) {
     </div>
   );
 }
+
+/* Kurs/test/profil/jonli xona uchun universal "Ulashish" tugmasi.
+   Qurilmada Web Share qo'llab-quvvatlansa (mobil brauzerlarning
+   aksariyati) — tizim ulashish oynasini ochadi (Telegram, WhatsApp va h.k.
+   to'g'ridan-to'g'ri chiqadi). Aks holda havola clipboard'ga nusxalanadi. */
+function ShareButton({ url, title, small }) {
+  const [copied, setCopied] = useState(false);
+
+  async function share() {
+    if (!url) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({ url, title: title || 'UpCourse Uz' });
+        return;
+      } catch (e) { /* foydalanuvchi ulashish oynasini bekor qilgan bo'lishi mumkin */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) { /* clipboard mavjud bo'lmasa e'tiborsiz qoldiriladi */ }
+  }
+
+  return (
+    <button
+      onClick={share}
+      aria-label="Havolani ulashish"
+      className={`inline-flex items-center gap-1.5 rounded-full focus-visible:outline focus-visible:outline-2 ${small ? 'text-xs px-2.5 py-1.5' : 'text-[13px] px-3 py-1.5'}`}
+      style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+    >
+      <Share2 size={small ? 12 : 13} />
+      {copied ? 'Nusxalandi ✓' : 'Ulashish'}
+    </button>
+  );
+}
+
 
 function EmptyState({ text, cta }) {
   return (
@@ -765,7 +824,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -784,6 +843,13 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
   const q = query.trim().toLowerCase();
+
+  /* Ulashilgan havola orqali kirilgan bo'lsa (?course=ID), shu kursni
+     avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. */
+  useEffect(() => {
+    if (initialOpenId && viewable.some((c) => c.id === initialOpenId)) goCourse(initialOpenId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((c) => c.categoryId === cat.id)) : [];
   const matchedCourses = q ? approved.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
@@ -825,7 +891,12 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             <Clock3 size={13} /> Tekshirilmoqda — hozircha faqat sizga koʻrinadi
           </div>
         )}
-        <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <h3 className="text-2xl sm:text-3xl min-w-0" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
+          <div className="flex-shrink-0 mt-1">
+            <ShareButton url={buildShareUrl({ course: active.id })} title={active.title} />
+          </div>
+        </div>
         <CourseBody content={active.content} videoUrl={active.videoUrl} />
       </div>
     );
@@ -1122,7 +1193,12 @@ function QuizView({ test, onExit }) {
         <ArrowLeft size={15} /> Barcha testlar
       </button>
 
-      <h3 className="text-2xl sm:text-3xl mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <h3 className="text-2xl sm:text-3xl min-w-0" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+        <div className="flex-shrink-0 mt-1">
+          <ShareButton url={buildShareUrl({ test: test.id })} title={test.title} />
+        </div>
+      </div>
       {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
 
       {submitted && (
@@ -1347,9 +1423,16 @@ function LiveHostLobby({ room, setRoom, onExit }) {
       <SectionHeading eyebrow="Kutish zali" title="Qatnashchilarni kuting" />
       <div className="p-6 rounded-sm mb-6 text-center max-w-xs" style={{ background: C.cover }}>
         <div className="text-xs uppercase tracking-widest mb-2" style={{ ...fontMono, color: C.goldSoft }}>Xona kodi</div>
-        <div className="text-4xl mb-3" style={{ ...fontMono, color: C.gold, fontWeight: 700, letterSpacing: '0.1em' }}>{room.code}</div>
-        <button onClick={copyCode} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>{copied ? 'Nusxalandi ✓' : 'Kodni nusxalash'}</button>
+        <div className="text-4xl mb-4" style={{ ...fontMono, color: C.gold, fontWeight: 700, letterSpacing: '0.1em' }}>{room.code}</div>
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={copyCode} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>{copied ? 'Nusxalandi ✓' : 'Kodni nusxalash'}</button>
+          <span style={{ color: 'rgba(251,250,243,0.35)' }}>·</span>
+          <ShareButton url={buildShareUrl({ live: room.code })} title="Jonli testga qoʻshiling" small />
+        </div>
       </div>
+      <p className="text-[13px] mb-4 max-w-sm" style={{ ...fontBody, color: C.inkSoft }}>
+        Havolani Telegram yoki boshqa ilovaga yuboring — bosgan odam toʻgʻridan-toʻgʻri shu xonaga tushadi, kod kiritish shart emas.
+      </p>
       <div className="text-[14px] mb-3" style={{ ...fontMono, color: C.inkSoft }}>{participants.length} kishi qoʻshildi</div>
       <div className="space-y-2 mb-6 max-w-sm">
         {participants.map((p) => (
@@ -1362,8 +1445,8 @@ function LiveHostLobby({ room, setRoom, onExit }) {
   );
 }
 
-function LiveJoinForm({ onJoined, onBack }) {
-  const [code, setCode] = useState('');
+function LiveJoinForm({ initialCode, onJoined, onBack }) {
+  const [code, setCode] = useState(initialCode || '');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -1546,8 +1629,8 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
   );
 }
 
-function LiveQuizHub({ tests, session, onExit }) {
-  const [mode, setMode] = useState(null);
+function LiveQuizHub({ tests, session, onExit, initialCode }) {
+  const [mode, setMode] = useState(initialCode ? 'join-form' : null);
   const [room, setRoom] = useState(null);
   const [participant, setParticipant] = useState(null);
 
@@ -1588,7 +1671,7 @@ function LiveQuizHub({ tests, session, onExit }) {
     return <LiveHostLobby room={room} setRoom={setRoom} onExit={() => { setMode(null); setRoom(null); }} />;
   }
   if (mode === 'join-form') {
-    return <LiveJoinForm onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); }} onBack={() => setMode(null)} />;
+    return <LiveJoinForm initialCode={initialCode} onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); }} onBack={() => setMode(null)} />;
   }
   if (mode === 'participant' && room && participant) {
     return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); }} />;
@@ -1598,12 +1681,12 @@ function LiveQuizHub({ tests, session, onExit }) {
 
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, initialLiveCode }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
-  const [liveOpen, setLiveOpen] = useState(false);
+  const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   const goTest = (id) => { setActiveId(id); pushNav(() => setActiveId(null)); };
@@ -1619,6 +1702,15 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
   const q = query.trim().toLowerCase();
+
+  /* Ulashilgan havola orqali kirilgan bo'lsa (?test=ID), shu testni
+     avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. */
+  useEffect(() => {
+    if (initialOpenId && viewable.some((t) => t.id === initialOpenId)) goTest(initialOpenId);
+    if (initialLiveCode) pushNav(() => setLiveOpen(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((t) => t.categoryId === cat.id)) : [];
   const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
@@ -1631,7 +1723,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 
   if (active) return <QuizView test={active} onExit={back} />;
 
-  if (liveOpen) return <LiveQuizHub tests={approved} session={session} onExit={back} />;
+  if (liveOpen) return <LiveQuizHub tests={approved} session={session} onExit={back} initialCode={initialLiveCode} />;
 
   if (editing) {
     return (
@@ -2617,7 +2709,10 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
               )}
             </div>
             {profile.username && (
-              <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{profile.username}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{profile.username}</div>
+                <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`} small />
+              </div>
             )}
             {profile.bio && (
               <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{profile.bio}</p>
@@ -2802,7 +2897,20 @@ function getTabMeta(id) {
 }
 
 export default function App() {
-  const [tab, setTab] = useState('kurslar');
+  /* Havola orqali kirilgan bo'lsa (?course=/?test=/?live=/?u=), qaysi
+     bo'limdan boshlash kerakligini shu yerda hal qilamiz — faqat
+     sahifa birinchi ochilgan paytdagi URL'ga qarab, bitta marta. */
+  const initialDeepLinkRef = useRef(parseDeepLink());
+  const initialDeepLink = initialDeepLinkRef.current;
+  const initialTab = (() => {
+    if (!initialDeepLink) return 'kurslar';
+    if (initialDeepLink.type === 'course') return 'kurslar';
+    if (initialDeepLink.type === 'test' || initialDeepLink.type === 'live') return 'testlar';
+    if (initialDeepLink.type === 'profile') return 'profil';
+    return 'kurslar';
+  })();
+
+  const [tab, setTab] = useState(initialTab);
   const [categories, setCategories] = useState([]);
   const [courses, setCourses] = useState([]);
   const [tests, setTests] = useState([]);
@@ -3332,8 +3440,8 @@ export default function App() {
               </div>
             )}
             <PaperPanel key={tab} className="app-fade-slide">
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
+              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : null} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} />}
               {tab === 'profil' && (
                 <ProfileView
                   session={session}
