@@ -3,7 +3,7 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Link2
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -185,6 +185,38 @@ const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComp
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
 const sbUpsert = (table, row) => sbRequest(`${table}`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(row) });
 
+/* --- Jonli test rejimi uchun yordamchi funksiyalar --- */
+function randomRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 0/O, 1/I chalkashmasin deb olib tashlangan
+  let s = '';
+  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+function getDeviceKey() {
+  try {
+    let k = localStorage.getItem('upcourse_device_key');
+    if (!k) { k = uid() + uid(); localStorage.setItem('upcourse_device_key', k); }
+    return k;
+  } catch (e) {
+    return uid() + uid();
+  }
+}
+const liveRoomFromRow = (r) => ({ id: r.id, code: r.code, testId: r.test_id, hostId: r.host_id, hostName: r.host_name || '', status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, createdAt: r.created_at });
+const liveParticipantFromRow = (r) => ({ id: r.id, roomId: r.room_id, name: r.name, deviceKey: r.device_key, score: r.score, total: r.total, submittedAt: r.submitted_at, joinedAt: r.joined_at });
+async function sbFindRoomByCode(code) {
+  const rows = await sbRequest(`live_rooms?select=*&code=eq.${encodeURIComponent(code)}`);
+  return rows.length ? liveRoomFromRow(rows[0]) : null;
+}
+async function sbGetRoom(id) {
+  const rows = await sbRequest(`live_rooms?select=*&id=eq.${encodeURIComponent(id)}`);
+  return rows.length ? liveRoomFromRow(rows[0]) : null;
+}
+async function sbSelectParticipants(roomId) {
+  const rows = await sbRequest(`live_participants?select=*&room_id=eq.${encodeURIComponent(roomId)}&order=joined_at.asc`);
+  return rows.map(liveParticipantFromRow);
+}
+
+
 /* Row (snake_case, matches SQL columns) <-> app object (camelCase) */
 const categoryToRow = (c) => ({ id: c.id, name: c.name, author: c.author || '', author_id: c.authorId || null, status: c.status || 'approved' });
 const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
@@ -280,38 +312,6 @@ function ItemMenu({ actions }) {
         </div>
       )}
     </div>
-  );
-}
-
-/* Testni ijtimoiy tarmoqlarda ulashish uchun toʻgʻridan-toʻgʻri havola
-   (masalan upcourse-uz.vercel.app/test/abc123) nusxalanadi. Havola
-   bosilganda sayt shu testni avtomatik ochadi (App komponentidagi
-   deep-link mantigʻiga qarang). */
-function CopyLinkButton({ testId, compact }) {
-  const [copied, setCopied] = useState(false);
-
-  function copy(e) {
-    e.stopPropagation();
-    const url = `${window.location.origin}/test/${testId}`;
-    try {
-      navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (err) { /* clipboard mavjud boʻlmasa e'tiborsiz qoldiriladi */ }
-  }
-
-  return (
-    <button
-      onClick={copy}
-      title="Havolani nusxalash"
-      className={`inline-flex items-center gap-1 flex-shrink-0 rounded-sm transition-colors ${compact ? 'p-2' : 'text-xs px-3 py-1.5'}`}
-      style={compact
-        ? { color: copied ? C.accent : C.inkSoft }
-        : { ...fontBody, color: copied ? C.accent : C.inkSoft, border: `1px solid ${C.rule}` }}
-    >
-      <Link2 size={compact ? 16 : 13} />
-      {!compact && (copied ? 'Nusxalandi' : 'Havola')}
-    </button>
   );
 }
 
@@ -1122,10 +1122,7 @@ function QuizView({ test, onExit }) {
         <ArrowLeft size={15} /> Barcha testlar
       </button>
 
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <h3 className="text-2xl sm:text-3xl min-w-0" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-        <CopyLinkButton testId={test.id} />
-      </div>
+      <h3 className="text-2xl sm:text-3xl mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
       {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
 
       {submitted && (
@@ -1184,15 +1181,434 @@ function QuizView({ test, onExit }) {
   );
 }
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, deepLinkTestId, onConsumeDeepLink }) {
+/* ------------------------------------------------------------------ */
+/*  Jonli test rejimi (guruh bo'lib bir vaqtda ishlash)                */
+/* ------------------------------------------------------------------ */
+
+function LiveLeaderboardList({ participants }) {
+  const sorted = [...participants].sort((a, b) => {
+    const as = a.score ?? -1, bs = b.score ?? -1;
+    return bs - as;
+  });
+  return (
+    <div className="space-y-2 max-w-sm">
+      {sorted.map((p, i) => (
+        <div
+          key={p.id}
+          className="flex items-center justify-between px-4 py-2.5 rounded-sm text-[14px]"
+          style={{ ...fontBody, background: i < 3 ? C.cover : C.surface, border: `1px solid ${C.rule}`, color: i < 3 ? C.white : C.ink }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span style={{ ...fontMono, color: i < 3 ? C.gold : C.inkSoft }}>{i + 1}.</span>
+            <span className="truncate">{p.name}</span>
+          </div>
+          <span className="flex-shrink-0" style={{ ...fontMono, color: i < 3 ? C.gold : C.inkSoft }}>
+            {p.score != null ? `${p.score}/${p.total}` : 'ishlamoqda...'}
+          </span>
+        </div>
+      ))}
+      {sorted.length === 0 && <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Hali hech kim yoʻq.</div>}
+    </div>
+  );
+}
+
+function LiveHostSetup({ tests, session, onCreated, onBack }) {
+  const [testId, setTestId] = useState(tests[0]?.id || '');
+  const [duration, setDuration] = useState(300);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function create() {
+    if (!testId) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      let code = randomRoomCode();
+      for (let i = 0; i < 3; i++) {
+        const existing = await sbFindRoomByCode(code);
+        if (!existing) break;
+        code = randomRoomCode();
+      }
+      const meta = session.user?.user_metadata || {};
+      const row = {
+        code, test_id: testId, host_id: session.user.id,
+        host_name: (meta.given_name || meta.full_name || meta.name || '').trim(),
+        status: 'waiting', duration_seconds: duration,
+      };
+      const [created] = await sbInsert('live_rooms', row);
+      onCreated(liveRoomFromRow(created));
+    } catch (e) {
+      setErr('Xona yaratishda xatolik yuz berdi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (tests.length === 0) {
+    return (
+      <div>
+        <button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Ortga</button>
+        <EmptyState text="Hozircha hech qanday test yoʻq." cta="Avval Testlar boʻlimida kamida bitta test qoʻshing." />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Ortga</button>
+      <SectionHeading eyebrow="Xona ochish" title="Testni tanlang" />
+      <div className="max-w-md">
+        <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Test</label>
+        <select
+          value={testId}
+          onChange={(e) => setTestId(e.target.value)}
+          className="w-full mb-4 px-3 py-2.5 rounded-sm text-[15px] outline-none"
+          style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
+        >
+          {tests.map((t) => (
+            <option key={t.id} value={t.id}>{t.title} ({t.questions.length} ta savol)</option>
+          ))}
+        </select>
+        <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Vaqt chegarasi</label>
+        <select
+          value={duration}
+          onChange={(e) => setDuration(Number(e.target.value))}
+          className="w-full mb-4 px-3 py-2.5 rounded-sm text-[15px] outline-none"
+          style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
+        >
+          <option value={180}>3 daqiqa</option>
+          <option value={300}>5 daqiqa</option>
+          <option value={600}>10 daqiqa</option>
+          <option value={900}>15 daqiqa</option>
+          <option value={1200}>20 daqiqa</option>
+        </select>
+        {err && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{err}</div>}
+        <SolidButton onClick={create} icon={Users} disabled={busy || !testId}>{busy ? 'Yaratilmoqda...' : 'Xona yaratish'}</SolidButton>
+      </div>
+    </div>
+  );
+}
+
+function LiveHostLobby({ room, setRoom, onExit }) {
+  const [participants, setParticipants] = useState([]);
+  const [starting, setStarting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const [freshRoom, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (!cancelled) {
+          if (freshRoom) setRoom(freshRoom);
+          setParticipants(list);
+        }
+      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
+    }
+    poll();
+    const t = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.id]);
+
+  async function start() {
+    setStarting(true);
+    try {
+      const [updated] = await sbUpdate('live_rooms', room.id, { status: 'active', starts_at: new Date().toISOString() });
+      setRoom(liveRoomFromRow(updated));
+    } catch (e) {
+      // xato bo'lsa, keyingi poll orqali holat baribir yangilanadi
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  function copyCode() {
+    try {
+      navigator.clipboard.writeText(room.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) { /* clipboard mavjud bo'lmasa e'tiborsiz qoldiriladi */ }
+  }
+
+  if (room.status === 'active' || room.status === 'finished') {
+    return (
+      <div>
+        <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+        <SectionHeading eyebrow={room.status === 'active' ? 'Test davom etmoqda' : 'Test tugadi'} title="Jonli reyting" />
+        <LiveLeaderboardList participants={participants} />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Bekor qilish</button>
+      <SectionHeading eyebrow="Kutish zali" title="Qatnashchilarni kuting" />
+      <div className="p-6 rounded-sm mb-6 text-center max-w-xs" style={{ background: C.cover }}>
+        <div className="text-xs uppercase tracking-widest mb-2" style={{ ...fontMono, color: C.goldSoft }}>Xona kodi</div>
+        <div className="text-4xl mb-3" style={{ ...fontMono, color: C.gold, fontWeight: 700, letterSpacing: '0.1em' }}>{room.code}</div>
+        <button onClick={copyCode} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>{copied ? 'Nusxalandi ✓' : 'Kodni nusxalash'}</button>
+      </div>
+      <div className="text-[14px] mb-3" style={{ ...fontMono, color: C.inkSoft }}>{participants.length} kishi qoʻshildi</div>
+      <div className="space-y-2 mb-6 max-w-sm">
+        {participants.map((p) => (
+          <div key={p.id} className="px-3 py-2 rounded-sm text-[14px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>{p.name}</div>
+        ))}
+        {participants.length === 0 && <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Hali hech kim qoʻshilmadi. Kodni ulashing...</div>}
+      </div>
+      <SolidButton onClick={start} icon={Award} disabled={starting || participants.length === 0}>{starting ? 'Boshlanmoqda...' : 'Testni boshlash'}</SolidButton>
+    </div>
+  );
+}
+
+function LiveJoinForm({ onJoined, onBack }) {
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function join() {
+    const c = code.trim().toUpperCase();
+    const n = name.trim();
+    if (!c || !n) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const room = await sbFindRoomByCode(c);
+      if (!room) { setErr('Bunday kodli xona topilmadi.'); setBusy(false); return; }
+      if (room.status === 'finished') { setErr('Bu test allaqachon yakunlangan.'); setBusy(false); return; }
+      const deviceKey = getDeviceKey();
+      const row = { room_id: room.id, name: n, device_key: deviceKey };
+      const [created] = await sbInsert('live_participants', row);
+      onJoined(room, liveParticipantFromRow(created));
+    } catch (e) {
+      setErr('Qoʻshilishda xatolik yuz berdi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Ortga</button>
+      <SectionHeading eyebrow="Xonaga qoʻshilish" title="Kod va ismingizni kiriting" />
+      <div className="max-w-xs">
+        <TextField label="Xona kodi" value={code} onChange={(v) => setCode(v.toUpperCase())} placeholder="MASALAN: A1B2C3" />
+        <TextField label="Ismingiz" value={name} onChange={setName} placeholder="Ismingiz" />
+        {err && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{err}</div>}
+        <SolidButton onClick={join} icon={Check} disabled={busy || !code.trim() || !name.trim()}>{busy ? 'Qoʻshilmoqda...' : 'Qoʻshilish'}</SolidButton>
+      </div>
+    </div>
+  );
+}
+
+function LiveQuizPlayer({ room, test, participant, onDone }) {
+  const [answers, setAnswers] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  const [remaining, setRemaining] = useState(9999);
+
+  async function submit(currentAnswers) {
+    if (submitted) return;
+    setSubmitted(true);
+    const score = test.questions.reduce((s, q) => s + (currentAnswers[q.id] === q.correct ? 1 : 0), 0);
+    try {
+      await sbUpdate('live_participants', participant.id, { score, total: test.questions.length, submitted_at: new Date().toISOString() });
+    } catch (e) { /* natija topshirilmasa ham foydalanuvchi natijalar ekraniga o'tadi */ }
+    onDone();
+  }
+
+  useEffect(() => {
+    function tick() {
+      if (!room.startsAt) return;
+      const end = new Date(room.startsAt).getTime() + room.durationSeconds * 1000;
+      const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+      setRemaining(left);
+      if (left === 0) submit(answers);
+    }
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answers]);
+
+  function select(qid, idx) {
+    if (submitted) return;
+    setAnswers((a) => ({ ...a, [qid]: idx }));
+  }
+
+  const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
+  const ss = String(remaining % 60).padStart(2, '0');
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-5 gap-3">
+        <h3 className="text-xl sm:text-2xl min-w-0 truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-[15px] flex-shrink-0" style={{ ...fontMono, color: remaining <= 30 ? C.red : C.gold, background: C.cover }}>
+          <Clock3 size={14} /> {mm}:{ss}
+        </div>
+      </div>
+      <div className="space-y-6 max-w-2xl">
+        {test.questions.map((q, qi) => (
+          <div key={q.id}>
+            <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+              <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
+            </div>
+            <div className="space-y-2">
+              {q.options.map((opt, oi) => {
+                const isSelected = answers[q.id] === oi;
+                return (
+                  <button
+                    key={oi}
+                    onClick={() => select(q.id, oi)}
+                    disabled={submitted}
+                    className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+                    style={{ ...fontBody, background: isSelected ? C.selectedTint : C.surface, border: `1px solid ${isSelected ? C.gold : C.rule}`, color: C.ink, outlineColor: C.gold }}
+                  >
+                    <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                    <span>{opt}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-8">
+        <SolidButton onClick={() => submit(answers)} icon={Check} disabled={submitted}>{submitted ? 'Yuborildi' : 'Yakunlash'}</SolidButton>
+      </div>
+    </div>
+  );
+}
+
+function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
+  const [phase, setPhase] = useState(room.status === 'active' ? 'quiz' : 'waiting');
+  const [participants, setParticipants] = useState([]);
+  const test = tests.find((t) => t.id === room.testId);
+
+  useEffect(() => {
+    if (phase !== 'waiting') return;
+    let cancelled = false;
+    async function poll() {
+      try {
+        const fresh = await sbGetRoom(room.id);
+        if (!cancelled && fresh) {
+          setRoom(fresh);
+          if (fresh.status === 'active') setPhase('quiz');
+          if (fresh.status === 'finished') setPhase('results');
+        }
+      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
+    }
+    poll();
+    const t = setInterval(poll, 2500);
+    return () => { cancelled = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, room.id]);
+
+  useEffect(() => {
+    if (phase !== 'results') return;
+    let cancelled = false;
+    async function poll() {
+      try {
+        const list = await sbSelectParticipants(room.id);
+        if (!cancelled) setParticipants(list);
+      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
+    }
+    poll();
+    const t = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, room.id]);
+
+  if (phase === 'waiting') {
+    return (
+      <div>
+        <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+        <SectionHeading eyebrow="Xonadasiz" title={`Xona: ${room.code}`} />
+        <div className="flex items-center gap-2 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 className="animate-spin" size={16} />
+          Boshqaruvchi testni boshlashini kuting...
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'quiz' && test) {
+    return <LiveQuizPlayer room={room} test={test} participant={participant} onDone={() => setPhase('results')} />;
+  }
+
+  return (
+    <div>
+      <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+      <SectionHeading eyebrow="Yakun" title="Natijalar" />
+      <LiveLeaderboardList participants={participants} />
+    </div>
+  );
+}
+
+function LiveQuizHub({ tests, session, onExit }) {
+  const [mode, setMode] = useState(null);
+  const [room, setRoom] = useState(null);
+  const [participant, setParticipant] = useState(null);
+
+  if (!mode) {
+    return (
+      <div>
+        <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Testlar</button>
+        <SectionHeading eyebrow="Yangi" title="Jonli test rejimi" />
+        <p className="text-[15px] mb-6 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>
+          Bir nechta odam bitta testni bir vaqtda ishlashi uchun xona oching, yoki mavjud xona kodi bilan qoʻshiling.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
+          {session ? (
+            <button onClick={() => setMode('host-setup')} className="min-w-0 p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <Users size={20} style={{ color: C.gold }} className="mb-2" />
+              <div className="font-medium" style={{ ...fontBody, color: C.ink }}>Xona ochish</div>
+              <div className="text-[13px] mt-1" style={{ ...fontBody, color: C.inkSoft }}>Testni tanlang, kod yarating, qatnashchilarni kuting.</div>
+            </button>
+          ) : (
+            <div className="p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Xona ochish uchun tizimga kiring.</div>
+            </div>
+          )}
+          <button onClick={() => setMode('join-form')} className="min-w-0 p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <Award size={20} style={{ color: C.gold }} className="mb-2" />
+            <div className="font-medium" style={{ ...fontBody, color: C.ink }}>Xonaga qoʻshilish</div>
+            <div className="text-[13px] mt-1" style={{ ...fontBody, color: C.inkSoft }}>6 xonali kodni kiriting, ismingizni yozing — hisob shart emas.</div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'host-setup') {
+    return <LiveHostSetup tests={tests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); }} onBack={() => setMode(null)} />;
+  }
+  if (mode === 'host-lobby' && room) {
+    return <LiveHostLobby room={room} setRoom={setRoom} onExit={() => { setMode(null); setRoom(null); }} />;
+  }
+  if (mode === 'join-form') {
+    return <LiveJoinForm onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); }} onBack={() => setMode(null)} />;
+  }
+  if (mode === 'participant' && room && participant) {
+    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); }} />;
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
+
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
+  const [liveOpen, setLiveOpen] = useState(false);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   const goTest = (id) => { setActiveId(id); pushNav(() => setActiveId(null)); };
   const goEdit = (id) => { setEditId(id); pushNav(() => setEditId(null)); };
+  const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
@@ -1208,22 +1624,14 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
 
-  /* Ulashilgan havola (masalan /test/abc123) orqali kirilganda — testni
-     ro'yxatlar bo'ylab qidirmasdan, to'g'ridan-to'g'ri ochib beramiz. */
-  useEffect(() => {
-    if (!deepLinkTestId) return;
-    const found = viewable.some((t) => t.id === deepLinkTestId);
-    if (found) setActiveId(deepLinkTestId);
-    if (onConsumeDeepLink) onConsumeDeepLink();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deepLinkTestId, tests]);
-
   useEffect(() => {
     if (onReadingChange) onReadingChange(!!active);
     return () => { if (onReadingChange) onReadingChange(false); };
   }, [active, onReadingChange]);
 
   if (active) return <QuizView test={active} onExit={back} />;
+
+  if (liveOpen) return <LiveQuizHub tests={approved} session={session} onExit={back} />;
 
   if (editing) {
     return (
@@ -1244,7 +1652,17 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   if (!categoryId) {
     return (
       <div>
-        <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
+        </div>
+        <button
+          onClick={goLive}
+          className="inline-flex items-center gap-2 px-4 py-2.5 mb-5 rounded-full text-[14px] focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.white, background: C.cover, outlineColor: C.gold, fontWeight: 500 }}
+        >
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#e5484d' }} />
+          Jonli test rejimi — guruh bo'lib bir vaqtda ishlang
+        </button>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
         {isSearching ? (
           noSearchResults ? (
@@ -1289,16 +1707,13 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                           <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                           <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <CopyLinkButton testId={t.id} compact />
-                          <button
-                            onClick={() => goTest(t.id)}
-                            className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
-                            style={{ ...fontBody, color: C.white, background: C.cover }}
-                          >
-                            <Award size={13} /> Boshlash
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => goTest(t.id)}
+                          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
+                          style={{ ...fontBody, color: C.white, background: C.cover }}
+                        >
+                          <Award size={13} /> Boshlash
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -1347,15 +1762,12 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                <div className="flex items-center gap-1">
-                  <CopyLinkButton testId={t.id} compact />
-                  {isAdmin && (
-                    <ItemMenu actions={[
-                      { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
-                      { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
-                    ]} />
-                  )}
-                </div>
+                {isAdmin && (
+                  <ItemMenu actions={[
+                    { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
+                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+                  ]} />
+                )}
                 <button
                   onClick={() => goTest(t.id)}
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
@@ -2389,19 +2801,8 @@ function getTabMeta(id) {
   return ALL_TABS_META.find((t) => t.id === id) || TABS[0];
 }
 
-/* /test/abc123 koʻrinishidagi havoladan test ID'sini ajratib oladi. */
-function getDeepLinkTestId() {
-  try {
-    const m = window.location.pathname.match(/^\/test\/([^/?#]+)/);
-    return m ? decodeURIComponent(m[1]) : null;
-  } catch (e) {
-    return null;
-  }
-}
-
 export default function App() {
-  const [tab, setTab] = useState(() => (getDeepLinkTestId() ? 'testlar' : 'kurslar'));
-  const [deepLinkTestId, setDeepLinkTestId] = useState(getDeepLinkTestId);
+  const [tab, setTab] = useState('kurslar');
   const [categories, setCategories] = useState([]);
   const [courses, setCourses] = useState([]);
   const [tests, setTests] = useState([]);
@@ -2932,7 +3333,7 @@ export default function App() {
             )}
             <PaperPanel key={tab} className="app-fade-slide">
               {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} deepLinkTestId={deepLinkTestId} onConsumeDeepLink={() => { setDeepLinkTestId(null); try { window.history.replaceState({}, '', '/'); } catch (e) {} }} />}
+              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
               {tab === 'profil' && (
                 <ProfileView
                   session={session}
