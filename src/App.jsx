@@ -3,7 +3,7 @@ import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
-  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home
+  Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -1881,12 +1881,12 @@ function UsernameField({ value, onChange, currentUserId }) {
   );
 }
 
-function ProfileSetupForm({ defaultFirstName, defaultLastName, currentUserId, onSave }) {
+function ProfileSetupForm({ defaultFirstName, defaultLastName, defaultBio, defaultBannerKey, currentUserId, onSave }) {
   const [firstName, setFirstName] = useState(defaultFirstName || '');
   const [lastName, setLastName] = useState(defaultLastName || '');
   const [username, setUsername] = useState('');
-  const [bio, setBio] = useState('');
-  const [bannerKey, setBannerKey] = useState('green');
+  const [bio, setBio] = useState(defaultBio || '');
+  const [bannerKey, setBannerKey] = useState(defaultBannerKey || 'green');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -1922,8 +1922,96 @@ function ProfileSetupForm({ defaultFirstName, defaultLastName, currentUserId, on
   );
 }
 
+function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClose }) {
+  const [firstName, setFirstName] = useState(profile.firstName || '');
+  const [lastName, setLastName] = useState(profile.lastName || '');
+  const [username, setUsername] = useState(profile.username || '');
+  const [bio, setBio] = useState(profile.bio || '');
+  const [bannerKey, setBannerKey] = useState(profile.bannerKey || 'green');
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+
+  const canSubmit = firstName.trim() && lastName.trim() && isValidUsername(username);
+
+  async function submit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setFormError(null);
+    const res = await onSave(firstName.trim(), lastName.trim(), username, bio.trim(), bannerKey);
+    setBusy(false);
+    if (res && res.ok === false) setFormError(res.error);
+    else onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-sm p-6 my-8"
+        style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Settings size={18} style={{ color: C.gold }} />
+            <span className="text-base" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Sozlamalar</span>
+          </div>
+          <button onClick={onClose} aria-label="Yopish" style={{ color: C.inkSoft }}><X size={18} /></button>
+        </div>
+
+        <div className="text-left">
+          <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
+          <TextField label="Familiya" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
+          <UsernameField value={username} onChange={setUsername} currentUserId={currentUserId} />
+          <TextField label="Bio" value={bio} onChange={setBio} placeholder="O'zingiz haqingizda qisqacha..." textarea rows={2} />
+          <BannerPicker value={bannerKey} onChange={setBannerKey} />
+        </div>
+        {formError && (
+          <div className="text-xs mb-3 text-left" style={{ ...fontBody, color: C.red }}>{formError}</div>
+        )}
+        <SolidButton onClick={submit} icon={Check} disabled={busy || !canSubmit}>
+          {busy ? 'Saqlanmoqda...' : 'Saqlash'}
+        </SolidButton>
+
+        <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+          {!confirmSignOut ? (
+            <button
+              onClick={() => setConfirmSignOut(true)}
+              className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm"
+              style={{ ...fontBody, color: C.red, border: `1px solid ${C.red}` }}
+            >
+              <LogOut size={14} /> Hisobdan chiqish
+            </button>
+          ) : (
+            <div className="text-center">
+              <p className="text-xs mb-2" style={{ ...fontBody, color: C.inkSoft }}>Hisobdan chiqishni tasdiqlaysizmi?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmSignOut(false)}
+                  className="flex-1 text-[13px] px-3 py-2 rounded-sm"
+                  style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  onClick={onSignOut}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm"
+                  style={{ ...fontBody, color: C.white, background: C.red }}
+                >
+                  <LogOut size={14} /> Ha, chiqish
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin }) {
   const [subTab, setSubTab] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
   const [courseFormOpen, setCourseFormOpen] = useState(false);
@@ -1972,12 +2060,22 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     );
   }
 
-  if (!profile) {
+  if (!profile || !profile.username) {
     const meta = session.user?.user_metadata || {};
-    const guessFirst = (meta.given_name || (meta.full_name || meta.name || '').split(' ')[0] || '');
-    const guessLast = (meta.family_name || (meta.full_name || meta.name || '').split(' ').slice(1).join(' ') || '');
-    return <ProfileSetupForm defaultFirstName={guessFirst} defaultLastName={guessLast} currentUserId={session.user.id} onSave={onSaveProfile} />;
+    const guessFirst = profile?.firstName || (meta.given_name || (meta.full_name || meta.name || '').split(' ')[0] || '');
+    const guessLast = profile?.lastName || (meta.family_name || (meta.full_name || meta.name || '').split(' ').slice(1).join(' ') || '');
+    return (
+      <ProfileSetupForm
+        defaultFirstName={guessFirst}
+        defaultLastName={guessLast}
+        defaultBio={profile?.bio || ''}
+        defaultBannerKey={profile?.bannerKey || 'green'}
+        currentUserId={session.user.id}
+        onSave={onSaveProfile}
+      />
+    );
   }
+
 
   const myCourses = courses.filter((c) => c.authorId === session.user.id);
   const myTests = tests.filter((t) => t.authorId === session.user.id);
@@ -2038,13 +2136,24 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
               </div>
             </div>
             <button
-              onClick={onSignOut}
-              className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0 mb-1"
-              style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Sozlamalar"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-full flex-shrink-0 mb-1"
+              style={{ color: C.inkSoft, border: `1px solid ${C.rule}`, background: C.surface }}
             >
-              <LogOut size={13} /> Chiqish
+              <Settings size={16} />
             </button>
           </div>
+
+          {settingsOpen && (
+            <ProfileSettingsPanel
+              profile={profile}
+              currentUserId={session.user.id}
+              onSave={onSaveProfile}
+              onSignOut={onSignOut}
+              onClose={() => setSettingsOpen(false)}
+            />
+          )}
 
           <div className="mt-3">
             <div className="flex items-center gap-2 flex-wrap">
@@ -2686,35 +2795,23 @@ export default function App() {
 
       <div className="flex-1 min-w-0 pb-24 md:pb-0">
 
-      {/* Masthead */}
-      <header style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
-        <div className="max-w-5xl mx-auto px-5 sm:px-8 pt-10 pb-8 relative">
+      {/* Ixcham top-bar (Instagram/Telegram uslubida) */}
+      <header className="sticky top-0 z-30 md:hidden" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
+        <div className="max-w-5xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <GraduationCap size={20} style={{ color: C.gold, flexShrink: 0 }} />
+            <span className="text-base truncate" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
+          </div>
           {!readingActive && (
             <button
               onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
               aria-label={theme === 'dark' ? 'Kunduzgi rejimga oʻtish' : 'Tungi rejimga oʻtish'}
-              className="md:hidden absolute top-2 right-5 sm:right-8 w-8 h-8 flex items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2"
+              className="md:hidden w-8 h-8 flex items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 flex-shrink-0"
               style={{ border: `1px solid ${C.coverLine}`, color: C.goldSoft, outlineColor: C.gold }}
             >
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             </button>
           )}
-          <div className="flex items-center gap-2 mb-4">
-            <GraduationCap size={20} style={{ color: C.gold }} />
-            <span className="text-xs tracking-[0.25em] uppercase" style={{ ...fontMono, color: C.goldSoft }}>Ochiq taʼlim platformasi</span>
-          </div>
-          <h1 className="text-4xl sm:text-5xl mb-3" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</h1>
-          <p className="text-[15px] sm:text-base max-w-xl mb-6" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>
-            Barcha soha vakillari uchun mos mavzular, testlar va yangiliklar.
-          </p>
-          <div className="flex gap-6 pt-4" style={{ borderTop: `1px solid ${C.coverLine}` }}>
-            {[['Mavzular', courses.filter((c) => c.status !== 'pending').length], ['Testlar', tests.filter((t) => t.status !== 'pending').length], ['Yangiliklar', news.length]].map(([label, val]) => (
-              <div key={label}>
-                <div className="text-xl" style={{ ...fontMono, color: C.gold }}>{String(val).padStart(2, '0')}</div>
-                <div className="text-xs uppercase tracking-wide" style={{ ...fontBody, color: 'rgba(251,250,243,0.55)' }}>{label}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </header>
 
