@@ -298,10 +298,10 @@ function IconButtonDelete({ onClick, label }) {
   );
 }
 
-function PaperPanel({ children }) {
+function PaperPanel({ children, className }) {
   return (
     <div
-      className="rounded-lg"
+      className={`rounded-lg${className ? ' ' + className : ''}`}
       style={{
         background: C.paperSoft,
         border: `1px solid ${C.rule}`,
@@ -2712,6 +2712,23 @@ export default function App() {
         * { box-sizing: border-box; }
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline-offset: 2px; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* Bo'lim almashganda yumshoq, sezilar-sezilmas animatsiya (faqat CSS,
+           tarmoq so'roviga aloqasi yo'q, tezlikka ta'sir qilmaydi) */
+        @keyframes appFadeSlide {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .app-fade-slide { animation: appFadeSlide 220ms ease; }
+        @media (prefers-reduced-motion: reduce) {
+          .app-fade-slide { animation: none; }
+        }
+
+        /* Navigatsiya tugmalari — faol holat va bosilish silliq o'tishi */
+        .nav-btn {
+          transition: background-color 200ms ease, color 200ms ease, transform 150ms ease;
+        }
+        .nav-btn:active { transform: scale(0.94); }
       `}</style>
 
       {/* Desktop yon navigatsiya paneli — mobil ekranlarda yashirin */}
@@ -2732,7 +2749,7 @@ export default function App() {
                 <button
                   key={t.id}
                   onClick={() => goTo(t.id)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+                  className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] focus-visible:outline focus-visible:outline-2"
                   style={{
                     ...fontBody,
                     color: activeTab ? C.cover : 'rgba(251,250,243,0.8)',
@@ -2748,7 +2765,7 @@ export default function App() {
             })}
             <button
               onClick={handleCreateClick}
-              className="flex items-center gap-3 px-3 py-2.5 mt-2 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+              className="nav-btn flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl text-[14px] focus-visible:outline focus-visible:outline-2"
               style={{ ...fontBody, color: C.cover, background: C.goldSoft, outlineColor: C.gold, fontWeight: 600 }}
             >
               <Plus size={16} />
@@ -2760,7 +2777,7 @@ export default function App() {
             {isAdmin && (
               <button
                 onClick={() => goTo('admin')}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[14px] transition-colors"
+                className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px]"
                 style={{
                   ...fontBody,
                   color: tab === 'admin' ? C.cover : 'rgba(251,250,243,0.8)',
@@ -2774,7 +2791,7 @@ export default function App() {
             )}
             <button
               onClick={() => goTo('about')}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[14px] transition-colors"
+              className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px]"
               style={{
                 ...fontBody,
                 color: tab === 'about' ? C.cover : 'rgba(251,250,243,0.8)',
@@ -2787,7 +2804,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-sm text-[14px]"
+              className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px]"
               style={{ ...fontBody, color: 'rgba(251,250,243,0.8)' }}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -2851,7 +2868,7 @@ export default function App() {
                 <button onClick={() => setActionError(null)}><X size={15} /></button>
               </div>
             )}
-            <PaperPanel>
+            <PaperPanel key={tab} className="app-fade-slide">
               {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
               {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} />}
               {tab === 'profil' && (
@@ -2920,8 +2937,8 @@ export default function App() {
       {/* Mobil pastki navigatsiya paneli */}
       {!readingActive && (
         <nav
-          className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center justify-around px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-2"
-          style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})`, borderTop: `1px solid ${C.coverLine}` }}
+          className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center justify-around px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-2 rounded-t-[28px]"
+          style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})`, boxShadow: '0 -6px 20px rgba(15,61,46,0.25)' }}
           aria-label="Asosiy navigatsiya"
         >
           {TABS.slice(0, 2).map((t) => {
@@ -2931,11 +2948,15 @@ export default function App() {
               <button
                 key={t.id}
                 onClick={() => goTo(t.id)}
-                className="flex flex-col items-center gap-1 px-3 py-1 focus-visible:outline focus-visible:outline-2"
-                style={{ color: activeTab ? C.gold : 'rgba(251,250,243,0.65)', outlineColor: C.gold }}
+                className="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl focus-visible:outline focus-visible:outline-2"
+                style={{
+                  color: activeTab ? C.cover : 'rgba(251,250,243,0.65)',
+                  background: activeTab ? C.gold : 'transparent',
+                  outlineColor: C.gold,
+                }}
               >
-                <Icon size={20} strokeWidth={activeTab ? 2.3 : 1.8} />
-                <span className="text-[10px]" style={fontBody}>{t.label}</span>
+                <Icon size={19} strokeWidth={activeTab ? 2.3 : 1.8} />
+                <span className="text-[10px]" style={{ ...fontBody, fontWeight: activeTab ? 600 : 400 }}>{t.label}</span>
               </button>
             );
           })}
@@ -2943,8 +2964,8 @@ export default function App() {
           <button
             onClick={handleCreateClick}
             aria-label="Kurs yaratish"
-            className="flex items-center justify-center w-11 h-11 rounded-full -mt-4 shadow-lg focus-visible:outline focus-visible:outline-2"
-            style={{ background: C.gold, color: C.cover, outlineColor: C.goldSoft }}
+            className="nav-btn flex items-center justify-center w-12 h-12 rounded-full -mt-5 shadow-lg focus-visible:outline focus-visible:outline-2"
+            style={{ background: C.gold, color: C.cover, outlineColor: C.goldSoft, boxShadow: '0 4px 14px rgba(212,172,110,0.45)' }}
           >
             <Plus size={22} strokeWidth={2.4} />
           </button>
@@ -2956,11 +2977,15 @@ export default function App() {
               <button
                 key={t.id}
                 onClick={() => goTo(t.id)}
-                className="flex flex-col items-center gap-1 px-3 py-1 focus-visible:outline focus-visible:outline-2"
-                style={{ color: activeTab ? C.gold : 'rgba(251,250,243,0.65)', outlineColor: C.gold }}
+                className="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl focus-visible:outline focus-visible:outline-2"
+                style={{
+                  color: activeTab ? C.cover : 'rgba(251,250,243,0.65)',
+                  background: activeTab ? C.gold : 'transparent',
+                  outlineColor: C.gold,
+                }}
               >
-                <Icon size={20} strokeWidth={activeTab ? 2.3 : 1.8} />
-                <span className="text-[10px]" style={fontBody}>{t.label}</span>
+                <Icon size={19} strokeWidth={activeTab ? 2.3 : 1.8} />
+                <span className="text-[10px]" style={{ ...fontBody, fontWeight: activeTab ? 600 : 400 }}>{t.label}</span>
               </button>
             );
           })}
