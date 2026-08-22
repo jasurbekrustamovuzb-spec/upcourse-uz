@@ -308,7 +308,7 @@ function PaperPanel({ children }) {
         boxShadow: '0 8px 24px rgba(31,61,43,0.08)',
       }}
     >
-      <div className="px-4 py-6 sm:px-8 sm:py-8">{children}</div>
+      <div className="px-4 pt-4 pb-6 sm:px-8 sm:pt-5 sm:pb-8">{children}</div>
     </div>
   );
 }
@@ -2122,11 +2122,11 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   return (
     <div>
       <div className="rounded-sm overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-        <div className="h-24 sm:h-28" style={{ background: bannerGradient(profile.bannerKey) }} />
-        <div className="px-5 pb-5 -mt-10 relative">
+        <div className="h-28 sm:h-32" style={{ background: bannerGradient(profile.bannerKey) }} />
+        <div className="px-5 pb-5 -mt-12 relative">
           <div className="flex items-end justify-between gap-3">
             <div
-              className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0"
+              className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0"
               style={{ background: C.surface, border: `3px solid ${C.surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
             >
               <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: bannerGradient(profile.bannerKey) }}>
@@ -2342,6 +2342,10 @@ const TABS = [
 ];
 const ABOUT_TAB = { id: 'about', label: 'Biz haqimizda', icon: Info };
 const ADMIN_TAB = { id: 'admin', label: 'Admin panel', icon: ShieldCheck };
+const ALL_TABS_META = [...TABS, ABOUT_TAB, ADMIN_TAB];
+function getTabMeta(id) {
+  return ALL_TABS_META.find((t) => t.id === id) || TABS[0];
+}
 
 export default function App() {
   const [tab, setTab] = useState('kurslar');
@@ -2795,13 +2799,26 @@ export default function App() {
 
       <div className="flex-1 min-w-0 pb-24 md:pb-0">
 
-      {/* Ixcham top-bar (Instagram/Telegram uslubida) */}
+      {/* Ixcham top-bar (Instagram/Telegram uslubida) — bosh sahifada brend, boshqa bo'limlarda o'sha bo'lim nomi */}
       <header className="sticky top-0 z-30 md:hidden" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
         <div className="max-w-5xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <GraduationCap size={20} style={{ color: C.gold, flexShrink: 0 }} />
-            <span className="text-base truncate" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
-          </div>
+          {tab === 'kurslar' ? (
+            <div className="flex items-center gap-2 min-w-0">
+              <GraduationCap size={22} style={{ color: C.gold, flexShrink: 0 }} />
+              <span className="text-lg truncate" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
+            </div>
+          ) : (
+            (() => {
+              const meta = getTabMeta(tab);
+              const Icon = meta.icon;
+              return (
+                <div className="flex items-center gap-2 min-w-0">
+                  <Icon size={18} style={{ color: C.gold, flexShrink: 0 }} />
+                  <span className="text-base truncate" style={{ ...fontDisplay, color: C.white, fontWeight: 600 }}>{meta.label}</span>
+                </div>
+              );
+            })()
+          )}
           {!readingActive && (
             <button
               onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
@@ -2816,7 +2833,7 @@ export default function App() {
       </header>
 
       {/* Content */}
-      <main className="max-w-5xl mx-auto px-5 sm:px-8 py-8">
+      <main className="max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8">
         {loading ? (
           <div className="flex items-center justify-center py-24" style={{ color: C.inkSoft }}>
             <Loader2 className="animate-spin mr-2" size={20} />
