@@ -300,16 +300,7 @@ function IconButtonDelete({ onClick, label }) {
 
 function PaperPanel({ children, className }) {
   return (
-    <div
-      className={`rounded-lg${className ? ' ' + className : ''}`}
-      style={{
-        background: C.paperSoft,
-        border: `1px solid ${C.rule}`,
-        boxShadow: '0 8px 24px rgba(31,61,43,0.08)',
-      }}
-    >
-      <div className="px-4 pt-4 pb-6 sm:px-8 sm:pt-5 sm:pb-8">{children}</div>
-    </div>
+    <div className={className}>{children}</div>
   );
 }
 
@@ -2814,7 +2805,7 @@ export default function App() {
         </aside>
       )}
 
-      <div className="flex-1 min-w-0 pb-24 md:pb-0">
+      <div className="flex-1 min-w-0 pb-24 md:pb-0 min-h-screen flex flex-col">
 
       {/* Ixcham top-bar (Instagram/Telegram uslubida) — bosh sahifada brend, boshqa bo'limlarda o'sha bo'lim nomi */}
       <header className="sticky top-0 z-30 md:hidden" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
@@ -2850,7 +2841,7 @@ export default function App() {
       </header>
 
       {/* Content */}
-      <main className="max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8">
+      <main className="flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full">
         {loading ? (
           <div className="flex items-center justify-center py-24" style={{ color: C.inkSoft }}>
             <Loader2 className="animate-spin mr-2" size={20} />
