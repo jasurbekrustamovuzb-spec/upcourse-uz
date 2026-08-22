@@ -194,7 +194,34 @@ const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: 
 const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
-const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin });
+const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green' });
+
+/* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
+   hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
+   shu tayyor ranglardan birini tanlaydi. */
+const BANNER_PRESETS = {
+  green: { from: '#1F3D2B', to: '#3C6B4A', label: 'Yashil' },
+  gold: { from: '#8A611E', to: '#D4AC6E', label: 'Oltin' },
+  maroon: { from: '#5A2320', to: '#A8433A', label: 'Malla-qizil' },
+  navy: { from: '#16283D', to: '#2E4E73', label: 'Ko\u2018k' },
+};
+function bannerGradient(key) {
+  const b = BANNER_PRESETS[key] || BANNER_PRESETS.green;
+  return `linear-gradient(120deg, ${b.from}, ${b.to})`;
+}
+
+/* username: kichik lotin harflari, raqam, pastik chiziq, 3-20 belgi */
+function normalizeUsername(v) {
+  return (v || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
+}
+function isValidUsername(v) {
+  return /^[a-z0-9_]{3,20}$/.test(v || '');
+}
+/* Username band emasligini tekshiradi (o'zining joriy username'idan tashqari) */
+async function checkUsernameAvailable(username, currentUserId) {
+  const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
+  return !rows.some((r) => r.id !== currentUserId);
+}
 
 
 /* ------------------------------------------------------------------ */
@@ -1780,16 +1807,98 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
 /*  Profil — login (Google), roʻyxatdan oʻtish, "Mening kurslarim"      */
 /* ------------------------------------------------------------------ */
 
-function ProfileSetupForm({ defaultFirstName, defaultLastName, onSave }) {
+function BannerPicker({ value, onChange }) {
+  return (
+    <div className="mb-4 text-left">
+      <label className="block text-xs mb-2" style={{ ...fontMono, color: C.inkSoft }}>Banner rangi</label>
+      <div className="flex gap-2">
+        {Object.entries(BANNER_PRESETS).map(([key, b]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            aria-label={b.label}
+            className="w-9 h-9 rounded-full flex-shrink-0 transition-transform"
+            style={{
+              background: bannerGradient(key),
+              border: value === key ? `2px solid ${C.gold}` : `2px solid transparent`,
+              outline: value === key ? `1px solid ${C.gold}` : 'none',
+              outlineOffset: '2px',
+              transform: value === key ? 'scale(1.08)' : 'scale(1)',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UsernameField({ value, onChange, currentUserId }) {
+  const [status, setStatus] = useState('idle'); // idle | checking | ok | taken | invalid
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!value) { setStatus('idle'); return; }
+    if (!isValidUsername(value)) { setStatus('invalid'); return; }
+    setStatus('checking');
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      try {
+        const available = await checkUsernameAvailable(value, currentUserId);
+        setStatus(available ? 'ok' : 'taken');
+      } catch (e) {
+        setStatus('idle');
+      }
+    }, 450);
+    return () => clearTimeout(timerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const helper = {
+    idle: 'Kamida 3 ta belgi: kichik lotin harflari, raqam, pastki chiziq (_)',
+    invalid: 'Notoʻgʻri format — faqat a-z, 0-9 va _ (3-20 belgi)',
+    checking: 'Tekshirilmoqda...',
+    ok: 'Bu username boʻsh ✓',
+    taken: 'Bu username band, boshqasini tanlang',
+  }[status];
+  const helperColor = status === 'ok' ? C.gold : status === 'taken' || status === 'invalid' ? C.red : C.inkSoft;
+
+  return (
+    <div className="mb-1 text-left">
+      <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Username</label>
+      <div className="flex items-center rounded-sm overflow-hidden" style={{ border: `1px solid ${C.rule}`, background: C.paperSoft }}>
+        <span className="pl-3 pr-1 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>@</span>
+        <input
+          value={value}
+          onChange={(e) => onChange(normalizeUsername(e.target.value))}
+          placeholder="username"
+          className="flex-1 py-2.5 pr-3 text-[15px] bg-transparent outline-none"
+          style={{ ...fontBody, color: C.ink }}
+        />
+      </div>
+      <div className="text-xs mt-1 mb-4" style={{ ...fontMono, color: helperColor }}>{helper}</div>
+    </div>
+  );
+}
+
+function ProfileSetupForm({ defaultFirstName, defaultLastName, currentUserId, onSave }) {
   const [firstName, setFirstName] = useState(defaultFirstName || '');
   const [lastName, setLastName] = useState(defaultLastName || '');
+  const [username, setUsername] = useState('');
+  const [bio, setBio] = useState('');
+  const [bannerKey, setBannerKey] = useState('green');
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const canSubmit = firstName.trim() && lastName.trim() && isValidUsername(username);
 
   async function submit() {
-    if (!firstName.trim() || !lastName.trim()) return;
+    if (!canSubmit) return;
     setBusy(true);
-    await onSave(firstName.trim(), lastName.trim());
+    setFormError(null);
+    const res = await onSave(firstName.trim(), lastName.trim(), username, bio.trim(), bannerKey);
     setBusy(false);
+    if (res && res.ok === false) setFormError(res.error);
   }
 
   return (
@@ -1799,8 +1908,14 @@ function ProfileSetupForm({ defaultFirstName, defaultLastName, onSave }) {
       <div className="text-left">
         <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
         <TextField label="Familiya" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
+        <UsernameField value={username} onChange={setUsername} currentUserId={currentUserId} />
+        <TextField label="Bio (ixtiyoriy)" value={bio} onChange={setBio} placeholder="O'zingiz haqingizda qisqacha..." textarea rows={2} />
+        <BannerPicker value={bannerKey} onChange={setBannerKey} />
       </div>
-      <SolidButton onClick={submit} icon={Check} disabled={busy || !firstName.trim() || !lastName.trim()}>
+      {formError && (
+        <div className="text-xs mb-3 text-left" style={{ ...fontBody, color: C.red }}>{formError}</div>
+      )}
+      <SolidButton onClick={submit} icon={Check} disabled={busy || !canSubmit}>
         {busy ? 'Saqlanmoqda...' : 'Davom etish'}
       </SolidButton>
     </div>
@@ -1861,7 +1976,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     const meta = session.user?.user_metadata || {};
     const guessFirst = (meta.given_name || (meta.full_name || meta.name || '').split(' ')[0] || '');
     const guessLast = (meta.family_name || (meta.full_name || meta.name || '').split(' ').slice(1).join(' ') || '');
-    return <ProfileSetupForm defaultFirstName={guessFirst} defaultLastName={guessLast} onSave={onSaveProfile} />;
+    return <ProfileSetupForm defaultFirstName={guessFirst} defaultLastName={guessLast} currentUserId={session.user.id} onSave={onSaveProfile} />;
   }
 
   const myCourses = courses.filter((c) => c.authorId === session.user.id);
@@ -1908,24 +2023,63 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3 mb-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-        <div className="flex items-center gap-3 min-w-0">
-          <UserCircle2 size={32} style={{ color: C.gold }} />
-          <div className="min-w-0">
-            <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{profile.firstName} {profile.lastName}</div>
-            <div className="text-xs truncate" style={{ ...fontMono, color: C.inkSoft }}>{profile.email}</div>
-            {isAdmin && (
-              <div className="text-xs mt-1 inline-flex items-center gap-1" style={{ ...fontMono, color: C.gold }}><ShieldCheck size={12} /> Administrator</div>
+      <div className="rounded-sm overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <div className="h-24 sm:h-28" style={{ background: bannerGradient(profile.bannerKey) }} />
+        <div className="px-5 pb-5 -mt-10 relative">
+          <div className="flex items-end justify-between gap-3">
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: C.surface, border: `3px solid ${C.surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
+            >
+              <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: bannerGradient(profile.bannerKey) }}>
+                <span className="text-xl" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>
+                  {(profile.firstName[0] || '').toUpperCase()}{(profile.lastName[0] || '').toUpperCase()}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={onSignOut}
+              className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0 mb-1"
+              style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}
+            >
+              <LogOut size={13} /> Chiqish
+            </button>
+          </div>
+
+          <div className="mt-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-lg" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{profile.firstName} {profile.lastName}</span>
+              {isAdmin && (
+                <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}><ShieldCheck size={11} /> Admin</span>
+              )}
+            </div>
+            {profile.username && (
+              <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{profile.username}</div>
+            )}
+            {profile.bio && (
+              <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{profile.bio}</p>
             )}
           </div>
+
+          <div className="flex gap-6 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+            <div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myCourses.length}</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mavzular</div>
+            </div>
+            <div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myTests.length}</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
+            </div>
+            <div title="Tez orada">
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Followers</div>
+            </div>
+            <div title="Tez orada">
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Following</div>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={onSignOut}
-          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
-          style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}
-        >
-          <LogOut size={13} /> Chiqish
-        </button>
       </div>
 
       <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
@@ -2146,14 +2300,33 @@ export default function App() {
     return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); window.removeEventListener('pageshow', onPageShow); };
   }, []);
 
-  async function saveProfile(firstName, lastName) {
-    if (!session) return;
-    const row = { id: session.user.id, first_name: firstName, last_name: lastName, email: session.user.email || '' };
+  async function saveProfile(firstName, lastName, username, bio, bannerKey) {
+    if (!session) return { ok: false, error: 'Sessiya topilmadi.' };
+    if (!isValidUsername(username)) {
+      return { ok: false, error: 'Username 3-20 belgidan iborat bo\u2018lishi, faqat kichik lotin harflari, raqam va pastki chiziqdan tashkil topishi kerak.' };
+    }
+    try {
+      const available = await checkUsernameAvailable(username, session.user.id);
+      if (!available) return { ok: false, error: 'Bu username band. Boshqasini tanlang.' };
+    } catch (e) {
+      return { ok: false, error: 'Username tekshirishda xatolik yuz berdi. Internetni tekshiring.' };
+    }
+    const row = {
+      id: session.user.id,
+      first_name: firstName,
+      last_name: lastName,
+      email: session.user.email || '',
+      username,
+      bio: bio || '',
+      banner_key: bannerKey || 'green',
+    };
     try {
       await sbUpsert('profiles', row);
       setProfile(profileFromRow(row));
+      return { ok: true };
     } catch (e) {
       setActionError('Profilni saqlashda xatolik yuz berdi.');
+      return { ok: false, error: 'Profilni saqlashda xatolik yuz berdi.' };
     }
   }
 
