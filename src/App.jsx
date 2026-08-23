@@ -282,6 +282,27 @@ async function sbUploadImage(file) {
   return `${SUPABASE_URL}/storage/v1/object/public/${IMAGE_BUCKET}/${path}`;
 }
 
+/* Test o'chirilganda unga tegishli savol rasmlari ombordan (Storage)
+   ham o'chirilishi uchun — aks holda fayllar "egasiz" holda saqlanaverib,
+   ombor hajmini behuda band qilib turadi. Xatolik bo'lsa (masalan fayl
+   allaqachon yo'q) jim tarzda o'tkazib yuboriladi — bu asosiy
+   o'chirish amalini to'xtatmasligi kerak. */
+async function sbDeleteImage(url) {
+  if (!url || !url.includes(`/${IMAGE_BUCKET}/`)) return;
+  try {
+    const path = url.split(`/${IMAGE_BUCKET}/`)[1];
+    if (!path) return;
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token || SUPABASE_ANON_KEY;
+    await fetch(`${SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}/${path}`, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    });
+  } catch (e) {
+    // Jim tarzda o'tkazib yuborish.
+  }
+}
+
 /* --- Jonli test rejimi uchun yordamchi funksiyalar --- */
 function randomRoomCode() {
   let s = '';
@@ -3940,12 +3961,17 @@ export default function App() {
     }
   }
   async function deleteTest(id, title) {
-    const mine = tests.find((t) => t.id === id)?.authorId === session?.user?.id;
+    const target = tests.find((t) => t.id === id);
+    const mine = target?.authorId === session?.user?.id;
     if (!isAdmin && !mine) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbDelete('tests', id);
       setTests(tests.filter((t) => t.id !== id));
       setActionError(null);
+      // Testga tegishli savol rasmlarini ombordan ham tozalaymiz (fon rejimida,
+      // natijasini kutmasdan — foydalanuvchi ekranida darhol o'chgandek ko'rinsin).
+      const imageUrls = (target?.questions || []).map((q) => q.imageUrl).filter(Boolean);
+      imageUrls.forEach((url) => { sbDeleteImage(url); });
       return true;
     } catch (e) {
       setActionError('Testni oʻchirishda xatolik yuz berdi.');
