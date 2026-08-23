@@ -3646,15 +3646,25 @@ export default function App() {
     try { localStorage.setItem('upcourse-theme', theme); } catch {}
   }, [theme]);
 
-  /* Google orqali kirish holatini kuzatish + profil qatorini yuklash */
+  /* Google orqali kirish holatini kuzatish + profil qatorini yuklash.
+     Eslatma: Supabase'ning o'zi onAuthStateChange ulanganda joriy
+     sessiya haqida darhol (avtomatik) bir marta xabar beradi — shuning
+     uchun quyidagi refreshSession() bilan bir vaqtda ishlab, bitta
+     foydalanuvchi uchun profilni 2-4 marta so'ratib yuborardi. Shu
+     tufayli lastLoadedUid orqali bir xil foydalanuvchi uchun takroriy
+     so'rovning oldi olinadi. */
   useEffect(() => {
     let cancelled = false;
+    let lastLoadedUid = null;
     async function loadProfile(uid) {
+      if (uid === lastLoadedUid) return;
+      lastLoadedUid = uid;
       try {
         const rows = await sbSelect('profiles', `id=eq.${uid}`);
         if (!cancelled) setProfile(rows[0] ? profileFromRow(rows[0]) : null);
       } catch (e) {
         if (!cancelled) setProfile(null);
+        lastLoadedUid = null; // xatolik bo'lsa keyinroq qayta urinib ko'rish imkoni qolsin
       }
     }
     function refreshSession() {
@@ -3662,7 +3672,7 @@ export default function App() {
         if (cancelled) return;
         setSession(data.session || null);
         if (data.session) loadProfile(data.session.user.id).then(() => !cancelled && setAuthLoading(false));
-        else { setProfile(null); setAuthLoading(false); }
+        else { setProfile(null); lastLoadedUid = null; setAuthLoading(false); }
       });
     }
     refreshSession();
@@ -3675,7 +3685,7 @@ export default function App() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession || null);
       if (newSession) loadProfile(newSession.user.id);
-      else setProfile(null);
+      else { setProfile(null); lastLoadedUid = null; }
     });
     // Telefon brauzerlari sahifani "bfcache"dan tiklaganda (masalan orqaga
     // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu payt
