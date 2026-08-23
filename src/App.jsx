@@ -243,6 +243,17 @@ async function sbRequest(path, options = {}) {
 }
 
 const sbSelect = (table, filter) => sbRequest(`${table}?select=*&order=created_at.asc${filter ? `&${filter}` : ''}`);
+
+/* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
+   tekshirish uchun) yoki muallifning o'zi (o'z holatini ko'rishi uchun)
+   so'raydi. Boshqa barcha holatlarda serverdan faqat tasdiqlangan
+   (approved) qatorlar so'raladi — shu tufayli tasdiqlanmagan kontent
+   endi hamma foydalanuvchining bosh yuklanishiga behuda tushmaydi. */
+function visibilityFilter(myId, isAdminFlag) {
+  if (isAdminFlag) return '';
+  if (myId) return `or=(status.eq.approved,author_id.eq.${myId})`;
+  return 'status=eq.approved';
+}
 const sbInsert = (table, row) => sbRequest(table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
 const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -3712,6 +3723,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Autentifikatsiya holati (kim ekanligimiz) aniqlanguncha kutamiz —
+    // shunda "kim ko'rishi kerak" filtri to'g'ri qatorlar bilan bir marta
+    // so'raladi, keyin qayta yuklab o'tirmaydi.
+    if (authLoading) return;
     (async () => {
       setLoading(true);
       if (!isSupabaseConfigured()) {
@@ -3720,11 +3735,14 @@ export default function App() {
         return;
       }
       try {
+        const myId = session?.user?.id;
+        const vis = visibilityFilter(myId, isAdmin);
+        const visQ = vis ? `&${vis}` : '';
         const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
         const [catRows, courseRows, testRows, newsRows] = await Promise.all([
-          sbSelect('categories'),
-          sbRequest(`courses?select=${courseListCols}&order=created_at.asc`),
-          sbSelect('tests'), sbSelect('news'),
+          sbSelect('categories', vis),
+          sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`),
+          sbSelect('tests', vis), sbSelect('news'),
         ]);
 
         setCategories(catRows.map(categoryFromRow));
@@ -3736,7 +3754,7 @@ export default function App() {
       }
       setLoading(false);
     })();
-  }, []);
+  }, [authLoading, isAdmin, session?.user?.id]);
 
   async function addCategory(data) {
     if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
