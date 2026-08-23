@@ -273,9 +273,8 @@ async function sbUploadImage(file) {
 
 /* --- Jonli test rejimi uchun yordamchi funksiyalar --- */
 function randomRoomCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 0/O, 1/I chalkashmasin deb olib tashlangan
   let s = '';
-  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 6; i++) s += Math.floor(Math.random() * 10);
   return s;
 }
 function getDeviceKey() {
@@ -816,7 +815,6 @@ function CategoryPicker({ categories, value, onChange }) {
 function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [newId, setNewId] = useState(null);
@@ -839,8 +837,8 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
     if (!title.trim() || !content.trim()) return;
     if (!lockedCategoryId && !categoryName.trim()) return;
     const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() }
-      : { categoryName: categoryName.trim(), title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() };
+      ? { categoryId: lockedCategoryId, title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim() }
+      : { categoryName: categoryName.trim(), title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim() };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -851,7 +849,6 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
         <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
       )}
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Masalan: Bozor muvozanati" />
-      <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} placeholder="Bir jumlada mavzu haqida" />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing... Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       <div className="flex gap-3 mt-2">
@@ -864,20 +861,18 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
 
 function EditCourseForm({ course, onSave, onDone }) {
   const [title, setTitle] = useState(course.title);
-  const [summary, setSummary] = useState(course.summary || '');
   const [content, setContent] = useState(course.content);
   const [videoUrl, setVideoUrl] = useState(course.videoUrl || '');
 
   async function submit() {
     if (!title.trim() || !content.trim()) return;
-    const ok = await onSave({ categoryId: course.categoryId, title: title.trim(), summary: summary.trim(), content: content.trim(), videoUrl: videoUrl.trim() });
+    const ok = await onSave({ categoryId: course.categoryId, title: title.trim(), summary: course.summary || '', content: content.trim(), videoUrl: videoUrl.trim() });
     if (ok) onDone();
   }
 
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} />
-      <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       <div className="flex gap-3 mt-2">
@@ -1328,13 +1323,15 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
         <div className="p-4 rounded-sm mb-4" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="text-xs tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol qoʻshish</div>
-            <button
-              onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              className="text-xs inline-flex items-center gap-1 flex-shrink-0"
-              style={{ ...fontBody, color: C.inkSoft }}
-            >
-              <FileText size={12} /> TXT fayldan ham yuklash mumkin
-            </button>
+            {!isMathMode && (
+              <button
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                className="text-xs inline-flex items-center gap-1 flex-shrink-0"
+                style={{ ...fontBody, color: C.inkSoft }}
+              >
+                <FileText size={12} /> TXT fayldan ham yuklash mumkin
+              </button>
+            )}
           </div>
           {importError && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
 
@@ -1433,7 +1430,6 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
 function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView, formMode }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [questions, setQuestions] = useState([]);
   const [newId, setNewId] = useState(null);
 
@@ -1456,8 +1452,8 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
   async function submit() {
     if (!canSubmit) return;
     const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), description: description.trim(), questions }
-      : { categoryName: categoryName.trim(), title: title.trim(), description: description.trim(), questions };
+      ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions }
+      : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -1478,7 +1474,6 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
         <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
       )}
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
-      <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} placeholder="Test haqida qisqacha" />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
@@ -1490,19 +1485,17 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
 
 function EditTestForm({ test, onSave, onDone }) {
   const [title, setTitle] = useState(test.title);
-  const [description, setDescription] = useState(test.description || '');
   const [questions, setQuestions] = useState(test.questions);
 
   async function submit() {
     if (!title.trim() || questions.length === 0) return;
-    const ok = await onSave({ categoryId: test.categoryId, title: title.trim(), description: description.trim(), questions });
+    const ok = await onSave({ categoryId: test.categoryId, title: title.trim(), description: test.description || '', questions });
     if (ok) onDone();
   }
 
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Test nomi" value={title} onChange={setTitle} />
-      <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Saqlash</SolidButton>
