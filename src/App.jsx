@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal
+  Trophy, Medal, Image as ImageIcon
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -237,6 +237,29 @@ const sbInsert = (table, row) => sbRequest(table, { method: 'POST', headers: { P
 const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
 const sbUpsert = (table, row) => sbRequest(`${table}`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(row) });
+
+/* Savol rasmlari (geometriya chizmalari va h.k.) shu omborga yuklanadi. */
+const IMAGE_BUCKET = 'question-images';
+async function sbUploadImage(file) {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token || SUPABASE_ANON_KEY;
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}/${path}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': file.type || 'application/octet-stream',
+    },
+    body: file,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Rasm yuklashda xatolik — ${res.status}: ${text}`);
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/${IMAGE_BUCKET}/${path}`;
+}
 
 /* --- Jonli test rejimi uchun yordamchi funksiyalar --- */
 function randomRoomCode() {
@@ -610,12 +633,13 @@ function TextField({ label, value, onChange, placeholder, textarea, rows }) {
   );
 }
 
-function GhostButton({ children, onClick, icon: Icon, type }) {
+function GhostButton({ children, onClick, icon: Icon, type, disabled }) {
   return (
     <button
       type={type || 'button'}
       onClick={onClick}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+      disabled={disabled}
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2 disabled:opacity-50 disabled:cursor-not-allowed"
       style={{ ...fontBody, color: C.accent, border: `1px solid ${C.accent}`, outlineColor: C.gold }}
     >
       {Icon && <Icon size={15} />}
@@ -1074,21 +1098,169 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
 /*  Testlar (Tests / Quizzes)                                          */
 /* ------------------------------------------------------------------ */
 
+/* Yozma javobni raqam sifatida o'qishga urinadi (kasr "1/2" yoki
+   o'nlik "0.5"/"0,5" — hammasini bir xil songa aylantiradi). Raqam
+   bo'lmasa null qaytaradi (harf/so'z javoblari uchun). */
+function parseMathAnswer(str) {
+  if (typeof str !== 'string') return null;
+  const s = str.trim().replace(/\s+/g, '').replace(',', '.');
+  if (!s) return null;
+  const fracMatch = s.match(/^-?\d+(\.\d+)?\/-?\d+(\.\d+)?$/);
+  if (fracMatch) {
+    const [num, den] = s.split('/').map(Number);
+    if (den === 0 || isNaN(num) || isNaN(den)) return null;
+    return num / den;
+  }
+  const num = Number(s);
+  return isNaN(num) ? null : num;
+}
+
+/* Yozma javobni to'g'ri javoblar ro'yxati bilan solishtiradi.
+   Kasr va o'nli kasr avtomatik songa aylantirilib solishtiriladi
+   (1/2 va 0,5 — ikkalasi ham to'g'ri deb topiladi). Raqam bo'lmasa
+   (masalan so'z yoki "2√3" kabi), harf-baharf (katta-kichik harfga
+   sezgir emas) solishtiriladi. */
+function isOpenAnswerCorrect(question, userAnswer) {
+  if (!userAnswer || !userAnswer.trim()) return false;
+  const accepted = question.answers || [];
+  const userNum = parseMathAnswer(userAnswer);
+  const userText = userAnswer.trim().toLowerCase().replace(/\s+/g, '');
+  for (const acc of accepted) {
+    const accNum = parseMathAnswer(acc);
+    if (userNum !== null && accNum !== null) {
+      if (Math.abs(userNum - accNum) < 1e-9) return true;
+    }
+    if (String(acc).trim().toLowerCase().replace(/\s+/g, '') === userText) return true;
+  }
+  return false;
+}
+
+/* Har ikki savol turi (variantli / yozma) uchun umumiy tekshiruv */
+function isQuestionCorrect(q, userAnswer) {
+  if (q.type === 'open') return isOpenAnswerCorrect(q, userAnswer);
+  return userAnswer === q.correct;
+}
+
+/* TXT fayldan variantli savollarni o'qish. Kutilgan format:
+   1. Savol matni?
+   A) variant
+   B) variant
+   C) variant
+   D) variant
+   ANSWER: B
+   Savollar orasida bo'sh qator yoki keyingi raqam bilan ajratiladi. */
+function parseTxtQuestions(rawText) {
+  const lines = rawText.replace(/\r\n/g, '\n').split('\n');
+  const questions = [];
+  let cur = null;
+
+  function pushCurrent() {
+    if (cur && cur.text && cur.options.length >= 2 && cur.correct !== null) {
+      questions.push({ id: uid(), type: 'mcq', text: cur.text, options: cur.options, correct: cur.correct });
+    }
+  }
+
+  for (let raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    const qMatch = line.match(/^\d+[.)]\s*(.+)$/);
+    const optMatch = line.match(/^([A-DА-Г])[).]\s*(.+)$/i);
+    const ansMatch = line.match(/^ANSWER[:\s]+([A-DА-Г])/i);
+
+    if (ansMatch && cur) {
+      const letter = ansMatch[1].toUpperCase();
+      const idx = 'ABCD'.indexOf(letter);
+      if (idx !== -1) cur.correct = idx;
+      continue;
+    }
+    if (optMatch && cur) {
+      cur.options.push(optMatch[2].trim());
+      continue;
+    }
+    if (qMatch) {
+      pushCurrent();
+      cur = { text: qMatch[1].trim(), options: [], correct: null };
+      continue;
+    }
+    // Savol matni ko'p qatorli bo'lsa, davomini qo'shib boradi
+    if (cur && cur.options.length === 0) {
+      cur.text += ' ' + line;
+    }
+  }
+  pushCurrent();
+  return questions;
+}
+
 function QuestionBuilder({ questions, setQuestions }) {
+  const [qType, setQType] = useState('mcq');
   const [qText, setQText] = useState('');
   const [opts, setOpts] = useState(['', '', '', '']);
   const [correct, setCorrect] = useState(0);
+  const [answersText, setAnswersText] = useState('');
+  const [importError, setImportError] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState('');
+  const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
 
   function addQuestion() {
-    if (!qText.trim() || opts.some((o) => !o.trim())) return;
-    setQuestions([...questions, { id: uid(), text: qText.trim(), options: opts.map((o) => o.trim()), correct }]);
+    if (!qText.trim()) return;
+    if (qType === 'mcq') {
+      if (opts.some((o) => !o.trim())) return;
+      setQuestions([...questions, { id: uid(), type: 'mcq', text: qText.trim(), options: opts.map((o) => o.trim()), correct, imageUrl: imageUrl || undefined }]);
+      setOpts(['', '', '', '']);
+      setCorrect(0);
+    } else {
+      const answers = answersText.split(/[,\n]/).map((a) => a.trim()).filter(Boolean);
+      if (answers.length === 0) return;
+      setQuestions([...questions, { id: uid(), type: 'open', text: qText.trim(), answers, imageUrl: imageUrl || undefined }]);
+      setAnswersText('');
+    }
     setQText('');
-    setOpts(['', '', '', '']);
-    setCorrect(0);
+    setImageUrl('');
   }
 
   function removeQuestion(id) {
     setQuestions(questions.filter((q) => q.id !== id));
+  }
+
+  async function handleImageFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImageError('');
+    setImageUploading(true);
+    try {
+      const url = await sbUploadImage(file);
+      setImageUrl(url);
+    } catch (err) {
+      setImageError('Rasm yuklashda xatolik yuz berdi. Qaytadan urinib koʻring.');
+    } finally {
+      setImageUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  function handleTxtFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImportError('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parseTxtQuestions(String(reader.result));
+        if (parsed.length === 0) {
+          setImportError('Faylda savol topilmadi. Format toʻgʻriligini tekshiring: "1. Savol", "A) variant" ... "ANSWER: B".');
+          return;
+        }
+        setQuestions([...questions, ...parsed]);
+      } catch (err) {
+        setImportError('Faylni oʻqishda xatolik yuz berdi.');
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+    e.target.value = '';
   }
 
   return (
@@ -1097,8 +1269,16 @@ function QuestionBuilder({ questions, setQuestions }) {
         <div className="mb-4 space-y-2">
           {questions.map((q, i) => (
             <div key={q.id} className="flex items-start justify-between p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
-              <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
-                <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
+              <div className="flex items-start gap-2 min-w-0">
+                {q.imageUrl && (
+                  <img src={q.imageUrl} alt="" className="w-10 h-10 object-cover rounded-sm flex-shrink-0" style={{ border: `1px solid ${C.rule}` }} />
+                )}
+                <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
+                  <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
+                  {q.type === 'open' && (
+                    <span className="ml-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>(yozma javob)</span>
+                  )}
+                </div>
               </div>
               <button onClick={() => removeQuestion(q.id)} className="flex-shrink-0 ml-3" style={{ color: C.inkSoft }}><X size={15} /></button>
             </div>
@@ -1106,31 +1286,99 @@ function QuestionBuilder({ questions, setQuestions }) {
         </div>
       )}
 
+      <div className="p-4 rounded-sm mb-3" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
+        <div className="text-xs mb-2 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>TXT fayldan yuklash</div>
+        <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>
+          Format: har bir savol "1. Savol matni" bilan boshlanadi, keyin "A) variant" qatorlari, oxirida "ANSWER: B".
+        </div>
+        <input ref={fileInputRef} type="file" accept=".txt" onChange={handleTxtFile} className="hidden" />
+        <GhostButton onClick={() => fileInputRef.current && fileInputRef.current.click()} icon={Paperclip}>TXT faylni tanlash</GhostButton>
+        {importError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{importError}</div>}
+      </div>
+
       <div className="p-4 rounded-sm mb-4" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
         <div className="text-xs mb-3 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol qoʻshish</div>
+
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setQType('mcq')}
+            className="px-3 py-1.5 rounded-sm text-sm"
+            style={{ ...fontBody, background: qType === 'mcq' ? C.cover : 'transparent', color: qType === 'mcq' ? C.white : C.inkSoft, border: `1px solid ${qType === 'mcq' ? C.cover : C.rule}` }}
+          >
+            Variantli
+          </button>
+          <button
+            onClick={() => setQType('open')}
+            className="px-3 py-1.5 rounded-sm text-sm"
+            style={{ ...fontBody, background: qType === 'open' ? C.cover : 'transparent', color: qType === 'open' ? C.white : C.inkSoft, border: `1px solid ${qType === 'open' ? C.cover : C.rule}` }}
+          >
+            Yozma javob
+          </button>
+        </div>
+
         <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
-        {opts.map((o, i) => (
-          <div key={i} className="flex items-center gap-2 mb-2">
-            <input
-              type="radio"
-              name="correct-opt"
-              checked={correct === i}
-              onChange={() => setCorrect(i)}
-              className="flex-shrink-0"
-              title="Toʻgʻri javob"
+
+        <div className="mb-3">
+          <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
+          {imageUrl ? (
+            <div className="flex items-center gap-3">
+              <img src={imageUrl} alt="" className="w-16 h-16 object-cover rounded-sm" style={{ border: `1px solid ${C.rule}` }} />
+              <button onClick={() => setImageUrl('')} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: C.red }}>
+                <X size={13} /> Rasmni olib tashlash
+              </button>
+            </div>
+          ) : (
+            <>
+              <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
+              <GhostButton onClick={() => imageInputRef.current && imageInputRef.current.click()} icon={ImageIcon} disabled={imageUploading}>
+                {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish (geometriya uchun)'}
+              </GhostButton>
+            </>
+          )}
+          {imageError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{imageError}</div>}
+        </div>
+
+        {qType === 'mcq' ? (
+          <>
+            {opts.map((o, i) => (
+              <div key={i} className="flex items-center gap-2 mb-2">
+                <input
+                  type="radio"
+                  name="correct-opt"
+                  checked={correct === i}
+                  onChange={() => setCorrect(i)}
+                  className="flex-shrink-0"
+                  title="Toʻgʻri javob"
+                />
+                <input
+                  type="text"
+                  value={o}
+                  onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
+                  placeholder={`Variant ${String.fromCharCode(65 + i)}`}
+                  className="w-full bg-transparent outline-none py-1.5 text-[15px]"
+                  style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
+                />
+              </div>
+            ))}
+            <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
+          </>
+        ) : (
+          <>
+            <TextField
+              label="Toʻgʻri javob(lar)"
+              value={answersText}
+              onChange={setAnswersText}
+              placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
+              textarea
+              rows={2}
             />
-            <input
-              type="text"
-              value={o}
-              onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
-              placeholder={`Variant ${String.fromCharCode(65 + i)}`}
-              className="w-full bg-transparent outline-none py-1.5 text-[15px]"
-              style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
-            />
-          </div>
-        ))}
-        <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
-        <GhostButton onClick={addQuestion} icon={Plus}>Savolni testga qoʻshish</GhostButton>
+            <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>
+              Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham qabul qilinadi, chunki son sifatida solishtiriladi.
+            </div>
+          </>
+        )}
+
+        <GhostButton onClick={addQuestion} icon={Plus} disabled={imageUploading}>Savolni testga qoʻshish</GhostButton>
       </div>
     </>
   );
@@ -1212,12 +1460,20 @@ function QuizView({ test, onExit }) {
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
 
-  const allAnswered = test.questions.every((q) => answers[q.id] !== undefined);
-  const score = test.questions.reduce((s, q) => s + (answers[q.id] === q.correct ? 1 : 0), 0);
+  const allAnswered = test.questions.every((q) => {
+    const a = answers[q.id];
+    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
+  });
+  const score = test.questions.reduce((s, q) => s + (isQuestionCorrect(q, answers[q.id]) ? 1 : 0), 0);
 
   function select(qid, idx) {
     if (submitted) return;
     setAnswers({ ...answers, [qid]: idx });
+  }
+
+  function setOpenAnswer(qid, text) {
+    if (submitted) return;
+    setAnswers({ ...answers, [qid]: text });
   }
 
   function restart() {
@@ -1258,32 +1514,59 @@ function QuizView({ test, onExit }) {
             <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
               <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
             </div>
-            <div className="space-y-2">
-              {q.options.map((opt, oi) => {
-                const isSelected = answers[q.id] === oi;
-                let bg = C.surface, border = C.rule, textColor = C.ink;
-                if (submitted) {
-                  if (oi === q.correct) { bg = C.successTint; border = C.accent; }
-                  else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
-                } else if (isSelected) {
-                  border = C.gold; bg = C.selectedTint;
-                }
-                return (
-                  <button
-                    key={oi}
-                    onClick={() => select(q.id, oi)}
-                    disabled={submitted}
-                    className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
-                    style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: textColor, outlineColor: C.gold }}
-                  >
-                    <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                    <span>{opt}</span>
-                    {submitted && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
-                    {submitted && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
-                  </button>
-                );
-              })}
-            </div>
+            {q.imageUrl && (
+              <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
+            )}
+            {q.type === 'open' ? (
+              <div>
+                <input
+                  type="text"
+                  value={answers[q.id] || ''}
+                  onChange={(e) => setOpenAnswer(q.id, e.target.value)}
+                  disabled={submitted}
+                  placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
+                  className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
+                  style={{
+                    ...fontBody, color: C.ink,
+                    background: submitted ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
+                    border: `1px solid ${submitted ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
+                  }}
+                />
+                {submitted && (
+                  <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
+                    {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
+                    Toʻgʻri javob: {(q.answers || []).join(' yoki ')}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {q.options.map((opt, oi) => {
+                  const isSelected = answers[q.id] === oi;
+                  let bg = C.surface, border = C.rule, textColor = C.ink;
+                  if (submitted) {
+                    if (oi === q.correct) { bg = C.successTint; border = C.accent; }
+                    else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
+                  } else if (isSelected) {
+                    border = C.gold; bg = C.selectedTint;
+                  }
+                  return (
+                    <button
+                      key={oi}
+                      onClick={() => select(q.id, oi)}
+                      disabled={submitted}
+                      className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+                      style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: textColor, outlineColor: C.gold }}
+                    >
+                      <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                      <span>{opt}</span>
+                      {submitted && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
+                      {submitted && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -1544,7 +1827,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
   async function submit(currentAnswers) {
     if (submitted) return;
     setSubmitted(true);
-    const score = test.questions.reduce((s, q) => s + (currentAnswers[q.id] === q.correct ? 1 : 0), 0);
+    const score = test.questions.reduce((s, q) => s + (isQuestionCorrect(q, currentAnswers[q.id]) ? 1 : 0), 0);
     try {
       await sbUpdate('live_participants', participant.id, { score, total: test.questions.length, submitted_at: new Date().toISOString() });
     } catch (e) { /* natija topshirilmasa ham foydalanuvchi natijalar ekraniga o'tadi */ }
@@ -1570,6 +1853,11 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     setAnswers((a) => ({ ...a, [qid]: idx }));
   }
 
+  function setOpenAnswer(qid, text) {
+    if (submitted) return;
+    setAnswers((a) => ({ ...a, [qid]: text }));
+  }
+
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = String(remaining % 60).padStart(2, '0');
 
@@ -1590,6 +1878,20 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
             <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
               <span style={{ ...fontMono, color: C.live }}>{qi + 1}.</span> {q.text}
             </div>
+            {q.imageUrl && (
+              <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
+            )}
+            {q.type === 'open' ? (
+              <input
+                type="text"
+                value={answers[q.id] || ''}
+                onChange={(e) => setOpenAnswer(q.id, e.target.value)}
+                disabled={submitted}
+                placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
+                className="w-full px-4 py-2.5 rounded-2xl text-[15px] outline-none"
+                style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+              />
+            ) : (
             <div className="space-y-2">
               {q.options.map((opt, oi) => {
                 const isSelected = answers[q.id] === oi;
@@ -1607,6 +1909,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
                 );
               })}
             </div>
+            )}
           </div>
         ))}
       </div>
