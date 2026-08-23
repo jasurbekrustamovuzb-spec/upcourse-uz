@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Image as ImageIcon, Calculator, FileText
+  Trophy, Medal, Image as ImageIcon
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -55,11 +55,6 @@ const LIGHT_PALETTE = {
   liveTint: 'rgba(201,98,42,0.10)',
   silver: '#8B8F86',
   bronze: '#A9713F',
-  /* Faqat "Matematik test" yaratish tugmasi uchun — aniq, "ilmiy" aksent */
-  math: '#2C5F7C',
-  mathSoft: '#5C90AC',
-  mathDeep: '#173544',
-  mathTint: 'rgba(44,95,124,0.08)',
 };
 
 const DARK_PALETTE = {
@@ -88,11 +83,6 @@ const DARK_PALETTE = {
   liveTint: 'rgba(232,150,90,0.18)',
   silver: '#AEB3A8',
   bronze: '#C89566',
-  /* Faqat "Matematik test" yaratish tugmasi uchun — aniq, "ilmiy" aksent */
-  math: '#6FA8CC',
-  mathSoft: '#9CC5E0',
-  mathDeep: '#12222C',
-  mathTint: 'rgba(111,168,204,0.16)',
 };
 
 const C = { ...LIGHT_PALETTE };
@@ -273,10 +263,8 @@ async function sbUploadImage(file) {
 
 /* --- Jonli test rejimi uchun yordamchi funksiyalar --- */
 function randomRoomCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 0/O, 1/I chalkashmasin deb olib tashlangan
-  let s = '';
-  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
+  // Faqat 6 xonali raqam (100000–999999) — harflarsiz, yozish va aytish oson.
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 function getDeviceKey() {
   try {
@@ -851,7 +839,6 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
         <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
       )}
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Masalan: Bozor muvozanati" />
-      <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} placeholder="Bir jumlada mavzu haqida" />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing... Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       <div className="flex gap-3 mt-2">
@@ -877,7 +864,6 @@ function EditCourseForm({ course, onSave, onDone }) {
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} />
-      <TextField label="Qisqacha taʼrif (ixtiyoriy)" value={summary} onChange={setSummary} />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       <div className="flex gap-3 mt-2">
@@ -1152,16 +1138,13 @@ function isQuestionCorrect(q, userAnswer) {
 }
 
 /* TXT fayldan variantli savollarni o'qish. Kutilgan format:
-   Savol matni? (raqami bo'lsa ham, bo'lmasa ham farqi yo'q)
+   1. Savol matni?
    A) variant
    B) variant
    C) variant
    D) variant
-   ANSWER: A
-   Har bir savol "ANSWER:" qatoridan keyin tugagan deb hisoblanadi —
-   shu sababli keyingi savol qatori raqamlangan ("1.") yoki
-   raqamsiz ("Savol matni?") bo'lishidan qat'iy nazar to'g'ri
-   aniqlanadi. */
+   ANSWER: B
+   Savollar orasida bo'sh qator yoki keyingi raqam bilan ajratiladi. */
 function parseTxtQuestions(rawText) {
   const lines = rawText.replace(/\r\n/g, '\n').split('\n');
   const questions = [];
@@ -1171,13 +1154,13 @@ function parseTxtQuestions(rawText) {
     if (cur && cur.text && cur.options.length >= 2 && cur.correct !== null) {
       questions.push({ id: uid(), type: 'mcq', text: cur.text, options: cur.options, correct: cur.correct });
     }
-    cur = null;
   }
 
   for (let raw of lines) {
     const line = raw.trim();
     if (!line) continue;
 
+    const qMatch = line.match(/^\d+[.)]\s*(.+)$/);
     const optMatch = line.match(/^([A-DА-Г])[).]\s*(.+)$/i);
     const ansMatch = line.match(/^ANSWER[:\s]+([A-DА-Г])/i);
 
@@ -1185,38 +1168,28 @@ function parseTxtQuestions(rawText) {
       const letter = ansMatch[1].toUpperCase();
       const idx = 'ABCD'.indexOf(letter);
       if (idx !== -1) cur.correct = idx;
-      // Savol "ANSWER:" bilan tugadi — uni saqlab, keyingi qatorni
-      // (raqamli yoki raqamsiz) yangi savol boshlanishi deb qabul qilamiz.
-      pushCurrent();
       continue;
     }
-    if (optMatch && cur && cur.correct === null) {
+    if (optMatch && cur) {
       cur.options.push(optMatch[2].trim());
       continue;
     }
-    // Variant yoki ANSWER qatori emas — demak bu savol matni.
-    // Boshida "1." yoki "12)" kabi raqam bo'lsa, shunchaki matn deb
-    // qabul qilib, raqamni olib tashlaymiz (bor-yo'qligi farq qilmaydi).
-    const stripped = line.replace(/^\d+[.)]\s*/, '');
-    if (!cur) {
-      cur = { text: stripped, options: [], correct: null };
-    } else if (cur.options.length === 0) {
-      // Savol matni bir necha qatorga bo'lingan bo'lishi mumkin.
-      cur.text += ' ' + stripped;
-    } else {
-      // Variantlar allaqachon boshlangan, lekin ANSWER qatori kelmasdan
-      // yangi savol matni chiqdi — demak oldingi savol "ANSWER:"siz
-      // qolib ketgan. Uni tashlab, yangi savolni shu yerdan boshlaymiz.
+    if (qMatch) {
       pushCurrent();
-      cur = { text: stripped, options: [], correct: null };
+      cur = { text: qMatch[1].trim(), options: [], correct: null };
+      continue;
+    }
+    // Savol matni ko'p qatorli bo'lsa, davomini qo'shib boradi
+    if (cur && cur.options.length === 0) {
+      cur.text += ' ' + line;
     }
   }
   pushCurrent();
   return questions;
 }
 
-function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
-  const [qType, setQType] = useState(mode === 'math' ? 'open' : 'mcq');
+function QuestionBuilder({ questions, setQuestions }) {
+  const [qType, setQType] = useState('mcq');
   const [qText, setQText] = useState('');
   const [opts, setOpts] = useState(['', '', '', '']);
   const [correct, setCorrect] = useState(0);
@@ -1274,7 +1247,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
       try {
         const parsed = parseTxtQuestions(String(reader.result));
         if (parsed.length === 0) {
-          setImportError('Faylda savol topilmadi. Format toʻgʻriligini tekshiring: savol matni, keyin "A) variant" qatorlari, oxirida "ANSWER: A".');
+          setImportError('Faylda savol topilmadi. Format toʻgʻriligini tekshiring: "1. Savol", "A) variant" ... "ANSWER: B".');
           return;
         }
         setQuestions([...questions, ...parsed]);
@@ -1285,9 +1258,6 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
     reader.readAsText(file, 'utf-8');
     e.target.value = '';
   }
-
-  const isTxtMode = mode === 'txt';
-  const isMathMode = mode === 'math';
 
   return (
     <>
@@ -1312,125 +1282,107 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
         </div>
       )}
 
-      <input ref={fileInputRef} type="file" accept=".txt" onChange={handleTxtFile} className="hidden" />
-
-      {isTxtMode ? (
-        <div className="p-6 rounded-2xl mb-4 text-center" style={{ background: C.mathTint, border: `1px solid ${C.math}` }}>
-          <FileText size={22} style={{ color: C.math }} className="mx-auto mb-2" />
-          <div className="text-[15px] mb-1" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>TXT fayldan savollarni yuklang</div>
-          <div className="text-xs mb-4 max-w-sm mx-auto" style={{ ...fontBody, color: C.inkSoft }}>
-            Har bir savol alohida qatorda (raqami bo'lsa ham, bo'lmasa ham farqi yo'q), keyin "A)", "B)", "C)", "D)" variantlari, oxirida "ANSWER: A" (yoki B, C, D) yozilgan bo'lishi kerak.
+      {qType === 'mcq' && (
+        <div className="p-4 rounded-sm mb-3" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
+          <div className="text-xs mb-2 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>TXT fayldan yuklash</div>
+          <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>
+            Format: har bir savol "1. Savol matni" bilan boshlanadi, keyin "A) variant" qatorlari, oxirida "ANSWER: B".
           </div>
-          <SolidButton onClick={() => fileInputRef.current && fileInputRef.current.click()} icon={Paperclip}>TXT faylni tanlash</SolidButton>
-          {importError && <div className="text-xs mt-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
-        </div>
-      ) : (
-        <div className="p-4 rounded-sm mb-4" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="text-xs tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol qoʻshish</div>
-            <button
-              onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              className="text-xs inline-flex items-center gap-1 flex-shrink-0"
-              style={{ ...fontBody, color: C.inkSoft }}
-            >
-              <FileText size={12} /> TXT fayldan ham yuklash mumkin
-            </button>
-          </div>
-          {importError && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
-
-          {isMathMode && (
-            <div className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-              Maslahat: "Yozma javob" turida bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham toʻgʻri hisoblanadi, chunki javob son sifatida solishtiriladi.
-            </div>
-          )}
-
-          <div className="flex gap-2 mb-3">
-            <button
-              onClick={() => setQType('mcq')}
-              className="px-3 py-1.5 rounded-sm text-sm"
-              style={{ ...fontBody, background: qType === 'mcq' ? C.cover : 'transparent', color: qType === 'mcq' ? C.white : C.inkSoft, border: `1px solid ${qType === 'mcq' ? C.cover : C.rule}` }}
-            >
-              Variantli
-            </button>
-            <button
-              onClick={() => setQType('open')}
-              className="px-3 py-1.5 rounded-sm text-sm"
-              style={{ ...fontBody, background: qType === 'open' ? C.cover : 'transparent', color: qType === 'open' ? C.white : C.inkSoft, border: `1px solid ${qType === 'open' ? C.cover : C.rule}` }}
-            >
-              Yozma javob
-            </button>
-          </div>
-
-          <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
-
-          <div className="mb-3">
-            <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
-            {imageUrl ? (
-              <div className="flex items-center gap-3">
-                <img src={imageUrl} alt="" className="w-16 h-16 object-cover rounded-sm" style={{ border: `1px solid ${C.rule}` }} />
-                <button onClick={() => setImageUrl('')} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: C.red }}>
-                  <X size={13} /> Rasmni olib tashlash
-                </button>
-              </div>
-            ) : (
-              <>
-                <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
-                <GhostButton onClick={() => imageInputRef.current && imageInputRef.current.click()} icon={ImageIcon} disabled={imageUploading}>
-                  {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish (geometriya uchun)'}
-                </GhostButton>
-              </>
-            )}
-            {imageError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{imageError}</div>}
-          </div>
-
-          {qType === 'mcq' ? (
-            <>
-              {opts.map((o, i) => (
-                <div key={i} className="flex items-center gap-2 mb-2">
-                  <input
-                    type="radio"
-                    name="correct-opt"
-                    checked={correct === i}
-                    onChange={() => setCorrect(i)}
-                    className="flex-shrink-0"
-                    title="Toʻgʻri javob"
-                  />
-                  <input
-                    type="text"
-                    value={o}
-                    onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
-                    placeholder={`Variant ${String.fromCharCode(65 + i)}`}
-                    className="w-full bg-transparent outline-none py-1.5 text-[15px]"
-                    style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
-                  />
-                </div>
-              ))}
-              <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
-            </>
-          ) : (
-            <>
-              <TextField
-                label="Toʻgʻri javob(lar)"
-                value={answersText}
-                onChange={setAnswersText}
-                placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
-                textarea
-                rows={2}
-              />
-              <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>
-                Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham qabul qilinadi, chunki son sifatida solishtiriladi.
-              </div>
-            </>
-          )}
-
-          <GhostButton onClick={addQuestion} icon={Plus} disabled={imageUploading}>Savolni testga qoʻshish</GhostButton>
+          <input ref={fileInputRef} type="file" accept=".txt" onChange={handleTxtFile} className="hidden" />
+          <GhostButton onClick={() => fileInputRef.current && fileInputRef.current.click()} icon={Paperclip}>TXT faylni tanlash</GhostButton>
+          {importError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{importError}</div>}
         </div>
       )}
+
+      <div className="p-4 rounded-sm mb-4" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
+        <div className="text-xs mb-3 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol qoʻshish</div>
+
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setQType('mcq')}
+            className="px-3 py-1.5 rounded-sm text-sm"
+            style={{ ...fontBody, background: qType === 'mcq' ? C.cover : 'transparent', color: qType === 'mcq' ? C.white : C.inkSoft, border: `1px solid ${qType === 'mcq' ? C.cover : C.rule}` }}
+          >
+            Variantli
+          </button>
+          <button
+            onClick={() => setQType('open')}
+            className="px-3 py-1.5 rounded-sm text-sm"
+            style={{ ...fontBody, background: qType === 'open' ? C.cover : 'transparent', color: qType === 'open' ? C.white : C.inkSoft, border: `1px solid ${qType === 'open' ? C.cover : C.rule}` }}
+          >
+            Yozma javob
+          </button>
+        </div>
+
+        <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
+
+        <div className="mb-3">
+          <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
+          {imageUrl ? (
+            <div className="flex items-center gap-3">
+              <img src={imageUrl} alt="" className="w-16 h-16 object-cover rounded-sm" style={{ border: `1px solid ${C.rule}` }} />
+              <button onClick={() => setImageUrl('')} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: C.red }}>
+                <X size={13} /> Rasmni olib tashlash
+              </button>
+            </div>
+          ) : (
+            <>
+              <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
+              <GhostButton onClick={() => imageInputRef.current && imageInputRef.current.click()} icon={ImageIcon} disabled={imageUploading}>
+                {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish (geometriya uchun)'}
+              </GhostButton>
+            </>
+          )}
+          {imageError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{imageError}</div>}
+        </div>
+
+        {qType === 'mcq' ? (
+          <>
+            {opts.map((o, i) => (
+              <div key={i} className="flex items-center gap-2 mb-2">
+                <input
+                  type="radio"
+                  name="correct-opt"
+                  checked={correct === i}
+                  onChange={() => setCorrect(i)}
+                  className="flex-shrink-0"
+                  title="Toʻgʻri javob"
+                />
+                <input
+                  type="text"
+                  value={o}
+                  onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
+                  placeholder={`Variant ${String.fromCharCode(65 + i)}`}
+                  className="w-full bg-transparent outline-none py-1.5 text-[15px]"
+                  style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
+                />
+              </div>
+            ))}
+            <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
+          </>
+        ) : (
+          <>
+            <TextField
+              label="Toʻgʻri javob(lar)"
+              value={answersText}
+              onChange={setAnswersText}
+              placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
+              textarea
+              rows={2}
+            />
+            <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>
+              Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham qabul qilinadi, chunki son sifatida solishtiriladi.
+            </div>
+          </>
+        )}
+
+        <GhostButton onClick={addQuestion} icon={Plus} disabled={imageUploading}>Savolni testga qoʻshish</GhostButton>
+      </div>
     </>
   );
 }
 
-function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView, formMode }) {
+function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -1464,22 +1416,11 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
 
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-      {formMode === 'txt' && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-          <FileText size={14} style={{ flexShrink: 0 }} /> TXT fayldan test yaratish — savollarni qoʻlda yozish shart emas.
-        </div>
-      )}
-      {formMode === 'math' && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-          <Calculator size={14} style={{ flexShrink: 0 }} /> Matematik test — savollarga rasm/chizma qoʻshishingiz va yozma javob (kasr, ildiz, daraja) qabul qilishingiz mumkin.
-        </div>
-      )}
       {!lockedCategoryId && (
         <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
       )}
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
-      <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} placeholder="Test haqida qisqacha" />
-      <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
@@ -1502,7 +1443,6 @@ function EditTestForm({ test, onSave, onDone }) {
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Test nomi" value={title} onChange={setTitle} />
-      <TextField label="Tavsif (ixtiyoriy)" value={description} onChange={setDescription} />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Saqlash</SolidButton>
@@ -2104,8 +2044,6 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const goTest = (id) => { setActiveId(id); pushNav(() => setActiveId(null)); };
   const goEdit = (id) => { setEditId(id); pushNav(() => setEditId(null)); };
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
-  const goTxtImport = () => onGoToCommunity('testlar', '', 'txt');
-  const goMathTest = () => onGoToCommunity('testlar', '', 'math');
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
@@ -2163,28 +2101,12 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         </div>
         <button
           onClick={goLive}
-          className="inline-flex items-center gap-2 px-4 py-2.5 mb-2.5 rounded-full text-[14px] focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-2 px-4 py-2.5 mb-5 rounded-full text-[14px] focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.white, background: C.live, outlineColor: C.liveSoft, fontWeight: 500 }}
         >
           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#e5484d' }} />
           Jonli test rejimi — guruh bo'lib bir vaqtda ishlang
         </button>
-        <div className="flex flex-wrap gap-2 mb-5">
-          <button
-            onClick={goTxtImport}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-          >
-            <FileText size={13} /> TXT fayldan test yuklash
-          </button>
-          <button
-            onClick={goMathTest}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
-          >
-            <Calculator size={13} /> Matematik test — rasm/chizma bilan
-          </button>
-        </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
         {isSearching ? (
           noSearchResults ? (
@@ -2458,7 +2380,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
   );
 }
 
-function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode }) {
+function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin' }) {
   const [categoryId, setCategoryId] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
@@ -2513,7 +2435,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
         )}
 
         {formOpen ? (
-          <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
+          <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} />
         ) : (
           <div className="mt-6">
             <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
@@ -2568,7 +2490,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
       </div>
 
       {formOpen ? (
-        <AddTestForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
+        <AddTestForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} />
       ) : (
         <div className="mt-6">
           <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
@@ -3000,7 +2922,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   const [courseFormOpen, setCourseFormOpen] = useState(false);
   const [testFormOpen, setTestFormOpen] = useState(false);
   const [prefillCategory, setPrefillCategory] = useState('');
-  const [testFormMode, setTestFormMode] = useState(null);
   const { pushNav } = useContext(NavContext);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
@@ -3012,7 +2933,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         setOpenCourseId(null);
         setOpenTestId(null);
         setPrefillCategory(target.prefillCategory || '');
-        setTestFormMode(target.formMode || null);
         if (target.type === 'kurslar') { setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }
         if (target.type === 'testlar') { setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }
       } else {
@@ -3098,10 +3018,9 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         approveTest={null}
         deleteTest={deleteTest}
         formOpen={testFormOpen}
-        onOpenForm={() => { setPrefillCategory(''); setTestFormMode(null); setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }}
+        onOpenForm={() => { setPrefillCategory(''); setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }}
         onCloseForm={() => setTestFormOpen(false)}
         prefillCategory={prefillCategory}
-        formMode={testFormMode}
       />
     );
   }
@@ -3453,7 +3372,7 @@ export default function App() {
     setTab('kurslar');
   }
 
-  function goToCommunity(kind, prefillCategory, formMode) { setTab('profil'); setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '', formMode: formMode || null }); }
+  function goToCommunity(kind, prefillCategory) { setTab('profil'); setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '' }); }
 
   const handleReadingChange = useCallback((v) => setReadingActive(v), []);
 
