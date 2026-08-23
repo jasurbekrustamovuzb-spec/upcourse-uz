@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Image as ImageIcon, Calculator, FileText
+  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -1505,30 +1505,81 @@ function EditTestForm({ test, onSave, onDone }) {
   );
 }
 
-function QuizView({ test, onExit }) {
-  const [answers, setAnswers] = useState({});
-  const [submitted, setSubmitted] = useState(false);
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
-  const allAnswered = test.questions.every((q) => {
-    const a = answers[q.id];
-    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
-  });
-  const score = test.questions.reduce((s, q) => s + (isQuestionCorrect(q, answers[q.id]) ? 1 : 0), 0);
+function formatDuration(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
-  function select(qid, idx) {
-    if (submitted) return;
-    setAnswers({ ...answers, [qid]: idx });
+/* ------------------------------------------------------------------ */
+/*  Testni boshlashdan oldingi ixcham sozlamalar paneli                */
+/* ------------------------------------------------------------------ */
+
+function SettingChip({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] transition-colors flex-shrink-0"
+      style={{
+        ...fontBody,
+        color: active ? C.white : C.ink,
+        background: active ? C.accent : C.surface,
+        border: `1px solid ${active ? C.accent : C.rule}`,
+        fontWeight: active ? 600 : 400,
+      }}
+    >
+      <span
+        className="inline-block rounded-full flex-shrink-0"
+        style={{ width: 7, height: 7, background: active ? C.white : C.rule }}
+      />
+      {children}
+    </button>
+  );
+}
+
+function QuizSetupPanel({ test, onExit, onStart }) {
+  const total = test.questions.length;
+  const [immediate, setImmediate] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(false);
+  const [shuffle, setShuffle] = useState(false);
+  const [mode, setMode] = useState('all'); // all | random | first | split
+  const [count, setCount] = useState(Math.min(5, total));
+  const [partsTotal, setPartsTotal] = useState(2);
+  const [partIndex, setPartIndex] = useState(1);
+
+  function computeQuestions() {
+    let base = test.questions;
+    if (mode === 'random') {
+      base = shuffleArray(test.questions).slice(0, Math.max(1, Math.min(count, total)));
+    } else if (mode === 'first') {
+      base = test.questions.slice(0, Math.max(1, Math.min(count, total)));
+    } else if (mode === 'split') {
+      const parts = Math.max(2, Math.min(partsTotal, total));
+      const size = Math.ceil(total / parts);
+      const start = (Math.max(1, Math.min(partIndex, parts)) - 1) * size;
+      base = test.questions.slice(start, start + size);
+      if (base.length === 0) base = test.questions.slice(0, size);
+    }
+    if (shuffle) base = shuffleArray(base);
+    return base;
   }
 
-  function setOpenAnswer(qid, text) {
-    if (submitted) return;
-    setAnswers({ ...answers, [qid]: text });
+  function start() {
+    const questions = computeQuestions();
+    if (questions.length === 0) return;
+    onStart({ immediate, autoScroll, questions });
   }
 
-  function restart() {
-    setAnswers({});
-    setSubmitted(false);
-  }
+  const parts = Math.max(2, Math.min(partsTotal, total));
 
   return (
     <div>
@@ -1540,95 +1591,288 @@ function QuizView({ test, onExit }) {
         <ArrowLeft size={15} /> Barcha testlar
       </button>
 
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <h3 className="text-2xl sm:text-3xl min-w-0" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-        <div className="flex-shrink-0 mt-1">
-          <ShareButton url={buildShareUrl({ test: test.id })} title={test.title} />
+      <h3 className="text-2xl sm:text-3xl mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+      {test.description && <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+      <div className="text-xs mb-6" style={{ ...fontMono, color: C.gold }}>{total} ta savol mavjud</div>
+
+      <div className="flex flex-wrap gap-2 mb-5">
+        <SettingChip active={immediate} onClick={() => setImmediate((v) => !v)}>Darhol javob koʻrsatish</SettingChip>
+        <SettingChip active={autoScroll} onClick={() => setAutoScroll((v) => !v)}>Keyingi savolga avtomatik oʻtish</SettingChip>
+        <SettingChip active={shuffle} onClick={() => setShuffle((v) => !v)}>Savollarni aralashtirish</SettingChip>
+      </div>
+
+      <div className="mb-6">
+        <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Savollar toʻplami</div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <SettingChip active={mode === 'all'} onClick={() => setMode('all')}>Hammasi ({total})</SettingChip>
+          <SettingChip active={mode === 'random'} onClick={() => setMode('random')}>Tasodifiy N ta</SettingChip>
+          <SettingChip active={mode === 'first'} onClick={() => setMode('first')}>Dastlabki N ta</SettingChip>
+          {total > 1 && <SettingChip active={mode === 'split'} onClick={() => setMode('split')}>Qismlarga boʻlib</SettingChip>}
+
+          {(mode === 'random' || mode === 'first') && (
+            <input
+              type="number"
+              min={1}
+              max={total}
+              value={count}
+              onChange={(e) => setCount(Math.max(1, Math.min(total, Number(e.target.value) || 1)))}
+              className="w-16 px-2 py-1.5 rounded-sm text-[13px] outline-none"
+              style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+            />
+          )}
+
+          {mode === 'split' && (
+            <>
+              <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Necha qism:</span>
+              <input
+                type="number"
+                min={2}
+                max={total}
+                value={partsTotal}
+                onChange={(e) => { setPartsTotal(Math.max(2, Math.min(total, Number(e.target.value) || 2))); setPartIndex(1); }}
+                className="w-14 px-2 py-1.5 rounded-sm text-[13px] outline-none"
+                style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+              />
+              <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Qaysi qism:</span>
+              <select
+                value={partIndex}
+                onChange={(e) => setPartIndex(Number(e.target.value))}
+                className="px-2 py-1.5 rounded-sm text-[13px] outline-none"
+                style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+              >
+                {Array.from({ length: parts }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>{p}-qism</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
-      {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
 
-      {submitted && (
-        <div className="flex items-center gap-3 p-4 mb-6 rounded-sm" style={{ background: C.cover }}>
-          <Award size={22} style={{ color: C.gold }} />
-          <div style={{ ...fontMono, color: C.white }}>
-            Natija: {score}/{test.questions.length} ({Math.round((score / test.questions.length) * 100)}%)
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-6 max-w-2xl">
-        {test.questions.map((q, qi) => (
-          <div key={q.id}>
-            <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
-              <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
-            </div>
-            {q.imageUrl && (
-              <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
-            )}
-            {q.type === 'open' ? (
-              <div>
-                <input
-                  type="text"
-                  value={answers[q.id] || ''}
-                  onChange={(e) => setOpenAnswer(q.id, e.target.value)}
-                  disabled={submitted}
-                  placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
-                  className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
-                  style={{
-                    ...fontBody, color: C.ink,
-                    background: submitted ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
-                    border: `1px solid ${submitted ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
-                  }}
-                />
-                {submitted && (
-                  <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
-                    {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
-                    Toʻgʻri javob: {(q.answers || []).join(' yoki ')}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {q.options.map((opt, oi) => {
-                  const isSelected = answers[q.id] === oi;
-                  let bg = C.surface, border = C.rule, textColor = C.ink;
-                  if (submitted) {
-                    if (oi === q.correct) { bg = C.successTint; border = C.accent; }
-                    else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
-                  } else if (isSelected) {
-                    border = C.gold; bg = C.selectedTint;
-                  }
-                  return (
-                    <button
-                      key={oi}
-                      onClick={() => select(q.id, oi)}
-                      disabled={submitted}
-                      className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
-                      style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: textColor, outlineColor: C.gold }}
-                    >
-                      <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                      <span>{opt}</span>
-                      {submitted && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
-                      {submitted && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex gap-3 mt-8">
-        {!submitted ? (
-          <SolidButton onClick={() => setSubmitted(true)} icon={Check} disabled={!allAnswered}>Javoblarni tekshirish</SolidButton>
-        ) : (
-          <GhostButton onClick={restart} icon={RotateCcw}>Qayta urinish</GhostButton>
-        )}
-      </div>
+      <SolidButton onClick={start} icon={Award}>Testni boshlash</SolidButton>
     </div>
   );
+}
+
+function QuizPlayer({ test, config, onExit, onRestart }) {
+  const questions = config.questions;
+  const [answers, setAnswers] = useState({});
+  const [revealed, setRevealed] = useState({});
+  const [finished, setFinished] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const questionRefs = useRef({});
+
+  useEffect(() => {
+    if (finished || paused) return;
+    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [finished, paused]);
+
+  const allAnswered = questions.every((q) => {
+    const a = answers[q.id];
+    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
+  });
+
+  /* "Keyingi savolga avtomatik oʻtish" yoqilgan boʻlsa — foydalanuvchi
+     javob belgilagach, qoʻlda pastga qorishtirmasdan, ekranni keyingi
+     javob berilmagan savol markazga kelguncha silliq skroll qilamiz. */
+  function scrollToNextUnanswered(fromQid, latestAnswers) {
+    if (!config.autoScroll) return;
+    const fromIndex = questions.findIndex((q) => q.id === fromQid);
+    const next = questions.slice(fromIndex + 1).find((q) => {
+      const a = latestAnswers[q.id];
+      return q.type === 'open' ? !(typeof a === 'string' && a.trim().length > 0) : a === undefined;
+    });
+    if (next) {
+      const el = questionRefs.current[next.id];
+      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 220);
+    }
+  }
+
+  function select(qid, idx) {
+    if (finished || paused) return;
+    setAnswers((a) => {
+      const next = { ...a, [qid]: idx };
+      scrollToNextUnanswered(qid, next);
+      return next;
+    });
+    if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+  }
+
+  function setOpenAnswer(qid, text) {
+    if (finished || paused) return;
+    setAnswers((a) => ({ ...a, [qid]: text }));
+  }
+
+  function confirmOpenAnswer(qid) {
+    if (finished || paused) return;
+    setAnswers((a) => { scrollToNextUnanswered(qid, a); return a; });
+    if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+  }
+
+  function submit() {
+    setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
+    setFinished(true);
+  }
+
+  if (finished) {
+    const correctCount = questions.reduce((s, qq) => s + (isQuestionCorrect(qq, answers[qq.id]) ? 1 : 0), 0);
+    const incorrectCount = questions.length - correctCount;
+    const percent = Math.round((correctCount / questions.length) * 100);
+    return (
+      <div>
+        <button
+          onClick={onExit}
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Barcha testlar
+        </button>
+        <h3 className="text-2xl sm:text-3xl mb-5" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title} — yakunlandi</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mb-8">
+          <div className="p-4 rounded-sm text-center" style={{ background: C.cover }}>
+            <div className="text-2xl" style={{ ...fontMono, color: C.gold, fontWeight: 700 }}>{percent}%</div>
+            <div className="text-xs mt-1" style={{ ...fontBody, color: C.goldSoft }}>Natija</div>
+          </div>
+          <div className="p-4 rounded-sm text-center" style={{ background: C.successTint, border: `1px solid ${C.accent}` }}>
+            <div className="text-2xl" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}>{correctCount}</div>
+            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri</div>
+          </div>
+          <div className="p-4 rounded-sm text-center" style={{ background: C.dangerTint, border: `1px solid ${C.red}` }}>
+            <div className="text-2xl" style={{ ...fontMono, color: C.red, fontWeight: 700 }}>{incorrectCount}</div>
+            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Notoʻgʻri</div>
+          </div>
+          <div className="p-4 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <div className="text-2xl" style={{ ...fontMono, color: C.ink, fontWeight: 700 }}>{formatDuration(seconds)}</div>
+            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Sarflangan vaqt</div>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <GhostButton onClick={onRestart} icon={RotateCcw}>Sozlamalarni oʻzgartirish</GhostButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+        <button
+          onClick={onExit}
+          className="inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Barcha testlar
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[13px]" style={{ ...fontMono, color: C.gold, background: C.cover }}>
+            <Clock3 size={13} /> {formatDuration(seconds)}
+          </div>
+          <button
+            onClick={() => setPaused((p) => !p)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-sm text-[13px]"
+            style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
+          >
+            {paused ? <><Play2 size={13} /> Davom</> : <><Pause size={13} /> Pauza</>}
+          </button>
+        </div>
+      </div>
+
+      <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+      {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+
+      {paused ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <Pause size={26} style={{ color: C.gold }} className="mb-3" />
+          <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>Test pauzada — vaqt hisoblagich toʻxtatildi.</div>
+          <SolidButton onClick={() => setPaused(false)} icon={Play2}>Davom ettirish</SolidButton>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-6 max-w-2xl">
+            {questions.map((q, qi) => {
+              const showResult = config.immediate ? !!revealed[q.id] : finished;
+              return (
+                <div key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }}>
+                  <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+                    <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
+                  </div>
+                  {q.imageUrl && (
+                    <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
+                  )}
+                  {q.type === 'open' ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={answers[q.id] || ''}
+                        onChange={(e) => setOpenAnswer(q.id, e.target.value)}
+                        onBlur={() => confirmOpenAnswer(q.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+                        disabled={showResult}
+                        placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
+                        className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
+                        style={{
+                          ...fontBody, color: C.ink,
+                          background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
+                          border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
+                        }}
+                      />
+                      {showResult && (
+                        <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
+                          {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
+                          Toʻgʻri javob: {(q.answers || []).join(' yoki ')}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {q.options.map((opt, oi) => {
+                        const isSelected = answers[q.id] === oi;
+                        let bg = C.surface, border = C.rule;
+                        if (showResult) {
+                          if (oi === q.correct) { bg = C.successTint; border = C.accent; }
+                          else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
+                        } else if (isSelected) {
+                          border = C.gold; bg = C.selectedTint;
+                        }
+                        return (
+                          <button
+                            key={oi}
+                            onClick={() => select(q.id, oi)}
+                            disabled={showResult}
+                            className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+                            style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
+                          >
+                            <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                            <span>{opt}</span>
+                            {showResult && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
+                            {showResult && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-3 mt-8">
+            <SolidButton onClick={submit} icon={Check} disabled={!allAnswered}>Javoblarni tekshirish</SolidButton>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function QuizView({ test, onExit }) {
+  const [config, setConfig] = useState(null);
+  if (!config) {
+    return <QuizSetupPanel test={test} onExit={onExit} onStart={setConfig} />;
+  }
+  return <QuizPlayer test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} />;
 }
 
 /* ------------------------------------------------------------------ */
