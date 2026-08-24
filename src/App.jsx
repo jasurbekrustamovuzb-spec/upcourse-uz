@@ -3647,12 +3647,14 @@ export default function App() {
   }, [theme]);
 
   /* Google orqali kirish holatini kuzatish + profil qatorini yuklash.
-     Eslatma: Supabase'ning o'zi onAuthStateChange ulanganda joriy
-     sessiya haqida darhol (avtomatik) bir marta xabar beradi — shuning
-     uchun quyidagi refreshSession() bilan bir vaqtda ishlab, bitta
-     foydalanuvchi uchun profilni 2-4 marta so'ratib yuborardi. Shu
-     tufayli lastLoadedUid orqali bir xil foydalanuvchi uchun takroriy
-     so'rovning oldi olinadi. */
+     Eslatma: avval bu yerda ikkita mustaqil manba bor edi — getSession()
+     va onAuthStateChange — ular deyarli bir vaqtda ishga tushib,
+     "isAdmin" qiymati ikki bosqichda (avval false, keyin true) o'zgarib
+     ketardi. Bosh ma'lumot yuklovchisi shu o'zgarishga qarab ishlaydi
+     (pastda), shuning uchun categories/courses/tests/news IKKI MARTA
+     so'ralib ketardi. Endi faqat BITTA manba — onAuthStateChange —
+     ishlatiladi (u o'zi ulanganda joriy sessiyani ham avtomatik beradi),
+     shu bilan poyga (race) yo'qoladi. */
   useEffect(() => {
     let cancelled = false;
     let lastLoadedUid = null;
@@ -3667,15 +3669,17 @@ export default function App() {
         lastLoadedUid = null; // xatolik bo'lsa keyinroq qayta urinib ko'rish imkoni qolsin
       }
     }
-    function refreshSession() {
-      supabase.auth.getSession().then(({ data }) => {
-        if (cancelled) return;
-        setSession(data.session || null);
-        if (data.session) loadProfile(data.session.user.id).then(() => !cancelled && setAuthLoading(false));
-        else { setProfile(null); lastLoadedUid = null; setAuthLoading(false); }
-      });
+    async function applySession(newSession) {
+      if (cancelled) return;
+      setSession(newSession || null);
+      if (newSession) {
+        await loadProfile(newSession.user.id);
+      } else {
+        setProfile(null);
+        lastLoadedUid = null;
+      }
+      if (!cancelled) setAuthLoading(false);
     }
-    refreshSession();
     // Google orqali kirishdan qaytgach, URL'dagi token qoldig'ini tozalab,
     // tarixni "toza" holatga keltiramiz — orqaga tugmasi Google sahifasiga
     // emas, saytning o'zida ishlashi uchun.
@@ -3683,14 +3687,14 @@ export default function App() {
       try { window.history.replaceState({}, '', window.location.pathname); } catch {}
     }
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession || null);
-      if (newSession) loadProfile(newSession.user.id);
-      else { setProfile(null); lastLoadedUid = null; }
+      applySession(newSession);
     });
     // Telefon brauzerlari sahifani "bfcache"dan tiklaganda (masalan orqaga
     // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu payt
     // login holatini qayta tekshiramiz.
-    function onPageShow(e) { if (e.persisted) refreshSession(); }
+    function onPageShow(e) {
+      if (e.persisted) supabase.auth.getSession().then(({ data }) => applySession(data.session || null));
+    }
     window.addEventListener('pageshow', onPageShow);
     return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); window.removeEventListener('pageshow', onPageShow); };
   }, []);
