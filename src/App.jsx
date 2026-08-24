@@ -3261,7 +3261,7 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
   );
 }
 
-function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent }) {
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, onGoToAbout }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -3310,6 +3310,10 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           Oʻz kursingizni yaratish, testlar tuzish va ularni kuzatib borish uchun hisob yarating. Kurslarni oʻrganish va testlarni ishlash uchun ro'yxatdan o'tish shart emas.
         </p>
         <SolidButton onClick={signInWithGoogle} icon={LogIn}>Google orqali kirish</SolidButton>
+        <div className="mt-6 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+          UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
+          <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>
+        </div>
       </div>
     );
   }
@@ -3472,6 +3476,11 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
+      </div>
+
+      <div className="mt-8 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+        UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
+        <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>
       </div>
     </div>
   );
@@ -3757,39 +3766,45 @@ export default function App() {
     }
   }, []);
 
+  const loadAppData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    if (!isSupabaseConfigured()) {
+      setError('Supabase ulanish maʼlumotlari hali kiritilmagan. Kod faylining yuqori qismidagi SUPABASE_URL va SUPABASE_ANON_KEY qatorlarini toʻldiring.');
+      setLoading(false);
+      return;
+    }
+    try {
+      const myId = session?.user?.id;
+      const vis = visibilityFilter(myId, isAdmin);
+      const visQ = vis ? `&${vis}` : '';
+      const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
+      const [catRows, courseRows, testRows, newsRows] = await Promise.all([
+        sbSelect('categories', vis),
+        sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`),
+        sbSelect('tests', vis), sbSelect('news'),
+      ]);
+
+      setCategories(catRows.map(categoryFromRow));
+      setCourses(courseRows.map(courseFromRow));
+      setTests(testRows.map(testFromRow));
+      setNews(newsRows.map(newsFromRow));
+    } catch (e) {
+      // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
+      // odatda ishlab ketadi) — shuning uchun foydalanuvchiga texnik
+      // tafsilotlar emas, sodda va tinch xabar ko'rsatamiz.
+      setError('Ma\u02bblumotlarni yuklab bo\u02bblmadi. Internetni tekshirib, qayta urinib ko\u02bbring.');
+    }
+    setLoading(false);
+  }, [isAdmin, session?.user?.id]);
+
   useEffect(() => {
     // Autentifikatsiya holati (kim ekanligimiz) aniqlanguncha kutamiz —
     // shunda "kim ko'rishi kerak" filtri to'g'ri qatorlar bilan bir marta
     // so'raladi, keyin qayta yuklab o'tirmaydi.
     if (authLoading) return;
-    (async () => {
-      setLoading(true);
-      if (!isSupabaseConfigured()) {
-        setError('Supabase ulanish maʼlumotlari hali kiritilmagan. Kod faylining yuqori qismidagi SUPABASE_URL va SUPABASE_ANON_KEY qatorlarini toʻldiring.');
-        setLoading(false);
-        return;
-      }
-      try {
-        const myId = session?.user?.id;
-        const vis = visibilityFilter(myId, isAdmin);
-        const visQ = vis ? `&${vis}` : '';
-        const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
-        const [catRows, courseRows, testRows, newsRows] = await Promise.all([
-          sbSelect('categories', vis),
-          sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`),
-          sbSelect('tests', vis), sbSelect('news'),
-        ]);
-
-        setCategories(catRows.map(categoryFromRow));
-        setCourses(courseRows.map(courseFromRow));
-        setTests(testRows.map(testFromRow));
-        setNews(newsRows.map(newsFromRow));
-      } catch (e) {
-        setError('Maʼlumotlarni yuklashda xatolik yuz berdi. Supabase loyihangiz manzili/kaliti va SQL jadvallar toʻgʻri sozlanganini tekshiring.');
-      }
-      setLoading(false);
-    })();
-  }, [authLoading, isAdmin, session?.user?.id]);
+    loadAppData();
+  }, [authLoading, loadAppData]);
 
   async function addCategory(data) {
     if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
@@ -4194,8 +4209,17 @@ export default function App() {
             <span style={fontBody}>Yuklanmoqda...</span>
           </div>
         ) : error ? (
-          <div className="p-5 rounded-sm text-[15px]" style={{ ...fontBody, background: C.dangerBannerTint, border: `1px solid ${C.red}`, color: C.red }}>
-            {error}
+          <div className="flex flex-col items-center gap-3 py-20 text-center">
+            <span className="text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>{error}</span>
+            <button
+              onClick={loadAppData}
+              className="w-11 h-11 rounded-full flex items-center justify-center transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2"
+              style={{ background: C.cover, color: C.white, outlineColor: C.gold }}
+              aria-label="Qayta urinib ko'rish"
+              title="Qayta urinib ko'rish"
+            >
+              <RotateCcw size={18} />
+            </button>
           </div>
         ) : (
           <>
@@ -4228,6 +4252,7 @@ export default function App() {
                   onConsumeTarget={() => setCommunityTarget(null)}
                   isAdmin={isAdmin}
                   ensureCourseContent={ensureCourseContent}
+                  onGoToAbout={() => goTo('about')}
                 />
               )}
               {tab === 'admin' && isAdmin && (
@@ -4255,21 +4280,6 @@ export default function App() {
           </>
         )}
       </main>
-
-      <footer className="max-w-5xl mx-auto px-5 sm:px-8 pb-10 pt-2">
-        <div className="flex items-center gap-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
-          <Paperclip size={12} />
-          <span>UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()}</span>
-          <span style={{ color: C.rule }}>·</span>
-          <button onClick={() => goTo('about')} className="underline underline-offset-2">Biz haqimizda</button>
-          {isAdmin && (
-            <>
-              <span style={{ color: C.rule }}>·</span>
-              <button onClick={() => goTo('admin')} className="underline underline-offset-2">Admin panel</button>
-            </>
-          )}
-        </div>
-      </footer>
 
       </div>
 
