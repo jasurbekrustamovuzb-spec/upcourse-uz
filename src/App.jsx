@@ -2500,20 +2500,20 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#e5484d' }} />
           Jonli test rejimi — guruh bo'lib bir vaqtda ishlang
         </button>
-        <div className="flex flex-wrap gap-2 mb-5">
+        <div className="grid grid-cols-2 gap-2 mb-5">
           <button
             onClick={goTxtImport}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
           >
-            <FileText size={13} /> TXT fayldan test yuklash
+            <FileText size={13} /> TXT fayldan
           </button>
           <button
             onClick={goMathTest}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
           >
-            <Calculator size={13} /> Matematik test — rasm/chizma bilan
+            <Calculator size={13} /> Matematik test
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
