@@ -4198,10 +4198,23 @@ export default function App() {
     if (id !== prevTab) nav.pushNav(() => setTab(prevTab));
   }
 
-  function handleCreateClick() {
-    // Login bo'lmasa ham Profil bo'limiga o'tadi — u yerda ro'yxatdan
-    // o'tish/kirish so'raladi, keyin kurs yaratish formasi ochiladi.
-    goToCommunity('kurslar');
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const createMenuDeskRef = useRef(null);
+  const createMenuMobileRef = useRef(null);
+  useEffect(() => {
+    if (!createMenuOpen) return;
+    function handler(e) {
+      const insideDesk = createMenuDeskRef.current && createMenuDeskRef.current.contains(e.target);
+      const insideMobile = createMenuMobileRef.current && createMenuMobileRef.current.contains(e.target);
+      if (!insideDesk && !insideMobile) setCreateMenuOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [createMenuOpen]);
+
+  function pickCreate(kind) {
+    setCreateMenuOpen(false);
+    goToCommunity(kind);
   }
 
   return (
@@ -4273,14 +4286,41 @@ export default function App() {
                 </button>
               );
             })}
-            <button
-              onClick={handleCreateClick}
-              className="nav-btn flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl text-[14px] focus-visible:outline focus-visible:outline-2"
-              style={{ ...fontBody, color: C.cover, background: C.goldSoft, outlineColor: C.gold, fontWeight: 600 }}
-            >
-              <Plus size={16} />
-              Kurs yaratish
-            </button>
+            <div className="relative" ref={createMenuDeskRef}>
+              <button
+                onClick={() => setCreateMenuOpen((v) => !v)}
+                className="nav-btn flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl text-[14px] focus-visible:outline focus-visible:outline-2 w-full"
+                style={{ ...fontBody, color: C.cover, background: C.goldSoft, outlineColor: C.gold, fontWeight: 600 }}
+              >
+                <Plus size={16} />
+                Yaratish
+              </button>
+              {createMenuOpen && (
+                <div
+                  className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-xl overflow-hidden"
+                  style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.18)' }}
+                >
+                  <button
+                    onClick={() => pickCreate('kurslar')}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] text-left transition-colors"
+                    style={{ ...fontBody, color: C.ink }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = C.paperSoft)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <BookOpen size={15} style={{ color: C.gold }} /> Mavzu yaratish
+                  </button>
+                  <button
+                    onClick={() => pickCreate('testlar')}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] text-left transition-colors"
+                    style={{ ...fontBody, color: C.ink, borderTop: `1px solid ${C.rule}` }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = C.paperSoft)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <ListChecks size={15} style={{ color: C.gold }} /> Test yaratish
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex-1" />
           <div className="flex flex-col gap-1 pt-3" style={{ borderTop: `1px solid ${C.coverLine}` }}>
@@ -4468,14 +4508,37 @@ export default function App() {
             );
           })}
 
-          <button
-            onClick={handleCreateClick}
-            aria-label="Kurs yaratish"
-            className="nav-btn flex items-center justify-center w-12 h-12 rounded-full -mt-5 shadow-lg focus-visible:outline focus-visible:outline-2"
-            style={{ background: C.gold, color: C.cover, outlineColor: C.goldSoft, boxShadow: '0 4px 14px rgba(212,172,110,0.45)' }}
-          >
-            <Plus size={22} strokeWidth={2.4} />
-          </button>
+          <div className="relative" ref={createMenuMobileRef}>
+            <button
+              onClick={() => setCreateMenuOpen((v) => !v)}
+              aria-label="Yaratish"
+              className="nav-btn flex items-center justify-center w-12 h-12 rounded-full -mt-5 shadow-lg focus-visible:outline focus-visible:outline-2"
+              style={{ background: C.gold, color: C.cover, outlineColor: C.goldSoft, boxShadow: '0 4px 14px rgba(212,172,110,0.45)' }}
+            >
+              <Plus size={22} strokeWidth={2.4} style={{ transform: createMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+            {createMenuOpen && (
+              <div
+                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-30 rounded-xl overflow-hidden"
+                style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.22)', minWidth: '180px' }}
+              >
+                <button
+                  onClick={() => pickCreate('kurslar')}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[14px] text-left"
+                  style={{ ...fontBody, color: C.ink }}
+                >
+                  <BookOpen size={16} style={{ color: C.gold }} /> Mavzu yaratish
+                </button>
+                <button
+                  onClick={() => pickCreate('testlar')}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[14px] text-left"
+                  style={{ ...fontBody, color: C.ink, borderTop: `1px solid ${C.rule}` }}
+                >
+                  <ListChecks size={16} style={{ color: C.gold }} /> Test yaratish
+                </button>
+              </div>
+            )}
+          </div>
 
           {TABS.slice(2).map((t) => {
             const Icon = t.icon;
