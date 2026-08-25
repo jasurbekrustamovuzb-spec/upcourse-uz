@@ -883,10 +883,10 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       {!lockedCategoryId && (
-        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
+        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Sohaga nom bering" />
       )}
-      <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Masalan: Bozor muvozanati" />
-      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing... Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
+      <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Mavzuga nom bering" />
+      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Matn kiriting" textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       <VisibilityToggle value={visibility} onChange={setVisibility} />
       <div className="flex gap-3 mt-2">
@@ -956,7 +956,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} />
-      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
+      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Matn kiriting" textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       <div className="flex gap-3 mt-2">
         <SolidButton onClick={submit} icon={Check}>Saqlash</SolidButton>
@@ -1564,7 +1564,7 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
         </div>
       )}
       {!lockedCategoryId && (
-        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
+        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Sohaga nom bering" />
       )}
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
