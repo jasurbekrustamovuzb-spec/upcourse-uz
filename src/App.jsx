@@ -1434,9 +1434,9 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
       {isTxtMode ? (
         <div className="p-6 rounded-2xl mb-4 text-center" style={{ background: C.mathTint, border: `1px solid ${C.math}` }}>
           <FileText size={22} style={{ color: C.math }} className="mx-auto mb-2" />
-          <div className="text-[15px] mb-1" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>TXT fayldan savollarni yuklang</div>
-          <div className="text-xs mb-4 max-w-sm mx-auto" style={{ ...fontBody, color: C.inkSoft }}>
-            Har bir savol alohida qatorda (raqami bo'lsa ham, bo'lmasa ham farqi yo'q), keyin "A)", "B)", "C)", "D)" variantlari, oxirida "ANSWER: A" (yoki B, C, D) yozilgan bo'lishi kerak.
+          <div className="flex items-center justify-center gap-1.5 mb-4">
+            <div className="text-[15px]" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>TXT fayldan savollarni yuklang</div>
+            <InfoHint text={'Har bir savol alohida qatorda (raqami bo\u2018lsa ham, bo\u2018lmasa ham farqi yo\u2018q), keyin "A)", "B)", "C)", "D)" variantlari, oxirida "ANSWER: A" (yoki B, C, D) yozilgan bo\u2018lishi kerak.'} />
           </div>
           <SolidButton onClick={() => fileInputRef.current && fileInputRef.current.click()} icon={Paperclip}>TXT faylni tanlash</SolidButton>
           {importError && <div className="text-xs mt-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
@@ -1448,10 +1448,12 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             {!isMathMode && (
               <button
                 onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                className="text-xs inline-flex items-center gap-1 flex-shrink-0"
-                style={{ ...fontBody, color: C.inkSoft }}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0 focus-visible:outline focus-visible:outline-2"
+                style={{ background: C.mathTint, color: C.mathDeep, outlineColor: C.mathSoft }}
+                aria-label="TXT fayldan yuklash"
+                title="TXT fayldan yuklash"
               >
-                <FileText size={12} /> TXT fayldan ham yuklash mumkin
+                <FileText size={13} />
               </button>
             )}
           </div>
@@ -1491,9 +1493,14 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             ) : (
               <>
                 <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
-                <GhostButton onClick={() => imageInputRef.current && imageInputRef.current.click()} icon={ImageIcon} disabled={imageUploading}>
-                  {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish (geometriya uchun)'}
-                </GhostButton>
+                <button
+                  onClick={() => imageInputRef.current && imageInputRef.current.click()}
+                  disabled={imageUploading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-visible:outline focus-visible:outline-2"
+                  style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+                >
+                  <ImageIcon size={13} /> {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish'}
+                </button>
               </>
             )}
             {imageError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{imageError}</div>}
