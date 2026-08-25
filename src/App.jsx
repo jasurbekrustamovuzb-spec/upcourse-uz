@@ -388,6 +388,40 @@ function EntryNumber({ n }) {
   );
 }
 
+function InfoHint({ text }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <span className="relative inline-flex" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full flex-shrink-0 focus-visible:outline focus-visible:outline-2"
+        style={{ background: C.mathTint, color: C.mathDeep, outlineColor: C.mathSoft }}
+        aria-label="Qoʻshimcha maʼlumot"
+      >
+        <Info size={11} />
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-1.5 z-30 text-xs p-2.5 rounded-lg"
+          style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, width: '230px', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}
+        >
+          {text}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function ItemMenu({ actions }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -1423,13 +1457,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
           </div>
           {importError && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
 
-          {isMathMode && (
-            <div className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-              Maslahat: "Yozma javob" turida bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham toʻgʻri hisoblanadi, chunki javob son sifatida solishtiriladi.
-            </div>
-          )}
-
-          <div className="flex gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-3">
             <button
               onClick={() => setQType('mcq')}
               className="px-3 py-1.5 rounded-sm text-sm"
@@ -1444,6 +1472,9 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             >
               Yozma javob
             </button>
+            {isMathMode && qType === 'open' && (
+              <InfoHint text={'Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham toʻgʻri hisoblanadi, chunki javob son sifatida solishtiriladi.'} />
+            )}
           </div>
 
           <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
@@ -1502,9 +1533,6 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                 textarea
                 rows={2}
               />
-              <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>
-                Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham qabul qilinadi, chunki son sifatida solishtiriladi.
-              </div>
             </>
           )}
 
