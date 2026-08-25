@@ -849,6 +849,7 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [visibility, setVisibility] = useState('public');
   const [newId, setNewId] = useState(null);
 
   if (newId) {
@@ -856,7 +857,11 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
       <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
         <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
         <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Mavzungiz yuborildi!</div>
-        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.</div>
+        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
+          {visibility === 'private'
+            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+            : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
+        </div>
         <div className="flex gap-3 justify-center">
           <SolidButton onClick={() => onView(newId)} icon={ChevronRight}>Koʻrish</SolidButton>
           <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
@@ -869,8 +874,8 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
     if (!title.trim() || !content.trim()) return;
     if (!lockedCategoryId && !categoryName.trim()) return;
     const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim() }
-      : { categoryName: categoryName.trim(), title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim() };
+      ? { categoryId: lockedCategoryId, title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim(), visibility }
+      : { categoryName: categoryName.trim(), title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim(), visibility };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -883,9 +888,55 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Masalan: Bozor muvozanati" />
       <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing... Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
+      <VisibilityToggle value={visibility} onChange={setVisibility} />
       <div className="flex gap-3 mt-2">
         <SolidButton onClick={submit} icon={Check}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
+      </div>
+    </div>
+  );
+}
+
+function VisibilityToggle({ value, onChange }) {
+  return (
+    <div className="mb-3">
+      <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onChange('public')}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          style={{
+            ...fontBody,
+            color: value === 'public' ? C.white : C.ink,
+            background: value === 'public' ? C.cover : C.surface,
+            border: `1px solid ${value === 'public' ? C.cover : C.rule}`,
+            outlineColor: C.gold,
+            fontWeight: value === 'public' ? 600 : 400,
+          }}
+        >
+          <Users size={15} /> Ommaviy
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('private')}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          style={{
+            ...fontBody,
+            color: value === 'private' ? C.white : C.ink,
+            background: value === 'private' ? C.cover : C.surface,
+            border: `1px solid ${value === 'private' ? C.cover : C.rule}`,
+            outlineColor: C.gold,
+            fontWeight: value === 'private' ? 600 : 400,
+          }}
+        >
+          <Lock size={15} /> Xususiy
+        </button>
+      </div>
+      <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>
+        {value === 'private'
+          ? 'Tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+          : 'Administrator tasdiqlagach, hammaga ochiq boʻladi.'}
       </div>
     </div>
   );
@@ -927,8 +978,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
-  const approved = courses.filter((c) => c.status !== 'pending');
-  const viewable = isAdmin ? courses : courses.filter((c) => c.status !== 'pending' || c.authorId === myId);
+  const approved = courses.filter((c) => c.status === 'approved');
+  const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
   const active = viewable.find((c) => c.id === openId);
   const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
@@ -986,6 +1037,11 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         {active.status === 'pending' && (
           <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
             <Clock3 size={13} /> Tekshirilmoqda — hozircha faqat sizga koʻrinadi
+          </div>
+        )}
+        {active.status === 'private' && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Lock size={13} /> Xususiy — faqat siz va havola orqali ulashganlaringiz koʻradi
           </div>
         )}
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -1463,6 +1519,7 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
   const [questions, setQuestions] = useState([]);
+  const [visibility, setVisibility] = useState('public');
   const [newId, setNewId] = useState(null);
 
   if (newId) {
@@ -1470,7 +1527,11 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
       <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
         <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
         <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Testingiz yuborildi!</div>
-        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.</div>
+        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
+          {visibility === 'private'
+            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+            : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
+        </div>
         <div className="flex gap-3 justify-center">
           <SolidButton onClick={() => onView(newId)} icon={ChevronRight}>Koʻrish</SolidButton>
           <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
@@ -1484,8 +1545,8 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
   async function submit() {
     if (!canSubmit) return;
     const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions }
-      : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions };
+      ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions, visibility }
+      : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions, visibility };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -1507,6 +1568,7 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
       )}
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
+      <VisibilityToggle value={visibility} onChange={setVisibility} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
@@ -2378,8 +2440,8 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
-  const approved = tests.filter((t) => t.status !== 'pending');
-  const viewable = isAdmin ? tests : tests.filter((t) => t.status !== 'pending' || t.authorId === myId);
+  const approved = tests.filter((t) => t.status === 'approved');
+  const viewable = isAdmin ? tests : tests.filter((t) => t.status === 'approved' || t.authorId === myId);
   const active = viewable.find((t) => t.id === activeId);
   const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
@@ -2613,6 +2675,11 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
             <Clock3 size={13} /> Tekshirilmoqda
           </div>
         )}
+        {active.status === 'private' && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Lock size={13} /> Xususiy
+          </div>
+        )}
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
         {active.author && <div className="text-xs mb-4" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {active.author}</div>}
         {active.content === undefined ? (
@@ -2700,16 +2767,16 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
                 {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
                 {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
                 {isMine && (
-                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : C.accent }}>
-                    {c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
+                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : c.status === 'private' ? C.inkSoft : C.accent }}>
+                    {c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : c.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
                   </div>
                 )}
               </div>
             </div>
             <div className="flex items-center flex-shrink-0 gap-1">
               <ItemMenu actions={[
-                ...(approveCourse ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) }] : []),
-                ...(!isMine || c.status === 'pending' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) }] : []),
+                ...(approveCourse && c.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) }] : []),
+                ...(!isMine || c.status === 'pending' || c.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) }] : []),
               ]} />
             </div>
           </div>
@@ -2813,16 +2880,16 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                 <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                 {t.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
                 {isMine && (
-                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : C.accent }}>
-                    {t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
+                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : t.status === 'private' ? C.inkSoft : C.accent }}>
+                    {t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : t.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
                   </div>
                 )}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2 flex-shrink-0">
               <ItemMenu actions={[
-                ...(approveTest ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
-                ...(!isMine || t.status === 'pending' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
+                ...(approveTest && t.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
+                ...(!isMine || t.status === 'pending' || t.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
               ]} />
               <button
                 onClick={() => goOpen(t.id)}
@@ -2956,6 +3023,8 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
 
   const pendingCourses = courses.filter((c) => c.status === 'pending');
   const pendingTests = tests.filter((t) => t.status === 'pending');
+  const privateCourses = courses.filter((c) => c.status === 'private');
+  const privateTests = tests.filter((t) => t.status === 'private');
 
   if (subTab === 'kurslar') {
     return (
@@ -2996,6 +3065,43 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
       />
     );
   }
+  if (subTab === 'xususiy-kurslar') {
+    return (
+      <CommunityCoursesView
+        mode="admin"
+        courses={privateCourses}
+        categories={categories}
+        openId={openCourseId}
+        setOpenId={setOpenCourseId}
+        onBack={() => setSubTab(null)}
+        submitCourse={submitCourse}
+        deleteCourse={deleteCourse}
+        formOpen={false}
+        onOpenForm={() => {}}
+        onCloseForm={() => {}}
+        prefillCategory=""
+        ensureCourseContent={ensureCourseContent}
+      />
+    );
+  }
+  if (subTab === 'xususiy-testlar') {
+    return (
+      <CommunityTestsView
+        mode="admin"
+        tests={privateTests}
+        categories={categories}
+        openId={openTestId}
+        setOpenId={setOpenTestId}
+        onBack={() => setSubTab(null)}
+        submitTest={submitTest}
+        deleteTest={deleteTest}
+        formOpen={false}
+        onOpenForm={() => {}}
+        onCloseForm={() => {}}
+        prefillCategory=""
+      />
+    );
+  }
   if (subTab === 'sohalar') {
     return <AdminCategoriesView categories={categories} courses={courses} tests={tests} renameCategory={renameCategory} deleteCategory={deleteCategory} onBack={() => setSubTab(null)} />;
   }
@@ -3007,7 +3113,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
     <div>
       <SectionHeading eyebrow="Faqat administrator uchun" title="Admin panel" />
       <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>
-        Foydalanuvchilar yuborgan mavzu va testlarni shu yerda tekshirasiz. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga chiqadi va hammaga ochiq boʻladi.
+        Foydalanuvchilar yuborgan mavzu va testlarni shu yerda tekshirasiz. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga chiqadi va hammaga ochiq boʻladi. Xususiy deb belgilanganlar tasdiqlashsiz saqlanadi — bu yerda faqat koʻrish uchun.
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
         <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
@@ -3026,6 +3132,26 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
             <div>
               <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Testlar</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingTests.length} ta kutilmoqda</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('xususiy-kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Lock size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Xususiy kurslar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{privateCourses.length} ta — faqat koʻrish</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('xususiy-testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Lock size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Xususiy testlar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{privateTests.length} ta — faqat koʻrish</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
@@ -3806,6 +3932,38 @@ export default function App() {
     loadAppData();
   }, [authLoading, loadAppData]);
 
+  /* Ulashilgan havola orqali kirilganda (?course=ID yoki ?test=ID),
+     lekin o'sha narsa "xususiy" bo'lgani uchun oddiy ro'yxatga
+     yuklanmagan bo'lsa — shu bitta elementni alohida, ID boʻyicha soʻrab
+     olamiz. Faqat "xususiy" yoki "tasdiqlangan" holatdagilar shu yoʻl
+     bilan koʻrsatiladi — hali tasdiqlanmagan (pending) begona kontent
+     bu orqali chetlab oʻtilmaydi. Faqat havola bilan kirganda ishga
+     tushadi — umumiy yuklanish tezligiga taʼsir qilmaydi. */
+  useEffect(() => {
+    if (loading || authLoading || !initialDeepLink) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (initialDeepLink.type === 'course') {
+          const rows = await sbSelect('courses', `id=eq.${initialDeepLink.value}`);
+          const row = rows[0];
+          if (!cancelled && row && (row.status === 'private' || row.status === 'approved')) {
+            setCourses((prev) => (prev.some((c) => c.id === row.id) ? prev : [...prev, courseFromRow(row)]));
+          }
+        } else if (initialDeepLink.type === 'test') {
+          const rows = await sbSelect('tests', `id=eq.${initialDeepLink.value}`);
+          const row = rows[0];
+          if (!cancelled && row && (row.status === 'private' || row.status === 'approved')) {
+            setTests((prev) => (prev.some((t) => t.id === row.id) ? prev : [...prev, testFromRow(row)]));
+          }
+        }
+      } catch (e) {
+        // Havola noto'g'ri yoki narsa o'chirilgan bo'lishi mumkin — jim o'tkaziladi.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loading, authLoading, initialDeepLink]);
+
   async function addCategory(data) {
     if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     const row = { id: uid(), name: data.name, authorId: session?.user?.id };
@@ -3881,7 +4039,7 @@ export default function App() {
         return null;
       }
     }
-    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: authorName, authorId: session.user.id, status: 'pending' };
+    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
     try {
       await sbInsert('courses', courseToRow(row));
       setCourses([row, ...courses]);
@@ -3948,7 +4106,7 @@ export default function App() {
         return null;
       }
     }
-    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, author: authorName, authorId: session.user.id, status: 'pending' };
+    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
     try {
       await sbInsert('tests', testToRow(row));
       setTests([row, ...tests]);
