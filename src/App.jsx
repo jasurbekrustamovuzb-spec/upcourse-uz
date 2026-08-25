@@ -708,6 +708,70 @@ function TextField({ label, value, onChange, placeholder, textarea, rows }) {
   );
 }
 
+/* Matematik/ilmiy belgilar paneli — yozma javob maydonlariga (test
+   tuzuvchi "to'g'ri javob" yozganda va o'quvchi javob yozganda) qo'shiladi.
+   Eng ko'p ishlatiladiganlari boshida, keyin trigonometriya/logarifm,
+   yunon harflari, to'plamlar va boshqa belgilar — bittagina gorizontal
+   siljiydigan qatorda, "|" belgilari faqat vizual ajratuvchi (bosilmaydi).
+   Tugma bosilganda belgi kursor turgan joyga qo'shiladi. */
+const SYMBOL_ITEMS = [
+  '√', 'x²', 'x³', '½', 'π', '°', '±', '≈', '≠', '≤', '≥', '|',
+  'sin', 'cos', 'tg', 'ctg', '|',
+  'log', 'ln', '|',
+  'α', 'β', 'γ', 'δ', 'θ', 'λ', 'μ', 'φ', 'Σ', 'Δ', '|',
+  '∅', '∈', '∉', '⊂', '⊆', '∪', '∩', '|',
+  '∞', '×', '÷', '∫',
+];
+
+function SymbolPicker({ getInput, value, onChange, disabled }) {
+  function insert(sym) {
+    if (disabled) return;
+    const el = typeof getInput === 'function' ? getInput() : null;
+    const current = value || '';
+    if (!el || el.selectionStart == null) {
+      onChange(current + sym);
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const next = current.slice(0, start) + sym + current.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      try {
+        el.focus();
+        const pos = start + sym.length;
+        el.setSelectionRange(pos, pos);
+      } catch (e) { /* ba'zi input turlari selection'ni qo'llab-quvvatlamasligi mumkin */ }
+    });
+  }
+
+  return (
+    <div
+      className="flex items-center gap-1 overflow-x-auto pb-1.5 mb-3 -mx-1 px-1"
+      style={{ opacity: disabled ? 0.5 : 1 }}
+      aria-label="Matematik belgilar paneli"
+    >
+      {SYMBOL_ITEMS.map((s, i) =>
+        s === '|' ? (
+          <span key={`sep-${i}`} className="flex-shrink-0 w-px h-4 mx-0.5" style={{ background: C.rule }} />
+        ) : (
+          <button
+            key={s + i}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => insert(s)}
+            disabled={disabled}
+            className="flex-shrink-0 px-2.5 py-1.5 rounded-md text-[13px] whitespace-nowrap focus-visible:outline focus-visible:outline-2"
+            style={{ ...fontMono, color: C.ink, background: C.paperSoft, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+          >
+            {s}
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
 function GhostButton({ children, onClick, icon: Icon, type, disabled }) {
   return (
     <button
@@ -1344,6 +1408,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
   const [imageError, setImageError] = useState('');
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
+  const answerFieldRef = useRef(null);
 
   function addQuestion() {
     if (!qText.trim()) return;
@@ -1532,14 +1597,19 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             </>
           ) : (
             <>
-              <TextField
-                label="Toʻgʻri javob(lar)"
-                value={answersText}
-                onChange={setAnswersText}
-                placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
-                textarea
-                rows={2}
-              />
+              <label className="block mb-1">
+                <span className="block text-xs mb-1 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Toʻgʻri javob(lar)</span>
+                <textarea
+                  ref={answerFieldRef}
+                  rows={2}
+                  value={answersText}
+                  onChange={(e) => setAnswersText(e.target.value)}
+                  placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
+                  className="w-full bg-transparent outline-none py-2 text-base"
+                  style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
+                />
+              </label>
+              <SymbolPicker getInput={() => answerFieldRef.current} value={answersText} onChange={setAnswersText} />
             </>
           )}
 
@@ -1791,6 +1861,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
   const [seconds, setSeconds] = useState(0);
   const [paused, setPaused] = useState(false);
   const questionRefs = useRef({});
+  const openInputRefs = useRef({});
 
   useEffect(() => {
     if (finished || paused) return;
@@ -1933,6 +2004,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                   {q.type === 'open' ? (
                     <div>
                       <input
+                        ref={(el) => { openInputRefs.current[q.id] = el; }}
                         type="text"
                         value={answers[q.id] || ''}
                         onChange={(e) => setOpenAnswer(q.id, e.target.value)}
@@ -1947,6 +2019,13 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                           border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
                         }}
                       />
+                      {!showResult && (
+                        <SymbolPicker
+                          getInput={() => openInputRefs.current[q.id]}
+                          value={answers[q.id] || ''}
+                          onChange={(v) => setOpenAnswer(q.id, v)}
+                        />
+                      )}
                       {showResult && (
                         <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
                           {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
