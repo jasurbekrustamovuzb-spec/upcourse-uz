@@ -4437,9 +4437,18 @@ export default function App() {
       {/* Content */}
       <main className="flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full">
         {loading ? (
-          <div className="flex items-center justify-center py-24" style={{ color: C.inkSoft }}>
-            <Loader2 className="animate-spin mr-2" size={20} />
-            <span style={fontBody}>Yuklanmoqda...</span>
+          <div className="space-y-4" aria-busy="true" aria-label="Yuklanmoqda">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="animate-pulse p-4 rounded-sm"
+                style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+              >
+                <div className="h-4 rounded" style={{ background: C.rule, width: `${55 + (i % 3) * 10}%` }} />
+                <div className="h-3 rounded mt-3" style={{ background: C.rule, width: '90%', opacity: 0.7 }} />
+                <div className="h-3 rounded mt-2" style={{ background: C.rule, width: '65%', opacity: 0.7 }} />
+              </div>
+            ))}
           </div>
         ) : error ? (
           <div className="flex flex-col items-center gap-3 py-20 text-center">
