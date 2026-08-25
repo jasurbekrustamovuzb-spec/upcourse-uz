@@ -4437,16 +4437,28 @@ export default function App() {
       {/* Content */}
       <main className="flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full">
         {loading ? (
-          <div className="space-y-4" aria-busy="true" aria-label="Yuklanmoqda">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <div className="grid sm:grid-cols-2 gap-3 sm:gap-4" aria-busy="true" aria-label="Yuklanmoqda">
+            {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="animate-pulse p-4 rounded-sm"
+                className="min-w-0 flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm animate-pulse"
                 style={{ background: C.surface, border: `1px solid ${C.rule}` }}
               >
-                <div className="h-4 rounded" style={{ background: C.rule, width: `${55 + (i % 3) * 10}%` }} />
-                <div className="h-3 rounded mt-3" style={{ background: C.rule, width: '90%', opacity: 0.7 }} />
-                <div className="h-3 rounded mt-2" style={{ background: C.rule, width: '65%', opacity: 0.7 }} />
+                <div className="flex items-start min-w-0">
+                  <span
+                    className="inline-block flex-shrink-0 w-9 h-6 mr-3 rounded-sm"
+                    style={{ background: 'rgba(184,134,59,0.12)', border: `1px solid ${C.coverLine}` }}
+                  />
+                  <div className="min-w-0">
+                    <div className="h-4 rounded" style={{ background: C.rule, width: `${100 + (i % 3) * 20}px` }} />
+                    <div className="h-2.5 rounded mt-2" style={{ background: C.rule, width: '56px', opacity: 0.7 }} />
+                    <div className="h-2.5 rounded mt-1.5" style={{ background: C.rule, width: '90px', opacity: 0.5 }} />
+                  </div>
+                </div>
+                <div className="flex items-center flex-shrink-0 gap-2">
+                  <span className="w-4 h-4 rounded-full" style={{ background: C.rule, opacity: 0.6 }} />
+                  <span className="w-3.5 h-3.5 rounded-full" style={{ background: C.rule, opacity: 0.4 }} />
+                </div>
               </div>
             ))}
           </div>
