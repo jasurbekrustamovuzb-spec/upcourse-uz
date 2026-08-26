@@ -243,6 +243,17 @@ async function sbRequest(path, options = {}) {
 }
 
 const sbSelect = (table, filter) => sbRequest(`${table}?select=*&order=created_at.asc${filter ? `&${filter}` : ''}`);
+
+/* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
+   tekshirish uchun) yoki muallifning o'zi (o'z holatini ko'rishi uchun)
+   so'raydi. Boshqa barcha holatlarda serverdan faqat tasdiqlangan
+   (approved) qatorlar so'raladi — shu tufayli tasdiqlanmagan kontent
+   endi hamma foydalanuvchining bosh yuklanishiga behuda tushmaydi. */
+function visibilityFilter(myId, isAdminFlag) {
+  if (isAdminFlag) return '';
+  if (myId) return `or=(status.eq.approved,author_id.eq.${myId})`;
+  return 'status=eq.approved';
+}
 const sbInsert = (table, row) => sbRequest(table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
 const sbUpdate = (table, id, patch) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch) });
 const sbDelete = (table, id) => sbRequest(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -269,6 +280,27 @@ async function sbUploadImage(file) {
     throw new Error(`Rasm yuklashda xatolik — ${res.status}: ${text}`);
   }
   return `${SUPABASE_URL}/storage/v1/object/public/${IMAGE_BUCKET}/${path}`;
+}
+
+/* Test o'chirilganda unga tegishli savol rasmlari ombordan (Storage)
+   ham o'chirilishi uchun — aks holda fayllar "egasiz" holda saqlanaverib,
+   ombor hajmini behuda band qilib turadi. Xatolik bo'lsa (masalan fayl
+   allaqachon yo'q) jim tarzda o'tkazib yuboriladi — bu asosiy
+   o'chirish amalini to'xtatmasligi kerak. */
+async function sbDeleteImage(url) {
+  if (!url || !url.includes(`/${IMAGE_BUCKET}/`)) return;
+  try {
+    const path = url.split(`/${IMAGE_BUCKET}/`)[1];
+    if (!path) return;
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token || SUPABASE_ANON_KEY;
+    await fetch(`${SUPABASE_URL}/storage/v1/object/${IMAGE_BUCKET}/${path}`, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    });
+  } catch (e) {
+    // Jim tarzda o'tkazib yuborish.
+  }
 }
 
 /* --- Jonli test rejimi uchun yordamchi funksiyalar --- */
@@ -307,8 +339,8 @@ const categoryToRow = (c) => ({ id: c.id, name: c.name, author: c.author || '', 
 const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', author_id: c.authorId || null, status: c.status || 'approved' });
 const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
-const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', author_id: t.authorId || null, status: t.status || 'approved', math_mode: !!t.mathMode });
-const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', mathMode: !!r.math_mode });
+const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', author_id: t.authorId || null, status: t.status || 'approved' });
+const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
 const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green' });
@@ -352,6 +384,40 @@ function EntryNumber({ n }) {
       style={{ ...fontMono, color: C.gold, background: 'rgba(184,134,59,0.12)', border: `1px solid ${C.coverLine}` }}
     >
       №{String(n).padStart(2, '0')}
+    </span>
+  );
+}
+
+function InfoHint({ text }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <span className="relative inline-flex" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full flex-shrink-0 focus-visible:outline focus-visible:outline-2"
+        style={{ background: C.mathTint, color: C.mathDeep, outlineColor: C.mathSoft }}
+        aria-label="Qoʻshimcha maʼlumot"
+      >
+        <Info size={11} />
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-1.5 z-30 text-xs p-2.5 rounded-lg"
+          style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, width: '230px', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}
+        >
+          {text}
+        </div>
+      )}
     </span>
   );
 }
@@ -817,6 +883,7 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [visibility, setVisibility] = useState('public');
   const [newId, setNewId] = useState(null);
 
   if (newId) {
@@ -824,7 +891,11 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
       <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
         <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
         <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Mavzungiz yuborildi!</div>
-        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.</div>
+        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
+          {visibility === 'private'
+            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+            : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
+        </div>
         <div className="flex gap-3 justify-center">
           <SolidButton onClick={() => onView(newId)} icon={ChevronRight}>Koʻrish</SolidButton>
           <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
@@ -837,8 +908,8 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
     if (!title.trim() || !content.trim()) return;
     if (!lockedCategoryId && !categoryName.trim()) return;
     const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim() }
-      : { categoryName: categoryName.trim(), title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim() };
+      ? { categoryId: lockedCategoryId, title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim(), visibility }
+      : { categoryName: categoryName.trim(), title: title.trim(), summary: '', content: content.trim(), videoUrl: videoUrl.trim(), visibility };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -846,14 +917,60 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       {!lockedCategoryId && (
-        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
+        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Sohaga nom bering" />
       )}
-      <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Masalan: Bozor muvozanati" />
-      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Mavzu matnini shu yerga yozing... Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
+      <TextField label="Mavzu nomi" value={title} onChange={setTitle} placeholder="Mavzuga nom bering" />
+      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Matn kiriting" textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
+      <VisibilityToggle value={visibility} onChange={setVisibility} />
       <div className="flex gap-3 mt-2">
         <SolidButton onClick={submit} icon={Check}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
+      </div>
+    </div>
+  );
+}
+
+function VisibilityToggle({ value, onChange }) {
+  return (
+    <div className="mb-3">
+      <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onChange('public')}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          style={{
+            ...fontBody,
+            color: value === 'public' ? C.white : C.ink,
+            background: value === 'public' ? C.cover : C.surface,
+            border: `1px solid ${value === 'public' ? C.cover : C.rule}`,
+            outlineColor: C.gold,
+            fontWeight: value === 'public' ? 600 : 400,
+          }}
+        >
+          <Users size={15} /> Ommaviy
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('private')}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          style={{
+            ...fontBody,
+            color: value === 'private' ? C.white : C.ink,
+            background: value === 'private' ? C.cover : C.surface,
+            border: `1px solid ${value === 'private' ? C.cover : C.rule}`,
+            outlineColor: C.gold,
+            fontWeight: value === 'private' ? 600 : 400,
+          }}
+        >
+          <Lock size={15} /> Xususiy
+        </button>
+      </div>
+      <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>
+        {value === 'private'
+          ? 'Tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+          : 'Administrator tasdiqlagach, hammaga ochiq boʻladi.'}
       </div>
     </div>
   );
@@ -873,7 +990,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Mavzu nomi" value={title} onChange={setTitle} />
-      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Video matn ichida qayerda chiqishini xohlasangiz, oʻsha joyga alohida qatorga {{video}} deb yozing." textarea rows={7} />
+      <TextField label="Dars matni" value={content} onChange={setContent} placeholder="Matn kiriting" textarea rows={7} />
       <TextField label="YouTube video havolasi (ixtiyoriy)" value={videoUrl} onChange={setVideoUrl} placeholder="https://www.youtube.com/watch?v=..." />
       <div className="flex gap-3 mt-2">
         <SolidButton onClick={submit} icon={Check}>Saqlash</SolidButton>
@@ -895,8 +1012,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
-  const approved = courses.filter((c) => c.status !== 'pending');
-  const viewable = isAdmin ? courses : courses.filter((c) => c.status !== 'pending' || c.authorId === myId);
+  const approved = courses.filter((c) => c.status === 'approved');
+  const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
   const active = viewable.find((c) => c.id === openId);
   const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
@@ -954,6 +1071,11 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         {active.status === 'pending' && (
           <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
             <Clock3 size={13} /> Tekshirilmoqda — hozircha faqat sizga koʻrinadi
+          </div>
+        )}
+        {active.status === 'private' && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Lock size={13} /> Xususiy — faqat siz va havola orqali ulashganlaringiz koʻradi
           </div>
         )}
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -1312,9 +1434,9 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
       {isTxtMode ? (
         <div className="p-6 rounded-2xl mb-4 text-center" style={{ background: C.mathTint, border: `1px solid ${C.math}` }}>
           <FileText size={22} style={{ color: C.math }} className="mx-auto mb-2" />
-          <div className="text-[15px] mb-1" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>TXT fayldan savollarni yuklang</div>
-          <div className="text-xs mb-4 max-w-sm mx-auto" style={{ ...fontBody, color: C.inkSoft }}>
-            Har bir savol alohida qatorda (raqami bo'lsa ham, bo'lmasa ham farqi yo'q), keyin "A)", "B)", "C)", "D)" variantlari, oxirida "ANSWER: A" (yoki B, C, D) yozilgan bo'lishi kerak.
+          <div className="flex items-center justify-center gap-1.5 mb-4">
+            <div className="text-[15px]" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>TXT fayldan savollarni yuklang</div>
+            <InfoHint text={'Har bir savol alohida qatorda (raqami bo\u2018lsa ham, bo\u2018lmasa ham farqi yo\u2018q), keyin "A)", "B)", "C)", "D)" variantlari, oxirida "ANSWER: A" (yoki B, C, D) yozilgan bo\u2018lishi kerak.'} />
           </div>
           <SolidButton onClick={() => fileInputRef.current && fileInputRef.current.click()} icon={Paperclip}>TXT faylni tanlash</SolidButton>
           {importError && <div className="text-xs mt-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
@@ -1326,22 +1448,18 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             {!isMathMode && (
               <button
                 onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                className="text-xs inline-flex items-center gap-1 flex-shrink-0"
-                style={{ ...fontBody, color: C.inkSoft }}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0 focus-visible:outline focus-visible:outline-2"
+                style={{ background: C.mathTint, color: C.mathDeep, outlineColor: C.mathSoft }}
+                aria-label="TXT fayldan yuklash"
+                title="TXT fayldan yuklash"
               >
-                <FileText size={12} /> TXT fayldan ham yuklash mumkin
+                <FileText size={13} />
               </button>
             )}
           </div>
           {importError && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
 
-          {isMathMode && (
-            <div className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-              Maslahat: "Yozma javob" turida bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham toʻgʻri hisoblanadi, chunki javob son sifatida solishtiriladi.
-            </div>
-          )}
-
-          <div className="flex gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-3">
             <button
               onClick={() => setQType('mcq')}
               className="px-3 py-1.5 rounded-sm text-sm"
@@ -1356,6 +1474,9 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             >
               Yozma javob
             </button>
+            {isMathMode && qType === 'open' && (
+              <InfoHint text={'Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham toʻgʻri hisoblanadi, chunki javob son sifatida solishtiriladi.'} />
+            )}
           </div>
 
           <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
@@ -1372,9 +1493,14 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             ) : (
               <>
                 <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
-                <GhostButton onClick={() => imageInputRef.current && imageInputRef.current.click()} icon={ImageIcon} disabled={imageUploading}>
-                  {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish (geometriya uchun)'}
-                </GhostButton>
+                <button
+                  onClick={() => imageInputRef.current && imageInputRef.current.click()}
+                  disabled={imageUploading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-visible:outline focus-visible:outline-2"
+                  style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+                >
+                  <ImageIcon size={13} /> {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish'}
+                </button>
               </>
             )}
             {imageError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{imageError}</div>}
@@ -1406,30 +1532,14 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             </>
           ) : (
             <>
-              {isMathMode ? (
-                <label className="block mb-4">
-                  <span className="block text-xs mb-1 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Toʻgʻri javob(lar)</span>
-                  <MathAnswerField
-                    value={answersText}
-                    onChange={setAnswersText}
-                    placeholder="Masalan: 1/2, 0,5 (vergul yoki yangi qator bilan ajrating)"
-                    textarea
-                    rows={2}
-                  />
-                </label>
-              ) : (
-                <TextField
-                  label="Toʻgʻri javob(lar)"
-                  value={answersText}
-                  onChange={setAnswersText}
-                  placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
-                  textarea
-                  rows={2}
-                />
-              )}
-              <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>
-                Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham qabul qilinadi, chunki son sifatida solishtiriladi.
-              </div>
+              <TextField
+                label="Toʻgʻri javob(lar)"
+                value={answersText}
+                onChange={setAnswersText}
+                placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
+                textarea
+                rows={2}
+              />
             </>
           )}
 
@@ -1444,6 +1554,7 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
   const [questions, setQuestions] = useState([]);
+  const [visibility, setVisibility] = useState('public');
   const [newId, setNewId] = useState(null);
 
   if (newId) {
@@ -1451,7 +1562,11 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
       <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
         <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
         <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Testingiz yuborildi!</div>
-        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.</div>
+        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
+          {visibility === 'private'
+            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+            : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
+        </div>
         <div className="flex gap-3 justify-center">
           <SolidButton onClick={() => onView(newId)} icon={ChevronRight}>Koʻrish</SolidButton>
           <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
@@ -1465,8 +1580,8 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
   async function submit() {
     if (!canSubmit) return;
     const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions, mathMode: formMode === 'math' }
-      : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions, mathMode: formMode === 'math' };
+      ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions, visibility }
+      : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions, visibility };
     const id = await onSubmit(payload);
     if (id) setNewId(id);
   }
@@ -1484,10 +1599,11 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
         </div>
       )}
       {!lockedCategoryId && (
-        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Masalan: Marketing (yangi soha boʻlsa ham yozavering)" />
+        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Sohaga nom bering" />
       )}
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
+      <VisibilityToggle value={visibility} onChange={setVisibility} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
@@ -1502,207 +1618,19 @@ function EditTestForm({ test, onSave, onDone }) {
 
   async function submit() {
     if (!title.trim() || questions.length === 0) return;
-    const ok = await onSave({ categoryId: test.categoryId, title: title.trim(), description: test.description || '', questions, mathMode: !!test.mathMode });
+    const ok = await onSave({ categoryId: test.categoryId, title: title.trim(), description: test.description || '', questions });
     if (ok) onDone();
   }
 
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Test nomi" value={title} onChange={setTitle} />
-      <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={test.mathMode ? 'math' : 'manual'} />
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Saqlash</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
       </div>
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Matematik klaviatura — telefon klaviaturasi o'rniga pastdan        */
-/*  chiqadigan, bo'lim-bo'lim (Asosiy/Funksiyalar/Trigonometriya/      */
-/*  Analiz/Yunon harflari) belgilar paneli. Faqat "matematik test"     */
-/*  deb belgilangan testlarda (yaratishda ham, yechishda ham) ishlaydi.*/
-/*  Hech qanday tashqi kutubxona yoki tarmoq so'rovi kerak emas —      */
-/*  shuning uchun sayt yuklanishiga sira ta'sir qilmaydi.              */
-/* ------------------------------------------------------------------ */
-
-const MATH_KEY_GROUPS = {
-  asosiy: {
-    label: '+ −\n× ÷',
-    keys: [
-      ['(', ')', '√', 'π'],
-      ['x²', 'x³', 'xⁿ', '%'],
-      ['7', '8', '9', '÷'],
-      ['4', '5', '6', '×'],
-      ['1', '2', '3', '−'],
-      ['0', '.', '=', '+'],
-    ],
-  },
-  funksiya: {
-    label: 'f(x) e\nlog ln',
-    keys: [
-      ['f(x)', 'e', 'log', 'ln'],
-      ['log₂', 'log₁₀', 'exp', '|x|'],
-      ['x/y', '(x,y)', 'n!', '±'],
-    ],
-  },
-  trig: {
-    label: 'sin cos\ntan cot',
-    keys: [
-      ['sin', 'cos', 'tan', 'cot'],
-      ['arcsin', 'arccos', 'arctan', 'arccot'],
-      ['sinh', 'cosh', 'tanh', 'coth'],
-    ],
-  },
-  analiz: {
-    label: 'lim dx\n∫ Σ ∞',
-    keys: [
-      ['lim', 'dx', '∫', 'dy/dx'],
-      ["f'(x)", '∂', 'Σ', '∞'],
-      ['→', '≤', '≥', '≠'],
-    ],
-  },
-  harflar: {
-    label: 'α β\nγ θ',
-    keys: [
-      ['α', 'β', 'γ', 'δ'],
-      ['θ', 'ρ', 'φ', 'μ'],
-      ['σ', 'ω', 'Δ', 'λ'],
-    ],
-  },
-};
-const MATH_KEY_ORDER = ['asosiy', 'funksiya', 'trig', 'analiz', 'harflar'];
-
-function MathKeyboard({ onKey, onBackspace, onClear, onDone }) {
-  const [group, setGroup] = useState('asosiy');
-  const active = MATH_KEY_GROUPS[group];
-
-  return (
-    <div
-      className="fixed bottom-0 inset-x-0 z-50"
-      style={{ background: C.surface, borderTop: `1px solid ${C.rule}`, boxShadow: '0 -6px 20px rgba(0,0,0,0.18)' }}
-    >
-      <div className="flex items-center gap-1.5 px-2 py-2 overflow-x-auto" style={{ borderBottom: `1px solid ${C.rule}` }}>
-        {MATH_KEY_ORDER.map((g) => (
-          <button
-            key={g}
-            onClick={() => setGroup(g)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] leading-tight whitespace-pre-line text-center"
-            style={{
-              ...fontMono,
-              background: group === g ? C.cover : 'transparent',
-              color: group === g ? C.white : C.inkSoft,
-              border: `1px solid ${group === g ? C.cover : C.rule}`,
-            }}
-          >
-            {MATH_KEY_GROUPS[g].label}
-          </button>
-        ))}
-        <div className="flex-1" />
-        <button onClick={onBackspace} className="flex-shrink-0 p-2 rounded-full" style={{ color: C.inkSoft }} aria-label="Orqaga oʻchirish">
-          <ArrowLeft size={16} />
-        </button>
-        <button onClick={onClear} className="flex-shrink-0 p-2 rounded-full" style={{ color: C.red }} aria-label="Tozalash">
-          <X size={16} />
-        </button>
-        {onDone && (
-          <button onClick={onDone} className="flex-shrink-0 px-3 py-1.5 rounded-full text-[13px]" style={{ ...fontBody, background: C.accent, color: C.white }}>
-            Tayyor
-          </button>
-        )}
-      </div>
-      <div className="p-1.5">
-        {active.keys.map((row, ri) => (
-          <div key={ri} className="grid grid-cols-4 gap-1.5 mb-1.5">
-            {row.map((k, ki) => (
-              <button
-                key={ki}
-                onClick={() => onKey(k)}
-                className="py-2.5 rounded-sm text-[15px] active:opacity-60"
-                style={{ ...fontBody, background: C.paperSoft, color: C.ink, border: `1px solid ${C.rule}` }}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* Oddiy matn maydoni o'rniga ishlatiladi — ustiga bosilganda telefonning
-   oddiy klaviaturasi o'rniga yuqoridagi MathKeyboard pastdan chiqadi
-   (inputMode="none" native klaviaturani bostiradi). */
-function MathAnswerField({ value, onChange, disabled, placeholder, textarea, rows, onDone }) {
-  const [active, setActive] = useState(false);
-
-  function close() {
-    setActive(false);
-    if (onDone) onDone();
-  }
-  const inputRef = useRef(null);
-  const cursorRef = useRef(0);
-
-  function insert(token) {
-    const pos = cursorRef.current ?? value.length;
-    const next = value.slice(0, pos) + token + value.slice(pos);
-    cursorRef.current = pos + token.length;
-    onChange(next);
-    requestAnimationFrame(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(cursorRef.current, cursorRef.current);
-      }
-    });
-  }
-
-  function backspace() {
-    const pos = cursorRef.current ?? value.length;
-    if (pos === 0) return;
-    const next = value.slice(0, pos - 1) + value.slice(pos);
-    cursorRef.current = pos - 1;
-    onChange(next);
-    requestAnimationFrame(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(cursorRef.current, cursorRef.current);
-      }
-    });
-  }
-
-  function clearAll() {
-    cursorRef.current = 0;
-    onChange('');
-  }
-
-  const commonProps = {
-    ref: inputRef,
-    inputMode: 'none',
-    value,
-    onFocus: () => setActive(true),
-    onSelect: (e) => { cursorRef.current = e.target.selectionStart; },
-    onKeyDown: (e) => {
-      if (e.key.length === 1) { e.preventDefault(); insert(e.key); }
-      else if (e.key === 'Backspace') { e.preventDefault(); backspace(); }
-    },
-    disabled,
-    placeholder,
-    className: 'w-full px-4 py-2.5 rounded-sm text-[15px] outline-none',
-    style: { ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, resize: 'none' },
-  };
-
-  return (
-    <>
-      {textarea ? <textarea rows={rows || 2} {...commonProps} /> : <input type="text" {...commonProps} />}
-      {active && !disabled && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={close} />
-          <MathKeyboard onKey={insert} onBackspace={backspace} onClear={clearAll} onDone={close} />
-        </>
-      )}
-    </>
   );
 }
 
@@ -2004,31 +1932,21 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                   )}
                   {q.type === 'open' ? (
                     <div>
-                      {test.mathMode ? (
-                        <MathAnswerField
-                          value={answers[q.id] || ''}
-                          onChange={(v) => setOpenAnswer(q.id, v)}
-                          onDone={() => confirmOpenAnswer(q.id)}
-                          disabled={showResult}
-                          placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={answers[q.id] || ''}
-                          onChange={(e) => setOpenAnswer(q.id, e.target.value)}
-                          onBlur={() => confirmOpenAnswer(q.id)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
-                          disabled={showResult}
-                          placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
-                          className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
-                          style={{
-                            ...fontBody, color: C.ink,
-                            background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
-                            border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
-                          }}
-                        />
-                      )}
+                      <input
+                        type="text"
+                        value={answers[q.id] || ''}
+                        onChange={(e) => setOpenAnswer(q.id, e.target.value)}
+                        onBlur={() => confirmOpenAnswer(q.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+                        disabled={showResult}
+                        placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
+                        className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
+                        style={{
+                          ...fontBody, color: C.ink,
+                          background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
+                          border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
+                        }}
+                      />
                       {showResult && (
                         <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
                           {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
@@ -2557,8 +2475,8 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
-  const approved = tests.filter((t) => t.status !== 'pending');
-  const viewable = isAdmin ? tests : tests.filter((t) => t.status !== 'pending' || t.authorId === myId);
+  const approved = tests.filter((t) => t.status === 'approved');
+  const viewable = isAdmin ? tests : tests.filter((t) => t.status === 'approved' || t.authorId === myId);
   const active = viewable.find((t) => t.id === activeId);
   const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
@@ -2617,20 +2535,20 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
           <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#e5484d' }} />
           Jonli test rejimi — guruh bo'lib bir vaqtda ishlang
         </button>
-        <div className="flex flex-wrap gap-2 mb-5">
+        <div className="grid grid-cols-2 gap-2 mb-5">
           <button
             onClick={goTxtImport}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
           >
-            <FileText size={13} /> TXT fayldan test yuklash
+            <FileText size={13} /> TXT fayldan
           </button>
           <button
             onClick={goMathTest}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
           >
-            <Calculator size={13} /> Matematik test — rasm/chizma bilan
+            <Calculator size={13} /> Matematik test
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
@@ -2792,6 +2710,11 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
             <Clock3 size={13} /> Tekshirilmoqda
           </div>
         )}
+        {active.status === 'private' && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Lock size={13} /> Xususiy
+          </div>
+        )}
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
         {active.author && <div className="text-xs mb-4" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {active.author}</div>}
         {active.content === undefined ? (
@@ -2879,16 +2802,16 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
                 {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
                 {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
                 {isMine && (
-                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : C.accent }}>
-                    {c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
+                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : c.status === 'private' ? C.inkSoft : C.accent }}>
+                    {c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : c.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
                   </div>
                 )}
               </div>
             </div>
             <div className="flex items-center flex-shrink-0 gap-1">
               <ItemMenu actions={[
-                ...(approveCourse ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) }] : []),
-                ...(!isMine || c.status === 'pending' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) }] : []),
+                ...(approveCourse && c.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) }] : []),
+                ...(!isMine || c.status === 'pending' || c.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) }] : []),
               ]} />
             </div>
           </div>
@@ -2992,16 +2915,16 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                 <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
                 {t.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
                 {isMine && (
-                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : C.accent }}>
-                    {t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
+                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : t.status === 'private' ? C.inkSoft : C.accent }}>
+                    {t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : t.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
                   </div>
                 )}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2 flex-shrink-0">
               <ItemMenu actions={[
-                ...(approveTest ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
-                ...(!isMine || t.status === 'pending' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
+                ...(approveTest && t.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
+                ...(!isMine || t.status === 'pending' || t.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
               ]} />
               <button
                 onClick={() => goOpen(t.id)}
@@ -3135,6 +3058,8 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
 
   const pendingCourses = courses.filter((c) => c.status === 'pending');
   const pendingTests = tests.filter((t) => t.status === 'pending');
+  const privateCourses = courses.filter((c) => c.status === 'private');
+  const privateTests = tests.filter((t) => t.status === 'private');
 
   if (subTab === 'kurslar') {
     return (
@@ -3175,6 +3100,43 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
       />
     );
   }
+  if (subTab === 'xususiy-kurslar') {
+    return (
+      <CommunityCoursesView
+        mode="admin"
+        courses={privateCourses}
+        categories={categories}
+        openId={openCourseId}
+        setOpenId={setOpenCourseId}
+        onBack={() => setSubTab(null)}
+        submitCourse={submitCourse}
+        deleteCourse={deleteCourse}
+        formOpen={false}
+        onOpenForm={() => {}}
+        onCloseForm={() => {}}
+        prefillCategory=""
+        ensureCourseContent={ensureCourseContent}
+      />
+    );
+  }
+  if (subTab === 'xususiy-testlar') {
+    return (
+      <CommunityTestsView
+        mode="admin"
+        tests={privateTests}
+        categories={categories}
+        openId={openTestId}
+        setOpenId={setOpenTestId}
+        onBack={() => setSubTab(null)}
+        submitTest={submitTest}
+        deleteTest={deleteTest}
+        formOpen={false}
+        onOpenForm={() => {}}
+        onCloseForm={() => {}}
+        prefillCategory=""
+      />
+    );
+  }
   if (subTab === 'sohalar') {
     return <AdminCategoriesView categories={categories} courses={courses} tests={tests} renameCategory={renameCategory} deleteCategory={deleteCategory} onBack={() => setSubTab(null)} />;
   }
@@ -3186,7 +3148,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
     <div>
       <SectionHeading eyebrow="Faqat administrator uchun" title="Admin panel" />
       <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>
-        Foydalanuvchilar yuborgan mavzu va testlarni shu yerda tekshirasiz. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga chiqadi va hammaga ochiq boʻladi.
+        Foydalanuvchilar yuborgan mavzu va testlarni shu yerda tekshirasiz. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga chiqadi va hammaga ochiq boʻladi. Xususiy deb belgilanganlar tasdiqlashsiz saqlanadi — bu yerda faqat koʻrish uchun.
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
         <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
@@ -3205,6 +3167,26 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
             <div>
               <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Testlar</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingTests.length} ta kutilmoqda</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('xususiy-kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Lock size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Xususiy kurslar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{privateCourses.length} ta — faqat koʻrish</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('xususiy-testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Lock size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Xususiy testlar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{privateTests.length} ta — faqat koʻrish</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
@@ -3440,7 +3422,7 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
   );
 }
 
-function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent }) {
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, onGoToAbout }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -3489,6 +3471,10 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           Oʻz kursingizni yaratish, testlar tuzish va ularni kuzatib borish uchun hisob yarating. Kurslarni oʻrganish va testlarni ishlash uchun ro'yxatdan o'tish shart emas.
         </p>
         <SolidButton onClick={signInWithGoogle} icon={LogIn}>Google orqali kirish</SolidButton>
+        <div className="mt-6 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+          UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
+          <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>
+        </div>
       </div>
     );
   }
@@ -3651,6 +3637,11 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
+      </div>
+
+      <div className="mt-8 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+        UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
+        <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>
       </div>
     </div>
   );
@@ -3825,26 +3816,40 @@ export default function App() {
     try { localStorage.setItem('upcourse-theme', theme); } catch {}
   }, [theme]);
 
-  /* Google orqali kirish holatini kuzatish + profil qatorini yuklash */
+  /* Google orqali kirish holatini kuzatish + profil qatorini yuklash.
+     Eslatma: avval bu yerda ikkita mustaqil manba bor edi — getSession()
+     va onAuthStateChange — ular deyarli bir vaqtda ishga tushib,
+     "isAdmin" qiymati ikki bosqichda (avval false, keyin true) o'zgarib
+     ketardi. Bosh ma'lumot yuklovchisi shu o'zgarishga qarab ishlaydi
+     (pastda), shuning uchun categories/courses/tests/news IKKI MARTA
+     so'ralib ketardi. Endi faqat BITTA manba — onAuthStateChange —
+     ishlatiladi (u o'zi ulanganda joriy sessiyani ham avtomatik beradi),
+     shu bilan poyga (race) yo'qoladi. */
   useEffect(() => {
     let cancelled = false;
+    let lastLoadedUid = null;
     async function loadProfile(uid) {
+      if (uid === lastLoadedUid) return;
+      lastLoadedUid = uid;
       try {
         const rows = await sbSelect('profiles', `id=eq.${uid}`);
         if (!cancelled) setProfile(rows[0] ? profileFromRow(rows[0]) : null);
       } catch (e) {
         if (!cancelled) setProfile(null);
+        lastLoadedUid = null; // xatolik bo'lsa keyinroq qayta urinib ko'rish imkoni qolsin
       }
     }
-    function refreshSession() {
-      supabase.auth.getSession().then(({ data }) => {
-        if (cancelled) return;
-        setSession(data.session || null);
-        if (data.session) loadProfile(data.session.user.id).then(() => !cancelled && setAuthLoading(false));
-        else { setProfile(null); setAuthLoading(false); }
-      });
+    async function applySession(newSession) {
+      if (cancelled) return;
+      setSession(newSession || null);
+      if (newSession) {
+        await loadProfile(newSession.user.id);
+      } else {
+        setProfile(null);
+        lastLoadedUid = null;
+      }
+      if (!cancelled) setAuthLoading(false);
     }
-    refreshSession();
     // Google orqali kirishdan qaytgach, URL'dagi token qoldig'ini tozalab,
     // tarixni "toza" holatga keltiramiz — orqaga tugmasi Google sahifasiga
     // emas, saytning o'zida ishlashi uchun.
@@ -3852,14 +3857,14 @@ export default function App() {
       try { window.history.replaceState({}, '', window.location.pathname); } catch {}
     }
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession || null);
-      if (newSession) loadProfile(newSession.user.id);
-      else setProfile(null);
+      applySession(newSession);
     });
     // Telefon brauzerlari sahifani "bfcache"dan tiklaganda (masalan orqaga
     // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu payt
     // login holatini qayta tekshiramiz.
-    function onPageShow(e) { if (e.persisted) refreshSession(); }
+    function onPageShow(e) {
+      if (e.persisted) supabase.auth.getSession().then(({ data }) => applySession(data.session || null));
+    }
     window.addEventListener('pageshow', onPageShow);
     return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); window.removeEventListener('pageshow', onPageShow); };
   }, []);
@@ -3922,32 +3927,77 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      if (!isSupabaseConfigured()) {
-        setError('Supabase ulanish maʼlumotlari hali kiritilmagan. Kod faylining yuqori qismidagi SUPABASE_URL va SUPABASE_ANON_KEY qatorlarini toʻldiring.');
-        setLoading(false);
-        return;
-      }
-      try {
-        const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
-        const [catRows, courseRows, testRows, newsRows] = await Promise.all([
-          sbSelect('categories'),
-          sbRequest(`courses?select=${courseListCols}&order=created_at.asc`),
-          sbSelect('tests'), sbSelect('news'),
-        ]);
-
-        setCategories(catRows.map(categoryFromRow));
-        setCourses(courseRows.map(courseFromRow));
-        setTests(testRows.map(testFromRow));
-        setNews(newsRows.map(newsFromRow));
-      } catch (e) {
-        setError('Maʼlumotlarni yuklashda xatolik yuz berdi. Supabase loyihangiz manzili/kaliti va SQL jadvallar toʻgʻri sozlanganini tekshiring.');
-      }
+  const loadAppData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    if (!isSupabaseConfigured()) {
+      setError('Supabase ulanish maʼlumotlari hali kiritilmagan. Kod faylining yuqori qismidagi SUPABASE_URL va SUPABASE_ANON_KEY qatorlarini toʻldiring.');
       setLoading(false);
+      return;
+    }
+    try {
+      const myId = session?.user?.id;
+      const vis = visibilityFilter(myId, isAdmin);
+      const visQ = vis ? `&${vis}` : '';
+      const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
+      const [catRows, courseRows, testRows, newsRows] = await Promise.all([
+        sbSelect('categories', vis),
+        sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`),
+        sbSelect('tests', vis), sbSelect('news'),
+      ]);
+
+      setCategories(catRows.map(categoryFromRow));
+      setCourses(courseRows.map(courseFromRow));
+      setTests(testRows.map(testFromRow));
+      setNews(newsRows.map(newsFromRow));
+    } catch (e) {
+      // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
+      // odatda ishlab ketadi) — shuning uchun foydalanuvchiga texnik
+      // tafsilotlar emas, sodda va tinch xabar ko'rsatamiz.
+      setError('Ma\u02bblumotlarni yuklab bo\u02bblmadi. Internetni tekshirib, qayta urinib ko\u02bbring.');
+    }
+    setLoading(false);
+  }, [isAdmin, session?.user?.id]);
+
+  useEffect(() => {
+    // Autentifikatsiya holati (kim ekanligimiz) aniqlanguncha kutamiz —
+    // shunda "kim ko'rishi kerak" filtri to'g'ri qatorlar bilan bir marta
+    // so'raladi, keyin qayta yuklab o'tirmaydi.
+    if (authLoading) return;
+    loadAppData();
+  }, [authLoading, loadAppData]);
+
+  /* Ulashilgan havola orqali kirilganda (?course=ID yoki ?test=ID),
+     lekin o'sha narsa "xususiy" bo'lgani uchun oddiy ro'yxatga
+     yuklanmagan bo'lsa — shu bitta elementni alohida, ID boʻyicha soʻrab
+     olamiz. Faqat "xususiy" yoki "tasdiqlangan" holatdagilar shu yoʻl
+     bilan koʻrsatiladi — hali tasdiqlanmagan (pending) begona kontent
+     bu orqali chetlab oʻtilmaydi. Faqat havola bilan kirganda ishga
+     tushadi — umumiy yuklanish tezligiga taʼsir qilmaydi. */
+  useEffect(() => {
+    if (loading || authLoading || !initialDeepLink) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (initialDeepLink.type === 'course') {
+          const rows = await sbSelect('courses', `id=eq.${initialDeepLink.value}`);
+          const row = rows[0];
+          if (!cancelled && row && (row.status === 'private' || row.status === 'approved')) {
+            setCourses((prev) => (prev.some((c) => c.id === row.id) ? prev : [...prev, courseFromRow(row)]));
+          }
+        } else if (initialDeepLink.type === 'test') {
+          const rows = await sbSelect('tests', `id=eq.${initialDeepLink.value}`);
+          const row = rows[0];
+          if (!cancelled && row && (row.status === 'private' || row.status === 'approved')) {
+            setTests((prev) => (prev.some((t) => t.id === row.id) ? prev : [...prev, testFromRow(row)]));
+          }
+        }
+      } catch (e) {
+        // Havola noto'g'ri yoki narsa o'chirilgan bo'lishi mumkin — jim o'tkaziladi.
+      }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [loading, authLoading, initialDeepLink]);
 
   async function addCategory(data) {
     if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
@@ -4024,7 +4074,7 @@ export default function App() {
         return null;
       }
     }
-    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: authorName, authorId: session.user.id, status: 'pending' };
+    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
     try {
       await sbInsert('courses', courseToRow(row));
       setCourses([row, ...courses]);
@@ -4091,7 +4141,7 @@ export default function App() {
         return null;
       }
     }
-    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, author: authorName, authorId: session.user.id, status: 'pending', mathMode: !!data.mathMode };
+    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
     try {
       await sbInsert('tests', testToRow(row));
       setTests([row, ...tests]);
@@ -4133,12 +4183,17 @@ export default function App() {
     }
   }
   async function deleteTest(id, title) {
-    const mine = tests.find((t) => t.id === id)?.authorId === session?.user?.id;
+    const target = tests.find((t) => t.id === id);
+    const mine = target?.authorId === session?.user?.id;
     if (!isAdmin && !mine) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
       await sbDelete('tests', id);
       setTests(tests.filter((t) => t.id !== id));
       setActionError(null);
+      // Testga tegishli savol rasmlarini ombordan ham tozalaymiz (fon rejimida,
+      // natijasini kutmasdan — foydalanuvchi ekranida darhol o'chgandek ko'rinsin).
+      const imageUrls = (target?.questions || []).map((q) => q.imageUrl).filter(Boolean);
+      imageUrls.forEach((url) => { sbDeleteImage(url); });
       return true;
     } catch (e) {
       setActionError('Testni oʻchirishda xatolik yuz berdi.');
@@ -4178,10 +4233,23 @@ export default function App() {
     if (id !== prevTab) nav.pushNav(() => setTab(prevTab));
   }
 
-  function handleCreateClick() {
-    // Login bo'lmasa ham Profil bo'limiga o'tadi — u yerda ro'yxatdan
-    // o'tish/kirish so'raladi, keyin kurs yaratish formasi ochiladi.
-    goToCommunity('kurslar');
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const createMenuDeskRef = useRef(null);
+  const createMenuMobileRef = useRef(null);
+  useEffect(() => {
+    if (!createMenuOpen) return;
+    function handler(e) {
+      const insideDesk = createMenuDeskRef.current && createMenuDeskRef.current.contains(e.target);
+      const insideMobile = createMenuMobileRef.current && createMenuMobileRef.current.contains(e.target);
+      if (!insideDesk && !insideMobile) setCreateMenuOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [createMenuOpen]);
+
+  function pickCreate(kind) {
+    setCreateMenuOpen(false);
+    goToCommunity(kind);
   }
 
   return (
@@ -4253,14 +4321,41 @@ export default function App() {
                 </button>
               );
             })}
-            <button
-              onClick={handleCreateClick}
-              className="nav-btn flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl text-[14px] focus-visible:outline focus-visible:outline-2"
-              style={{ ...fontBody, color: C.cover, background: C.goldSoft, outlineColor: C.gold, fontWeight: 600 }}
-            >
-              <Plus size={16} />
-              Kurs yaratish
-            </button>
+            <div className="relative" ref={createMenuDeskRef}>
+              <button
+                onClick={() => setCreateMenuOpen((v) => !v)}
+                className="nav-btn flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl text-[14px] focus-visible:outline focus-visible:outline-2 w-full"
+                style={{ ...fontBody, color: C.cover, background: C.goldSoft, outlineColor: C.gold, fontWeight: 600 }}
+              >
+                <Plus size={16} />
+                Yaratish
+              </button>
+              {createMenuOpen && (
+                <div
+                  className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-xl overflow-hidden"
+                  style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.18)' }}
+                >
+                  <button
+                    onClick={() => pickCreate('kurslar')}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] text-left transition-colors"
+                    style={{ ...fontBody, color: C.ink }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = C.paperSoft)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <BookOpen size={15} style={{ color: C.gold }} /> Mavzu yaratish
+                  </button>
+                  <button
+                    onClick={() => pickCreate('testlar')}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] text-left transition-colors"
+                    style={{ ...fontBody, color: C.ink, borderTop: `1px solid ${C.rule}` }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = C.paperSoft)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <ListChecks size={15} style={{ color: C.gold }} /> Test yaratish
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex-1" />
           <div className="flex flex-col gap-1 pt-3" style={{ borderTop: `1px solid ${C.coverLine}` }}>
@@ -4342,13 +4437,57 @@ export default function App() {
       {/* Content */}
       <main className="flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full">
         {loading ? (
-          <div className="flex items-center justify-center py-24" style={{ color: C.inkSoft }}>
-            <Loader2 className="animate-spin mr-2" size={20} />
-            <span style={fontBody}>Yuklanmoqda...</span>
+          <div aria-busy="true" aria-label="Yuklanmoqda">
+            {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
+            <div className="mb-6">
+              <div className="h-3 rounded-sm animate-pulse mb-2" style={{ background: C.rule, width: '80px', opacity: 0.55 }} />
+              <div className="h-7 rounded-sm animate-pulse" style={{ background: C.rule, width: '150px', opacity: 0.45 }} />
+            </div>
+
+            {/* Qidiruv maydoni oʻrnidagi skelet */}
+            <div
+              className="h-[50px] rounded-sm animate-pulse mb-5 flex items-center px-3.5"
+              style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+            >
+              <Search size={18} style={{ color: C.rule }} />
+            </div>
+
+            {/* Kartochkalar oʻrnidagi skelet — haqiqiy soha/mavzu kartochkasi bilan bir xil shakl */}
+            <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm animate-pulse"
+                  style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+                >
+                  <div className="flex items-start min-w-0 flex-1">
+                    <div className="flex-shrink-0 w-9 h-6 rounded-sm mr-3" style={{ background: C.rule, opacity: 0.45 }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="h-4 rounded-sm" style={{ background: C.rule, width: `${58 + (i % 3) * 12}%`, opacity: 0.6 }} />
+                      <div className="h-3 rounded-sm mt-2.5" style={{ background: C.rule, width: '42%', opacity: 0.45 }} />
+                      <div className="h-3 rounded-sm mt-1.5" style={{ background: C.rule, width: '60%', opacity: 0.35 }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center flex-shrink-0 gap-2">
+                    <div className="w-4 h-4 rounded-sm" style={{ background: C.rule, opacity: 0.35 }} />
+                    <div className="w-3.5 h-3.5 rounded-sm" style={{ background: C.rule, opacity: 0.35 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : error ? (
-          <div className="p-5 rounded-sm text-[15px]" style={{ ...fontBody, background: C.dangerBannerTint, border: `1px solid ${C.red}`, color: C.red }}>
-            {error}
+          <div className="flex flex-col items-center gap-3 py-20 text-center">
+            <span className="text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>{error}</span>
+            <button
+              onClick={loadAppData}
+              className="w-11 h-11 rounded-full flex items-center justify-center transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2"
+              style={{ background: C.cover, color: C.white, outlineColor: C.gold }}
+              aria-label="Qayta urinib ko'rish"
+              title="Qayta urinib ko'rish"
+            >
+              <RotateCcw size={18} />
+            </button>
           </div>
         ) : (
           <>
@@ -4381,6 +4520,7 @@ export default function App() {
                   onConsumeTarget={() => setCommunityTarget(null)}
                   isAdmin={isAdmin}
                   ensureCourseContent={ensureCourseContent}
+                  onGoToAbout={() => goTo('about')}
                 />
               )}
               {tab === 'admin' && isAdmin && (
@@ -4408,21 +4548,6 @@ export default function App() {
           </>
         )}
       </main>
-
-      <footer className="max-w-5xl mx-auto px-5 sm:px-8 pb-10 pt-2">
-        <div className="flex items-center gap-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
-          <Paperclip size={12} />
-          <span>UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()}</span>
-          <span style={{ color: C.rule }}>·</span>
-          <button onClick={() => goTo('about')} className="underline underline-offset-2">Biz haqimizda</button>
-          {isAdmin && (
-            <>
-              <span style={{ color: C.rule }}>·</span>
-              <button onClick={() => goTo('admin')} className="underline underline-offset-2">Admin panel</button>
-            </>
-          )}
-        </div>
-      </footer>
 
       </div>
 
@@ -4453,14 +4578,37 @@ export default function App() {
             );
           })}
 
-          <button
-            onClick={handleCreateClick}
-            aria-label="Kurs yaratish"
-            className="nav-btn flex items-center justify-center w-12 h-12 rounded-full -mt-5 shadow-lg focus-visible:outline focus-visible:outline-2"
-            style={{ background: C.gold, color: C.cover, outlineColor: C.goldSoft, boxShadow: '0 4px 14px rgba(212,172,110,0.45)' }}
-          >
-            <Plus size={22} strokeWidth={2.4} />
-          </button>
+          <div className="relative" ref={createMenuMobileRef}>
+            <button
+              onClick={() => setCreateMenuOpen((v) => !v)}
+              aria-label="Yaratish"
+              className="nav-btn flex items-center justify-center w-12 h-12 rounded-full -mt-5 shadow-lg focus-visible:outline focus-visible:outline-2"
+              style={{ background: C.gold, color: C.cover, outlineColor: C.goldSoft, boxShadow: '0 4px 14px rgba(212,172,110,0.45)' }}
+            >
+              <Plus size={22} strokeWidth={2.4} style={{ transform: createMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+            {createMenuOpen && (
+              <div
+                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-30 rounded-xl overflow-hidden"
+                style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.22)', minWidth: '180px' }}
+              >
+                <button
+                  onClick={() => pickCreate('kurslar')}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[14px] text-left"
+                  style={{ ...fontBody, color: C.ink }}
+                >
+                  <BookOpen size={16} style={{ color: C.gold }} /> Mavzu yaratish
+                </button>
+                <button
+                  onClick={() => pickCreate('testlar')}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[14px] text-left"
+                  style={{ ...fontBody, color: C.ink, borderTop: `1px solid ${C.rule}` }}
+                >
+                  <ListChecks size={16} style={{ color: C.gold }} /> Test yaratish
+                </button>
+              </div>
+            )}
+          </div>
 
           {TABS.slice(2).map((t) => {
             const Icon = t.icon;
