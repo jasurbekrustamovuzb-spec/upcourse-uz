@@ -2044,10 +2044,18 @@ function LiveLeaderboardList({ participants }) {
 }
 
 function LiveHostSetup({ tests, session, onCreated, onBack }) {
-  const [testId, setTestId] = useState(tests[0]?.id || '');
+  const myId = session?.user?.id;
+  const myTests = tests.filter((t) => t.authorId === myId);
+  const [scope, setScope] = useState(myTests.length > 0 ? 'mine' : 'all');
+  const [query, setQuery] = useState('');
+  const [testId, setTestId] = useState('');
   const [duration, setDuration] = useState(300);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+
+  const scoped = scope === 'mine' ? myTests : tests;
+  const q = query.trim().toLowerCase();
+  const filtered = q ? scoped.filter((t) => t.title.toLowerCase().includes(q)) : scoped;
 
   async function create() {
     if (!testId) return;
@@ -2089,17 +2097,62 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
       <button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Ortga</button>
       <SectionHeading eyebrow="Xona ochish" title="Testni tanlang" />
       <div className="max-w-md">
-        <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Test</label>
-        <select
-          value={testId}
-          onChange={(e) => setTestId(e.target.value)}
-          className="w-full mb-4 px-3 py-2.5 rounded-2xl text-[15px] outline-none"
-          style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
-        >
-          {tests.map((t) => (
-            <option key={t.id} value={t.id}>{t.title} ({t.questions.length} ta savol)</option>
-          ))}
-        </select>
+        <div className="flex gap-1 p-1 rounded-full mb-3 w-fit" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+          <button
+            onClick={() => setScope('mine')}
+            className="px-3 py-1.5 rounded-full text-xs transition-colors"
+            style={{ ...fontBody, background: scope === 'mine' ? C.cover : 'transparent', color: scope === 'mine' ? C.white : C.inkSoft }}
+          >
+            Mening testlarim
+          </button>
+          <button
+            onClick={() => setScope('all')}
+            className="px-3 py-1.5 rounded-full text-xs transition-colors"
+            style={{ ...fontBody, background: scope === 'all' ? C.cover : 'transparent', color: scope === 'all' ? C.white : C.inkSoft }}
+          >
+            Hammasi
+          </button>
+        </div>
+
+        <div className="relative mb-3">
+          <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.inkSoft }} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Test nomi boʻyicha qidiring..."
+            className="w-full pl-9 pr-3 py-2.5 rounded-2xl text-[15px] outline-none"
+            style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
+          />
+        </div>
+
+        <div className="rounded-2xl overflow-hidden mb-4" style={{ border: `1px solid ${C.rule}`, maxHeight: '260px', overflowY: 'auto' }}>
+          {filtered.length === 0 ? (
+            <div className="p-4 text-sm text-center" style={{ ...fontBody, color: C.inkSoft }}>
+              {scope === 'mine' ? 'Siz hali test yaratmagansiz.' : 'Hech narsa topilmadi.'}
+            </div>
+          ) : (
+            filtered.map((t) => {
+              const selected = t.id === testId;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTestId(t.id)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left transition-colors"
+                  style={{ ...fontBody, background: selected ? C.selectedTint : 'transparent', borderBottom: `1px solid ${C.rule}`, color: C.ink }}
+                >
+                  <div className="min-w-0">
+                    <div className="truncate">{t.title}</div>
+                    <div className="text-xs mt-0.5" style={{ ...fontMono, color: C.inkSoft }}>
+                      {t.questions.length} ta savol{t.status === 'pending' ? ' · Kutilmoqda' : ''}
+                    </div>
+                  </div>
+                  {selected && <Check size={16} style={{ color: C.gold, flexShrink: 0 }} />}
+                </button>
+              );
+            })
+          )}
+        </div>
+
         <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Vaqt chegarasi</label>
         <select
           value={duration}
@@ -2503,7 +2556,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 
   if (active) return <QuizView test={active} onExit={back} />;
 
-  if (liveOpen) return <LiveQuizHub tests={approved} session={session} onExit={back} initialCode={initialLiveCode} />;
+  if (liveOpen) return <LiveQuizHub tests={viewable} session={session} onExit={back} initialCode={initialLiveCode} />;
 
   if (editing) {
     return (
