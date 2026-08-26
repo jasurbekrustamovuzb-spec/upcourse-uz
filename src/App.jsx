@@ -692,6 +692,102 @@ function CourseBody({ content, videoUrl }) {
   );
 }
 
+/* Kursor turgan joyga belgi qo'shadi (matematik klaviatura uchun) */
+function insertAtCursor(inputEl, currentValue, setValue, textToInsert) {
+  const start = inputEl?.selectionStart ?? currentValue.length;
+  const end = inputEl?.selectionEnd ?? currentValue.length;
+  const next = currentValue.slice(0, start) + textToInsert + currentValue.slice(end);
+  setValue(next);
+  requestAnimationFrame(() => {
+    if (inputEl) {
+      inputEl.focus();
+      const pos = start + textToInsert.length;
+      inputEl.setSelectionRange(pos, pos);
+    }
+  });
+}
+
+/* Matematik belgilar paneli — 3 bo'lim: Asosiy / Daraja-ildiz / Funksiya.
+   Tugma bosilganda onInsert(belgi) chaqiriladi. */
+function MathKeyPad({ onInsert, accent }) {
+  const [tab, setTab] = useState('basic');
+  const activeColor = accent || C.cover;
+  const TABS = {
+    basic: { label: 'Asosiy', keys: ['(', ')', '/', 'π', '%', ','] },
+    pow: {
+      label: 'Daraja / ildiz',
+      keys: [
+        { l: 'x²', v: '^2' },
+        { l: 'x³', v: '^3' },
+        { l: 'xⁿ', v: '^' },
+        { l: '√', v: '√' },
+      ],
+    },
+    fn: {
+      label: 'Funksiya',
+      keys: [
+        { l: 'sin', v: 'sin(' },
+        { l: 'cos', v: 'cos(' },
+        { l: 'tg', v: 'tg(' },
+        { l: 'ctg', v: 'ctg(' },
+        { l: 'log', v: 'log(' },
+        { l: 'ln', v: 'ln(' },
+      ],
+    },
+  };
+  return (
+    <div className="mt-2 p-2.5 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+      <div className="flex gap-1.5 mb-2 flex-wrap">
+        {Object.entries(TABS).map(([key, t]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className="px-2.5 py-1 rounded-sm text-xs"
+            style={{ ...fontBody, background: tab === key ? activeColor : 'transparent', color: tab === key ? C.white : C.inkSoft, border: `1px solid ${tab === key ? activeColor : C.rule}` }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {TABS[tab].keys.map((k, i) => {
+          const label = typeof k === 'string' ? k : k.l;
+          const val = typeof k === 'string' ? k : k.v;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onInsert(val)}
+              className="min-w-[42px] px-2.5 py-1.5 rounded-sm text-[15px]"
+              style={{ ...fontBody, background: C.surface, color: C.ink, border: `1px solid ${C.rule}` }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* Matematik klaviaturani ochib/yopib turadigan kichik dumaloq tugma */
+function MathKeyboardToggle({ open, onClick, accent }) {
+  const color = accent || C.accent;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Matematik klaviatura"
+      aria-label="Matematik klaviatura"
+      className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-sm transition-colors"
+      style={{ color: open ? C.white : color, background: open ? color : 'transparent', border: `1px solid ${color}` }}
+    >
+      <Calculator size={15} />
+    </button>
+  );
+}
+
 function TextField({ label, value, onChange, placeholder, textarea, rows }) {
   const common = {
     value,
@@ -705,70 +801,6 @@ function TextField({ label, value, onChange, placeholder, textarea, rows }) {
       <span className="block text-xs mb-1 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>{label}</span>
       {textarea ? <textarea rows={rows || 4} {...common} /> : <input type="text" {...common} />}
     </label>
-  );
-}
-
-/* Matematik/ilmiy belgilar paneli — yozma javob maydonlariga (test
-   tuzuvchi "to'g'ri javob" yozganda va o'quvchi javob yozganda) qo'shiladi.
-   Eng ko'p ishlatiladiganlari boshida, keyin trigonometriya/logarifm,
-   yunon harflari, to'plamlar va boshqa belgilar — bittagina gorizontal
-   siljiydigan qatorda, "|" belgilari faqat vizual ajratuvchi (bosilmaydi).
-   Tugma bosilganda belgi kursor turgan joyga qo'shiladi. */
-const SYMBOL_ITEMS = [
-  '√', 'x²', 'x³', '½', 'π', '°', '±', '≈', '≠', '≤', '≥', '|',
-  'sin', 'cos', 'tg', 'ctg', '|',
-  'log', 'ln', '|',
-  'α', 'β', 'γ', 'δ', 'θ', 'λ', 'μ', 'φ', 'Σ', 'Δ', '|',
-  '∅', '∈', '∉', '⊂', '⊆', '∪', '∩', '|',
-  '∞', '×', '÷', '∫',
-];
-
-function SymbolPicker({ getInput, value, onChange, disabled }) {
-  function insert(sym) {
-    if (disabled) return;
-    const el = typeof getInput === 'function' ? getInput() : null;
-    const current = value || '';
-    if (!el || el.selectionStart == null) {
-      onChange(current + sym);
-      return;
-    }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const next = current.slice(0, start) + sym + current.slice(end);
-    onChange(next);
-    requestAnimationFrame(() => {
-      try {
-        el.focus();
-        const pos = start + sym.length;
-        el.setSelectionRange(pos, pos);
-      } catch (e) { /* ba'zi input turlari selection'ni qo'llab-quvvatlamasligi mumkin */ }
-    });
-  }
-
-  return (
-    <div
-      className="flex items-center gap-1 overflow-x-auto pb-1.5 mb-3 -mx-1 px-1"
-      style={{ opacity: disabled ? 0.5 : 1 }}
-      aria-label="Matematik belgilar paneli"
-    >
-      {SYMBOL_ITEMS.map((s, i) =>
-        s === '|' ? (
-          <span key={`sep-${i}`} className="flex-shrink-0 w-px h-4 mx-0.5" style={{ background: C.rule }} />
-        ) : (
-          <button
-            key={s + i}
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => insert(s)}
-            disabled={disabled}
-            className="flex-shrink-0 px-2.5 py-1.5 rounded-md text-[13px] whitespace-nowrap focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontMono, color: C.ink, background: C.paperSoft, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-          >
-            {s}
-          </button>
-        )
-      )}
-    </div>
   );
 }
 
@@ -1408,7 +1440,10 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
   const [imageError, setImageError] = useState('');
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
-  const answerFieldRef = useRef(null);
+  const qTextRef = useRef(null);
+  const answersRef = useRef(null);
+  const [showMathQ, setShowMathQ] = useState(false);
+  const [showMathAns, setShowMathAns] = useState(false);
 
   function addQuestion() {
     if (!qText.trim()) return;
@@ -1544,7 +1579,24 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             )}
           </div>
 
-          <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol matni</span>
+              <MathKeyboardToggle open={showMathQ} onClick={() => setShowMathQ((v) => !v)} />
+            </div>
+            <input
+              ref={qTextRef}
+              type="text"
+              value={qText}
+              onChange={(e) => setQText(e.target.value)}
+              placeholder="Savolni yozing"
+              className="w-full bg-transparent outline-none py-2 text-base"
+              style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
+            />
+            {showMathQ && (
+              <MathKeyPad onInsert={(v) => insertAtCursor(qTextRef.current, qText, setQText, v)} />
+            )}
+          </div>
 
           <div className="mb-3">
             <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
@@ -1597,10 +1649,13 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             </>
           ) : (
             <>
-              <label className="block mb-1">
-                <span className="block text-xs mb-1 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Toʻgʻri javob(lar)</span>
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Toʻgʻri javob(lar)</span>
+                  <MathKeyboardToggle open={showMathAns} onClick={() => setShowMathAns((v) => !v)} />
+                </div>
                 <textarea
-                  ref={answerFieldRef}
+                  ref={answersRef}
                   rows={2}
                   value={answersText}
                   onChange={(e) => setAnswersText(e.target.value)}
@@ -1608,8 +1663,10 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                   className="w-full bg-transparent outline-none py-2 text-base"
                   style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
                 />
-              </label>
-              <SymbolPicker getInput={() => answerFieldRef.current} value={answersText} onChange={setAnswersText} />
+                {showMathAns && (
+                  <MathKeyPad onInsert={(v) => insertAtCursor(answersRef.current, answersText, setAnswersText, v)} />
+                )}
+              </div>
             </>
           )}
 
@@ -1861,7 +1918,8 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
   const [seconds, setSeconds] = useState(0);
   const [paused, setPaused] = useState(false);
   const questionRefs = useRef({});
-  const openInputRefs = useRef({});
+  const [mathKeyboardFor, setMathKeyboardFor] = useState(null);
+  const answerInputRefs = useRef({});
 
   useEffect(() => {
     if (finished || paused) return;
@@ -2003,27 +2061,33 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                   )}
                   {q.type === 'open' ? (
                     <div>
-                      <input
-                        ref={(el) => { openInputRefs.current[q.id] = el; }}
-                        type="text"
-                        value={answers[q.id] || ''}
-                        onChange={(e) => setOpenAnswer(q.id, e.target.value)}
-                        onBlur={() => confirmOpenAnswer(q.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
-                        disabled={showResult}
-                        placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
-                        className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
-                        style={{
-                          ...fontBody, color: C.ink,
-                          background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
-                          border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
-                        }}
-                      />
-                      {!showResult && (
-                        <SymbolPicker
-                          getInput={() => openInputRefs.current[q.id]}
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={(el) => { answerInputRefs.current[q.id] = el; }}
+                          type="text"
                           value={answers[q.id] || ''}
-                          onChange={(v) => setOpenAnswer(q.id, v)}
+                          onChange={(e) => setOpenAnswer(q.id, e.target.value)}
+                          onBlur={() => confirmOpenAnswer(q.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+                          disabled={showResult}
+                          placeholder="Javobni kiriting (masalan: 1/2 yoki 0,5)"
+                          className="flex-1 min-w-0 px-4 py-2.5 rounded-sm text-[15px] outline-none"
+                          style={{
+                            ...fontBody, color: C.ink,
+                            background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
+                            border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
+                          }}
+                        />
+                        {!showResult && (
+                          <MathKeyboardToggle
+                            open={mathKeyboardFor === q.id}
+                            onClick={() => setMathKeyboardFor((cur) => (cur === q.id ? null : q.id))}
+                          />
+                        )}
+                      </div>
+                      {mathKeyboardFor === q.id && !showResult && (
+                        <MathKeyPad
+                          onInsert={(v) => insertAtCursor(answerInputRefs.current[q.id], answers[q.id] || '', (val) => setOpenAnswer(q.id, val), v)}
                         />
                       )}
                       {showResult && (
@@ -2324,6 +2388,8 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [remaining, setRemaining] = useState(9999);
+  const [mathKeyboardFor, setMathKeyboardFor] = useState(null);
+  const answerInputRefs = useRef({});
 
   async function submit(currentAnswers) {
     if (submitted) return;
@@ -2383,15 +2449,33 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
               <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
             )}
             {q.type === 'open' ? (
-              <input
-                type="text"
-                value={answers[q.id] || ''}
-                onChange={(e) => setOpenAnswer(q.id, e.target.value)}
-                disabled={submitted}
-                placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
-                className="w-full px-4 py-2.5 rounded-2xl text-[15px] outline-none"
-                style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
-              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={(el) => { answerInputRefs.current[q.id] = el; }}
+                    type="text"
+                    value={answers[q.id] || ''}
+                    onChange={(e) => setOpenAnswer(q.id, e.target.value)}
+                    disabled={submitted}
+                    placeholder="Javobni kiriting (masalan: 1/2 yoki 0,5)"
+                    className="flex-1 min-w-0 px-4 py-2.5 rounded-2xl text-[15px] outline-none"
+                    style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+                  />
+                  {!submitted && (
+                    <MathKeyboardToggle
+                      accent={C.live}
+                      open={mathKeyboardFor === q.id}
+                      onClick={() => setMathKeyboardFor((cur) => (cur === q.id ? null : q.id))}
+                    />
+                  )}
+                </div>
+                {mathKeyboardFor === q.id && !submitted && (
+                  <MathKeyPad
+                    accent={C.live}
+                    onInsert={(v) => insertAtCursor(answerInputRefs.current[q.id], answers[q.id] || '', (val) => setOpenAnswer(q.id, val), v)}
+                  />
+                )}
+              </div>
             ) : (
             <div className="space-y-2">
               {q.options.map((opt, oi) => {
