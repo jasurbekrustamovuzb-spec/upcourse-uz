@@ -2064,6 +2064,18 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const [now, setNow] = useState(Date.now());
   const advancingRef = useRef(false);
   const [revealStage, setRevealStage] = useState(0);
+  /* Vaqtni serverning "phaseStartedAt" vaqti bilan solishtirish o'rniga —
+     har safar savol/bosqich almashganda shu qurilmaning O'Z soatidan
+     "hozir"ni belgilab olamiz va shundan buyon o'tgan soniyalarni sanaymiz.
+     Shu tufayli qurilma soatining server bilan bir necha soniya farq
+     qilishi (noto'g'ri sozlangan vaqt, internetdan olingan vaqt farqi va
+     h.k.) taymerni "0s" qilib ko'rsatib qo'ymaydi.
+     Muhim: bu yangilanish useEffect'da emas, render vaqtida (sinxron)
+     bajariladi — aks holda savol almashgan zahoti bitta render давомида
+     eski anchor bilan hisoblanib, taymer bir lahzaga "0s" bo'lib ko'rinib,
+     javobni muddatidan oldin "yo'q" deb yuborib yuborishi mumkin edi. */
+  const phaseKeyRef = useRef(null);
+  const phaseAnchorRef = useRef(Date.now());
 
   const order = room.questionOrder && room.questionOrder.length === test.questions.length
     ? room.questionOrder
@@ -2072,14 +2084,19 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
   const INTERMISSION_SECONDS = 6;
 
+  const phaseKey = `${room.phase}:${room.currentIndex}`;
+  if (phaseKeyRef.current !== phaseKey) {
+    phaseKeyRef.current = phaseKey;
+    phaseAnchorRef.current = Date.now();
+  }
+
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
   }, []);
 
   const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
-  const startedMs = room.phaseStartedAt ? new Date(room.phaseStartedAt).getTime() : now;
-  const elapsedMs = now - startedMs;
+  const elapsedMs = now - phaseAnchorRef.current;
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
 
   const answeredCount = currentQuestion
@@ -2582,15 +2599,30 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const [participants, setParticipants] = useState([]);
   const scoreRef = useRef(participant.score || 0);
   const submittingRef = useRef(false);
+  /* Xuddi host tomonidagi kabi — qurilma soatining server bilan farq
+     qilishi taymerni "0s" qilib ko'rsatib qo'ymasligi uchun, har safar
+     savol/bosqich almashganda shu qurilmaning o'z "hozir"sidan boshlab
+     sanaymiz, server vaqtiga (room.phaseStartedAt) taqqoslamaymiz.
+     Bu yangilanish render vaqtida (sinxron) bajariladi — useEffect'da
+     bo'lsa, bir render davomida eski anchor ishlatilib, javob muddatidan
+     oldin "yo'q" deb yuborilib qolishi mumkin edi. */
+  const phaseKeyRef = useRef(null);
+  const phaseAnchorRef = useRef(Date.now());
 
   const order = room.questionOrder && room.questionOrder.length === test.questions.length
     ? room.questionOrder
     : test.questions.map((_, i) => i);
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
   const INTERMISSION_SECONDS = 6;
+
+  const phaseKey = `${room.phase}:${room.currentIndex}`;
+  if (phaseKeyRef.current !== phaseKey) {
+    phaseKeyRef.current = phaseKey;
+    phaseAnchorRef.current = Date.now();
+  }
+
   const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
-  const startedMs = room.phaseStartedAt ? new Date(room.phaseStartedAt).getTime() : now;
-  const elapsedMs = now - startedMs;
+  const elapsedMs = now - phaseAnchorRef.current;
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
   const hasAnswered = currentQuestion ? myAnswers[currentQuestion.id] !== undefined : false;
 
@@ -2624,7 +2656,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     if (!currentQuestion || submittingRef.current) return;
     if (myAnswers[currentQuestion.id] !== undefined) return;
     submittingRef.current = true;
-    const timeTakenMs = Math.min(phaseLimitMs, Math.max(0, now - startedMs));
+    const timeTakenMs = Math.min(phaseLimitMs, Math.max(0, now - phaseAnchorRef.current));
     const correct = isQuestionCorrect(currentQuestion, answerValue);
     const points = computeSyncScore(correct, timeTakenMs, phaseLimitMs);
     const newAnswers = { ...myAnswers, [currentQuestion.id]: { answer: answerValue, correct, points } };
