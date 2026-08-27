@@ -2092,18 +2092,24 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
     if (advancingRef.current) return;
 
     async function advance() {
+      if (advancingRef.current) return;
       advancingRef.current = true;
       try {
         if (room.phase === 'question') {
           const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'intermission', phase_started_at: new Date().toISOString() });
           setRoom(liveRoomFromRow(updated));
         } else if (room.phase === 'intermission') {
-          const nextIndex = room.currentIndex + 1;
-          if (nextIndex < totalQuestions) {
-            const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'question', current_index: nextIndex, phase_started_at: new Date().toISOString() });
+          // currentIndex savollar sonidan oshib ketmasligi uchun qattiq himoya:
+          // agar allaqachon oxirgi savolda bo'lsak (yoki undan nariga chiqib
+          // ketgan bo'lsak), currentIndex'ni oshirmasdan darhol "finished"ga
+          // o'tkazamiz — shu bilan test.questions[...] undefined bo'lib,
+          // ekran bo'sh qolib qolishining oldi olinadi.
+          const nextIndex = Math.min(room.currentIndex + 1, totalQuestions);
+          if (room.currentIndex >= totalQuestions - 1 || nextIndex >= totalQuestions) {
+            const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'finished', status: 'finished' });
             setRoom(liveRoomFromRow(updated));
           } else {
-            const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'finished', status: 'finished' });
+            const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'question', current_index: nextIndex, phase_started_at: new Date().toISOString() });
             setRoom(liveRoomFromRow(updated));
           }
         }
@@ -2128,6 +2134,24 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
     ];
     return () => timers.forEach(clearTimeout);
   }, [room.status]);
+
+  /* currentQuestion vaqtincha topilmasa (masalan currentIndex bilan
+     savollar tartibi orasida bir lahzalik nomuvofiqlik) — ekranni bo'sh
+     qoldirmasdan, 1.8 soniyadan keyin xonani serverdan qayta o'qib,
+     holatni yangilashga urinamiz. */
+  useEffect(() => {
+    if (room.status === 'finished') return;
+    if (room.phase !== 'question' || currentQuestion) return;
+    const t = setTimeout(async () => {
+      try {
+        const fresh = await sbGetRoom(room.id);
+        if (fresh) setRoom(fresh);
+      } catch (e) {
+        // keyingi urinishda qayta tekshiriladi
+      }
+    }, 1800);
+    return () => clearTimeout(t);
+  }, [room.status, room.phase, room.currentIndex, room.id, currentQuestion, setRoom]);
 
   if (room.status === 'finished') {
     const sorted = [...participants].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
@@ -2214,6 +2238,12 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {room.phase === 'question' && !peekLeaderboard && !currentQuestion && (
+        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
         </div>
       )}
 
@@ -2669,6 +2699,12 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {room.phase === 'question' && !currentQuestion && (
+        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
         </div>
       )}
 
