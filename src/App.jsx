@@ -318,8 +318,13 @@ function getDeviceKey() {
     return uid() + uid();
   }
 }
-const liveRoomFromRow = (r) => ({ id: r.id, code: r.code, testId: r.test_id, hostId: r.host_id, hostName: r.host_name || '', status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, createdAt: r.created_at });
-const liveParticipantFromRow = (r) => ({ id: r.id, roomId: r.room_id, name: r.name, deviceKey: r.device_key, score: r.score, total: r.total, submittedAt: r.submitted_at, joinedAt: r.joined_at });
+const liveRoomFromRow = (r) => ({
+  id: r.id, code: r.code, testId: r.test_id, hostId: r.host_id, hostName: r.host_name || '',
+  status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, createdAt: r.created_at,
+  mode: r.mode || 'free', perQuestionSeconds: r.per_question_seconds || 20, phase: r.phase || 'lobby',
+  currentIndex: r.current_index || 0, phaseStartedAt: r.phase_started_at, questionOrder: r.question_order || null,
+});
+const liveParticipantFromRow = (r) => ({ id: r.id, roomId: r.room_id, name: r.name, deviceKey: r.device_key, score: r.score, total: r.total, submittedAt: r.submitted_at, joinedAt: r.joined_at, answers: r.answers || {} });
 async function sbFindRoomByCode(code) {
   const rows = await sbRequest(`live_rooms?select=*&code=eq.${encodeURIComponent(code)}`);
   return rows.length ? liveRoomFromRow(rows[0]) : null;
@@ -1268,6 +1273,14 @@ function isQuestionCorrect(q, userAnswer) {
   return userAnswer === q.correct;
 }
 
+/* "Barchaga bir xil" (Kahoot) rejimida vaqtga proporsional ball:
+   to'g'ri javob kamida 50, zudlik bilan javob bersa 100 gacha boradi. */
+function computeSyncScore(correct, timeTakenMs, limitMs) {
+  if (!correct) return 0;
+  const frac = Math.max(0, Math.min(1, 1 - timeTakenMs / Math.max(1, limitMs)));
+  return Math.round(50 + 50 * frac);
+}
+
 /* TXT fayldan variantli savollarni o'qish. Kutilgan format:
    Savol matni? (raqami bo'lsa ham, bo'lmasa ham farqi yo'q)
    A) variant
@@ -2008,7 +2021,7 @@ function QuizView({ test, onExit }) {
 /*  Jonli test rejimi (guruh bo'lib bir vaqtda ishlash)                */
 /* ------------------------------------------------------------------ */
 
-function LiveLeaderboardList({ participants }) {
+function LiveLeaderboardList({ participants, showAsPoints }) {
   const sorted = [...participants].sort((a, b) => {
     const as = a.score ?? -1, bs = b.score ?? -1;
     return bs - as;
@@ -2033,12 +2046,185 @@ function LiveLeaderboardList({ participants }) {
               <span className="truncate">{p.name}</span>
             </div>
             <span className="flex-shrink-0" style={{ ...fontMono, color: i < 3 ? C.liveSoft : C.inkSoft }}>
-              {p.score != null ? `${p.score}/${p.total}` : 'ishlamoqda...'}
+              {showAsPoints ? `${p.score ?? 0} ball` : (p.score != null ? `${p.score}/${p.total}` : 'ishlamoqda...')}
             </span>
           </div>
         );
       })}
       {sorted.length === 0 && <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Hali hech kim yoʻq.</div>}
+    </div>
+  );
+}
+
+/* "Barchaga bir xil" (Kahoot uslubi) rejimida tuzuvchi ekrani —
+   savol/reyting almashtirish, avtomatik keyingi savolga o'tish,
+   yakunda podium (3-2-1 o'rin) ko'rsatish. */
+function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
+  const [peekLeaderboard, setPeekLeaderboard] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const advancingRef = useRef(false);
+  const [revealStage, setRevealStage] = useState(0);
+
+  const order = room.questionOrder && room.questionOrder.length === test.questions.length
+    ? room.questionOrder
+    : test.questions.map((_, i) => i);
+  const totalQuestions = test.questions.length;
+  const currentQuestion = test.questions[order[room.currentIndex]] || null;
+  const INTERMISSION_SECONDS = 6;
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, []);
+
+  const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
+  const startedMs = room.phaseStartedAt ? new Date(room.phaseStartedAt).getTime() : now;
+  const elapsedMs = now - startedMs;
+  const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
+
+  const answeredCount = currentQuestion
+    ? participants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
+    : 0;
+  const allAnswered = participants.length > 0 && answeredCount >= participants.length;
+
+  useEffect(() => {
+    if (room.status === 'finished') return;
+    if (advancingRef.current) return;
+
+    async function advance() {
+      advancingRef.current = true;
+      try {
+        if (room.phase === 'question') {
+          const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'intermission', phase_started_at: new Date().toISOString() });
+          setRoom(liveRoomFromRow(updated));
+        } else if (room.phase === 'intermission') {
+          const nextIndex = room.currentIndex + 1;
+          if (nextIndex < totalQuestions) {
+            const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'question', current_index: nextIndex, phase_started_at: new Date().toISOString() });
+            setRoom(liveRoomFromRow(updated));
+          } else {
+            const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'finished', status: 'finished' });
+            setRoom(liveRoomFromRow(updated));
+          }
+        }
+      } catch (e) {
+        // keyingi tikda qayta urinib ko'riladi
+      } finally {
+        advancingRef.current = false;
+      }
+    }
+
+    if (room.phase === 'question' && (secondsLeft <= 0 || allAnswered)) advance();
+    else if (room.phase === 'intermission' && secondsLeft <= 0) advance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft, allAnswered, room.phase, room.status]);
+
+  useEffect(() => {
+    if (room.status !== 'finished') { setRevealStage(0); return; }
+    const timers = [
+      setTimeout(() => setRevealStage(1), 500),
+      setTimeout(() => setRevealStage(2), 1700),
+      setTimeout(() => setRevealStage(3), 2900),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [room.status]);
+
+  if (room.status === 'finished') {
+    const sorted = [...participants].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    const podium = [sorted[1], sorted[0], sorted[2]]; // 2-1-3 tartibida (o'rtada 1-o'rin)
+    const podiumHeights = ['h-24', 'h-32', 'h-16'];
+    const podiumRanks = [2, 1, 3];
+    return (
+      <div>
+        <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+        <SectionHeading eyebrow="Yakun" title="Test tugadi 🎉" />
+
+        <div className="flex items-end justify-center gap-3 mb-8 mt-6" style={{ minHeight: '160px' }}>
+          {podium.map((p, i) => {
+            const shown = revealStage > i;
+            if (!p) return <div key={i} className="w-24" />;
+            return (
+              <div key={p.id} className={`flex flex-col items-center transition-all duration-500 ${shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                <div className="text-sm mb-1 truncate max-w-[90px] text-center" style={{ ...fontBody, color: C.ink }}>{p.name}</div>
+                <div className="text-xs mb-2" style={{ ...fontMono, color: C.live }}>{p.score ?? 0} ball</div>
+                <div
+                  className={`w-24 ${podiumHeights[i]} rounded-t-xl flex items-start justify-center pt-2`}
+                  style={{ background: podiumRanks[i] === 1 ? C.live : podiumRanks[i] === 2 ? C.silver : C.bronze }}
+                >
+                  <span className="text-xl" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>{podiumRanks[i]}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {revealStage >= 3 && (
+          <div className="app-fade-slide">
+            <GhostButton onClick={() => setPeekLeaderboard((v) => !v)} icon={Trophy}>
+              {peekLeaderboard ? 'Yopish' : "Toʻliq reytingni koʻrish"}
+            </GhostButton>
+            {peekLeaderboard && (
+              <div className="mt-4">
+                <LiveLeaderboardList participants={participants} showAsPoints />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <SectionHeading eyebrow={`${room.currentIndex + 1} / ${totalQuestions}-savol`} title={test.title} />
+        <div
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] flex-shrink-0 ${secondsLeft <= 5 ? 'live-pulse' : ''}`}
+          style={{ ...fontMono, color: secondsLeft <= 5 ? C.white : C.live, background: secondsLeft <= 5 ? C.red : C.liveTint, fontWeight: 600 }}
+        >
+          <Clock3 size={14} /> {secondsLeft}s
+        </div>
+      </div>
+
+      {room.phase === 'question' && (
+        <div className="mb-4">
+          <GhostButton onClick={() => setPeekLeaderboard((v) => !v)} icon={peekLeaderboard ? BookOpen : Trophy}>
+            {peekLeaderboard ? 'Savolni koʻrsatish' : 'Reytingni koʻrish'}
+          </GhostButton>
+          <span className="ml-3 text-sm" style={{ ...fontMono, color: C.inkSoft }}>{answeredCount}/{participants.length} javob berdi</span>
+        </div>
+      )}
+
+      {room.phase === 'question' && !peekLeaderboard && currentQuestion && (
+        <div className="max-w-2xl">
+          <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}</div>
+          {currentQuestion.imageUrl && (
+            <img src={currentQuestion.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
+          )}
+          {currentQuestion.type === 'open' ? (
+            <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Yozma javobli savol — ishtirokchilar o'z ekranida javob yozmoqda.</div>
+          ) : (
+            <div className="space-y-2">
+              {currentQuestion.options.map((opt, oi) => (
+                <div key={oi} className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>
+                  <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                  <span>{opt}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(room.phase === 'intermission' || peekLeaderboard) && (
+        <div>
+          {room.phase === 'intermission' && (
+            <div className="text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>Keyingi savol {secondsLeft} soniyadan keyin...</div>
+          )}
+          <LiveLeaderboardList participants={participants} showAsPoints />
+        </div>
+      )}
     </div>
   );
 }
@@ -2050,12 +2236,24 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
   const [query, setQuery] = useState('');
   const [testId, setTestId] = useState('');
   const [duration, setDuration] = useState(300);
+  const [liveMode, setLiveMode] = useState('sync');
+  const [perQSeconds, setPerQSeconds] = useState(20);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
   const scoped = scope === 'mine' ? myTests : tests;
   const q = query.trim().toLowerCase();
   const filtered = q ? scoped.filter((t) => t.title.toLowerCase().includes(q)) : scoped;
+  const selectedTest = tests.find((t) => t.id === testId);
+
+  function shuffledIndices(n) {
+    const arr = Array.from({ length: n }, (_, i) => i);
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
 
   async function create() {
     if (!testId) return;
@@ -2073,6 +2271,8 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
         code, test_id: testId, host_id: session.user.id,
         host_name: (meta.given_name || meta.full_name || meta.name || '').trim(),
         status: 'waiting', duration_seconds: duration,
+        mode: liveMode, per_question_seconds: perQSeconds, phase: 'lobby', current_index: 0,
+        question_order: liveMode === 'sync' && selectedTest ? shuffledIndices(selectedTest.questions.length) : null,
       };
       const [created] = await sbInsert('live_rooms', row);
       onCreated(liveRoomFromRow(created));
@@ -2153,19 +2353,64 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
           )}
         </div>
 
-        <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Vaqt chegarasi</label>
-        <select
-          value={duration}
-          onChange={(e) => setDuration(Number(e.target.value))}
-          className="w-full mb-4 px-3 py-2.5 rounded-2xl text-[15px] outline-none"
-          style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
-        >
-          <option value={180}>3 daqiqa</option>
-          <option value={300}>5 daqiqa</option>
-          <option value={600}>10 daqiqa</option>
-          <option value={900}>15 daqiqa</option>
-          <option value={1200}>20 daqiqa</option>
-        </select>
+        <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Rejim</label>
+        <div className="flex gap-1 p-1 rounded-full mb-4 w-fit" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+          <button
+            onClick={() => setLiveMode('sync')}
+            className="px-3 py-1.5 rounded-full text-xs transition-colors"
+            style={{ ...fontBody, background: liveMode === 'sync' ? C.live : 'transparent', color: liveMode === 'sync' ? C.white : C.inkSoft }}
+          >
+            Barchaga bir xil
+          </button>
+          <button
+            onClick={() => setLiveMode('free')}
+            className="px-3 py-1.5 rounded-full text-xs transition-colors"
+            style={{ ...fontBody, background: liveMode === 'free' ? C.live : 'transparent', color: liveMode === 'free' ? C.white : C.inkSoft }}
+          >
+            Erkin tezlik
+          </button>
+        </div>
+        <div className="text-xs mb-4 -mt-2" style={{ ...fontBody, color: C.inkSoft }}>
+          {liveMode === 'sync'
+            ? 'Hammada bitta savol bir vaqtda chiqadi (Kahoot uslubi). Tez javob bergan koʻproq ball oladi.'
+            : 'Har kim testni oʻzi xohlagan tezlikda, mustaqil ishlaydi.'}
+        </div>
+
+        {liveMode === 'sync' ? (
+          <>
+            <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Har bir savolga vaqt</label>
+            <select
+              value={perQSeconds}
+              onChange={(e) => setPerQSeconds(Number(e.target.value))}
+              className="w-full mb-4 px-3 py-2.5 rounded-2xl text-[15px] outline-none"
+              style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
+            >
+              <option value={10}>10 soniya</option>
+              <option value={15}>15 soniya</option>
+              <option value={20}>20 soniya</option>
+              <option value={30}>30 soniya</option>
+              <option value={60}>60 soniya</option>
+              <option value={120}>120 soniya</option>
+              <option value={180}>180 soniya</option>
+            </select>
+          </>
+        ) : (
+          <>
+            <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Vaqt chegarasi</label>
+            <select
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+              className="w-full mb-4 px-3 py-2.5 rounded-2xl text-[15px] outline-none"
+              style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
+            >
+              <option value={180}>3 daqiqa</option>
+              <option value={300}>5 daqiqa</option>
+              <option value={600}>10 daqiqa</option>
+              <option value={900}>15 daqiqa</option>
+              <option value={1200}>20 daqiqa</option>
+            </select>
+          </>
+        )}
         {err && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{err}</div>}
         <SolidButton onClick={create} icon={Users} disabled={busy || !testId}>{busy ? 'Yaratilmoqda...' : 'Xona yaratish'}</SolidButton>
       </div>
@@ -2173,10 +2418,12 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
   );
 }
 
-function LiveHostLobby({ room, setRoom, onExit }) {
+function LiveHostLobby({ room, setRoom, tests, onExit }) {
   const [participants, setParticipants] = useState([]);
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [removingId, setRemovingId] = useState(null);
+  const test = tests.find((t) => t.id === room.testId);
 
   useEffect(() => {
     let cancelled = false;
@@ -2190,7 +2437,7 @@ function LiveHostLobby({ room, setRoom, onExit }) {
       } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
     }
     poll();
-    const t = setInterval(poll, 3000);
+    const t = setInterval(poll, room.mode === 'sync' ? 1500 : 3000);
     return () => { cancelled = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
@@ -2198,7 +2445,13 @@ function LiveHostLobby({ room, setRoom, onExit }) {
   async function start() {
     setStarting(true);
     try {
-      const [updated] = await sbUpdate('live_rooms', room.id, { status: 'active', starts_at: new Date().toISOString() });
+      const patch = { status: 'active', starts_at: new Date().toISOString() };
+      if (room.mode === 'sync') {
+        patch.phase = 'question';
+        patch.current_index = 0;
+        patch.phase_started_at = new Date().toISOString();
+      }
+      const [updated] = await sbUpdate('live_rooms', room.id, patch);
       setRoom(liveRoomFromRow(updated));
     } catch (e) {
       // xato bo'lsa, keyingi poll orqali holat baribir yangilanadi
@@ -2213,6 +2466,30 @@ function LiveHostLobby({ room, setRoom, onExit }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) { /* clipboard mavjud bo'lmasa e'tiborsiz qoldiriladi */ }
+  }
+
+  async function removeParticipant(id) {
+    setRemovingId(id);
+    try {
+      await sbDelete('live_participants', id);
+      setParticipants((prev) => prev.filter((p) => p.id !== id));
+    } catch (e) {
+      // xato bo'lsa, keyingi poll orqali ro'yxat baribir yangilanadi
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  if ((room.status === 'active' || room.status === 'finished') && room.mode === 'sync' && test) {
+    return (
+      <LiveHostSyncPlay
+        room={room}
+        setRoom={setRoom}
+        test={test}
+        participants={participants}
+        onExit={onExit}
+      />
+    );
   }
 
   if (room.status === 'active' || room.status === 'finished') {
@@ -2244,7 +2521,19 @@ function LiveHostLobby({ room, setRoom, onExit }) {
       <div className="text-[14px] mb-3" style={{ ...fontMono, color: C.inkSoft }}>{participants.length} kishi qoʻshildi</div>
       <div className="space-y-2 mb-6 max-w-sm">
         {participants.map((p) => (
-          <div key={p.id} className="app-fade-slide px-3 py-2 rounded-2xl text-[14px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>{p.name}</div>
+          <div key={p.id} className="app-fade-slide flex items-center justify-between gap-2 px-3 py-2 rounded-2xl text-[14px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>
+            <span className="min-w-0 truncate">{p.name}</span>
+            <button
+              onClick={() => removeParticipant(p.id)}
+              disabled={removingId === p.id}
+              className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full"
+              style={{ color: C.red }}
+              title="Qatnashchini chiqarib yuborish"
+              aria-label={`${p.name} ni chiqarib yuborish`}
+            >
+              <X size={14} />
+            </button>
+          </div>
         ))}
         {participants.length === 0 && <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Hali hech kim qoʻshilmadi. Kodni ulashing...</div>}
       </div>
@@ -2252,6 +2541,173 @@ function LiveHostLobby({ room, setRoom, onExit }) {
     </div>
   );
 }
+
+/* "Barchaga bir xil" rejimida ishtirokchi (o'quvchi) ekrani.
+   Har bir savol serverdan kelgan vaqt bo'yicha hammada bir xil
+   chiqadi; javob bergan zahoti ball hisoblanadi (tezroq — ko'proq). */
+function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
+  const [myAnswers, setMyAnswers] = useState({});
+  const [openText, setOpenText] = useState('');
+  const [now, setNow] = useState(Date.now());
+  const [participants, setParticipants] = useState([]);
+  const scoreRef = useRef(participant.score || 0);
+  const submittingRef = useRef(false);
+
+  const order = room.questionOrder && room.questionOrder.length === test.questions.length
+    ? room.questionOrder
+    : test.questions.map((_, i) => i);
+  const currentQuestion = test.questions[order[room.currentIndex]] || null;
+  const INTERMISSION_SECONDS = 6;
+  const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
+  const startedMs = room.phaseStartedAt ? new Date(room.phaseStartedAt).getTime() : now;
+  const elapsedMs = now - startedMs;
+  const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
+  const hasAnswered = currentQuestion ? myAnswers[currentQuestion.id] !== undefined : false;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const [fresh, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (!cancelled) {
+          if (fresh) setRoom(fresh);
+          setParticipants(list);
+        }
+      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
+    }
+    poll();
+    const t = setInterval(poll, 1500);
+    return () => { cancelled = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.id]);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 300);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    setOpenText('');
+  }, [room.currentIndex]);
+
+  async function submitAnswer(answerValue) {
+    if (!currentQuestion || submittingRef.current) return;
+    if (myAnswers[currentQuestion.id] !== undefined) return;
+    submittingRef.current = true;
+    const timeTakenMs = Math.min(phaseLimitMs, Math.max(0, now - startedMs));
+    const correct = isQuestionCorrect(currentQuestion, answerValue);
+    const points = computeSyncScore(correct, timeTakenMs, phaseLimitMs);
+    const newAnswers = { ...myAnswers, [currentQuestion.id]: { answer: answerValue, correct, points } };
+    setMyAnswers(newAnswers);
+    try {
+      const newScore = scoreRef.current + points;
+      scoreRef.current = newScore;
+      await sbUpdate('live_participants', participant.id, { score: newScore, total: test.questions.length, answers: newAnswers });
+    } catch (e) { /* keyingi savolda qayta urinish mumkin */ }
+    submittingRef.current = false;
+  }
+
+  useEffect(() => {
+    if (room.phase !== 'question' || !currentQuestion || secondsLeft > 0 || hasAnswered) return;
+    submitAnswer(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft, room.phase, hasAnswered]);
+
+  if (room.status === 'finished') {
+    return <LiveSyncFinished participants={participants} myId={participant.id} onExit={onExit} />;
+  }
+
+  return (
+    <div>
+      <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+      <div className="flex items-center justify-between gap-3 mb-5">
+        <h3 className="text-xl sm:text-2xl min-w-0 truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{room.currentIndex + 1}-savol</h3>
+        <div
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] flex-shrink-0 ${secondsLeft <= 5 ? 'live-pulse' : ''}`}
+          style={{ ...fontMono, color: secondsLeft <= 5 ? C.white : C.live, background: secondsLeft <= 5 ? C.red : C.liveTint, fontWeight: 600 }}
+        >
+          <Clock3 size={14} /> {secondsLeft}s
+        </div>
+      </div>
+
+      {room.phase === 'question' && currentQuestion && (
+        <div className="max-w-2xl">
+          <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}</div>
+          {currentQuestion.imageUrl && (
+            <img src={currentQuestion.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
+          )}
+
+          {hasAnswered ? (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.liveTint, border: `1px solid ${C.live}`, color: C.ink }}>
+              <Check size={16} style={{ color: C.live }} /> Javobingiz qabul qilindi. Kuting...
+            </div>
+          ) : currentQuestion.type === 'open' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={openText}
+                onChange={(e) => setOpenText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && openText.trim()) submitAnswer(openText); }}
+                placeholder="Javobingizni yozing"
+                className="flex-1 min-w-0 px-4 py-2.5 rounded-2xl text-[15px] outline-none"
+                style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+              />
+              <SolidButton onClick={() => submitAnswer(openText)} icon={Check} disabled={!openText.trim()}>Yuborish</SolidButton>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {currentQuestion.options.map((opt, oi) => (
+                <button
+                  key={oi}
+                  onClick={() => submitAnswer(oi)}
+                  className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+                  style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink, outlineColor: C.live }}
+                >
+                  <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                  <span>{opt}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {room.phase === 'intermission' && (
+        <div>
+          <div className="text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>Joriy reyting — keyingi savol tez orada...</div>
+          <LiveLeaderboardList participants={participants} showAsPoints />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveSyncFinished({ participants, myId, onExit }) {
+  const [showFull, setShowFull] = useState(false);
+  const sorted = [...participants].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const myIndex = sorted.findIndex((p) => p.id === myId);
+  const me = sorted[myIndex];
+  return (
+    <div>
+      <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+      <SectionHeading eyebrow="Yakun" title="Test tugadi 🎉" />
+      {me && (
+        <div className="p-5 rounded-2xl mb-5 max-w-xs text-center" style={{ background: C.cover, border: `1px solid ${C.live}` }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ ...fontMono, color: C.liveSoft }}>Sizning oʻringiz</div>
+          <div className="text-3xl mb-1" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>{myIndex + 1}-oʻrin</div>
+          <div className="text-sm" style={{ ...fontMono, color: C.liveSoft }}>{me.score ?? 0} ball</div>
+        </div>
+      )}
+      <GhostButton onClick={() => setShowFull((v) => !v)} icon={Trophy}>{showFull ? 'Yopish' : "Toʻliq reytingni koʻrish"}</GhostButton>
+      {showFull && (
+        <div className="mt-4">
+          <LiveLeaderboardList participants={participants} showAsPoints />
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function LiveJoinForm({ initialCode, onJoined, onBack }) {
   const [code, setCode] = useState(initialCode || '');
@@ -2396,7 +2852,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 }
 
 function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
-  const [phase, setPhase] = useState(room.status === 'active' ? 'quiz' : 'waiting');
+  const [phase, setPhase] = useState(room.status === 'waiting' ? 'waiting' : 'quiz');
   const [participants, setParticipants] = useState([]);
   const test = tests.find((t) => t.id === room.testId);
 
@@ -2408,8 +2864,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
         const fresh = await sbGetRoom(room.id);
         if (!cancelled && fresh) {
           setRoom(fresh);
-          if (fresh.status === 'active') setPhase('quiz');
-          if (fresh.status === 'finished') setPhase('results');
+          if (fresh.status !== 'waiting') setPhase('quiz');
         }
       } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
     }
@@ -2448,6 +2903,9 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
   }
 
   if (phase === 'quiz' && test) {
+    if (room.mode === 'sync') {
+      return <LiveSyncPlayer room={room} setRoom={setRoom} test={test} participant={participant} onExit={onExit} />;
+    }
     return <LiveQuizPlayer room={room} test={test} participant={participant} onDone={() => setPhase('results')} />;
   }
 
@@ -2499,7 +2957,7 @@ function LiveQuizHub({ tests, session, onExit, initialCode }) {
     return <LiveHostSetup tests={tests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); }} onBack={() => setMode(null)} />;
   }
   if (mode === 'host-lobby' && room) {
-    return <LiveHostLobby room={room} setRoom={setRoom} onExit={() => { setMode(null); setRoom(null); }} />;
+    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); }} />;
   }
   if (mode === 'join-form') {
     return <LiveJoinForm initialCode={initialCode} onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); }} onBack={() => setMode(null)} />;
