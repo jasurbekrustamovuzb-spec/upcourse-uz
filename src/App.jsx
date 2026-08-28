@@ -4762,14 +4762,44 @@ export default function App() {
   /* Kurs/test qoʻshilganda erkin "soha nomi"ni mavjud sohaga bogʻlaydi
      yoki (topilmasa) admin tekshiruvi kutilayotgan yangi soha yaratadi. */
   async function resolveCategoryId(name, authorId, authorName) {
-    const trimmed = (name || '').trim();
+    /* Nomni solishtirishdan oldin ortiqcha bo'shliqlarni (boshida,
+       oxirida va so'zlar orasida ikki martalab tushib qolgan
+       bo'shliqlarni ham) yig'ishtirib olamiz — aks holda "Ingliz
+       tili" bilan "Ingliz  tili" (ikki bo'shliq bilan) ikki xil soha
+       deb topilib, dublikat yaratilib qolishi mumkin edi. */
+    const trimmed = (name || '').trim().replace(/\s+/g, ' ');
     if (!trimmed) return null;
-    const existing = categories.find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
+    const norm = trimmed.toLowerCase();
+    const existing = categories.find((c) => c.name.trim().replace(/\s+/g, ' ').toLowerCase() === norm);
     if (existing) return existing.id;
     const row = { id: uid(), name: trimmed, author: authorName || '', authorId, status: 'pending' };
-    await sbInsert('categories', categoryToRow(row));
-    setCategories((prev) => [...prev, row]);
-    return row.id;
+    try {
+      await sbInsert('categories', categoryToRow(row));
+      setCategories((prev) => [...prev, row]);
+      return row.id;
+    } catch (e) {
+      /* Bazada endi "bir xil nomli soha ikki marta bo'lmasin" degan
+         qat'iy cheklov bor. Agar aynan shu lahzada (masalan Kurslar
+         va Testlar bo'limidan bir vaqtda) boshqa so'rov xuddi shu
+         nomdagi sohani yaratib ulgurgan bo'lsa — shu yerga "band"
+         xatosi qaytadi. Bunday holatda biz YANGI soha YARATMAYMIZ,
+         aksincha bazadan aynan shu nom bo'yicha ALLAQACHON yaratilgan
+         sohani qidirib topib, o'shanikidan foydalanamiz. Shu tufayli
+         dublikat soha hech qachon paydo bo'lmaydi. */
+      const msg = String(e?.message || '');
+      if (msg.includes('23505') || msg.includes('409') || msg.toLowerCase().includes('duplicate')) {
+        try {
+          const rows = await sbRequest(`categories?select=*&name=ilike.${encodeURIComponent(trimmed)}`);
+          const match = rows.find((r) => (r.name || '').trim().replace(/\s+/g, ' ').toLowerCase() === norm) || rows[0];
+          if (match) {
+            const mapped = categoryFromRow(match);
+            setCategories((prev) => (prev.some((c) => c.id === mapped.id) ? prev : [...prev, mapped]));
+            return mapped.id;
+          }
+        } catch (e2) { /* topilmasa, pastda umumiy xato tashlanadi */ }
+      }
+      throw e;
+    }
   }
 
   async function submitCourse(data) {
