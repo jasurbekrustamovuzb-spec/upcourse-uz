@@ -357,90 +357,6 @@ async function sbSelectParticipants(roomId) {
   return rows.map(liveParticipantFromRow);
 }
 
-/* Jonli test xonasini kuzatish — WebSocket (Realtime) orqali.
-   Oldin: har bir qurilma xona holatini "so'rab turardi" (REST so'rov,
-   har 1.5-3 soniyada). Endi: server o'zgarishni o'zi "itarib" yuboradi,
-   brauzer so'ramaydi. 50-200+ kishi bir xonada bo'lganda ham server
-   ortiqcha yuklanmaydi.
-   Xavfsizlik/pastga moslik: agar WebSocket biror sababdan ishlamasa
-   (masalan tarmoq uni bloklasa) — avtomatik ravishda eski "so'rab
-   turish" usuliga qaytadi, shu bilan ekran hech qachon "qotib"
-   qolmaydi. Ulanish tiklansa, zaxira rejim o'zi o'chadi.
-   FAQAT shu xonaga ('id=eq.<roomId>' / 'room_id=eq.<roomId>' filtri
-   bilan) tegishli o'zgarishlarni oladi — boshqa xonalarning trafigini
-   olmaydi. Qaytaradi: tozalash (unsubscribe) funksiyasi — komponent
-   yopilganda albatta shuni chaqirish kerak. */
-function subscribeToLiveRoom(roomId, { onRoom, onParticipants, pollFallbackMs = 2000 } = {}) {
-  let closed = false;
-  let fallbackTimer = null;
-  let fallbackActive = false;
-
-  function startFallbackPolling() {
-    if (fallbackActive || closed) return;
-    fallbackActive = true;
-    async function poll() {
-      if (closed) return;
-      try {
-        const [freshRoom, list] = await Promise.all([sbGetRoom(roomId), sbSelectParticipants(roomId)]);
-        if (closed) return;
-        if (freshRoom && onRoom) onRoom(freshRoom);
-        if (onParticipants) onParticipants(() => list);
-      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
-    }
-    poll();
-    fallbackTimer = setInterval(poll, pollFallbackMs);
-  }
-  function stopFallbackPolling() {
-    fallbackActive = false;
-    if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null; }
-  }
-
-  const channel = supabase
-    .channel(`live-room-${roomId}`)
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'live_rooms', filter: `id=eq.${roomId}` },
-      (payload) => {
-        stopFallbackPolling();
-        if (onRoom && payload.new) onRoom(liveRoomFromRow(payload.new));
-      }
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'live_participants', filter: `room_id=eq.${roomId}` },
-      (payload) => {
-        stopFallbackPolling();
-        if (!onParticipants) return;
-        if (payload.eventType === 'DELETE') {
-          const deletedId = payload.old?.id;
-          onParticipants((prev) => prev.filter((p) => p.id !== deletedId));
-          return;
-        }
-        const row = liveParticipantFromRow(payload.new);
-        onParticipants((prev) => {
-          const exists = prev.some((p) => p.id === row.id);
-          return exists ? prev.map((p) => (p.id === row.id ? row : p)) : [...prev, row];
-        });
-      }
-    )
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') stopFallbackPolling();
-      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') startFallbackPolling();
-    });
-
-  /* Bir necha soniya ichida ulanish tasdiqlanmasa (masalan sekin
-     tarmoq) — ehtiyot uchun zaxira rejimni yoqamiz. Ulanish keyin
-     tiklansa, u avtomatik o'chadi (yuqoridagi 'SUBSCRIBED' shoxobchasi). */
-  const safetyTimer = setTimeout(() => { if (!closed) startFallbackPolling(); }, 4000);
-
-  return function unsubscribe() {
-    closed = true;
-    clearTimeout(safetyTimer);
-    stopFallbackPolling();
-    try { supabase.removeChannel(channel); } catch (e) { /* allaqachon yopilgan bo'lishi mumkin */ }
-  };
-}
-
 /* "Barchaga bir xil" (Kahoot) rejimida bosqichni (savol -> natija -> keyingi
    savol) oldinga suradi. Bu funksiyani tuzuvchi HAM, istalgan ishtirokchi
    HAM chaqira oladi — kimning brauzeri shu payt faol boʻlsa, oʻsha ishni
@@ -2583,20 +2499,18 @@ function LiveHostLobby({ room, setRoom, tests, onExit }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)])
-      .then(([freshRoom, list]) => {
-        if (cancelled) return;
-        if (freshRoom) setRoom(freshRoom);
-        setParticipants(list);
-      })
-      .catch(() => { /* keyingi yangilanish (realtime yoki zaxira) orqali tuzatiladi */ });
-
-    const unsubscribe = subscribeToLiveRoom(room.id, {
-      onRoom: (r) => { if (!cancelled) setRoom(r); },
-      onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
-      pollFallbackMs: room.mode === 'sync' ? 1500 : 3000,
-    });
-    return () => { cancelled = true; unsubscribe(); };
+    async function poll() {
+      try {
+        const [freshRoom, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (!cancelled) {
+          if (freshRoom) setRoom(freshRoom);
+          setParticipants(list);
+        }
+      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
+    }
+    poll();
+    const t = setInterval(poll, room.mode === 'sync' ? 1500 : 3000);
+    return () => { cancelled = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
 
@@ -2734,20 +2648,18 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)])
-      .then(([fresh, list]) => {
-        if (cancelled) return;
-        if (fresh) setRoom(fresh);
-        setParticipants(list);
-      })
-      .catch(() => { /* keyingi yangilanish (realtime yoki zaxira) orqali tuzatiladi */ });
-
-    const unsubscribe = subscribeToLiveRoom(room.id, {
-      onRoom: (r) => { if (!cancelled) setRoom(r); },
-      onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
-      pollFallbackMs: 1500,
-    });
-    return () => { cancelled = true; unsubscribe(); };
+    async function poll() {
+      try {
+        const [fresh, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (!cancelled) {
+          if (fresh) setRoom(fresh);
+          setParticipants(list);
+        }
+      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
+    }
+    poll();
+    const t = setInterval(poll, 1500);
+    return () => { cancelled = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
 
@@ -3054,30 +2966,37 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
   const test = tests.find((t) => t.id === room.testId);
 
   useEffect(() => {
+    if (phase !== 'waiting') return;
     let cancelled = false;
-    Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)])
-      .then(([fresh, list]) => {
-        if (cancelled) return;
-        if (fresh) {
+    async function poll() {
+      try {
+        const fresh = await sbGetRoom(room.id);
+        if (!cancelled && fresh) {
           setRoom(fresh);
-          if (fresh.status !== 'waiting') setPhase((p) => (p === 'waiting' ? 'quiz' : p));
+          if (fresh.status !== 'waiting') setPhase('quiz');
         }
-        setParticipants(list);
-      })
-      .catch(() => { /* keyingi yangilanish (realtime yoki zaxira) orqali tuzatiladi */ });
-
-    const unsubscribe = subscribeToLiveRoom(room.id, {
-      onRoom: (r) => {
-        if (cancelled) return;
-        setRoom(r);
-        if (r.status !== 'waiting') setPhase((p) => (p === 'waiting' ? 'quiz' : p));
-      },
-      onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
-      pollFallbackMs: 2000,
-    });
-    return () => { cancelled = true; unsubscribe(); };
+      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
+    }
+    poll();
+    const t = setInterval(poll, 2500);
+    return () => { cancelled = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.id]);
+  }, [phase, room.id]);
+
+  useEffect(() => {
+    if (phase !== 'results') return;
+    let cancelled = false;
+    async function poll() {
+      try {
+        const list = await sbSelectParticipants(room.id);
+        if (!cancelled) setParticipants(list);
+      } catch (e) { /* keyingi urinishda qayta tekshiriladi */ }
+    }
+    poll();
+    const t = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, room.id]);
 
   if (phase === 'waiting') {
     return (
