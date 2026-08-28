@@ -222,6 +222,18 @@ function isSupabaseConfigured() {
    aks holda umumiy "anon" kalitni qo'shadi. Supabase'dagi RLS (Row Level
    Security) qoidalari aynan shu token orqali "bu odam kim, admin yoki
    yo'q, o'ziniki qaysi qatorlar" ekanini biladi. */
+/* Qurilma soati bilan Supabase server soati orasidagi farqni kuzatib
+   boradi. Har bir HTTP javobida server "Date" sarlavhasini yuboradi —
+   shundan foydalanib, "agar bu qurilma soati X soniya noto'g'ri
+   bo'lsa ham, haqiqiy (server) vaqt shu" deb hisoblashimiz mumkin.
+   Jonli test taymeri shu tuzatilgan vaqtdan foydalanadi — shu bilan
+   barcha qurilmalar (soati notoʻgʻri sozlanganlari ham) bitta xil
+   "haqiqiy" vaqtni koʻradi. */
+let serverClockOffsetMs = 0;
+function estimatedServerNow() {
+  return Date.now() + serverClockOffsetMs;
+}
+
 async function sbRequest(path, options = {}) {
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token || SUPABASE_ANON_KEY;
@@ -234,6 +246,13 @@ async function sbRequest(path, options = {}) {
       ...(options.headers || {}),
     },
   });
+  try {
+    const serverDate = res.headers.get('date');
+    if (serverDate) {
+      const serverMs = new Date(serverDate).getTime();
+      if (!Number.isNaN(serverMs)) serverClockOffsetMs = serverMs - Date.now();
+    }
+  } catch (e) { /* soat farqini o'lchay olmasak, oldingi qiymat qoladi */ }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Supabase ${options.method || 'GET'} ${path} — ${res.status}: ${text}`);
@@ -336,6 +355,44 @@ async function sbGetRoom(id) {
 async function sbSelectParticipants(roomId) {
   const rows = await sbRequest(`live_participants?select=*&room_id=eq.${encodeURIComponent(roomId)}&order=joined_at.asc`);
   return rows.map(liveParticipantFromRow);
+}
+
+/* "Barchaga bir xil" (Kahoot) rejimida bosqichni (savol -> natija -> keyingi
+   savol) oldinga suradi. Bu funksiyani tuzuvchi HAM, istalgan ishtirokchi
+   HAM chaqira oladi — kimning brauzeri shu payt faol boʻlsa, oʻsha ishni
+   bajaradi, shu bilan "faqat tuzuvchi tabini yopib qoʻysa hamma qotib
+   qoladi" degan muammo yoʻqoladi.
+   Xavfsizlik: PATCH soʻrovi "hozir ham aynan shu bosqich va shu savolda
+   turibdimi" degan shartni oʻz ichiga oladi (phase=eq...&current_index=eq...).
+   Agar boshqa qurilma allaqachon oldinga surib ulgurgan boʻlsa, bu soʻrov
+   hech qanday qatorga tegmaydi va xatosiz, shunchaki boʻsh natija bilan
+   qaytadi — ikki marta oldinga surilib ketish (savol talvasa oʻtkazib
+   yuborish) imkonsiz boʻladi. */
+async function advanceSyncPhase(room, totalQuestions) {
+  try {
+    if (room.phase === 'question') {
+      const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.question&current_index=eq.${room.currentIndex}`;
+      const rows = await sbRequest(`live_rooms?${filter}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ phase: 'intermission' }),
+      });
+      return rows && rows[0] ? liveRoomFromRow(rows[0]) : null;
+    }
+    if (room.phase === 'intermission') {
+      const nextIndex = Math.min(room.currentIndex + 1, totalQuestions);
+      const isLast = room.currentIndex >= totalQuestions - 1 || nextIndex >= totalQuestions;
+      const patch = isLast ? { phase: 'finished', status: 'finished' } : { phase: 'question', current_index: nextIndex };
+      const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.intermission&current_index=eq.${room.currentIndex}`;
+      const rows = await sbRequest(`live_rooms?${filter}`, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(patch),
+      });
+      return rows && rows[0] ? liveRoomFromRow(rows[0]) : null;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
 }
 
 
@@ -2061,21 +2118,9 @@ function LiveLeaderboardList({ participants, showAsPoints }) {
    yakunda podium (3-2-1 o'rin) ko'rsatish. */
 function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const [peekLeaderboard, setPeekLeaderboard] = useState(false);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(estimatedServerNow());
   const advancingRef = useRef(false);
   const [revealStage, setRevealStage] = useState(0);
-  /* Vaqtni serverning "phaseStartedAt" vaqti bilan solishtirish o'rniga —
-     har safar savol/bosqich almashganda shu qurilmaning O'Z soatidan
-     "hozir"ni belgilab olamiz va shundan buyon o'tgan soniyalarni sanaymiz.
-     Shu tufayli qurilma soatining server bilan bir necha soniya farq
-     qilishi (noto'g'ri sozlangan vaqt, internetdan olingan vaqt farqi va
-     h.k.) taymerni "0s" qilib ko'rsatib qo'ymaydi.
-     Muhim: bu yangilanish useEffect'da emas, render vaqtida (sinxron)
-     bajariladi — aks holda savol almashgan zahoti bitta render давомида
-     eski anchor bilan hisoblanib, taymer bir lahzaga "0s" bo'lib ko'rinib,
-     javobni muddatidan oldin "yo'q" deb yuborib yuborishi mumkin edi. */
-  const phaseKeyRef = useRef(null);
-  const phaseAnchorRef = useRef(Date.now());
 
   const order = room.questionOrder && room.questionOrder.length === test.questions.length
     ? room.questionOrder
@@ -2084,19 +2129,18 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
   const INTERMISSION_SECONDS = 6;
 
-  const phaseKey = `${room.phase}:${room.currentIndex}`;
-  if (phaseKeyRef.current !== phaseKey) {
-    phaseKeyRef.current = phaseKey;
-    phaseAnchorRef.current = Date.now();
-  }
-
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 500);
+    const t = setInterval(() => setNow(estimatedServerNow()), 500);
     return () => clearInterval(t);
   }, []);
 
+  /* Taymer endi shu qurilmaning o'zi "birinchi ko'rgan" lahzasidan emas,
+     serverda yozilgan haqiqiy boshlanish vaqtidan (room.phaseStartedAt)
+     hisoblanadi — shu bilan tuzuvchi va barcha ishtirokchilar bir xil,
+     aniq vaqtni ko'radi. */
+  const phaseStartedMs = room.phaseStartedAt ? new Date(room.phaseStartedAt).getTime() : now;
   const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
-  const elapsedMs = now - phaseAnchorRef.current;
+  const elapsedMs = now - phaseStartedMs;
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
 
   const answeredCount = currentQuestion
@@ -2107,38 +2151,14 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   useEffect(() => {
     if (room.status === 'finished') return;
     if (advancingRef.current) return;
+    const shouldAdvance = (room.phase === 'question' && (secondsLeft <= 0 || allAnswered))
+      || (room.phase === 'intermission' && secondsLeft <= 0);
+    if (!shouldAdvance) return;
 
-    async function advance() {
-      if (advancingRef.current) return;
-      advancingRef.current = true;
-      try {
-        if (room.phase === 'question') {
-          const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'intermission', phase_started_at: new Date().toISOString() });
-          setRoom(liveRoomFromRow(updated));
-        } else if (room.phase === 'intermission') {
-          // currentIndex savollar sonidan oshib ketmasligi uchun qattiq himoya:
-          // agar allaqachon oxirgi savolda bo'lsak (yoki undan nariga chiqib
-          // ketgan bo'lsak), currentIndex'ni oshirmasdan darhol "finished"ga
-          // o'tkazamiz — shu bilan test.questions[...] undefined bo'lib,
-          // ekran bo'sh qolib qolishining oldi olinadi.
-          const nextIndex = Math.min(room.currentIndex + 1, totalQuestions);
-          if (room.currentIndex >= totalQuestions - 1 || nextIndex >= totalQuestions) {
-            const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'finished', status: 'finished' });
-            setRoom(liveRoomFromRow(updated));
-          } else {
-            const [updated] = await sbUpdate('live_rooms', room.id, { phase: 'question', current_index: nextIndex, phase_started_at: new Date().toISOString() });
-            setRoom(liveRoomFromRow(updated));
-          }
-        }
-      } catch (e) {
-        // keyingi tikda qayta urinib ko'riladi
-      } finally {
-        advancingRef.current = false;
-      }
-    }
-
-    if (room.phase === 'question' && (secondsLeft <= 0 || allAnswered)) advance();
-    else if (room.phase === 'intermission' && secondsLeft <= 0) advance();
+    advancingRef.current = true;
+    advanceSyncPhase(room, totalQuestions)
+      .then((updated) => { if (updated) setRoom(updated); })
+      .finally(() => { advancingRef.current = false; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft, allAnswered, room.phase, room.status]);
 
@@ -2220,12 +2240,14 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
       <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
       <div className="flex items-center justify-between gap-3 mb-4">
         <SectionHeading eyebrow={`${room.currentIndex + 1} / ${totalQuestions}-savol`} title={test.title} />
-        <div
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] flex-shrink-0 ${secondsLeft <= 5 ? 'live-pulse' : ''}`}
-          style={{ ...fontMono, color: secondsLeft <= 5 ? C.white : C.live, background: secondsLeft <= 5 ? C.red : C.liveTint, fontWeight: 600 }}
-        >
-          <Clock3 size={14} /> {secondsLeft}s
-        </div>
+        {room.phase === 'question' && (
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] flex-shrink-0 ${secondsLeft <= 5 ? 'live-pulse' : ''}`}
+            style={{ ...fontMono, color: secondsLeft <= 5 ? C.white : C.live, background: secondsLeft <= 5 ? C.red : C.liveTint, fontWeight: 600 }}
+          >
+            <Clock3 size={14} /> {secondsLeft}s
+          </div>
+        )}
       </div>
 
       {room.phase === 'question' && (
@@ -2267,7 +2289,10 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
       {(room.phase === 'intermission' || peekLeaderboard) && (
         <div>
           {room.phase === 'intermission' && (
-            <div className="text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>Keyingi savol {secondsLeft} soniyadan keyin...</div>
+            <div className="flex items-center gap-2 text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>
+              <span className="w-1.5 h-1.5 rounded-full live-pulse flex-shrink-0" style={{ background: C.live }} />
+              Keyingi savolga oʻtilmoqda...
+            </div>
           )}
           <LiveLeaderboardList participants={participants} showAsPoints />
         </div>
@@ -2595,36 +2620,31 @@ function LiveHostLobby({ room, setRoom, tests, onExit }) {
 function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const [myAnswers, setMyAnswers] = useState({});
   const [openText, setOpenText] = useState('');
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(estimatedServerNow());
   const [participants, setParticipants] = useState([]);
   const scoreRef = useRef(participant.score || 0);
   const submittingRef = useRef(false);
-  /* Xuddi host tomonidagi kabi — qurilma soatining server bilan farq
-     qilishi taymerni "0s" qilib ko'rsatib qo'ymasligi uchun, har safar
-     savol/bosqich almashganda shu qurilmaning o'z "hozir"sidan boshlab
-     sanaymiz, server vaqtiga (room.phaseStartedAt) taqqoslamaymiz.
-     Bu yangilanish render vaqtida (sinxron) bajariladi — useEffect'da
-     bo'lsa, bir render davomida eski anchor ishlatilib, javob muddatidan
-     oldin "yo'q" deb yuborilib qolishi mumkin edi. */
-  const phaseKeyRef = useRef(null);
-  const phaseAnchorRef = useRef(Date.now());
+  const advancingRef = useRef(false);
 
   const order = room.questionOrder && room.questionOrder.length === test.questions.length
     ? room.questionOrder
     : test.questions.map((_, i) => i);
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
   const INTERMISSION_SECONDS = 6;
+  const totalQuestions = test.questions.length;
 
-  const phaseKey = `${room.phase}:${room.currentIndex}`;
-  if (phaseKeyRef.current !== phaseKey) {
-    phaseKeyRef.current = phaseKey;
-    phaseAnchorRef.current = Date.now();
-  }
-
+  /* Taymer endi serverda yozilgan haqiqiy boshlanish vaqtidan
+     (room.phaseStartedAt) hisoblanadi — tuzuvchi ekranidagi bilan bir xil. */
+  const phaseStartedMs = room.phaseStartedAt ? new Date(room.phaseStartedAt).getTime() : now;
   const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
-  const elapsedMs = now - phaseAnchorRef.current;
+  const elapsedMs = now - phaseStartedMs;
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
   const hasAnswered = currentQuestion ? myAnswers[currentQuestion.id] !== undefined : false;
+
+  const answeredCount = currentQuestion
+    ? participants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
+    : 0;
+  const allAnswered = participants.length > 0 && answeredCount >= participants.length;
 
   useEffect(() => {
     let cancelled = false;
@@ -2644,7 +2664,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   }, [room.id]);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 300);
+    const t = setInterval(() => setNow(estimatedServerNow()), 300);
     return () => clearInterval(t);
   }, []);
 
@@ -2656,7 +2676,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     if (!currentQuestion || submittingRef.current) return;
     if (myAnswers[currentQuestion.id] !== undefined) return;
     submittingRef.current = true;
-    const timeTakenMs = Math.min(phaseLimitMs, Math.max(0, now - phaseAnchorRef.current));
+    const timeTakenMs = Math.min(phaseLimitMs, Math.max(0, now - phaseStartedMs));
     const correct = isQuestionCorrect(currentQuestion, answerValue);
     const points = computeSyncScore(correct, timeTakenMs, phaseLimitMs);
     const newAnswers = { ...myAnswers, [currentQuestion.id]: { answer: answerValue, correct, points } };
@@ -2675,6 +2695,25 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft, room.phase, hasAnswered]);
 
+  /* Bosqichni faqat tuzuvchi emas — istalgan faol ishtirokchi ham
+     oldinga surishi mumkin (masalan tuzuvchining tabi fonda qolib
+     ketgan bo'lsa). advanceSyncPhase() ichidagi shartli so'rov ikki
+     kishi bir vaqtda urinib qolsa ham xavfsiz — faqat bittasi
+     muvaffaqiyatli bo'ladi. */
+  useEffect(() => {
+    if (room.status === 'finished') return;
+    if (advancingRef.current) return;
+    const shouldAdvance = (room.phase === 'question' && (secondsLeft <= 0 || allAnswered))
+      || (room.phase === 'intermission' && secondsLeft <= 0);
+    if (!shouldAdvance) return;
+
+    advancingRef.current = true;
+    advanceSyncPhase(room, totalQuestions)
+      .then((updated) => { if (updated) setRoom(updated); })
+      .finally(() => { advancingRef.current = false; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft, allAnswered, room.phase, room.status]);
+
   if (room.status === 'finished') {
     return <LiveSyncFinished participants={participants} myId={participant.id} onExit={onExit} />;
   }
@@ -2684,12 +2723,14 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
       <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
       <div className="flex items-center justify-between gap-3 mb-5">
         <h3 className="text-xl sm:text-2xl min-w-0 truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{room.currentIndex + 1}-savol</h3>
-        <div
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] flex-shrink-0 ${secondsLeft <= 5 ? 'live-pulse' : ''}`}
-          style={{ ...fontMono, color: secondsLeft <= 5 ? C.white : C.live, background: secondsLeft <= 5 ? C.red : C.liveTint, fontWeight: 600 }}
-        >
-          <Clock3 size={14} /> {secondsLeft}s
-        </div>
+        {room.phase === 'question' && (
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] flex-shrink-0 ${secondsLeft <= 5 ? 'live-pulse' : ''}`}
+            style={{ ...fontMono, color: secondsLeft <= 5 ? C.white : C.live, background: secondsLeft <= 5 ? C.red : C.liveTint, fontWeight: 600 }}
+          >
+            <Clock3 size={14} /> {secondsLeft}s
+          </div>
+        )}
       </div>
 
       {room.phase === 'question' && currentQuestion && (
