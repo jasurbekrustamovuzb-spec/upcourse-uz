@@ -69,11 +69,17 @@
 
     <!-- ==== Splash ekran uslubi (React yuklanguncha ko'rinadi, oq ekran o'rniga) ==== -->
     <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #EFE9D6;
+      }
       #upcourse-splash {
         position: fixed;
         inset: 0;
         z-index: 99999;
-        background: #F3EDD9;
+        background: #EFE9D6;
       }
       /* React ilova ildizga chizilgach shu klass qo'shiladi va splash so'nadi */
       #upcourse-splash.uc-hide {
