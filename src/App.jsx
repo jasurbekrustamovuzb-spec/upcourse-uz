@@ -505,17 +505,177 @@ function bannerGradient(key) {
   return `linear-gradient(120deg, ${b.from}, ${b.to})`;
 }
 
-/* username: kichik lotin harflari, raqam, pastik chiziq, 3-20 belgi */
+/* username: kichik lotin harflari, raqam, pastik chiziq, 5-20 belgi */
 function normalizeUsername(v) {
   return (v || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
 }
 function isValidUsername(v) {
-  return /^[a-z0-9_]{3,20}$/.test(v || '');
+  return /^[a-z0-9_]{5,20}$/.test(v || '');
 }
 /* Username band emasligini tekshiradi (o'zining joriy username'idan tashqari) */
 async function checkUsernameAvailable(username, currentUserId) {
   const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
   return !rows.some((r) => r.id !== currentUserId);
+}
+
+/* Mualliflarning username'ini authorId bo'yicha keshlab oladi — bir xil
+   muallifning kartochkasi ko'p marta chiqsa ham, faqat bir marta so'raladi. */
+const _authorUsernameCache = {};
+function useAuthorUsername(authorId) {
+  const [username, setUsername] = useState(() => (authorId ? _authorUsernameCache[authorId] : undefined));
+  useEffect(() => {
+    if (!authorId) { setUsername(undefined); return; }
+    if (_authorUsernameCache[authorId] !== undefined) { setUsername(_authorUsernameCache[authorId]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await sbSelect('profiles', `id=eq.${authorId}`);
+        const uname = rows[0]?.username || null;
+        _authorUsernameCache[authorId] = uname;
+        if (!cancelled) setUsername(uname);
+      } catch (e) {
+        if (!cancelled) setUsername(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authorId]);
+  return username;
+}
+
+/* Boshqa foydalanuvchining ommaviy profiliga o'tish — komponentlar
+   orasida prop uzatib yurmaslik uchun App darajasida ro'yxatdan
+   o'tkaziladigan yagona "ko'prik". */
+let _goToPublicProfile = null;
+
+/* Kurs/test kartochkalarida "Tuzuvchi: ..." qatori. Agar muallifning
+   username'i topilsa, ko'k rangdagi bosiladigan @username sifatida,
+   aks holda oddiy matn sifatida ko'rsatadi. */
+function AuthorLine({ authorId, authorName, className, style }) {
+  const username = useAuthorUsername(authorId);
+  if (!authorName && !username) return null;
+  return (
+    <div className={className || 'text-xs mt-1.5'} style={{ ...fontBody, color: C.inkSoft, ...style }}>
+      Tuzuvchi:{' '}
+      {username ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); if (_goToPublicProfile) _goToPublicProfile(username); }}
+          className="hover:underline focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.math, outlineColor: C.mathSoft }}
+        >
+          @{username}
+        </button>
+      ) : (
+        authorName
+      )}
+    </div>
+  );
+}
+
+/* Boshqa foydalanuvchining ommaviy profili — ismi, @username'i, bio'si
+   va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
+function PublicProfileView({ username, courses, tests, onBack }) {
+  const [loading, setLoading] = useState(true);
+  const [row, setRow] = useState(null);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setErr(false);
+    (async () => {
+      try {
+        const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
+        if (!cancelled) setRow(rows[0] ? profileFromRow(rows[0]) : null);
+      } catch (e) {
+        if (!cancelled) setErr(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [username]);
+
+  const backButton = (
+    <button
+      onClick={onBack}
+      className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+      style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+    >
+      <ArrowLeft size={15} /> Ortga
+    </button>
+  );
+
+  if (loading) {
+    return (
+      <div>
+        {backButton}
+        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+        </div>
+      </div>
+    );
+  }
+
+  if (err || !row) {
+    return (
+      <div>
+        {backButton}
+        <EmptyState text="Foydalanuvchi topilmadi." cta="Ehtimol, u hisobini o'chirgan yoki username o'zgargan." />
+      </div>
+    );
+  }
+
+  const fullName = `${row.firstName} ${row.lastName}`.trim();
+  const myCourses = courses.filter((c) => c.authorId === row.id && c.status === 'approved');
+  const myTests = tests.filter((t) => t.authorId === row.id && t.status === 'approved');
+
+  return (
+    <div>
+      {backButton}
+      <div className="flex items-center gap-3 mb-5">
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ background: bannerGradient(row.bannerKey) }}
+        >
+          <span style={{ ...fontDisplay, color: C.white, fontWeight: 700, fontSize: '20px' }}>
+            {(row.firstName || '?').slice(0, 1).toUpperCase()}{(row.lastName || '').slice(0, 1).toUpperCase()}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <div className="text-xl truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{fullName || `@${row.username}`}</div>
+          <div className="text-sm" style={{ ...fontMono, color: C.math }}>@{row.username}</div>
+        </div>
+      </div>
+      {row.bio && <p className="text-[15px] mb-6 max-w-xl" style={{ ...fontBody, color: C.ink }}>{row.bio}</p>}
+
+      <SectionHeading eyebrow={`${myCourses.length} ta`} title="Mavzular" />
+      {myCourses.length === 0 ? (
+        <div className="text-sm mb-8" style={{ ...fontBody, color: C.inkSoft }}>Hozircha ommaviy mavzu yoʻq.</div>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3 mb-8">
+          {myCourses.map((c) => (
+            <div key={c.id} className="p-3.5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <div className="text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <SectionHeading eyebrow={`${myTests.length} ta`} title="Testlar" />
+      {myTests.length === 0 ? (
+        <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Hozircha ommaviy test yoʻq.</div>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {myTests.map((t) => (
+            <div key={t.id} className="p-3.5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <div className="text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 
@@ -955,7 +1115,7 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
                   <div className="min-w-0">
                     <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                     <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
-                    {cat.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {cat.author}</div>}
+                    <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
                   </div>
                 </div>
                 <div className="flex items-center flex-shrink-0 gap-1">
@@ -1267,7 +1427,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                           <div className="min-w-0">
                             <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                             <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta mavzu</div>
-                            {cat.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {cat.author}</div>}
+                            <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
                           </div>
                           <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
                         </div>
@@ -3239,11 +3399,29 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         </div>
         <button
           onClick={goLive}
-          className="inline-flex items-center gap-2 px-4 py-2.5 mb-2.5 rounded-full text-[14px] focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.white, background: C.live, outlineColor: C.liveSoft, fontWeight: 500 }}
+          className="w-full flex items-center gap-3 px-4 py-3 mb-2.5 rounded-2xl text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
+          style={{ background: C.liveTint, border: `1.5px solid ${C.live}`, outlineColor: C.liveSoft }}
         >
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#e5484d' }} />
-          Jonli test rejimi — guruh bo'lib bir vaqtda ishlang
+          <div className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style={{ background: C.live }}>
+            <Users size={18} style={{ color: C.white }} />
+            <span
+              className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full live-pulse"
+              style={{ background: '#e5484d', border: `2px solid ${C.paper}` }}
+            />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[15px]" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>Jonli test rejimi</span>
+              <span
+                className="px-1.5 py-0.5 rounded text-[10px] tracking-wider uppercase live-pulse"
+                style={{ ...fontMono, background: C.live, color: C.white, fontWeight: 700 }}
+              >
+                Live
+              </span>
+            </div>
+            <div className="text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>Guruh boʻlib bir vaqtda ishlang</div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.live, flexShrink: 0, marginLeft: 'auto' }} />
         </button>
         <div className="grid grid-cols-2 gap-2 mb-5">
           <button
@@ -3283,7 +3461,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                           <div className="min-w-0">
                             <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                             <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta test</div>
-                            {cat.author && <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {cat.author}</div>}
+                            <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
                           </div>
                           <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
                         </div>
@@ -3426,7 +3604,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
           </div>
         )}
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
-        {active.author && <div className="text-xs mb-4" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {active.author}</div>}
+        <AuthorLine authorId={active.authorId} authorName={active.author} className="text-xs mb-4" />
         {active.content === undefined ? (
           <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
             <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
@@ -3510,7 +3688,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
               <div className="min-w-0">
                 <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                 {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
-                {c.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {c.author}</div>}
+                <AuthorLine authorId={c.authorId} authorName={c.author} className="text-xs mt-1.5" />
                 {isMine && (
                   <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : c.status === 'private' ? C.inkSoft : C.accent }}>
                     {c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : c.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
@@ -3623,7 +3801,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
                 <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                 {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                 <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
-                {t.author && <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>Tuzuvchi: {t.author}</div>}
+                <AuthorLine authorId={t.authorId} authorName={t.author} className="text-xs mt-1.5" />
                 {isMine && (
                   <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : t.status === 'private' ? C.inkSoft : C.accent }}>
                     {t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : t.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
@@ -3978,8 +4156,8 @@ function UsernameField({ value, onChange, currentUserId }) {
   }, [value]);
 
   const helper = {
-    idle: 'Kamida 3 ta belgi: kichik lotin harflari, raqam, pastki chiziq (_)',
-    invalid: 'Notoʻgʻri format — faqat a-z, 0-9 va _ (3-20 belgi)',
+    idle: 'Kamida 5 ta belgi: kichik lotin harflari, raqam, pastki chiziq (_)',
+    invalid: 'Notoʻgʻri format — faqat a-z, 0-9 va _ (5-20 belgi)',
     checking: 'Tekshirilmoqda...',
     ok: 'Bu username boʻsh ✓',
     taken: 'Bu username band, boshqasini tanlang',
@@ -4516,6 +4694,12 @@ export default function App() {
     try { return localStorage.getItem('upcourse-theme') === 'dark' ? 'dark' : 'light'; } catch { return 'light'; }
   });
   const [readingActive, setReadingActive] = useState(false);
+  const [viewingUsername, setViewingUsername] = useState(null);
+
+  useEffect(() => {
+    _goToPublicProfile = (username) => setViewingUsername(username);
+    return () => { _goToPublicProfile = null; };
+  }, []);
 
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
@@ -4582,7 +4766,7 @@ export default function App() {
   async function saveProfile(firstName, lastName, username, bio, bannerKey) {
     if (!session) return { ok: false, error: 'Sessiya topilmadi.' };
     if (!isValidUsername(username)) {
-      return { ok: false, error: 'Username 3-20 belgidan iborat bo\u2018lishi, faqat kichik lotin harflari, raqam va pastki chiziqdan tashkil topishi kerak.' };
+      return { ok: false, error: 'Username 5-20 belgidan iborat bo\u2018lishi, faqat kichik lotin harflari, raqam va pastki chiziqdan tashkil topishi kerak.' };
     }
     try {
       const available = await checkUsernameAvailable(username, session.user.id);
@@ -4762,44 +4946,14 @@ export default function App() {
   /* Kurs/test qoʻshilganda erkin "soha nomi"ni mavjud sohaga bogʻlaydi
      yoki (topilmasa) admin tekshiruvi kutilayotgan yangi soha yaratadi. */
   async function resolveCategoryId(name, authorId, authorName) {
-    /* Nomni solishtirishdan oldin ortiqcha bo'shliqlarni (boshida,
-       oxirida va so'zlar orasida ikki martalab tushib qolgan
-       bo'shliqlarni ham) yig'ishtirib olamiz — aks holda "Ingliz
-       tili" bilan "Ingliz  tili" (ikki bo'shliq bilan) ikki xil soha
-       deb topilib, dublikat yaratilib qolishi mumkin edi. */
-    const trimmed = (name || '').trim().replace(/\s+/g, ' ');
+    const trimmed = (name || '').trim();
     if (!trimmed) return null;
-    const norm = trimmed.toLowerCase();
-    const existing = categories.find((c) => c.name.trim().replace(/\s+/g, ' ').toLowerCase() === norm);
+    const existing = categories.find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
     if (existing) return existing.id;
     const row = { id: uid(), name: trimmed, author: authorName || '', authorId, status: 'pending' };
-    try {
-      await sbInsert('categories', categoryToRow(row));
-      setCategories((prev) => [...prev, row]);
-      return row.id;
-    } catch (e) {
-      /* Bazada endi "bir xil nomli soha ikki marta bo'lmasin" degan
-         qat'iy cheklov bor. Agar aynan shu lahzada (masalan Kurslar
-         va Testlar bo'limidan bir vaqtda) boshqa so'rov xuddi shu
-         nomdagi sohani yaratib ulgurgan bo'lsa — shu yerga "band"
-         xatosi qaytadi. Bunday holatda biz YANGI soha YARATMAYMIZ,
-         aksincha bazadan aynan shu nom bo'yicha ALLAQACHON yaratilgan
-         sohani qidirib topib, o'shanikidan foydalanamiz. Shu tufayli
-         dublikat soha hech qachon paydo bo'lmaydi. */
-      const msg = String(e?.message || '');
-      if (msg.includes('23505') || msg.includes('409') || msg.toLowerCase().includes('duplicate')) {
-        try {
-          const rows = await sbRequest(`categories?select=*&name=ilike.${encodeURIComponent(trimmed)}`);
-          const match = rows.find((r) => (r.name || '').trim().replace(/\s+/g, ' ').toLowerCase() === norm) || rows[0];
-          if (match) {
-            const mapped = categoryFromRow(match);
-            setCategories((prev) => (prev.some((c) => c.id === mapped.id) ? prev : [...prev, mapped]));
-            return mapped.id;
-          }
-        } catch (e2) { /* topilmasa, pastda umumiy xato tashlanadi */ }
-      }
-      throw e;
-    }
+    await sbInsert('categories', categoryToRow(row));
+    setCategories((prev) => [...prev, row]);
+    return row.id;
   }
 
   async function submitCourse(data) {
@@ -5237,10 +5391,13 @@ export default function App() {
                 <button onClick={() => setActionError(null)}><X size={15} /></button>
               </div>
             )}
-            <PaperPanel key={tab} className="app-fade-slide">
-              {tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : null} ensureCourseContent={ensureCourseContent} />}
-              {tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} />}
-              {tab === 'profil' && (
+            <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
+              {viewingUsername && (
+                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} />
+              )}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : null} ensureCourseContent={ensureCourseContent} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} />}
+              {!viewingUsername && tab === 'profil' && (
                 <ProfileView
                   session={session}
                   profile={profile}
@@ -5263,7 +5420,7 @@ export default function App() {
                   onGoToAbout={() => goTo('about')}
                 />
               )}
-              {tab === 'admin' && isAdmin && (
+              {!viewingUsername && tab === 'admin' && isAdmin && (
                 <AdminPanelView
                   courses={courses}
                   tests={tests}
@@ -5282,8 +5439,8 @@ export default function App() {
                   ensureCourseContent={ensureCourseContent}
                 />
               )}
-              {tab === 'yangiliklar' && <NewsView news={news} />}
-              {tab === 'about' && <AboutView />}
+              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} />}
+              {!viewingUsername && tab === 'about' && <AboutView />}
             </PaperPanel>
           </>
         )}
