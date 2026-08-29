@@ -878,7 +878,8 @@ function MiniIndependenceBadge({ size = 18, title }) {
 
 const GIFT_ID = 'mustaqillik-35';
 
-function GiftModal({ session, onRequireLogin, onClose }) {
+function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }) {
+  const targetId = collectibleId || GIFT_ID;
   const [phase, setPhase] = useState('loading'); // loading | offer | owned | busy | error
   const [equipped, setEquipped] = useState(false);
   const [rowId, setRowId] = useState(null);
@@ -888,7 +889,7 @@ function GiftModal({ session, onRequireLogin, onClose }) {
     (async () => {
       if (!session) { setPhase('offer'); return; }
       try {
-        const rows = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${GIFT_ID}`);
+        const rows = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${targetId}`);
         if (cancelled) return;
         if (rows[0]) {
           const uc = userCollectibleFromRow(rows[0]);
@@ -903,16 +904,17 @@ function GiftModal({ session, onRequireLogin, onClose }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [session]);
+  }, [session, targetId]);
 
   async function accept() {
     if (!session) { onRequireLogin(); return; }
     setPhase('busy');
     try {
-      const [created] = await sbInsert('user_collectibles', { user_id: session.user.id, collectible_id: GIFT_ID, equipped: true });
+      const [created] = await sbInsert('user_collectibles', { user_id: session.user.id, collectible_id: targetId, equipped: true });
       setRowId(created.id);
       setEquipped(true);
       setPhase('owned');
+      if (onChange) onChange(true);
     } catch (e) {
       setPhase('error');
     }
@@ -922,10 +924,12 @@ function GiftModal({ session, onRequireLogin, onClose }) {
     if (!rowId) return;
     const next = !equipped;
     setEquipped(next); // darhol ko'rsatamiz, orqa fonda saqlaymiz
+    if (onChange) onChange(next);
     try {
       await sbUpdate('user_collectibles', rowId, { equipped: next });
     } catch (e) {
       setEquipped(!next); // saqlanmasa — orqaga qaytaramiz
+      if (onChange) onChange(!next);
     }
   }
 
@@ -1006,6 +1010,107 @@ function GiftBanner({ onOpen }) {
       </div>
       <ChevronRight size={18} style={{ color: C.gold, flexShrink: 0 }} />
     </button>
+  );
+}
+
+/* Ixcham nishon — hozircha faqat bitta kolleksiya bor (Mustaqillik-35),
+   shuning uchun vizual to'g'ridan-to'g'ri shu. Kelajakda yangi bayram
+   qo'shilsa, shu yerga collectibleId bo'yicha yangi "case" qo'shiladi. */
+function CollectibleThumb({ collectibleId, size = 40 }) {
+  if (collectibleId === GIFT_ID) return <MiniIndependenceBadge size={size} />;
+  return (
+    <span className="inline-flex items-center justify-center rounded-full flex-shrink-0" style={{ width: size, height: size, background: C.goldSoft }}>
+      <Award size={Math.round(size * 0.5)} style={{ color: C.gold }} />
+    </span>
+  );
+}
+
+/* Profildagi "Kolleksiyalar" bo'limi — foydalanuvchi to'plagan barcha
+   bayram sovg'alarini ko'rsatadi. Faqat shu bo'lim ochilganda (Profil
+   ichidan qo'lda bosilganda) ikkita yengil so'rov ketadi — sahifa
+   yuklanganda yoki Profilga kirilganda avtomatik ishlamaydi. */
+function CollectionsView({ session, onBack }) {
+  const [state, setState] = useState('loading'); // loading | ready | error
+  const [catalog, setCatalog] = useState([]);
+  const [owned, setOwned] = useState([]);
+  const [openId, setOpenId] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [catRows, ownedRows] = await Promise.all([
+          sbSelect('collectibles'),
+          sbSelect('user_collectibles', `user_id=eq.${session.user.id}`),
+        ]);
+        if (cancelled) return;
+        setCatalog(catRows.map(collectibleFromRow));
+        setOwned(ownedRows.map(userCollectibleFromRow));
+        setState('ready');
+      } catch (e) {
+        if (!cancelled) setState('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session.user.id]);
+
+  function handleEquipChange(collectibleId, next) {
+    setOwned((prev) => prev.map((o) => (o.collectibleId === collectibleId ? { ...o, equipped: next } : o)));
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm mb-4 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}>
+        <ArrowLeft size={15} /> Profil
+      </button>
+      <SectionHeading eyebrow="Mening hisobim" title="Kolleksiyalar" />
+
+      {state === 'loading' && (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 size={20} className="animate-spin" style={{ color: C.gold }} />
+        </div>
+      )}
+
+      {state === 'error' && (
+        <div className="text-[14px]" style={{ ...fontBody, color: C.red }}>Yuklab boʻlmadi. Birozdan keyin qayta urinib koʻring.</div>
+      )}
+
+      {state === 'ready' && (
+        owned.length === 0 ? (
+          <EmptyState text="Hozircha kolleksiyangizda hech narsa yoʻq. Bayram sovgʻalarini yigʻib boring!" />
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {owned.map((uc) => {
+              const meta = catalog.find((c) => c.id === uc.collectibleId);
+              return (
+                <button
+                  key={uc.id}
+                  onClick={() => setOpenId(uc.collectibleId)}
+                  className="flex flex-col items-center gap-2 p-4 rounded-lg text-center transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
+                  style={{ background: C.surface, border: `1px solid ${uc.equipped ? C.gold : C.rule}`, outlineColor: C.gold }}
+                >
+                  <CollectibleThumb collectibleId={uc.collectibleId} size={44} />
+                  <div className="text-[13px]" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{meta?.title || 'Sovgʻa'}</div>
+                  {uc.equipped && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Ishlatilmoqda</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {openId && (
+        <GiftModal
+          session={session}
+          collectibleId={openId}
+          onRequireLogin={() => {}}
+          onClose={() => setOpenId(null)}
+          onChange={(next) => handleEquipChange(openId, next)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -4650,6 +4755,10 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     );
   }
 
+  if (subTab === 'kolleksiya') {
+    return <CollectionsView session={session} onBack={() => setSubTab(null)} />;
+  }
+
   return (
     <div>
       <div className="rounded-sm overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
@@ -4743,6 +4852,16 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
             <div>
               <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening testlarim</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myTests.length} ta</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('kolleksiya')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Award size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kolleksiyalar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Bayram sovgʻalaringiz</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
