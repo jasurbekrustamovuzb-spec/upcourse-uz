@@ -542,6 +542,45 @@ function useAuthorUsername(authorId) {
   return username;
 }
 
+/* Mualliflarning "ishlatilayotgan" bayram nishonini ham xuddi shu tarzda
+   — authorId bo'yicha keshlab, faqat kerak bo'lganda (kartochka
+   ko'ringanda) so'raymiz. Sahifa yuklanishiga umuman ta'sir qilmaydi.
+   Nishon o'zgartirilganda (GiftModal orqali) setAuthorBadgeCache chaqirilib,
+   ochiq turgan barcha shu foydalanuvchiga tegishli ko'rinishlar darhol
+   yangilanadi. */
+const _authorBadgeCache = {};
+const _authorBadgeListeners = {};
+function setAuthorBadgeCache(authorId, collectibleId) {
+  if (!authorId) return;
+  _authorBadgeCache[authorId] = collectibleId || null;
+  (_authorBadgeListeners[authorId] || []).forEach((fn) => fn(collectibleId || null));
+}
+function useAuthorBadge(authorId) {
+  const [badge, setBadge] = useState(() => (authorId ? _authorBadgeCache[authorId] : undefined));
+  useEffect(() => {
+    if (!authorId) { setBadge(undefined); return; }
+    if (!_authorBadgeListeners[authorId]) _authorBadgeListeners[authorId] = new Set();
+    _authorBadgeListeners[authorId].add(setBadge);
+    let cancelled = false;
+    if (_authorBadgeCache[authorId] !== undefined) {
+      setBadge(_authorBadgeCache[authorId]);
+    } else {
+      (async () => {
+        try {
+          const rows = await sbSelect('user_collectibles', `user_id=eq.${authorId}&equipped=eq.true`);
+          const badgeId = rows[0]?.collectible_id || null;
+          _authorBadgeCache[authorId] = badgeId;
+          if (!cancelled) setBadge(badgeId);
+        } catch (e) {
+          if (!cancelled) setBadge(null);
+        }
+      })();
+    }
+    return () => { cancelled = true; _authorBadgeListeners[authorId]?.delete(setBadge); };
+  }, [authorId]);
+  return badge;
+}
+
 /* Boshqa foydalanuvchining ommaviy profiliga o'tish — komponentlar
    orasida prop uzatib yurmaslik uchun App darajasida ro'yxatdan
    o'tkaziladigan yagona "ko'prik". */
@@ -552,6 +591,7 @@ let _goToPublicProfile = null;
    aks holda oddiy matn sifatida ko'rsatadi. */
 function AuthorLine({ authorId, authorName, className, style }) {
   const username = useAuthorUsername(authorId);
+  const badge = useAuthorBadge(authorId);
   if (!authorName && !username) return null;
   return (
     <div className={className || 'text-xs mt-1.5'} style={{ ...fontBody, color: C.inkSoft, ...style }}>
@@ -568,6 +608,7 @@ function AuthorLine({ authorId, authorName, className, style }) {
       ) : (
         authorName
       )}
+      {badge && <CollectibleThumb collectibleId={badge} size={14} inline />}
     </div>
   );
 }
@@ -578,6 +619,7 @@ function PublicProfileView({ username, courses, tests, onBack }) {
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState(null);
   const [err, setErr] = useState(false);
+  const badge = useAuthorBadge(row?.id);
 
   useEffect(() => {
     let cancelled = false;
@@ -643,7 +685,10 @@ function PublicProfileView({ username, courses, tests, onBack }) {
           </span>
         </div>
         <div className="min-w-0">
-          <div className="text-xl truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{fullName || `@${row.username}`}</div>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="text-xl truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{fullName || `@${row.username}`}</div>
+            {badge && <CollectibleThumb collectibleId={badge} size={20} />}
+          </div>
           <div className="text-sm" style={{ ...fontMono, color: C.math }}>@{row.username}</div>
         </div>
       </div>
@@ -914,6 +959,7 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
       setRowId(created.id);
       setEquipped(true);
       setPhase('owned');
+      setAuthorBadgeCache(session.user.id, targetId);
       if (onChange) onChange(true);
     } catch (e) {
       setPhase('error');
@@ -924,11 +970,13 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
     if (!rowId) return;
     const next = !equipped;
     setEquipped(next); // darhol ko'rsatamiz, orqa fonda saqlaymiz
+    setAuthorBadgeCache(session.user.id, next ? targetId : null);
     if (onChange) onChange(next);
     try {
       await sbUpdate('user_collectibles', rowId, { equipped: next });
     } catch (e) {
       setEquipped(!next); // saqlanmasa — orqaga qaytaramiz
+      setAuthorBadgeCache(session.user.id, !next ? targetId : null);
       if (onChange) onChange(!next);
     }
   }
@@ -1016,13 +1064,16 @@ function GiftBanner({ onOpen }) {
 /* Ixcham nishon — hozircha faqat bitta kolleksiya bor (Mustaqillik-35),
    shuning uchun vizual to'g'ridan-to'g'ri shu. Kelajakda yangi bayram
    qo'shilsa, shu yerga collectibleId bo'yicha yangi "case" qo'shiladi. */
-function CollectibleThumb({ collectibleId, size = 40 }) {
-  if (collectibleId === GIFT_ID) return <MiniIndependenceBadge size={size} />;
-  return (
-    <span className="inline-flex items-center justify-center rounded-full flex-shrink-0" style={{ width: size, height: size, background: C.goldSoft }}>
-      <Award size={Math.round(size * 0.5)} style={{ color: C.gold }} />
-    </span>
-  );
+function CollectibleThumb({ collectibleId, size = 40, inline }) {
+  const content = collectibleId === GIFT_ID
+    ? <MiniIndependenceBadge size={size} />
+    : (
+      <span className="inline-flex items-center justify-center rounded-full flex-shrink-0" style={{ width: size, height: size, background: C.goldSoft }}>
+        <Award size={Math.round(size * 0.5)} style={{ color: C.gold }} />
+      </span>
+    );
+  if (inline) return <span className="inline-flex align-middle ml-1.5" style={{ verticalAlign: 'middle' }}>{content}</span>;
+  return content;
 }
 
 /* Profildagi "Kolleksiyalar" bo'limi — foydalanuvchi to'plagan barcha
@@ -4646,6 +4697,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   const [testFormOpen, setTestFormOpen] = useState(false);
   const [prefillCategory, setPrefillCategory] = useState('');
   const [testFormMode, setTestFormMode] = useState(null);
+  const myBadge = useAuthorBadge(session?.user?.id);
   const { pushNav } = useContext(NavContext);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
@@ -4798,6 +4850,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           <div className="mt-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-lg" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{profile.firstName} {profile.lastName}</span>
+              {myBadge && <CollectibleThumb collectibleId={myBadge} size={20} />}
               {isAdmin && (
                 <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}><ShieldCheck size={11} /> Admin</span>
               )}
