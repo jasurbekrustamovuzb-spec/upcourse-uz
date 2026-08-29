@@ -518,47 +518,38 @@ async function checkUsernameAvailable(username, currentUserId) {
   return !rows.some((r) => r.id !== currentUserId);
 }
 
-/* Mualliflarning username'ini authorId bo'yicha keshlab oladi. Bir nechta
-   kartochka bir vaqtda ko'rinsa, ularning barchasi BITTA umumiy so'rovga
-   yig'ilib yuboriladi (alohida-alohida emas) — shunda hammasi bir vaqtda,
-   birgalikda to'g'ri holatda paydo bo'ladi. Natija tayyor bo'lgunga qadar
-   ism/matn ko'rsatilmaydi — shu bilan "avval ism, keyin username'ga
-   sakrab o'zgarish" effekti butunlay yo'qoladi. */
+/* Mualliflarning username'ini authorId bo'yicha keshlab oladi — bir xil
+   muallifning kartochkasi ko'p marta chiqsa ham, faqat bir marta so'raladi.
+   Qaytadigan qiymat uch xil holatni bildiradi:
+   - undefined = username hali serverdan so'ralmoqda (natija kutilmoqda)
+   - null      = so'rov tugadi, lekin username yo'q (yoki authorId umuman yo'q)
+   - matn      = username topildi
+   Bu farq muhim: "hali kutilmoqda" va "username yo'q" bir xil qiymat
+   bilan ifodalansa, ekranda bir lahzaga noto'g'ri narsa (masalan eski
+   ism-familya) miltillab chiqib ketishi mumkin edi. */
 const _authorUsernameCache = {};
-const _authorUsernameListeners = new Set();
-let _pendingAuthorIds = new Set();
-let _authorBatchTimer = null;
-
-function _flushAuthorUsernameBatch() {
-  const ids = Array.from(_pendingAuthorIds);
-  _pendingAuthorIds = new Set();
-  _authorBatchTimer = null;
-  if (ids.length === 0) return;
-  (async () => {
-    try {
-      const filter = `id=in.(${ids.join(',')})`;
-      const rows = await sbSelect('profiles', filter);
-      const found = new Set();
-      rows.forEach((r) => { _authorUsernameCache[r.id] = r.username || null; found.add(r.id); });
-      ids.forEach((id) => { if (!found.has(id)) _authorUsernameCache[id] = null; });
-    } catch (e) {
-      ids.forEach((id) => { _authorUsernameCache[id] = null; });
-    }
-    _authorUsernameListeners.forEach((fn) => fn());
-  })();
-}
-
 function useAuthorUsername(authorId) {
-  const [, bump] = useState(0);
+  const [username, setUsername] = useState(() => {
+    if (!authorId) return null;
+    return _authorUsernameCache[authorId] !== undefined ? _authorUsernameCache[authorId] : undefined;
+  });
   useEffect(() => {
-    if (!authorId || _authorUsernameCache[authorId] !== undefined) return;
-    const listener = () => bump((n) => n + 1);
-    _authorUsernameListeners.add(listener);
-    _pendingAuthorIds.add(authorId);
-    if (!_authorBatchTimer) _authorBatchTimer = setTimeout(_flushAuthorUsernameBatch, 80);
-    return () => { _authorUsernameListeners.delete(listener); };
+    if (!authorId) { setUsername(null); return; }
+    if (_authorUsernameCache[authorId] !== undefined) { setUsername(_authorUsernameCache[authorId]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await sbSelect('profiles', `id=eq.${authorId}`);
+        const uname = rows[0]?.username || null;
+        _authorUsernameCache[authorId] = uname;
+        if (!cancelled) setUsername(uname);
+      } catch (e) {
+        if (!cancelled) setUsername(null);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [authorId]);
-  return authorId ? _authorUsernameCache[authorId] : undefined;
+  return username;
 }
 
 /* Boshqa foydalanuvchining ommaviy profiliga o'tish — komponentlar
@@ -566,28 +557,24 @@ function useAuthorUsername(authorId) {
    o'tkaziladigan yagona "ko'prik". */
 let _goToPublicProfile = null;
 
-/* Kurs/test kartochkalarida "Tuzuvchi: ..." qatori. Natija (username
-   yoki uning yo'qligi) aniq bo'lgunga qadar hech narsa chizilmaydi —
-   shu bilan matn "sakrab" o'zgarib ko'rinishining oldi olinadi. */
+/* Kurs/test kartochkalarida "Tuzuvchi: @username" qatori. Faqat username
+   bilan koʻrsatiladi — ism-familya hech qachon chiqmaydi (na vaqtincha
+   miltillab, na doimiy holatda). Username hali soʻralayotgan paytda ham,
+   umuman topilmagan holatda ham — qator shunchaki koʻrinmaydi. */
 function AuthorLine({ authorId, authorName, className, style }) {
   const username = useAuthorUsername(authorId);
-  if (authorId && username === undefined) return null; // hali aniqlanmagan — kutamiz
-  if (!authorName && !username) return null;
+  if (!username) return null;
   return (
     <div className={className || 'text-xs mt-1.5'} style={{ ...fontBody, color: C.inkSoft, ...style }}>
       Tuzuvchi:{' '}
-      {username ? (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); if (_goToPublicProfile) _goToPublicProfile(username); }}
-          className="hover:underline focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.math, outlineColor: C.mathSoft }}
-        >
-          @{username}
-        </button>
-      ) : (
-        authorName
-      )}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); if (_goToPublicProfile) _goToPublicProfile(username); }}
+        className="hover:underline focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.math, outlineColor: C.mathSoft }}
+      >
+        @{username}
+      </button>
     </div>
   );
 }
