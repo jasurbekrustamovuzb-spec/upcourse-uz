@@ -67,35 +67,226 @@
       }
     </script>
 
-    <!-- ==== Splash ekran uslubi (React yuklanguncha ko'rinadi, oq ekran o'rniga) ==== -->
+    <!-- ==== Splash ekran uslubi — sayt haqiqiy "yuklanmoqda" skeletonining aynan
+         nusxasi (statik HTML/CSS), shunda React hali ishga tushmagan bo'lsa ham
+         foydalanuvchi bir xil ko'rinishni ko'radi va hech qanday "sakrash"
+         (jump/flash) bo'lmaydi. ==== -->
     <style>
-      html, body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        background: #EFE9D6;
-      }
+      html, body { margin: 0; padding: 0; height: 100%; background: #EFE9D6; }
       #upcourse-splash {
         position: fixed;
         inset: 0;
         z-index: 99999;
         background: #EFE9D6;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
       }
-      /* React ilova ildizga chizilgach shu klass qo'shiladi va splash so'nadi */
-      #upcourse-splash.uc-hide {
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.35s ease;
+      #upcourse-splash.uc-hide { opacity: 0; pointer-events: none; transition: opacity 0.35s ease; }
+      #upcourse-splash * { box-sizing: border-box; }
+
+      /* ---- Mobil header (md dan kichik ekranlarda) ---- */
+      .ucs-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 56px;
+        padding: 0 20px;
+        background: linear-gradient(180deg, #1F3D2B, #142A1B);
+      }
+      .ucs-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .ucs-brand span { color: #FBFAF3; font-weight: 700; font-size: 18px; white-space: nowrap; }
+      .ucs-theme-btn {
+        width: 32px; height: 32px; border-radius: 999px;
+        border: 1px solid rgba(184,134,59,0.35);
+        display: flex; align-items: center; justify-content: center;
+        color: #DCC28F; flex-shrink: 0;
+      }
+
+      /* ---- Desktop yon panel (md va undan katta) ---- */
+      .ucs-aside {
+        display: none;
+        width: 224px;
+        flex-shrink: 0;
+        height: 100vh;
+        padding: 24px 16px;
+        background: linear-gradient(180deg, #1F3D2B, #142A1B);
+      }
+      .ucs-aside-brand { display: flex; align-items: center; gap: 8px; padding: 0 8px; margin-bottom: 32px; }
+      .ucs-aside-brand span { color: #FBFAF3; font-weight: 700; font-size: 15px; }
+      .ucs-aside-item {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 12px; border-radius: 12px;
+        font-size: 14px; color: rgba(251,250,243,0.8); margin-bottom: 4px;
+      }
+      .ucs-aside-item.active { background: #B8863B; color: #1F3D2B; font-weight: 600; }
+      .ucs-aside-create {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 12px; border-radius: 12px; margin-top: 8px;
+        font-size: 14px; font-weight: 600; color: #1F3D2B; background: #DCC28F;
+      }
+
+      /* ---- Layout ---- */
+      .ucs-body { display: flex; min-height: 100%; }
+      .ucs-main-wrap { flex: 1; min-width: 0; padding-bottom: 96px; }
+      .ucs-main { max-width: 1024px; margin: 0 auto; padding: 16px 20px 32px; }
+
+      .ucs-title-sk { height: 12px; width: 80px; border-radius: 2px; background: #B7C4AE; opacity: 0.55; margin-bottom: 8px; }
+      .ucs-subtitle-sk { height: 28px; width: 150px; border-radius: 2px; background: #B7C4AE; opacity: 0.45; margin-bottom: 24px; }
+
+      .ucs-search-sk {
+        height: 50px; border-radius: 2px; margin-bottom: 20px;
+        display: flex; align-items: center; padding: 0 14px;
+        background: #FBFAF3; border: 1px solid #B7C4AE;
+      }
+
+      .ucs-cards { display: grid; grid-template-columns: 1fr; gap: 12px; }
+      .ucs-card {
+        display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+        padding: 14px; border-radius: 2px;
+        background: #FBFAF3; border: 1px solid #B7C4AE;
+      }
+      .ucs-card-left { display: flex; align-items: flex-start; min-width: 0; flex: 1; }
+      .ucs-card-icon { flex-shrink: 0; width: 36px; height: 24px; border-radius: 2px; background: #B7C4AE; opacity: 0.45; margin-right: 12px; }
+      .ucs-card-lines { min-width: 0; flex: 1; }
+      .ucs-card-lines div { border-radius: 2px; background: #B7C4AE; }
+      .ucs-card-line1 { height: 16px; opacity: 0.6; margin-bottom: 10px; }
+      .ucs-card-line2 { height: 12px; width: 42%; opacity: 0.45; margin-bottom: 6px; }
+      .ucs-card-line3 { height: 12px; width: 60%; opacity: 0.35; }
+      .ucs-card-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+      .ucs-card-right span { display: block; width: 14px; height: 14px; border-radius: 2px; background: #B7C4AE; opacity: 0.35; }
+
+      @keyframes ucsPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+      .ucs-title-sk, .ucs-subtitle-sk, .ucs-card { animation: ucsPulse 1.6s ease-in-out infinite; }
+
+      /* ---- Mobil pastki navigatsiya ---- */
+      .ucs-bottomnav {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+        display: flex; align-items: center; justify-content: space-around;
+        padding: 8px 8px max(6px, env(safe-area-inset-bottom));
+        border-radius: 28px 28px 0 0;
+        background: linear-gradient(180deg, #1F3D2B, #142A1B);
+        box-shadow: 0 -6px 20px rgba(15,61,46,0.25);
+      }
+      .ucs-nb { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 16px; color: rgba(251,250,243,0.65); }
+      .ucs-nb.active { background: #B8863B; color: #1F3D2B; }
+      .ucs-nb span { font-size: 10px; }
+      .ucs-nb-center {
+        width: 48px; height: 48px; margin-top: -20px; border-radius: 999px;
+        display: flex; align-items: center; justify-content: center;
+        background: #B8863B; color: #1F3D2B; box-shadow: 0 4px 14px rgba(212,172,110,0.45);
+      }
+
+      /* ---- Breakpoint: desktop (Tailwind md = 768px) ---- */
+      @media (min-width: 768px) {
+        .ucs-header, .ucs-bottomnav { display: none; }
+        .ucs-aside { display: flex; flex-direction: column; }
+        .ucs-main-wrap { padding-bottom: 0; }
+        .ucs-cards { grid-template-columns: 1fr 1fr; gap: 16px; }
+        .ucs-main { padding-left: 32px; padding-right: 32px; }
       }
     </style>
   </head>
   <body>
     <div id="root">
-      <div id="upcourse-splash"></div>
+      <div id="upcourse-splash">
+        <header class="ucs-header">
+          <div class="ucs-brand">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B8863B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1.5 2.5 3 6 3s6-1.5 6-3v-5"/></svg>
+            <span>UpCourse Uz</span>
+          </div>
+          <div class="ucs-theme-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DCC28F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>
+          </div>
+        </header>
+
+        <div class="ucs-body">
+          <aside class="ucs-aside">
+            <div class="ucs-aside-brand">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B8863B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1.5 2.5 3 6 3s6-1.5 6-3v-5"/></svg>
+              <span>UpCourse Uz</span>
+            </div>
+            <div class="ucs-aside-item active">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+              Bosh sahifa
+            </div>
+            <div class="ucs-aside-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/></svg>
+              Testlar
+            </div>
+            <div class="ucs-aside-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+              Yangiliklar
+            </div>
+            <div class="ucs-aside-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+              Profil
+            </div>
+            <div class="ucs-aside-create">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Yaratish
+            </div>
+          </aside>
+
+          <div class="ucs-main-wrap">
+            <main class="ucs-main">
+              <div class="ucs-title-sk"></div>
+              <div class="ucs-subtitle-sk"></div>
+              <div class="ucs-search-sk">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B7C4AE" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+              </div>
+              <div class="ucs-cards" id="ucsCards"></div>
+            </main>
+          </div>
+        </div>
+
+        <nav class="ucs-bottomnav">
+          <button class="ucs-nb active">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+            <span>Bosh sahifa</span>
+          </button>
+          <button class="ucs-nb">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/></svg>
+            <span>Testlar</span>
+          </button>
+          <button class="ucs-nb-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="ucs-nb">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+            <span>Yangiliklar</span>
+          </button>
+          <button class="ucs-nb">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+            <span>Profil</span>
+          </button>
+        </nav>
+      </div>
     </div>
     <script>
+      // 6 ta skeleton kartochkasini generatsiya qilamiz (haqiqiy ilova skeletoni bilan bir xil sondagi va nisbatdagi).
+      (function () {
+        var wrap = document.getElementById('ucsCards');
+        if (!wrap) return;
+        var widths = [82, 70, 65, 82, 70, 78];
+        var html = '';
+        for (var i = 0; i < 6; i++) {
+          html += '' +
+            '<div class="ucs-card">' +
+              '<div class="ucs-card-left">' +
+                '<div class="ucs-card-icon"></div>' +
+                '<div class="ucs-card-lines">' +
+                  '<div class="ucs-card-line1" style="width:' + widths[i] + '%"></div>' +
+                  '<div class="ucs-card-line2"></div>' +
+                  '<div class="ucs-card-line3"></div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="ucs-card-right"><span></span><span></span></div>' +
+            '</div>';
+        }
+        wrap.innerHTML = html;
+      })();
+
       // React ildizga birinchi marta chizib bo'lgach, splash ekranni yumshoq yo'qotadi.
-      // MutationObserver #root ichida (splash'dan tashqari) yangi tugun paydo bo'lishini kuzatadi.
       (function () {
         var root = document.getElementById('root');
         var splash = document.getElementById('upcourse-splash');
@@ -109,14 +300,10 @@
         }
         var observer = new MutationObserver(function () {
           for (var i = 0; i < root.childNodes.length; i++) {
-            if (root.childNodes[i] !== splash) {
-              removeSplash();
-              break;
-            }
+            if (root.childNodes[i] !== splash) { removeSplash(); break; }
           }
         });
         observer.observe(root, { childList: true });
-        // Xavfsizlik uchun: 10 soniyadan keyin baribir yo'qoladi (masalan xato bo'lsa ham ekranda "muzlab" qolmasin)
         setTimeout(removeSplash, 10000);
       })();
     </script>
