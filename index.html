@@ -66,9 +66,95 @@
         "url": "https://www.upcourse.uz/"
       }
     </script>
+
+    <!-- ==== Splash ekran uslubi (React yuklanguncha ko'rinadi, oq ekran o'rniga) ==== -->
+    <style>
+      #upcourse-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #F3EDD9;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      #upcourse-splash .uc-logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: 'Fraunces', Georgia, serif;
+        font-weight: 600;
+        font-size: 26px;
+        color: #1F3D2B;
+        letter-spacing: 0.2px;
+      }
+      #upcourse-splash .uc-logo svg {
+        width: 30px;
+        height: 30px;
+        color: #C9A24B;
+      }
+      #upcourse-splash .uc-spinner {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 3px solid rgba(31, 61, 43, 0.15);
+        border-top-color: #C9A24B;
+        animation: uc-spin 0.8s linear infinite;
+      }
+      @keyframes uc-spin {
+        to { transform: rotate(360deg); }
+      }
+      /* React ilova ildizga chizilgach shu klass qo'shiladi va splash so'nadi */
+      #upcourse-splash.uc-hide {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.35s ease;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="upcourse-splash">
+        <div class="uc-logo">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 3L2 8L12 13L22 8L12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M6 10.5V16C6 16 8.5 18.5 12 18.5C15.5 18.5 18 16 18 16V10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          UpCourse Uz
+        </div>
+        <div class="uc-spinner"></div>
+      </div>
+    </div>
+    <script>
+      // React ildizga birinchi marta chizib bo'lgach, splash ekranni yumshoq yo'qotadi.
+      // MutationObserver #root ichida (splash'dan tashqari) yangi tugun paydo bo'lishini kuzatadi.
+      (function () {
+        var root = document.getElementById('root');
+        var splash = document.getElementById('upcourse-splash');
+        if (!root || !splash) return;
+        function removeSplash() {
+          splash.classList.add('uc-hide');
+          setTimeout(function () {
+            if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+          }, 400);
+          observer.disconnect();
+        }
+        var observer = new MutationObserver(function () {
+          for (var i = 0; i < root.childNodes.length; i++) {
+            if (root.childNodes[i] !== splash) {
+              removeSplash();
+              break;
+            }
+          }
+        });
+        observer.observe(root, { childList: true });
+        // Xavfsizlik uchun: 10 soniyadan keyin baribir yo'qoladi (masalan xato bo'lsa ham ekranda "muzlab" qolmasin)
+        setTimeout(removeSplash, 10000);
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
