@@ -542,45 +542,6 @@ function useAuthorUsername(authorId) {
   return username;
 }
 
-/* Mualliflarning "ishlatilayotgan" bayram nishonini ham xuddi shu tarzda
-   — authorId bo'yicha keshlab, faqat kerak bo'lganda (kartochka
-   ko'ringanda) so'raymiz. Sahifa yuklanishiga umuman ta'sir qilmaydi.
-   Nishon o'zgartirilganda (GiftModal orqali) setAuthorBadgeCache chaqirilib,
-   ochiq turgan barcha shu foydalanuvchiga tegishli ko'rinishlar darhol
-   yangilanadi. */
-const _authorBadgeCache = {};
-const _authorBadgeListeners = {};
-function setAuthorBadgeCache(authorId, collectibleId) {
-  if (!authorId) return;
-  _authorBadgeCache[authorId] = collectibleId || null;
-  (_authorBadgeListeners[authorId] || []).forEach((fn) => fn(collectibleId || null));
-}
-function useAuthorBadge(authorId) {
-  const [badge, setBadge] = useState(() => (authorId ? _authorBadgeCache[authorId] : undefined));
-  useEffect(() => {
-    if (!authorId) { setBadge(undefined); return; }
-    if (!_authorBadgeListeners[authorId]) _authorBadgeListeners[authorId] = new Set();
-    _authorBadgeListeners[authorId].add(setBadge);
-    let cancelled = false;
-    if (_authorBadgeCache[authorId] !== undefined) {
-      setBadge(_authorBadgeCache[authorId]);
-    } else {
-      (async () => {
-        try {
-          const rows = await sbSelect('user_collectibles', `user_id=eq.${authorId}&equipped=eq.true`);
-          const badgeId = rows[0]?.collectible_id || null;
-          _authorBadgeCache[authorId] = badgeId;
-          if (!cancelled) setBadge(badgeId);
-        } catch (e) {
-          if (!cancelled) setBadge(null);
-        }
-      })();
-    }
-    return () => { cancelled = true; _authorBadgeListeners[authorId]?.delete(setBadge); };
-  }, [authorId]);
-  return badge;
-}
-
 /* Boshqa foydalanuvchining ommaviy profiliga o'tish — komponentlar
    orasida prop uzatib yurmaslik uchun App darajasida ro'yxatdan
    o'tkaziladigan yagona "ko'prik". */
@@ -591,7 +552,6 @@ let _goToPublicProfile = null;
    aks holda oddiy matn sifatida ko'rsatadi. */
 function AuthorLine({ authorId, authorName, className, style }) {
   const username = useAuthorUsername(authorId);
-  const badge = useAuthorBadge(authorId);
   if (!authorName && !username) return null;
   return (
     <div className={className || 'text-xs mt-1.5'} style={{ ...fontBody, color: C.inkSoft, ...style }}>
@@ -608,7 +568,6 @@ function AuthorLine({ authorId, authorName, className, style }) {
       ) : (
         authorName
       )}
-      {badge && <CollectibleThumb collectibleId={badge} size={14} inline />}
     </div>
   );
 }
@@ -619,7 +578,6 @@ function PublicProfileView({ username, courses, tests, onBack }) {
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState(null);
   const [err, setErr] = useState(false);
-  const badge = useAuthorBadge(row?.id);
 
   useEffect(() => {
     let cancelled = false;
@@ -685,10 +643,7 @@ function PublicProfileView({ username, courses, tests, onBack }) {
           </span>
         </div>
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="text-xl truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{fullName || `@${row.username}`}</div>
-            {badge && <CollectibleThumb collectibleId={badge} size={20} />}
-          </div>
+          <div className="text-xl truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{fullName || `@${row.username}`}</div>
           <div className="text-sm" style={{ ...fontMono, color: C.math }}>@{row.username}</div>
         </div>
       </div>
@@ -829,339 +784,6 @@ function IconButtonDelete({ onClick, label }) {
     >
       <Trash2 size={16} />
     </button>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Bayram sovg'alari (kolleksiya) tizimi                              */
-/*  — 1-bosqich: banner + qabul qilish + saqlash.                      */
-/*  Bu tizim kelajakdagi har bir bayram uchun qayta ishlatiladi:       */
-/*  collectibles jadvaliga yangi qator qo'shilsa, yangi sovg'a paydo   */
-/*  bo'ladi. Hech narsa sahifa ochilganda avtomatik so'ralmaydi —      */
-/*  faqat banner bosilgandagina bitta yengil so'rov ketadi.            */
-/* ------------------------------------------------------------------ */
-
-const collectibleFromRow = (r) => ({ id: r.id, title: r.title, subtitle: r.subtitle || '' });
-const userCollectibleFromRow = (r) => ({ id: r.id, userId: r.user_id, collectibleId: r.collectible_id, equipped: !!r.equipped, collectedAt: r.collected_at });
-
-/* Davlat bayrog'ining rasmiy ko'rinishiga mos: ko'k-oq-yashil teng
-   chiziqlar, orasida ingichka qizil chiziqlar, ko'k qismda yarim oy va
-   3 qatorda 4 tadan (jami 12 ta) yulduz — nisbat va joylashuv aniq. */
-function UzbekFlagRibbon({ width = 92 }) {
-  const h = Math.round((width / 2) * 1); // ixcham lenta uchun balandligi
-  return (
-    <svg width={width} height={h} viewBox="0 0 184 92" xmlns="http://www.w3.org/2000/svg">
-      <rect width="184" height="92" fill="#0099B5" />
-      <rect y="30.6" width="184" height="30.8" fill="#FFFFFF" />
-      <rect y="61.4" width="184" height="30.6" fill="#1EB53A" />
-      <rect y="29" width="184" height="3.6" fill="#CE1126" />
-      <rect y="59.4" width="184" height="3.6" fill="#CE1126" />
-      <circle cx="30" cy="16" r="9" fill="#FFFFFF" />
-      <circle cx="34" cy="16" r="7.4" fill="#0099B5" />
-      {[0, 1, 2].map((row) =>
-        [0, 1, 2, 3].map((col) => (
-          <text
-            key={`${row}-${col}`}
-            x={48 + col * 11}
-            y={9 + row * 10}
-            fontSize="6"
-            fill="#FFFFFF"
-            textAnchor="middle"
-          >
-            ★
-          </text>
-        ))
-      )}
-    </svg>
-  );
-}
-
-/* Bayram nishoni — oltin medal uslubida, pastida bayroq lentasi bilan.
-   Sof SVG/CSS, tashqi rasm yuklanmaydi — yuklanish tezligiga ta'sir yo'q. */
-function IndependenceBadge({ size = 168 }) {
-  return (
-    <div className="flex flex-col items-center">
-      <svg width={size} height={size} viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <radialGradient id="badgeGold" cx="35%" cy="30%" r="75%">
-            <stop offset="0%" stopColor="#F3D999" />
-            <stop offset="55%" stopColor="#D4AC6E" />
-            <stop offset="100%" stopColor="#9C7530" />
-          </radialGradient>
-          <radialGradient id="badgeCenter" cx="35%" cy="30%" r="75%">
-            <stop offset="0%" stopColor="#245A38" />
-            <stop offset="100%" stopColor="#143621" />
-          </radialGradient>
-        </defs>
-        <circle cx="100" cy="100" r="96" fill="url(#badgeGold)" />
-        <circle cx="100" cy="100" r="82" fill="url(#badgeCenter)" stroke="#F3D999" strokeWidth="2" />
-        <circle cx="100" cy="100" r="74" fill="none" stroke="#D4AC6E" strokeWidth="1" opacity="0.6" />
-        <text x="100" y="62" textAnchor="middle" fontSize="12" letterSpacing="2" fill="#D4AC6E" fontFamily="'IBM Plex Mono', monospace">MUSTAQILLIK</text>
-        <text x="100" y="118" textAnchor="middle" fontSize="52" fontWeight="700" fill="#FBFAF3" fontFamily="'Fraunces', serif">35</text>
-        <text x="100" y="140" textAnchor="middle" fontSize="12" letterSpacing="3" fill="#D4AC6E" fontFamily="'IBM Plex Mono', monospace">YIL</text>
-      </svg>
-      <div className="-mt-1 rounded-sm overflow-hidden" style={{ boxShadow: '0 3px 10px rgba(0,0,0,0.25)' }}>
-        <UzbekFlagRibbon width={Math.round(size * 0.42)} />
-      </div>
-    </div>
-  );
-}
-
-/* Ixcham versiya — profilda ism yonida, "@username" yonida ko'rinadigan
-   kichik nishon (rozetka). */
-function MiniIndependenceBadge({ size = 18, title }) {
-  return (
-    <span title={title || "Mustaqillik bayrami — 35 yil"} className="inline-flex flex-shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="20" cy="20" r="19" fill="#D4AC6E" />
-        <circle cx="20" cy="20" r="15.5" fill="#1F3D2B" />
-        <text x="20" y="25" textAnchor="middle" fontSize="14" fontWeight="700" fill="#FBFAF3" fontFamily="'Fraunces', serif">35</text>
-      </svg>
-    </span>
-  );
-}
-
-const GIFT_ID = 'mustaqillik-35';
-
-function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }) {
-  const targetId = collectibleId || GIFT_ID;
-  const [phase, setPhase] = useState('loading'); // loading | offer | owned | busy | error
-  const [equipped, setEquipped] = useState(false);
-  const [rowId, setRowId] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!session) { setPhase('offer'); return; }
-      try {
-        const rows = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${targetId}`);
-        if (cancelled) return;
-        if (rows[0]) {
-          const uc = userCollectibleFromRow(rows[0]);
-          setRowId(uc.id);
-          setEquipped(uc.equipped);
-          setPhase('owned');
-        } else {
-          setPhase('offer');
-        }
-      } catch (e) {
-        if (!cancelled) setPhase('offer');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [session, targetId]);
-
-  async function accept() {
-    if (!session) { onRequireLogin(); return; }
-    setPhase('busy');
-    try {
-      const [created] = await sbInsert('user_collectibles', { user_id: session.user.id, collectible_id: targetId, equipped: true });
-      setRowId(created.id);
-      setEquipped(true);
-      setPhase('owned');
-      setAuthorBadgeCache(session.user.id, targetId);
-      if (onChange) onChange(true);
-    } catch (e) {
-      setPhase('error');
-    }
-  }
-
-  async function toggleEquip() {
-    if (!rowId) return;
-    const next = !equipped;
-    setEquipped(next); // darhol ko'rsatamiz, orqa fonda saqlaymiz
-    setAuthorBadgeCache(session.user.id, next ? targetId : null);
-    if (onChange) onChange(next);
-    try {
-      await sbUpdate('user_collectibles', rowId, { equipped: next });
-    } catch (e) {
-      setEquipped(!next); // saqlanmasa — orqaga qaytaramiz
-      setAuthorBadgeCache(session.user.id, !next ? targetId : null);
-      if (onChange) onChange(!next);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,27,18,0.62)' }} onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-lg overflow-hidden text-center"
-        style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 20px 50px rgba(0,0,0,0.35)' }}
-      >
-        <div className="pt-8 pb-6 px-6" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
-          <IndependenceBadge />
-          <div className="mt-4 text-lg" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>Mustaqillik bayrami — 35 yil!</div>
-          <div className="text-[13px] mt-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>Sizga ushbu esdalik nishonini sovg'a qilamiz</div>
-        </div>
-        <div className="p-6">
-          {phase === 'loading' && (
-            <div className="flex items-center justify-center gap-2 py-2" style={{ color: C.inkSoft }}>
-              <Loader2 size={18} className="animate-spin" />
-              <span className="text-[14px]" style={fontBody}>Tekshirilmoqda...</span>
-            </div>
-          )}
-
-          {phase === 'offer' && (
-            <>
-              <p className="text-[14px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
-                Mustaqil O'zbekistonimizning 35 yilligi sharafiga — barcha foydalanuvchilarimizga chin qalbdan tabriklar va shu esdalik nishoni!
-              </p>
-              <SolidButton onClick={accept} icon={Award}>Qabul qilish</SolidButton>
-            </>
-          )}
-
-          {phase === 'busy' && (
-            <div className="flex items-center justify-center gap-2 py-2" style={{ color: C.inkSoft }}>
-              <Loader2 size={18} className="animate-spin" />
-              <span className="text-[14px]" style={fontBody}>Saqlanmoqda...</span>
-            </div>
-          )}
-
-          {phase === 'owned' && (
-            <>
-              <div className="flex items-center justify-center gap-1.5 text-[14px] mb-5" style={{ ...fontBody, color: C.accent }}>
-                <CheckCircle2 size={16} /> Bu nishon sizning kolleksiyangizda
-              </div>
-              <div className="flex gap-3 justify-center">
-                <SolidButton onClick={toggleEquip} icon={equipped ? X : Award}>
-                  {equipped ? "Olib tashlash" : "Ishlatish"}
-                </SolidButton>
-                <GhostButton onClick={onClose} icon={X}>Yopish</GhostButton>
-              </div>
-            </>
-          )}
-
-          {phase === 'error' && (
-            <div className="text-[14px]" style={{ ...fontBody, color: C.red }}>Xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring.</div>
-          )}
-
-          {phase !== 'owned' && phase !== 'loading' && phase !== 'busy' && (
-            <button onClick={onClose} className="mt-4 text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Yopish</button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GiftBanner({ onOpen }) {
-  return (
-    <button
-      onClick={onOpen}
-      className="w-full flex items-center gap-3 p-3.5 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5"
-      style={{ background: `linear-gradient(120deg, ${C.cover}, ${C.coverDeep})`, border: `1px solid ${C.coverLine}` }}
-    >
-      <MiniIndependenceBadge size={34} />
-      <div className="min-w-0 flex-1">
-        <div className="text-[14px] truncate" style={{ ...fontBody, color: C.white, fontWeight: 600 }}>🎉 Mustaqillik bayrami sovg'asini oling</div>
-        <div className="text-[12px] truncate" style={{ ...fontBody, color: 'rgba(251,250,243,0.7)' }}>35 yillik esdalik nishoni — sizni kutmoqda</div>
-      </div>
-      <ChevronRight size={18} style={{ color: C.gold, flexShrink: 0 }} />
-    </button>
-  );
-}
-
-/* Ixcham nishon — hozircha faqat bitta kolleksiya bor (Mustaqillik-35),
-   shuning uchun vizual to'g'ridan-to'g'ri shu. Kelajakda yangi bayram
-   qo'shilsa, shu yerga collectibleId bo'yicha yangi "case" qo'shiladi. */
-function CollectibleThumb({ collectibleId, size = 40, inline }) {
-  const content = collectibleId === GIFT_ID
-    ? <MiniIndependenceBadge size={size} />
-    : (
-      <span className="inline-flex items-center justify-center rounded-full flex-shrink-0" style={{ width: size, height: size, background: C.goldSoft }}>
-        <Award size={Math.round(size * 0.5)} style={{ color: C.gold }} />
-      </span>
-    );
-  if (inline) return <span className="inline-flex align-middle ml-1.5" style={{ verticalAlign: 'middle' }}>{content}</span>;
-  return content;
-}
-
-/* Profildagi "Kolleksiyalar" bo'limi — foydalanuvchi to'plagan barcha
-   bayram sovg'alarini ko'rsatadi. Faqat shu bo'lim ochilganda (Profil
-   ichidan qo'lda bosilganda) ikkita yengil so'rov ketadi — sahifa
-   yuklanganda yoki Profilga kirilganda avtomatik ishlamaydi. */
-function CollectionsView({ session, onBack }) {
-  const [state, setState] = useState('loading'); // loading | ready | error
-  const [catalog, setCatalog] = useState([]);
-  const [owned, setOwned] = useState([]);
-  const [openId, setOpenId] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [catRows, ownedRows] = await Promise.all([
-          sbSelect('collectibles'),
-          sbSelect('user_collectibles', `user_id=eq.${session.user.id}`),
-        ]);
-        if (cancelled) return;
-        setCatalog(catRows.map(collectibleFromRow));
-        setOwned(ownedRows.map(userCollectibleFromRow));
-        setState('ready');
-      } catch (e) {
-        if (!cancelled) setState('error');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [session.user.id]);
-
-  function handleEquipChange(collectibleId, next) {
-    setOwned((prev) => prev.map((o) => (o.collectibleId === collectibleId ? { ...o, equipped: next } : o)));
-  }
-
-  return (
-    <div>
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm mb-4 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}>
-        <ArrowLeft size={15} /> Profil
-      </button>
-      <SectionHeading eyebrow="Mening hisobim" title="Kolleksiyalar" />
-
-      {state === 'loading' && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={20} className="animate-spin" style={{ color: C.gold }} />
-        </div>
-      )}
-
-      {state === 'error' && (
-        <div className="text-[14px]" style={{ ...fontBody, color: C.red }}>Yuklab boʻlmadi. Birozdan keyin qayta urinib koʻring.</div>
-      )}
-
-      {state === 'ready' && (
-        owned.length === 0 ? (
-          <EmptyState text="Hozircha kolleksiyangizda hech narsa yoʻq. Bayram sovgʻalarini yigʻib boring!" />
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {owned.map((uc) => {
-              const meta = catalog.find((c) => c.id === uc.collectibleId);
-              return (
-                <button
-                  key={uc.id}
-                  onClick={() => setOpenId(uc.collectibleId)}
-                  className="flex flex-col items-center gap-2 p-4 rounded-lg text-center transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
-                  style={{ background: C.surface, border: `1px solid ${uc.equipped ? C.gold : C.rule}`, outlineColor: C.gold }}
-                >
-                  <CollectibleThumb collectibleId={uc.collectibleId} size={44} />
-                  <div className="text-[13px]" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{meta?.title || 'Sovgʻa'}</div>
-                  {uc.equipped && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Ishlatilmoqda</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )
-      )}
-
-      {openId && (
-        <GiftModal
-          session={session}
-          collectibleId={openId}
-          onRequireLogin={() => {}}
-          onClose={() => setOpenId(null)}
-          onChange={(next) => handleEquipChange(openId, next)}
-        />
-      )}
-    </div>
   );
 }
 
@@ -4697,7 +4319,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   const [testFormOpen, setTestFormOpen] = useState(false);
   const [prefillCategory, setPrefillCategory] = useState('');
   const [testFormMode, setTestFormMode] = useState(null);
-  const myBadge = useAuthorBadge(session?.user?.id);
   const { pushNav } = useContext(NavContext);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
@@ -4807,10 +4428,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     );
   }
 
-  if (subTab === 'kolleksiya') {
-    return <CollectionsView session={session} onBack={() => setSubTab(null)} />;
-  }
-
   return (
     <div>
       <div className="rounded-sm overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
@@ -4850,7 +4467,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           <div className="mt-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-lg" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{profile.firstName} {profile.lastName}</span>
-              {myBadge && <CollectibleThumb collectibleId={myBadge} size={20} />}
               {isAdmin && (
                 <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}><ShieldCheck size={11} /> Admin</span>
               )}
@@ -4905,16 +4521,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
             <div>
               <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening testlarim</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myTests.length} ta</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-        <button onClick={() => goSubTab('kolleksiya')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <Award size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kolleksiyalar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Bayram sovgʻalaringiz</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
@@ -5089,7 +4695,6 @@ export default function App() {
   });
   const [readingActive, setReadingActive] = useState(false);
   const [viewingUsername, setViewingUsername] = useState(null);
-  const [giftOpen, setGiftOpen] = useState(false);
 
   useEffect(() => {
     _goToPublicProfile = (username) => setViewingUsername(username);
@@ -5787,7 +5392,6 @@ export default function App() {
               </div>
             )}
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
-              {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} />
               )}
@@ -5923,14 +5527,6 @@ export default function App() {
             );
           })}
         </nav>
-      )}
-
-      {giftOpen && (
-        <GiftModal
-          session={session}
-          onRequireLogin={() => { setGiftOpen(false); setTab('profil'); }}
-          onClose={() => setGiftOpen(false)}
-        />
       )}
     </div>
     </NavContext.Provider>
