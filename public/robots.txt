@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://upcourse.uz/sitemap.xml
+Sitemap: https://www.upcourse.uz/sitemap.xml
