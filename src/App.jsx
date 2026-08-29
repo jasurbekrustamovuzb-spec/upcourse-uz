@@ -519,22 +519,12 @@ async function checkUsernameAvailable(username, currentUserId) {
 }
 
 /* Mualliflarning username'ini authorId bo'yicha keshlab oladi — bir xil
-   muallifning kartochkasi ko'p marta chiqsa ham, faqat bir marta so'raladi.
-   Qaytadigan qiymat uch xil holatni bildiradi:
-   - undefined = username hali serverdan so'ralmoqda (natija kutilmoqda)
-   - null      = so'rov tugadi, lekin username yo'q (yoki authorId umuman yo'q)
-   - matn      = username topildi
-   Bu farq muhim: "hali kutilmoqda" va "username yo'q" bir xil qiymat
-   bilan ifodalansa, ekranda bir lahzaga noto'g'ri narsa (masalan eski
-   ism-familya) miltillab chiqib ketishi mumkin edi. */
+   muallifning kartochkasi ko'p marta chiqsa ham, faqat bir marta so'raladi. */
 const _authorUsernameCache = {};
 function useAuthorUsername(authorId) {
-  const [username, setUsername] = useState(() => {
-    if (!authorId) return null;
-    return _authorUsernameCache[authorId] !== undefined ? _authorUsernameCache[authorId] : undefined;
-  });
+  const [username, setUsername] = useState(() => (authorId ? _authorUsernameCache[authorId] : undefined));
   useEffect(() => {
-    if (!authorId) { setUsername(null); return; }
+    if (!authorId) { setUsername(undefined); return; }
     if (_authorUsernameCache[authorId] !== undefined) { setUsername(_authorUsernameCache[authorId]); return; }
     let cancelled = false;
     (async () => {
@@ -557,24 +547,27 @@ function useAuthorUsername(authorId) {
    o'tkaziladigan yagona "ko'prik". */
 let _goToPublicProfile = null;
 
-/* Kurs/test kartochkalarida "Tuzuvchi: @username" qatori. Faqat username
-   bilan koʻrsatiladi — ism-familya hech qachon chiqmaydi (na vaqtincha
-   miltillab, na doimiy holatda). Username hali soʻralayotgan paytda ham,
-   umuman topilmagan holatda ham — qator shunchaki koʻrinmaydi. */
+/* Kurs/test kartochkalarida "Tuzuvchi: ..." qatori. Agar muallifning
+   username'i topilsa, ko'k rangdagi bosiladigan @username sifatida,
+   aks holda oddiy matn sifatida ko'rsatadi. */
 function AuthorLine({ authorId, authorName, className, style }) {
   const username = useAuthorUsername(authorId);
-  if (!username) return null;
+  if (!authorName && !username) return null;
   return (
     <div className={className || 'text-xs mt-1.5'} style={{ ...fontBody, color: C.inkSoft, ...style }}>
       Tuzuvchi:{' '}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); if (_goToPublicProfile) _goToPublicProfile(username); }}
-        className="hover:underline focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.math, outlineColor: C.mathSoft }}
-      >
-        @{username}
-      </button>
+      {username ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); if (_goToPublicProfile) _goToPublicProfile(username); }}
+          className="hover:underline focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.math, outlineColor: C.mathSoft }}
+        >
+          @{username}
+        </button>
+      ) : (
+        authorName
+      )}
     </div>
   );
 }
