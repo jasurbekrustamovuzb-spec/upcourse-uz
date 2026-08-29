@@ -787,6 +787,228 @@ function IconButtonDelete({ onClick, label }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Bayram sovg'alari (kolleksiya) tizimi                              */
+/*  — 1-bosqich: banner + qabul qilish + saqlash.                      */
+/*  Bu tizim kelajakdagi har bir bayram uchun qayta ishlatiladi:       */
+/*  collectibles jadvaliga yangi qator qo'shilsa, yangi sovg'a paydo   */
+/*  bo'ladi. Hech narsa sahifa ochilganda avtomatik so'ralmaydi —      */
+/*  faqat banner bosilgandagina bitta yengil so'rov ketadi.            */
+/* ------------------------------------------------------------------ */
+
+const collectibleFromRow = (r) => ({ id: r.id, title: r.title, subtitle: r.subtitle || '' });
+const userCollectibleFromRow = (r) => ({ id: r.id, userId: r.user_id, collectibleId: r.collectible_id, equipped: !!r.equipped, collectedAt: r.collected_at });
+
+/* Davlat bayrog'ining rasmiy ko'rinishiga mos: ko'k-oq-yashil teng
+   chiziqlar, orasida ingichka qizil chiziqlar, ko'k qismda yarim oy va
+   3 qatorda 4 tadan (jami 12 ta) yulduz — nisbat va joylashuv aniq. */
+function UzbekFlagRibbon({ width = 92 }) {
+  const h = Math.round((width / 2) * 1); // ixcham lenta uchun balandligi
+  return (
+    <svg width={width} height={h} viewBox="0 0 184 92" xmlns="http://www.w3.org/2000/svg">
+      <rect width="184" height="92" fill="#0099B5" />
+      <rect y="30.6" width="184" height="30.8" fill="#FFFFFF" />
+      <rect y="61.4" width="184" height="30.6" fill="#1EB53A" />
+      <rect y="29" width="184" height="3.6" fill="#CE1126" />
+      <rect y="59.4" width="184" height="3.6" fill="#CE1126" />
+      <circle cx="30" cy="16" r="9" fill="#FFFFFF" />
+      <circle cx="34" cy="16" r="7.4" fill="#0099B5" />
+      {[0, 1, 2].map((row) =>
+        [0, 1, 2, 3].map((col) => (
+          <text
+            key={`${row}-${col}`}
+            x={48 + col * 11}
+            y={9 + row * 10}
+            fontSize="6"
+            fill="#FFFFFF"
+            textAnchor="middle"
+          >
+            ★
+          </text>
+        ))
+      )}
+    </svg>
+  );
+}
+
+/* Bayram nishoni — oltin medal uslubida, pastida bayroq lentasi bilan.
+   Sof SVG/CSS, tashqi rasm yuklanmaydi — yuklanish tezligiga ta'sir yo'q. */
+function IndependenceBadge({ size = 168 }) {
+  return (
+    <div className="flex flex-col items-center">
+      <svg width={size} height={size} viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="badgeGold" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stopColor="#F3D999" />
+            <stop offset="55%" stopColor="#D4AC6E" />
+            <stop offset="100%" stopColor="#9C7530" />
+          </radialGradient>
+          <radialGradient id="badgeCenter" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stopColor="#245A38" />
+            <stop offset="100%" stopColor="#143621" />
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="96" fill="url(#badgeGold)" />
+        <circle cx="100" cy="100" r="82" fill="url(#badgeCenter)" stroke="#F3D999" strokeWidth="2" />
+        <circle cx="100" cy="100" r="74" fill="none" stroke="#D4AC6E" strokeWidth="1" opacity="0.6" />
+        <text x="100" y="62" textAnchor="middle" fontSize="12" letterSpacing="2" fill="#D4AC6E" fontFamily="'IBM Plex Mono', monospace">MUSTAQILLIK</text>
+        <text x="100" y="118" textAnchor="middle" fontSize="52" fontWeight="700" fill="#FBFAF3" fontFamily="'Fraunces', serif">35</text>
+        <text x="100" y="140" textAnchor="middle" fontSize="12" letterSpacing="3" fill="#D4AC6E" fontFamily="'IBM Plex Mono', monospace">YIL</text>
+      </svg>
+      <div className="-mt-1 rounded-sm overflow-hidden" style={{ boxShadow: '0 3px 10px rgba(0,0,0,0.25)' }}>
+        <UzbekFlagRibbon width={Math.round(size * 0.42)} />
+      </div>
+    </div>
+  );
+}
+
+/* Ixcham versiya — profilda ism yonida, "@username" yonida ko'rinadigan
+   kichik nishon (rozetka). */
+function MiniIndependenceBadge({ size = 18, title }) {
+  return (
+    <span title={title || "Mustaqillik bayrami — 35 yil"} className="inline-flex flex-shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="20" r="19" fill="#D4AC6E" />
+        <circle cx="20" cy="20" r="15.5" fill="#1F3D2B" />
+        <text x="20" y="25" textAnchor="middle" fontSize="14" fontWeight="700" fill="#FBFAF3" fontFamily="'Fraunces', serif">35</text>
+      </svg>
+    </span>
+  );
+}
+
+const GIFT_ID = 'mustaqillik-35';
+
+function GiftModal({ session, onRequireLogin, onClose }) {
+  const [phase, setPhase] = useState('loading'); // loading | offer | owned | busy | error
+  const [equipped, setEquipped] = useState(false);
+  const [rowId, setRowId] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!session) { setPhase('offer'); return; }
+      try {
+        const rows = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${GIFT_ID}`);
+        if (cancelled) return;
+        if (rows[0]) {
+          const uc = userCollectibleFromRow(rows[0]);
+          setRowId(uc.id);
+          setEquipped(uc.equipped);
+          setPhase('owned');
+        } else {
+          setPhase('offer');
+        }
+      } catch (e) {
+        if (!cancelled) setPhase('offer');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session]);
+
+  async function accept() {
+    if (!session) { onRequireLogin(); return; }
+    setPhase('busy');
+    try {
+      const [created] = await sbInsert('user_collectibles', { user_id: session.user.id, collectible_id: GIFT_ID, equipped: true });
+      setRowId(created.id);
+      setEquipped(true);
+      setPhase('owned');
+    } catch (e) {
+      setPhase('error');
+    }
+  }
+
+  async function toggleEquip() {
+    if (!rowId) return;
+    const next = !equipped;
+    setEquipped(next); // darhol ko'rsatamiz, orqa fonda saqlaymiz
+    try {
+      await sbUpdate('user_collectibles', rowId, { equipped: next });
+    } catch (e) {
+      setEquipped(!next); // saqlanmasa — orqaga qaytaramiz
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,27,18,0.62)' }} onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-lg overflow-hidden text-center"
+        style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 20px 50px rgba(0,0,0,0.35)' }}
+      >
+        <div className="pt-8 pb-6 px-6" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
+          <IndependenceBadge />
+          <div className="mt-4 text-lg" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>Mustaqillik bayrami — 35 yil!</div>
+          <div className="text-[13px] mt-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>Sizga ushbu esdalik nishonini sovg'a qilamiz</div>
+        </div>
+        <div className="p-6">
+          {phase === 'loading' && (
+            <div className="flex items-center justify-center gap-2 py-2" style={{ color: C.inkSoft }}>
+              <Loader2 size={18} className="animate-spin" />
+              <span className="text-[14px]" style={fontBody}>Tekshirilmoqda...</span>
+            </div>
+          )}
+
+          {phase === 'offer' && (
+            <>
+              <p className="text-[14px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
+                Mustaqil O'zbekistonimizning 35 yilligi sharafiga — barcha foydalanuvchilarimizga chin qalbdan tabriklar va shu esdalik nishoni!
+              </p>
+              <SolidButton onClick={accept} icon={Award}>Qabul qilish</SolidButton>
+            </>
+          )}
+
+          {phase === 'busy' && (
+            <div className="flex items-center justify-center gap-2 py-2" style={{ color: C.inkSoft }}>
+              <Loader2 size={18} className="animate-spin" />
+              <span className="text-[14px]" style={fontBody}>Saqlanmoqda...</span>
+            </div>
+          )}
+
+          {phase === 'owned' && (
+            <>
+              <div className="flex items-center justify-center gap-1.5 text-[14px] mb-5" style={{ ...fontBody, color: C.accent }}>
+                <CheckCircle2 size={16} /> Bu nishon sizning kolleksiyangizda
+              </div>
+              <div className="flex gap-3 justify-center">
+                <SolidButton onClick={toggleEquip} icon={equipped ? X : Award}>
+                  {equipped ? "Olib tashlash" : "Ishlatish"}
+                </SolidButton>
+                <GhostButton onClick={onClose} icon={X}>Yopish</GhostButton>
+              </div>
+            </>
+          )}
+
+          {phase === 'error' && (
+            <div className="text-[14px]" style={{ ...fontBody, color: C.red }}>Xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring.</div>
+          )}
+
+          {phase !== 'owned' && phase !== 'loading' && phase !== 'busy' && (
+            <button onClick={onClose} className="mt-4 text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Yopish</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GiftBanner({ onOpen }) {
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full flex items-center gap-3 p-3.5 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5"
+      style={{ background: `linear-gradient(120deg, ${C.cover}, ${C.coverDeep})`, border: `1px solid ${C.coverLine}` }}
+    >
+      <MiniIndependenceBadge size={34} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[14px] truncate" style={{ ...fontBody, color: C.white, fontWeight: 600 }}>🎉 Mustaqillik bayrami sovg'asini oling</div>
+        <div className="text-[12px] truncate" style={{ ...fontBody, color: 'rgba(251,250,243,0.7)' }}>35 yillik esdalik nishoni — sizni kutmoqda</div>
+      </div>
+      <ChevronRight size={18} style={{ color: C.gold, flexShrink: 0 }} />
+    </button>
+  );
+}
+
 function PaperPanel({ children, className }) {
   return (
     <div className={className}>{children}</div>
@@ -4695,6 +4917,7 @@ export default function App() {
   });
   const [readingActive, setReadingActive] = useState(false);
   const [viewingUsername, setViewingUsername] = useState(null);
+  const [giftOpen, setGiftOpen] = useState(false);
 
   useEffect(() => {
     _goToPublicProfile = (username) => setViewingUsername(username);
@@ -5392,6 +5615,7 @@ export default function App() {
               </div>
             )}
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
+              {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} />
               )}
@@ -5527,6 +5751,14 @@ export default function App() {
             );
           })}
         </nav>
+      )}
+
+      {giftOpen && (
+        <GiftModal
+          session={session}
+          onRequireLogin={() => { setGiftOpen(false); setTab('profil'); }}
+          onClose={() => setGiftOpen(false)}
+        />
       )}
     </div>
     </NavContext.Provider>
