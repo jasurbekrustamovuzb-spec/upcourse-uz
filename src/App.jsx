@@ -5518,6 +5518,7 @@ export default function App() {
 
   function goTo(id) {
     const prevTab = tab;
+    setViewingUsername(null);
     setTab(id);
     if (id !== prevTab) nav.pushNav(() => setTab(prevTab));
   }
