@@ -846,7 +846,8 @@ const userCollectibleFromRow = (r) => ({ id: r.id, userId: r.user_id, collectibl
 
 /* Davlat bayrog'ining rasmiy ko'rinishiga mos: ko'k-oq-yashil teng
    chiziqlar, orasida ingichka qizil chiziqlar, ko'k qismda yarim oy va
-   3 qatorda 4 tadan (jami 12 ta) yulduz — nisbat va joylashuv aniq. */
+   o'ng tomoni tekis, 3-4-5 tartibida zinapoya shaklida joylashgan
+   (jami 12 ta) yulduz — nisbat va joylashuv aniq. */
 function UzbekFlagRibbon({ width = 92 }) {
   const h = Math.round((width / 2) * 1); // ixcham lenta uchun balandligi
   return (
@@ -858,12 +859,16 @@ function UzbekFlagRibbon({ width = 92 }) {
       <rect y="59.4" width="184" height="3.6" fill="#CE1126" />
       <circle cx="30" cy="16" r="9" fill="#FFFFFF" />
       <circle cx="34" cy="16" r="7.4" fill="#0099B5" />
-      {[0, 1, 2].map((row) =>
-        [0, 1, 2, 3].map((col) => (
+      {[
+        { y: 9, xs: [70, 81, 92] },
+        { y: 19, xs: [59, 70, 81, 92] },
+        { y: 29, xs: [48, 59, 70, 81, 92] },
+      ].map((row, ri) =>
+        row.xs.map((x, ci) => (
           <text
-            key={`${row}-${col}`}
-            x={48 + col * 11}
-            y={9 + row * 10}
+            key={`${ri}-${ci}`}
+            x={x}
+            y={row.y}
             fontSize="6"
             fill="#FFFFFF"
             textAnchor="middle"
