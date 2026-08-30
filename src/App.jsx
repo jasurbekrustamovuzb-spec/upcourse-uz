@@ -261,7 +261,7 @@ async function sbRequest(path, options = {}) {
   return res.json();
 }
 
-const sbSelect = (table, filter) => sbRequest(`${table}?select=*&order=created_at.asc${filter ? `&${filter}` : ''}`);
+const sbSelect = (table, filter, orderColumn = 'created_at') => sbRequest(`${table}?select=*&order=${orderColumn}.asc${filter ? `&${filter}` : ''}`);
 
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
    tekshirish uchun) yoki muallifning o'zi (o'z holatini ko'rishi uchun)
@@ -567,7 +567,7 @@ function useAuthorBadge(authorId) {
     } else {
       (async () => {
         try {
-          const rows = await sbSelect('user_collectibles', `user_id=eq.${authorId}&equipped=eq.true`);
+          const rows = await sbSelect('user_collectibles', `user_id=eq.${authorId}&equipped=eq.true`, 'collected_at');
           const badgeId = rows[0]?.collectible_id || null;
           _authorBadgeCache[authorId] = badgeId;
           if (!cancelled) setBadge(badgeId);
@@ -934,7 +934,7 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
     (async () => {
       if (!session) { setPhase('offer'); return; }
       try {
-        const rows = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${targetId}`);
+        const rows = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${targetId}`, 'collected_at');
         if (cancelled) return;
         if (rows[0]) {
           const uc = userCollectibleFromRow(rows[0]);
@@ -1092,7 +1092,7 @@ function CollectionsView({ session, onBack }) {
       try {
         const [catRows, ownedRows] = await Promise.all([
           sbSelect('collectibles'),
-          sbSelect('user_collectibles', `user_id=eq.${session.user.id}`),
+          sbSelect('user_collectibles', `user_id=eq.${session.user.id}`, 'collected_at'),
         ]);
         if (cancelled) return;
         setCatalog(catRows.map(collectibleFromRow));
