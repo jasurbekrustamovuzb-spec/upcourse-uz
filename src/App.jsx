@@ -489,7 +489,7 @@ const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: 
 const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
-const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green' });
+const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null });
 
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
@@ -512,10 +512,54 @@ function normalizeUsername(v) {
 function isValidUsername(v) {
   return /^[a-z0-9_]{5,20}$/.test(v || '');
 }
-/* Username band emasligini tekshiradi (o'zining joriy username'idan tashqari) */
+/* Rasmiy/chalkashlik tug'diradigan nomlar — oddiy foydalanuvchi ololmaydi. */
+const RESERVED_USERNAMES = new Set([
+  'admin', 'administrator', 'upcourse', 'upcourseuz', 'support', 'help',
+  'root', 'moderator', 'moder', 'official', 'system', 'staff', 'team',
+  'test', 'null', 'undefined', 'settings', 'profile', 'user', 'users',
+]);
+function isReservedUsername(v) {
+  return RESERVED_USERNAMES.has((v || '').toLowerCase());
+}
+/* Username band emasligini tekshiradi (o'zining joriy username'idan tashqari),
+   rasmiy nomlarni ham "band" deb hisoblaydi. */
 async function checkUsernameAvailable(username, currentUserId) {
+  if (isReservedUsername(username)) return false;
   const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
   return !rows.some((r) => r.id !== currentUserId);
+}
+
+/* Username o'zgartirish oralig'i — Instagram uslubida, boshqa birovning
+   bo'shab qolgan nomini "o'g'irlab" olish yoki tez-tez almashtirib
+   chalkashlik tug'dirishning oldini olish uchun. */
+const USERNAME_CHANGE_COOLDOWN_DAYS = 14;
+function usernameChangeDaysLeft(usernameChangedAt) {
+  if (!usernameChangedAt) return 0;
+  const elapsedDays = (Date.now() - new Date(usernameChangedAt).getTime()) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.ceil(USERNAME_CHANGE_COOLDOWN_DAYS - elapsedDays));
+}
+
+/* Ism (va bor bo'lsa familiya) asosida Instagram uslubida username taklif
+   qiladi — band bo'lsa, tasodifiy raqamlar bilan bo'sh variant topguncha
+   qidiradi. */
+async function suggestAvailableUsername(firstName, lastName, currentUserId) {
+  const base = normalizeUsername(`${firstName || ''}${lastName ? `_${lastName}` : ''}`) || 'talaba';
+  const root = base.length >= 5 ? base : `${base}user`.slice(0, 20);
+  const candidates = [root];
+  for (let i = 0; i < 4; i++) {
+    const suffix = String(Math.floor(10 + Math.random() * 90));
+    candidates.push(normalizeUsername(root.slice(0, 20 - suffix.length) + suffix));
+  }
+  for (const candidate of candidates) {
+    if (!isValidUsername(candidate)) continue;
+    try {
+      const available = await checkUsernameAvailable(candidate, currentUserId);
+      if (available) return candidate;
+    } catch (e) {
+      return candidate; // internet uzilsa ham foydalanuvchi bloklanib qolmasin
+    }
+  }
+  return normalizeUsername(root.slice(0, 15) + Math.floor(1000 + Math.random() * 9000));
 }
 
 /* Mualliflarning username'ini authorId bo'yicha keshlab oladi — bir xil
@@ -4517,13 +4561,15 @@ function BannerPicker({ value, onChange }) {
   );
 }
 
-function UsernameField({ value, onChange, currentUserId }) {
-  const [status, setStatus] = useState('idle'); // idle | checking | ok | taken | invalid
+function UsernameField({ value, onChange, currentUserId, locked, lockedDaysLeft }) {
+  const [status, setStatus] = useState('idle'); // idle | checking | ok | taken | invalid | reserved
   const timerRef = useRef(null);
 
   useEffect(() => {
+    if (locked) return;
     if (!value) { setStatus('idle'); return; }
     if (!isValidUsername(value)) { setStatus('invalid'); return; }
+    if (isReservedUsername(value)) { setStatus('reserved'); return; }
     setStatus('checking');
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
@@ -4536,29 +4582,34 @@ function UsernameField({ value, onChange, currentUserId }) {
     }, 450);
     return () => clearTimeout(timerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, locked]);
 
-  const helper = {
-    idle: 'Kamida 5 ta belgi: kichik lotin harflari, raqam, pastki chiziq (_)',
-    invalid: 'Notoʻgʻri format — faqat a-z, 0-9 va _ (5-20 belgi)',
-    checking: 'Tekshirilmoqda...',
-    ok: 'Bu username boʻsh ✓',
-    taken: 'Bu username band, boshqasini tanlang',
-  }[status];
-  const helperColor = status === 'ok' ? C.gold : status === 'taken' || status === 'invalid' ? C.red : C.inkSoft;
+  const helper = locked
+    ? `Username'ni ${lockedDaysLeft} kundan keyin qayta o'zgartira olasiz`
+    : {
+        idle: 'Kamida 5 ta belgi: kichik lotin harflari, raqam, pastki chiziq (_)',
+        invalid: 'Notoʻgʻri format — faqat a-z, 0-9 va _ (5-20 belgi)',
+        checking: 'Tekshirilmoqda...',
+        ok: 'Bu username boʻsh ✓',
+        taken: 'Bu username band, boshqasini tanlang',
+        reserved: 'Bu nom band (rasmiy nom sifatida saqlangan)',
+      }[status];
+  const helperColor = locked ? C.inkSoft : status === 'ok' ? C.gold : (status === 'taken' || status === 'invalid' || status === 'reserved') ? C.red : C.inkSoft;
 
   return (
     <div className="mb-1 text-left">
       <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Username</label>
-      <div className="flex items-center rounded-sm overflow-hidden" style={{ border: `1px solid ${C.rule}`, background: C.paperSoft }}>
+      <div className="flex items-center rounded-sm overflow-hidden" style={{ border: `1px solid ${C.rule}`, background: locked ? C.paper : C.paperSoft, opacity: locked ? 0.7 : 1 }}>
         <span className="pl-3 pr-1 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>@</span>
         <input
           value={value}
           onChange={(e) => onChange(normalizeUsername(e.target.value))}
           placeholder="username"
+          disabled={locked}
           className="flex-1 py-2.5 pr-3 text-[15px] bg-transparent outline-none"
           style={{ ...fontBody, color: C.ink }}
         />
+        {locked && <Lock size={14} style={{ color: C.inkSoft, marginRight: 10, flexShrink: 0 }} />}
       </div>
       <div className="text-xs mt-1 mb-4" style={{ ...fontMono, color: helperColor }}>{helper}</div>
     </div>
@@ -4569,12 +4620,28 @@ function ProfileSetupForm({ defaultFirstName, defaultLastName, defaultBio, defau
   const [firstName, setFirstName] = useState(defaultFirstName || '');
   const [lastName, setLastName] = useState(defaultLastName || '');
   const [username, setUsername] = useState('');
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [bio, setBio] = useState(defaultBio || '');
   const [bannerKey, setBannerKey] = useState(defaultBannerKey || 'green');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState(null);
 
-  const canSubmit = firstName.trim() && lastName.trim() && isValidUsername(username);
+  /* Instagram uslubida: ism (va familiya, bo'lsa) o'zgargan sayin, agar
+     foydalanuvchi username'ni o'zi qo'lda tahrirlamagan bo'lsa, avtomatik
+     bo'sh nom taklif qilib beriladi. */
+  useEffect(() => {
+    if (usernameTouched) return;
+    if (!firstName.trim()) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const suggested = await suggestAvailableUsername(firstName.trim(), lastName.trim(), currentUserId);
+      if (!cancelled && !usernameTouched) setUsername(suggested);
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstName, lastName, usernameTouched]);
+
+  const canSubmit = firstName.trim() && isValidUsername(username);
 
   async function submit() {
     if (!canSubmit) return;
@@ -4591,8 +4658,8 @@ function ProfileSetupForm({ defaultFirstName, defaultLastName, defaultBio, defau
       <div className="text-lg mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Profilni tugating</div>
       <div className="text-left">
         <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
-        <TextField label="Familiya" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
-        <UsernameField value={username} onChange={setUsername} currentUserId={currentUserId} />
+        <TextField label="Familiya (ixtiyoriy)" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
+        <UsernameField value={username} onChange={(v) => { setUsernameTouched(true); setUsername(v); }} currentUserId={currentUserId} />
         <TextField label="Bio (ixtiyoriy)" value={bio} onChange={setBio} placeholder="O'zingiz haqingizda qisqacha..." textarea rows={2} />
         <BannerPicker value={bannerKey} onChange={setBannerKey} />
       </div>
@@ -4616,7 +4683,9 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
   const [formError, setFormError] = useState(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
-  const canSubmit = firstName.trim() && lastName.trim() && isValidUsername(username);
+  const daysLeft = usernameChangeDaysLeft(profile.usernameChangedAt);
+  const usernameLocked = daysLeft > 0 && username !== profile.username;
+  const canSubmit = firstName.trim() && (username === profile.username ? true : isValidUsername(username)) && !usernameLocked;
 
   async function submit() {
     if (!canSubmit) return;
@@ -4645,8 +4714,14 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
 
         <div className="text-left">
           <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
-          <TextField label="Familiya" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
-          <UsernameField value={username} onChange={setUsername} currentUserId={currentUserId} />
+          <TextField label="Familiya (ixtiyoriy)" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
+          <UsernameField
+            value={username}
+            onChange={setUsername}
+            currentUserId={currentUserId}
+            locked={daysLeft > 0}
+            lockedDaysLeft={daysLeft}
+          />
           <TextField label="Bio" value={bio} onChange={setBio} placeholder="O'zingiz haqingizda qisqacha..." textarea rows={2} />
           <BannerPicker value={bannerKey} onChange={setBannerKey} />
         </div>
@@ -4854,7 +4929,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
 
           <div className="mt-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-lg" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{profile.firstName} {profile.lastName}</span>
+              <span className="font-medium text-lg" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{`${profile.firstName} ${profile.lastName}`.trim()}</span>
               {myBadge && <CollectibleThumb collectibleId={myBadge} size={20} />}
               {isAdmin && (
                 <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}><ShieldCheck size={11} /> Admin</span>
@@ -4863,7 +4938,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
             {profile.username && (
               <div className="flex items-center gap-2">
                 <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{profile.username}</div>
-                <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`} small />
+                <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`.trim()} small />
               </div>
             )}
             {profile.bio && (
@@ -5168,24 +5243,34 @@ export default function App() {
     if (!isValidUsername(username)) {
       return { ok: false, error: 'Username 5-20 belgidan iborat bo\u2018lishi, faqat kichik lotin harflari, raqam va pastki chiziqdan tashkil topishi kerak.' };
     }
-    try {
-      const available = await checkUsernameAvailable(username, session.user.id);
-      if (!available) return { ok: false, error: 'Bu username band. Boshqasini tanlang.' };
-    } catch (e) {
-      return { ok: false, error: 'Username tekshirishda xatolik yuz berdi. Internetni tekshiring.' };
+    const usernameChanged = !profile || profile.username !== username;
+    if (usernameChanged && profile) {
+      const daysLeft = usernameChangeDaysLeft(profile.usernameChangedAt);
+      if (daysLeft > 0) {
+        return { ok: false, error: `Username'ni ${daysLeft} kundan keyin qayta o'zgartira olasiz.` };
+      }
+    }
+    if (usernameChanged) {
+      try {
+        const available = await checkUsernameAvailable(username, session.user.id);
+        if (!available) return { ok: false, error: 'Bu username band. Boshqasini tanlang.' };
+      } catch (e) {
+        return { ok: false, error: 'Username tekshirishda xatolik yuz berdi. Internetni tekshiring.' };
+      }
     }
     const row = {
       id: session.user.id,
       first_name: firstName,
-      last_name: lastName,
+      last_name: lastName || '',
       email: session.user.email || '',
       username,
       bio: bio || '',
       banner_key: bannerKey || 'green',
+      ...(usernameChanged ? { username_changed_at: new Date().toISOString() } : {}),
     };
     try {
       await sbUpsert('profiles', row);
-      setProfile(profileFromRow(row));
+      setProfile((prev) => profileFromRow({ ...(prev ? { username_changed_at: prev.usernameChangedAt } : {}), ...row }));
       return { ok: true };
     } catch (e) {
       setActionError('Profilni saqlashda xatolik yuz berdi.');
