@@ -19,7 +19,7 @@ if (typeof document !== 'undefined' && !document.getElementById('upcourse-fonts'
   const fontLink = document.createElement('link');
   fontLink.id = 'upcourse-fonts';
   fontLink.rel = 'stylesheet';
-  fontLink.href = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap";
+  fontLink.href = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap";
   document.head.appendChild(fontLink);
 }
 
