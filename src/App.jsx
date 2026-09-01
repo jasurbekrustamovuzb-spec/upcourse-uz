@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useContext, lazy, Suspense } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
@@ -7,6 +7,12 @@ import {
   Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
+
+/* ------------------------------------------------------------------ */
+/*  Admin panel faqat "Admin panel" boʻlimiga kirilganda yuklanadi     */
+/*  (React.lazy) — bu boshlang'ich yuklanish hajmini kamaytiradi.      */
+/* ------------------------------------------------------------------ */
+const AdminPanelView = lazy(() => import('./AdminPanel.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -95,11 +101,11 @@ const DARK_PALETTE = {
   mathTint: 'rgba(111,168,204,0.16)',
 };
 
-const C = { ...LIGHT_PALETTE };
+export const C = { ...LIGHT_PALETTE };
 
 const fontDisplay = { fontFamily: "'Fraunces', Georgia, serif" };
-const fontBody = { fontFamily: "'Inter', system-ui, sans-serif" };
-const fontMono = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
+export const fontBody = { fontFamily: "'Inter', system-ui, sans-serif" };
+export const fontMono = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
 
 /* ------------------------------------------------------------------ */
 /*  Seed content — shown the first time the shared ledger is empty    */
@@ -183,7 +189,7 @@ function parseDeepLink() {
   return null;
 }
 
-function formatDate(iso) {
+export function formatDate(iso) {
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
@@ -772,7 +778,7 @@ function PublicProfileView({ username, courses, tests, onBack }) {
 /*  Small shared UI bits                                              */
 /* ------------------------------------------------------------------ */
 
-function EntryNumber({ n }) {
+export function EntryNumber({ n }) {
   return (
     <span
       className="inline-block flex-shrink-0 text-xs px-2 py-1 mr-3 rounded-sm"
@@ -817,7 +823,7 @@ function InfoHint({ text }) {
   );
 }
 
-function ItemMenu({ actions }) {
+export function ItemMenu({ actions }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -861,7 +867,7 @@ function ItemMenu({ actions }) {
   );
 }
 
-function IconButtonDelete({ onClick, label }) {
+export function IconButtonDelete({ onClick, label }) {
   return (
     <button
       onClick={onClick}
@@ -1245,7 +1251,7 @@ function SearchBox({ value, onChange, placeholder }) {
   );
 }
 
-function SectionHeading({ eyebrow, title }) {
+export function SectionHeading({ eyebrow, title }) {
   return (
     <div className="mb-6">
       <div className="text-xs tracking-[0.2em] uppercase mb-1" style={{ ...fontMono, color: C.gold }}>{eyebrow}</div>
@@ -1290,7 +1296,7 @@ function ShareButton({ url, title, small }) {
 }
 
 
-function EmptyState({ text, cta }) {
+export function EmptyState({ text, cta }) {
   return (
     <div className="py-10 text-center border border-dashed rounded-sm" style={{ borderColor: C.rule, color: C.inkSoft }}>
       <p style={{ ...fontBody }} className="mb-1">{text}</p>
@@ -1441,7 +1447,7 @@ function TextField({ label, value, onChange, placeholder, textarea, rows }) {
   );
 }
 
-function GhostButton({ children, onClick, icon: Icon, type, disabled }) {
+export function GhostButton({ children, onClick, icon: Icon, type, disabled }) {
   return (
     <button
       type={type || 'button'}
@@ -1495,7 +1501,7 @@ function AddCategoryForm({ onAdd, onDone }) {
   );
 }
 
-function RenameCategoryModal({ category, onSave, onCancel }) {
+export function RenameCategoryModal({ category, onSave, onCancel }) {
   const [name, setName] = useState(category.name);
   return (
     <div
@@ -4041,7 +4047,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
+export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
@@ -4189,7 +4195,7 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
   );
 }
 
-function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
+export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
@@ -4318,274 +4324,6 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
   );
 }
 
-function AdminCategoriesView({ categories, courses, tests, renameCategory, deleteCategory, onBack }) {
-  const [renaming, setRenaming] = useState(null);
-  const { back } = useContext(NavContext);
-  const countFor = (id) => courses.filter((c) => c.categoryId === id).length + tests.filter((t) => t.categoryId === id).length;
-
-  return (
-    <div>
-      <button
-        onClick={back}
-        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-      >
-        <ArrowLeft size={15} /> Admin panel
-      </button>
-      <SectionHeading eyebrow={`${categories.length} ta soha`} title="Sohalarni boshqarish" />
-      {categories.length === 0 ? (
-        <EmptyState text="Hozircha soha yoʻq." />
-      ) : (
-        <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
-          {categories.map((cat, i) => (
-            <div key={cat.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <div className="flex items-start min-w-0">
-                <EntryNumber n={i + 1} />
-                <div className="min-w-0">
-                  <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                  <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{countFor(cat.id)} ta material</div>
-                  {cat.status === 'pending' && (
-                    <div className="text-xs mt-1 inline-flex items-center gap-1" style={{ ...fontMono, color: C.gold }}><Clock3 size={12} /> Tekshirilmoqda</div>
-                  )}
-                </div>
-              </div>
-              <ItemMenu actions={[
-                { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
-                { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) },
-              ]} />
-            </div>
-          ))}
-        </div>
-      )}
-      {renaming && (
-        <RenameCategoryModal
-          category={renaming}
-          onCancel={() => setRenaming(null)}
-          onSave={async (newName) => {
-            const ok = await renameCategory(renaming.id, renaming.name, newName);
-            if (ok) setRenaming(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function AdminNewsView({ news, addNews, deleteNews, onBack }) {
-  const [formOpen, setFormOpen] = useState(false);
-  const { pushNav, back } = useContext(NavContext);
-  const openForm = () => { setFormOpen(true); pushNav(() => setFormOpen(false)); };
-  const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-  return (
-    <div>
-      <button
-        onClick={back}
-        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-      >
-        <ArrowLeft size={15} /> Admin panel
-      </button>
-      <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklarni boshqarish" />
-
-      {formOpen ? (
-        <AddNewsForm onAdd={addNews} onDone={back} />
-      ) : (
-        <div className="mb-6">
-          <GhostButton onClick={openForm} icon={Plus}>Yangi yangilik qoʻshish</GhostButton>
-        </div>
-      )}
-
-      {sorted.length === 0 ? (
-        <EmptyState text="Hozircha yangilik yoʻq." />
-      ) : (
-        <div className="space-y-4 max-w-2xl">
-          {sorted.map((n) => (
-            <div key={n.id} className="p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs mb-1" style={{ ...fontMono, color: C.gold }}>{formatDate(n.date)}</div>
-                  <div className="font-medium text-base mb-1" style={{ ...fontBody, color: C.ink }}>{n.title}</div>
-                  <p className="text-[15px] leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
-                </div>
-                <IconButtonDelete onClick={() => deleteNews(n.id, n.title)} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent, ensureTestContent }) {
-  const [subTab, setSubTab] = useState(null);
-  const [openCourseId, setOpenCourseId] = useState(null);
-  const [openTestId, setOpenTestId] = useState(null);
-  const { pushNav } = useContext(NavContext);
-  const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
-
-  const pendingCourses = courses.filter((c) => c.status === 'pending');
-  const pendingTests = tests.filter((t) => t.status === 'pending');
-  const privateCourses = courses.filter((c) => c.status === 'private');
-  const privateTests = tests.filter((t) => t.status === 'private');
-
-  if (subTab === 'kurslar') {
-    return (
-      <CommunityCoursesView
-        mode="admin"
-        courses={pendingCourses}
-        categories={categories}
-        openId={openCourseId}
-        setOpenId={setOpenCourseId}
-        onBack={() => setSubTab(null)}
-        submitCourse={submitCourse}
-        approveCourse={approveCourse}
-        deleteCourse={deleteCourse}
-        formOpen={false}
-        onOpenForm={() => {}}
-        onCloseForm={() => {}}
-        prefillCategory=""
-        ensureCourseContent={ensureCourseContent}
-      />
-    );
-  }
-  if (subTab === 'testlar') {
-    return (
-      <CommunityTestsView
-        mode="admin"
-        tests={pendingTests}
-        categories={categories}
-        openId={openTestId}
-        setOpenId={setOpenTestId}
-        onBack={() => setSubTab(null)}
-        submitTest={submitTest}
-        approveTest={approveTest}
-        deleteTest={deleteTest}
-        formOpen={false}
-        onOpenForm={() => {}}
-        onCloseForm={() => {}}
-        prefillCategory=""
-        ensureTestContent={ensureTestContent}
-      />
-    );
-  }
-  if (subTab === 'xususiy-kurslar') {
-    return (
-      <CommunityCoursesView
-        mode="admin"
-        courses={privateCourses}
-        categories={categories}
-        openId={openCourseId}
-        setOpenId={setOpenCourseId}
-        onBack={() => setSubTab(null)}
-        submitCourse={submitCourse}
-        deleteCourse={deleteCourse}
-        formOpen={false}
-        onOpenForm={() => {}}
-        onCloseForm={() => {}}
-        prefillCategory=""
-        ensureCourseContent={ensureCourseContent}
-      />
-    );
-  }
-  if (subTab === 'xususiy-testlar') {
-    return (
-      <CommunityTestsView
-        mode="admin"
-        tests={privateTests}
-        categories={categories}
-        openId={openTestId}
-        setOpenId={setOpenTestId}
-        onBack={() => setSubTab(null)}
-        submitTest={submitTest}
-        deleteTest={deleteTest}
-        formOpen={false}
-        onOpenForm={() => {}}
-        onCloseForm={() => {}}
-        prefillCategory=""
-        ensureTestContent={ensureTestContent}
-      />
-    );
-  }
-  if (subTab === 'sohalar') {
-    return <AdminCategoriesView categories={categories} courses={courses} tests={tests} renameCategory={renameCategory} deleteCategory={deleteCategory} onBack={() => setSubTab(null)} />;
-  }
-  if (subTab === 'yangiliklar') {
-    return <AdminNewsView news={news} addNews={addNews} deleteNews={deleteNews} onBack={() => setSubTab(null)} />;
-  }
-
-  return (
-    <div>
-      <SectionHeading eyebrow="Faqat administrator uchun" title="Admin panel" />
-      <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>
-        Foydalanuvchilar yuborgan mavzu va testlarni shu yerda tekshirasiz. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga chiqadi va hammaga ochiq boʻladi. Xususiy deb belgilanganlar tasdiqlashsiz saqlanadi — bu yerda faqat koʻrish uchun.
-      </p>
-      <div className="grid sm:grid-cols-2 gap-4">
-        <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <BookOpen size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kurslar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingCourses.length} ta kutilmoqda</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-        <button onClick={() => goSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <ListChecks size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Testlar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{pendingTests.length} ta kutilmoqda</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-        <button onClick={() => goSubTab('xususiy-kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <Lock size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Xususiy kurslar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{privateCourses.length} ta — faqat koʻrish</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-        <button onClick={() => goSubTab('xususiy-testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <Lock size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Xususiy testlar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{privateTests.length} ta — faqat koʻrish</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-        <button onClick={() => goSubTab('sohalar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <ShieldCheck size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Sohalar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{categories.length} ta soha</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-        <button onClick={() => goSubTab('yangiliklar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <Newspaper size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Yangiliklar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{news.length} ta eʼlon</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Profil — login (Google), roʻyxatdan oʻtish, "Mening kurslarim"      */
@@ -5070,7 +4808,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
 /*  Yangiliklar (News)                                                  */
 /* ------------------------------------------------------------------ */
 
-function AddNewsForm({ onAdd, onDone }) {
+export function AddNewsForm({ onAdd, onDone }) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
@@ -5148,7 +4886,7 @@ function AboutView() {
 /*  bosilganda o'sha belgi "yechiladi" va aynan shu joyning ichki        */
 /*  "ortga" funksiyasi chaqiriladi — sahifadan yoki hisobdan chiqib      */
 /*  ketish o'rniga.                                                      */
-const NavContext = React.createContext({ pushNav: () => {}, back: () => {} });
+export const NavContext = React.createContext({ pushNav: () => {}, back: () => {} });
 
 function useNavStack() {
   const stackRef = useRef([]);
@@ -5987,24 +5725,30 @@ export default function App() {
                 />
               )}
               {!viewingUsername && tab === 'admin' && isAdmin && (
-                <AdminPanelView
-                  courses={courses}
-                  tests={tests}
-                  categories={categories}
-                  news={news}
-                  submitCourse={submitCourse}
-                  approveCourse={approveCourse}
-                  deleteCourse={deleteCourse}
-                  submitTest={submitTest}
-                  approveTest={approveTest}
-                  deleteTest={deleteTest}
-                  renameCategory={renameCategory}
-                  deleteCategory={deleteCategory}
-                  addNews={addNews}
-                  deleteNews={deleteNews}
-                  ensureCourseContent={ensureCourseContent}
-                  ensureTestContent={ensureTestContent}
-                />
+                <Suspense fallback={
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
+                  </div>
+                }>
+                  <AdminPanelView
+                    courses={courses}
+                    tests={tests}
+                    categories={categories}
+                    news={news}
+                    submitCourse={submitCourse}
+                    approveCourse={approveCourse}
+                    deleteCourse={deleteCourse}
+                    submitTest={submitTest}
+                    approveTest={approveTest}
+                    deleteTest={deleteTest}
+                    renameCategory={renameCategory}
+                    deleteCategory={deleteCategory}
+                    addNews={addNews}
+                    deleteNews={deleteNews}
+                    ensureCourseContent={ensureCourseContent}
+                    ensureTestContent={ensureTestContent}
+                  />
+                </Suspense>
               )}
               {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} />}
               {!viewingUsername && tab === 'about' && <AboutView />}
