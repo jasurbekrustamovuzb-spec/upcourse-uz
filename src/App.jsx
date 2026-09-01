@@ -486,7 +486,7 @@ const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || ''
 const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', author_id: c.authorId || null, status: c.status || 'approved' });
 const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', author_id: t.authorId || null, status: t.status || 'approved' });
-const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
+const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', questionCount: r.question_count ?? undefined });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
 const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null });
@@ -2972,7 +2972,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   );
 }
 
-function LiveHostSetup({ tests, session, onCreated, onBack }) {
+function LiveHostSetup({ tests, session, onCreated, onBack, ensureTestContent }) {
   const myId = session?.user?.id;
   const myTests = tests.filter((t) => t.authorId === myId);
   const [scope, setScope] = useState(myTests.length > 0 ? 'mine' : 'all');
@@ -3003,6 +3003,12 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
     setBusy(true);
     setErr(null);
     try {
+      // Jonli xona uchun savollarning to'liq matni albatta kerak (tartibni
+      // aralashtirish uchun) — hali yuklanmagan bo'lsa, shu yerda kutamiz.
+      let questionsForOrder = selectedTest?.questions;
+      if (liveMode === 'sync' && questionsForOrder === undefined && ensureTestContent) {
+        questionsForOrder = await ensureTestContent(testId);
+      }
       let code = randomRoomCode();
       for (let i = 0; i < 3; i++) {
         const existing = await sbFindRoomByCode(code);
@@ -3015,7 +3021,7 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
         host_name: (meta.given_name || meta.full_name || meta.name || '').trim(),
         status: 'waiting', duration_seconds: duration,
         mode: liveMode, per_question_seconds: perQSeconds, phase: 'lobby', current_index: 0,
-        question_order: liveMode === 'sync' && selectedTest ? shuffledIndices(selectedTest.questions.length) : null,
+        question_order: liveMode === 'sync' && questionsForOrder ? shuffledIndices(questionsForOrder.length) : null,
       };
       const [created] = await sbInsert('live_rooms', row);
       onCreated(liveRoomFromRow(created));
@@ -3086,7 +3092,7 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
                   <div className="min-w-0">
                     <div className="truncate">{t.title}</div>
                     <div className="text-xs mt-0.5" style={{ ...fontMono, color: C.inkSoft }}>
-                      {t.questions.length} ta savol{t.status === 'pending' ? ' · Kutilmoqda' : ''}
+                      {t.questionCount ?? t.questions?.length ?? 0} ta savol{t.status === 'pending' ? ' · Kutilmoqda' : ''}
                     </div>
                   </div>
                   {selected && <Check size={16} style={{ color: C.gold, flexShrink: 0 }} />}
@@ -3161,12 +3167,17 @@ function LiveHostSetup({ tests, session, onCreated, onBack }) {
   );
 }
 
-function LiveHostLobby({ room, setRoom, tests, onExit }) {
+function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const [participants, setParticipants] = useState([]);
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState(null);
   const test = tests.find((t) => t.id === room.testId);
+
+  useEffect(() => {
+    if (test && test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.testId, test?.questions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3226,6 +3237,13 @@ function LiveHostLobby({ room, setRoom, tests, onExit }) {
   }
 
   if ((room.status === 'active' || room.status === 'finished') && room.mode === 'sync' && test) {
+    if (test.questions === undefined) {
+      return (
+        <div className="flex items-center gap-2 text-sm py-10 justify-center" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+        </div>
+      );
+    }
     return (
       <LiveHostSyncPlay
         room={room}
@@ -3635,10 +3653,15 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
   );
 }
 
-function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
+function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTestContent }) {
   const [phase, setPhase] = useState(room.status === 'waiting' ? 'waiting' : 'quiz');
   const [participants, setParticipants] = useState([]);
   const test = tests.find((t) => t.id === room.testId);
+
+  useEffect(() => {
+    if (test && test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.testId, test?.questions]);
 
   useEffect(() => {
     /* MUHIM: "Hammaga bir xil" (sync) rejimida, savol boshlangach
@@ -3689,6 +3712,13 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
   }
 
   if (phase === 'quiz' && test) {
+    if (test.questions === undefined) {
+      return (
+        <div className="flex items-center gap-2 text-sm py-10 justify-center" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+        </div>
+      );
+    }
     if (room.mode === 'sync') {
       return <LiveSyncPlayer room={room} setRoom={setRoom} test={test} participant={participant} onExit={onExit} />;
     }
@@ -3704,7 +3734,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit }) {
   );
 }
 
-function LiveQuizHub({ tests, session, onExit, initialCode }) {
+function LiveQuizHub({ tests, session, onExit, initialCode, ensureTestContent }) {
   const [mode, setMode] = useState(initialCode ? 'join-form' : null);
   const [room, setRoom] = useState(null);
   const [participant, setParticipant] = useState(null);
@@ -3740,23 +3770,23 @@ function LiveQuizHub({ tests, session, onExit, initialCode }) {
   }
 
   if (mode === 'host-setup') {
-    return <LiveHostSetup tests={tests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); }} onBack={() => setMode(null)} />;
+    return <LiveHostSetup tests={tests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); }} onBack={() => setMode(null)} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'host-lobby' && room) {
-    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); }} />;
+    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); }} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'join-form') {
     return <LiveJoinForm initialCode={initialCode} onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); }} onBack={() => setMode(null)} />;
   }
   if (mode === 'participant' && room && participant) {
-    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); }} />;
+    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); }} ensureTestContent={ensureTestContent} />;
   }
   return null;
 }
 
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, initialLiveCode }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, initialLiveCode, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -3764,8 +3794,8 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  const goTest = (id) => { setActiveId(id); pushNav(() => setActiveId(null)); };
-  const goEdit = (id) => { setEditId(id); pushNav(() => setEditId(null)); };
+  const goTest = (id) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); pushNav(() => setActiveId(null)); };
+  const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTxtImport = () => onGoToCommunity('testlar', '', 'txt');
   const goMathTest = () => onGoToCommunity('testlar', '', 'math');
@@ -3798,9 +3828,18 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
     return () => { if (onReadingChange) onReadingChange(false); };
   }, [active, onReadingChange]);
 
-  if (active) return <QuizView test={active} onExit={back} />;
+  if (active) {
+    if (active.questions === undefined) {
+      return (
+        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+        </div>
+      );
+    }
+    return <QuizView test={active} onExit={back} />;
+  }
 
-  if (liveOpen) return <LiveQuizHub tests={viewable} session={session} onExit={back} initialCode={initialLiveCode} />;
+  if (liveOpen) return <LiveQuizHub tests={viewable} session={session} onExit={back} initialCode={initialLiveCode} ensureTestContent={ensureTestContent} />;
 
   if (editing) {
     return (
@@ -3813,7 +3852,13 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
           <ArrowLeft size={15} /> Ortga
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
-        <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
+        {editing.questions === undefined ? (
+          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
+            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+          </div>
+        ) : (
+          <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
+        )}
       </div>
     );
   }
@@ -3908,7 +3953,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                             {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
                           </div>
                           <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                          <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                          <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
                         </div>
                         <button
                           onClick={() => goTest(t.id)}
@@ -3961,7 +4006,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                 <div className="min-w-0">
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
-                  <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                  <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -4144,11 +4189,11 @@ function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, 
   );
 }
 
-function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode }) {
+function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  const goOpen = (id) => { setOpenId(id); pushNav(() => setOpenId(null)); };
+  const goOpen = (id) => { if (ensureTestContent) ensureTestContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
   const active = tests.find((t) => t.id === openId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = tests.filter((t) => t.categoryId === categoryId);
@@ -4158,7 +4203,16 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
   const heading = isMine ? 'Mening testlarim' : 'Hamjamiyat — Testlar';
   const countLabel = isMine ? `${tests.length} ta` : `${tests.length} ta kutilmoqda`;
 
-  if (active) return <QuizView test={active} onExit={back} />;
+  if (active) {
+    if (active.questions === undefined) {
+      return (
+        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+        </div>
+      );
+    }
+    return <QuizView test={active} onExit={back} />;
+  }
 
   if (!categoryId) {
     return (
@@ -4227,7 +4281,7 @@ function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, subm
               <div className="min-w-0">
                 <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                 {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
-                <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questions.length} ta savol</div>
+                <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
                 <AuthorLine authorId={t.authorId} authorName={t.author} className="text-xs mt-1.5" />
                 {isMine && (
                   <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : t.status === 'private' ? C.inkSoft : C.accent }}>
@@ -4364,7 +4418,7 @@ function AdminNewsView({ news, addNews, deleteNews, onBack }) {
   );
 }
 
-function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent }) {
+function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent, ensureTestContent }) {
   const [subTab, setSubTab] = useState(null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
@@ -4412,6 +4466,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
         onOpenForm={() => {}}
         onCloseForm={() => {}}
         prefillCategory=""
+        ensureTestContent={ensureTestContent}
       />
     );
   }
@@ -4449,6 +4504,7 @@ function AdminPanelView({ courses, tests, categories, news, submitCourse, approv
         onOpenForm={() => {}}
         onCloseForm={() => {}}
         prefillCategory=""
+        ensureTestContent={ensureTestContent}
       />
     );
   }
@@ -4768,7 +4824,7 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
   );
 }
 
-function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, onGoToAbout }) {
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -4883,6 +4939,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         onCloseForm={() => setTestFormOpen(false)}
         prefillCategory={prefillCategory}
         formMode={testFormMode}
+        ensureTestContent={ensureTestContent}
       />
     );
   }
@@ -5306,6 +5363,26 @@ export default function App() {
     }
   }, []);
 
+  /* Testlar ro'yxati boshida faqat sarlavha/soha/muallif kabi yengil
+     ma'lumot yuklanadi (tez). Savollar (questions) og'ir bo'lgani uchun
+     faqat aynan shu test ochilganda (yechish, tahrirlash, jonli test
+     uchun tanlashda) alohida so'raladi — courses uchun ishlatilgan
+     naqshning aynan o'zi. */
+  const ensureTestContent = useCallback(async (id) => {
+    const existing = tests.find((t) => t.id === id);
+    if (existing && existing.questions !== undefined) return existing.questions;
+    try {
+      const rows = await sbRequest(`tests?select=id,questions&id=eq.${encodeURIComponent(id)}`);
+      if (rows[0]) {
+        setTests((prev) => prev.map((t) => (t.id === id ? { ...t, questions: rows[0].questions } : t)));
+        return rows[0].questions;
+      }
+    } catch (e) {
+      // Jim tarzda o'tkazib yuborish — keyingi urinishda qayta so'raladi.
+    }
+    return existing?.questions;
+  }, [tests]);
+
   const loadAppData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -5319,10 +5396,11 @@ export default function App() {
       const vis = visibilityFilter(myId, isAdmin);
       const visQ = vis ? `&${vis}` : '';
       const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
+      const testListCols = 'id,category_id,title,description,author,author_id,status,created_at,question_count';
       const [catRows, courseRows, testRows, newsRows] = await Promise.all([
         sbSelect('categories', vis),
         sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`),
-        sbSelect('tests', vis), sbSelect('news'),
+        sbRequest(`tests?select=${testListCols}&order=created_at.asc${visQ}`), sbSelect('news'),
       ]);
 
       setCategories(catRows.map(categoryFromRow));
@@ -5883,7 +5961,7 @@ export default function App() {
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} />
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : null} ensureCourseContent={ensureCourseContent} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'profil' && (
                 <ProfileView
                   session={session}
@@ -5904,6 +5982,7 @@ export default function App() {
                   onConsumeTarget={() => setCommunityTarget(null)}
                   isAdmin={isAdmin}
                   ensureCourseContent={ensureCourseContent}
+                  ensureTestContent={ensureTestContent}
                   onGoToAbout={() => goTo('about')}
                 />
               )}
@@ -5924,6 +6003,7 @@ export default function App() {
                   addNews={addNews}
                   deleteNews={deleteNews}
                   ensureCourseContent={ensureCourseContent}
+                  ensureTestContent={ensureTestContent}
                 />
               )}
               {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} />}
