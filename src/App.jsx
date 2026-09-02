@@ -241,9 +241,33 @@ function estimatedServerNow() {
   return Date.now() + serverClockOffsetMs;
 }
 
+/* Ilgari har bir sbRequest() chaqirig'i supabase.auth.getSession()ni
+   qayta-qayta so'rar edi. Supabase kutubxonasi ichki tarzda bu
+   chaqiruvlarni bitta "qulf" (lock) orqali navbatga qo'yadi — natijada
+   bir vaqtning o'zida yuborilgan bir nechta so'rov (masalan turli
+   mualliflarning profil/nishonini yuklashda) parallel emas, ketma-ket
+   ~500ms-1s kechikish bilan bajarilardi (sahifa ochilishini sekinlashtirib
+   yuborardi). Endi token faqat BIR MARTA — ilova ochilganda — so'raladi
+   va xotirada saqlanadi; onAuthStateChange orqali kirish holati
+   o'zgarganda kesh darhol yangilanadi. Shu bilan barcha so'rovlar
+   haqiqatan parallel yuborila oladi. */
+let cachedAccessToken; // undefined = hali aniqlanmagan, null = kirish qilinmagan
+let sessionReadyPromise = null;
+function setCachedAccessToken(token) {
+  cachedAccessToken = token || null;
+}
+async function getAccessToken() {
+  if (cachedAccessToken !== undefined) return cachedAccessToken;
+  if (!sessionReadyPromise) {
+    sessionReadyPromise = supabase.auth.getSession()
+      .then(({ data }) => { cachedAccessToken = data?.session?.access_token || null; return cachedAccessToken; })
+      .catch(() => { cachedAccessToken = null; return null; });
+  }
+  return sessionReadyPromise;
+}
+
 async function sbRequest(path, options = {}) {
-  const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token || SUPABASE_ANON_KEY;
+  const token = (await getAccessToken()) || SUPABASE_ANON_KEY;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
@@ -3993,13 +4017,17 @@ export default function App() {
       try { window.history.replaceState({}, '', window.location.pathname); } catch {}
     }
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setCachedAccessToken(newSession?.access_token);
       applySession(newSession);
     });
     // Telefon brauzerlari sahifani "bfcache"dan tiklaganda (masalan orqaga
     // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu payt
     // login holatini qayta tekshiramiz.
     function onPageShow(e) {
-      if (e.persisted) supabase.auth.getSession().then(({ data }) => applySession(data.session || null));
+      if (e.persisted) supabase.auth.getSession().then(({ data }) => {
+        setCachedAccessToken(data.session?.access_token);
+        applySession(data.session || null);
+      });
     }
     window.addEventListener('pageshow', onPageShow);
     return () => { cancelled = true; sub?.subscription?.unsubscribe?.(); window.removeEventListener('pageshow', onPageShow); };
