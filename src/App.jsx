@@ -237,7 +237,7 @@ function isSupabaseConfigured() {
    barcha qurilmalar (soati notoʻgʻri sozlanganlari ham) bitta xil
    "haqiqiy" vaqtni koʻradi. */
 let serverClockOffsetMs = 0;
-function estimatedServerNow() {
+export function estimatedServerNow() {
   return Date.now() + serverClockOffsetMs;
 }
 
@@ -359,7 +359,7 @@ export function randomRoomCode() {
   for (let i = 0; i < 6; i++) s += Math.floor(Math.random() * 10);
   return s;
 }
-function getDeviceKey() {
+export function getDeviceKey() {
   try {
     let k = localStorage.getItem('upcourse_device_key');
     if (!k) { k = uid() + uid(); localStorage.setItem('upcourse_device_key', k); }
@@ -483,7 +483,7 @@ export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, pollFallba
    hech qanday qatorga tegmaydi va xatosiz, shunchaki boʻsh natija bilan
    qaytadi — ikki marta oldinga surilib ketish (savol talvasa oʻtkazib
    yuborish) imkonsiz boʻladi. */
-async function advanceSyncPhase(room, totalQuestions) {
+export async function advanceSyncPhase(room, totalQuestions) {
   try {
     if (room.phase === 'question') {
       const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.question&current_index=eq.${room.currentIndex}`;

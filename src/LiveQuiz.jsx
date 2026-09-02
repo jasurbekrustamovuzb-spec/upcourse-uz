@@ -7,6 +7,7 @@ import {
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
   sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants,
   sbInsert, sbUpdate, sbDelete, isQuestionCorrect, computeSyncScore,
+  getDeviceKey, estimatedServerNow, advanceSyncPhase,
 } from './App';
 
 /* ------------------------------------------------------------------ */
