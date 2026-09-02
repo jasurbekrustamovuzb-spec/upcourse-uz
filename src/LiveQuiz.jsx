@@ -65,6 +65,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const totalQuestions = test.questions.length;
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
   const INTERMISSION_SECONDS = 6;
+  const REVEAL_SECONDS = 3; // birinchi 3s — to'g'ri/xato javob, keyingi 3s — reyting
 
   useEffect(() => {
     const t = setInterval(() => setNow(estimatedServerNow()), 500);
@@ -79,6 +80,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
   const elapsedMs = now - phaseStartedMs;
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
+  const showingReveal = room.phase === 'intermission' && elapsedMs < REVEAL_SECONDS * 1000;
 
   const answeredCount = currentQuestion
     ? participants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
@@ -223,9 +225,28 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
         </div>
       )}
 
-      {(room.phase === 'intermission' || peekLeaderboard) && (
+      {room.phase === 'intermission' && showingReveal && !peekLeaderboard && currentQuestion && (
+        <div className="max-w-2xl">
+          {(() => {
+            const correctText = currentQuestion.type === 'open'
+              ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
+              : currentQuestion.options?.[currentQuestion.correct] ?? '';
+            const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
+            return (
+              <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.successTint, border: `1px solid ${C.accent}`, color: C.ink }}>
+                <div className="flex items-center gap-2" style={{ fontWeight: 600 }}>
+                  <Check size={18} style={{ color: C.accent }} /> Toʻgʻri javob: {correctText}
+                </div>
+                <div className="text-sm mt-1" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{participants.length} ishtirokchi toʻgʻri topdi</div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {((room.phase === 'intermission' && !showingReveal) || peekLeaderboard) && (
         <div>
-          {room.phase === 'intermission' && (
+          {room.phase === 'intermission' && !peekLeaderboard && (
             <div className="flex items-center gap-2 text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>
               <span className="w-1.5 h-1.5 rounded-full live-pulse flex-shrink-0" style={{ background: C.live }} />
               Keyingi savolga oʻtilmoqda...
@@ -588,6 +609,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     : test.questions.map((_, i) => i);
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
   const INTERMISSION_SECONDS = 6;
+  const REVEAL_SECONDS = 3; // birinchi 3s — to'g'ri/xato javob, keyingi 3s — reyting
   const totalQuestions = test.questions.length;
 
   /* Taymer endi serverda yozilgan haqiqiy boshlanish vaqtidan
@@ -596,6 +618,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
   const elapsedMs = now - phaseStartedMs;
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
+  const showingReveal = room.phase === 'intermission' && elapsedMs < REVEAL_SECONDS * 1000;
   const hasAnswered = currentQuestion ? myAnswers[currentQuestion.id] !== undefined : false;
 
   const answeredCount = currentQuestion
@@ -740,7 +763,36 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
         </div>
       )}
 
-      {room.phase === 'intermission' && (
+      {room.phase === 'intermission' && showingReveal && currentQuestion && (
+        <div className="max-w-2xl">
+          {(() => {
+            const myAnswer = myAnswers[currentQuestion.id];
+            const wasCorrect = !!myAnswer?.correct;
+            const correctText = currentQuestion.type === 'open'
+              ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
+              : currentQuestion.options?.[currentQuestion.correct] ?? '';
+            return (
+              <div
+                className="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-[15px]"
+                style={{ ...fontBody, background: wasCorrect ? C.successTint : C.dangerTint, border: `1px solid ${wasCorrect ? C.accent : C.red}`, color: C.ink }}
+              >
+                {wasCorrect ? <Check size={18} style={{ color: C.accent, flexShrink: 0 }} /> : <X size={18} style={{ color: C.red, flexShrink: 0 }} />}
+                <div className="min-w-0">
+                  <div style={{ fontWeight: 600 }}>{wasCorrect ? "Toʻgʻri javob!" : 'Xato javob'}</div>
+                  {!wasCorrect && correctText !== '' && (
+                    <div className="text-sm mt-0.5" style={{ color: C.inkSoft }}>Toʻgʻri javob: {correctText}</div>
+                  )}
+                  {wasCorrect && myAnswer?.points > 0 && (
+                    <div className="text-sm mt-0.5" style={{ ...fontMono, color: C.inkSoft }}>+{myAnswer.points} ball</div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {room.phase === 'intermission' && !showingReveal && (
         <div>
           <div className="text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>Joriy reyting — keyingi savol tez orada...</div>
           <LiveLeaderboardList participants={participants} showAsPoints />
