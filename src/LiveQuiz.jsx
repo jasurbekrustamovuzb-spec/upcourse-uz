@@ -3,11 +3,11 @@ import {
   ArrowLeft, Award, Check, Clock3, Loader2, Search, Users, X, Trophy, Medal, BookOpen,
 } from 'lucide-react';
 import {
-  C, fontBody, fontMono, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
+  C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
   sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants,
   sbInsert, sbUpdate, sbDelete, isQuestionCorrect, computeSyncScore,
-  getDeviceKey, estimatedServerNow, advanceSyncPhase, sbGetTestById,
+  getDeviceKey, estimatedServerNow, advanceSyncPhase,
 } from './App';
 
 /* ------------------------------------------------------------------ */
@@ -463,9 +463,18 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const test = tests.find((t) => t.id === room.testId);
 
   useEffect(() => {
-    if (test && test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+    if (test) {
+      if (test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+      return;
+    }
+    let cancelled = false;
+    if (ensureTestContent) {
+      ensureTestContent(room.testId);
+      const t = setTimeout(() => { if (!cancelled) ensureTestContent(room.testId); }, 1500);
+      return () => { cancelled = true; clearTimeout(t); };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.testId, test?.questions]);
+  }, [room.testId, test, test?.questions, ensureTestContent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -975,26 +984,24 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTestContent }) {
   const [phase, setPhase] = useState(room.status === 'waiting' ? 'waiting' : 'quiz');
   const [participants, setParticipants] = useState([]);
-  const localTest = tests.find((t) => t.id === room.testId);
-  const [fetchedTest, setFetchedTest] = useState(null);
-  const test = localTest || fetchedTest;
+  const test = tests.find((t) => t.id === room.testId);
 
-  /* Test mahalliy (ko'rinish bo'yicha filtrlangan) ro'yxatda umuman
-     bo'lmasligi mumkin — masalan tuzuvchi hali tasdiqlanmagan yoki
-     xususiy testi bilan jonli xona ochgan bo'lsa. Bu holatda testni
-     to'g'ridan-to'g'ri, alohida so'rab olamiz (buni maxsus baza qoidasi
-     ruxsat beradi — faol jonli xonaga bog'langan test hammaga ochiq). */
   useEffect(() => {
-    if (localTest || fetchedTest) return;
+    if (test) {
+      if (test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+      return;
+    }
+    // Test hali umuman topilmagan bo'lsa ham — jim o'tirmasdan, uni
+    // to'g'ridan-to'g'ri so'rashga urinamiz, va topilmasa 1.5 soniyadan
+    // keyin qayta urinamiz (masalan tarmoq/vaqt sabab kechikkan bo'lsa).
     let cancelled = false;
-    sbGetTestById(room.testId).then((t) => { if (!cancelled) setFetchedTest(t); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [room.testId, localTest]);
-
-  useEffect(() => {
-    if (test && test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+    if (ensureTestContent) {
+      ensureTestContent(room.testId);
+      const t = setTimeout(() => { if (!cancelled) ensureTestContent(room.testId); }, 1500);
+      return () => { cancelled = true; clearTimeout(t); };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.testId, test?.questions]);
+  }, [room.testId, test, test?.questions, ensureTestContent]);
 
   useEffect(() => {
     /* MUHIM: "Hammaga bir xil" (sync) rejimida, savol boshlangach
@@ -1040,6 +1047,14 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
           <Loader2 className="animate-spin" size={16} />
           Boshqaruvchi testni boshlashini kuting...
         </div>
+      </div>
+    );
+  }
+
+  if (phase === 'quiz' && !test) {
+    return (
+      <div className="flex items-center gap-2 text-sm py-10 justify-center" style={{ ...fontBody, color: C.inkSoft }}>
+        <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
       </div>
     );
   }
