@@ -3961,6 +3961,11 @@ export default function App() {
   const [readingActive, setReadingActive] = useState(false);
   const [viewingUsername, setViewingUsername] = useState(null);
   const [giftOpen, setGiftOpen] = useState(false);
+  /* Kontent so'rovini (loadAppData) kirish holatidan mustaqil, tezroq
+     ishga tushirish uchun ikkita "faqat bir marta" bayrog'i — pastdagi
+     ikkita alohida useEffect shularga tayanadi (LCP tezlashtirish). */
+  const initialFetchRef = useRef(false);
+  const authAwareRefetchRef = useRef(false);
 
   useEffect(() => {
     _goToPublicProfile = (username) => setViewingUsername(username);
@@ -4137,12 +4142,12 @@ export default function App() {
     return existing?.questions;
   }, [tests]);
 
-  const loadAppData = useCallback(async () => {
-    setLoading(true);
+  const loadAppData = useCallback(async (silent) => {
+    if (!silent) setLoading(true);
     setError(null);
     if (!isSupabaseConfigured()) {
       setError('Supabase ulanish maʼlumotlari hali kiritilmagan. Kod faylining yuqori qismidagi SUPABASE_URL va SUPABASE_ANON_KEY qatorlarini toʻldiring.');
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
     try {
@@ -4165,18 +4170,48 @@ export default function App() {
       // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
       // odatda ishlab ketadi) — shuning uchun foydalanuvchiga texnik
       // tafsilotlar emas, sodda va tinch xabar ko'rsatamiz.
-      setError('Ma\u02bblumotlarni yuklab bo\u02bblmadi. Internetni tekshirib, qayta urinib ko\u02bbring.');
+      // "Jim" (silent) qayta yuklashda esa ekranda allaqachon ma'lumot
+      // turibdi — shu xabarni ko'rsatib, uni bekorga "yuklab bo'lmadi"
+      // holatiga o'tkazib yubormaymiz, faqat konsolga yozib qo'yamiz.
+      if (!silent) setError('Ma\u02bblumotlarni yuklab bo\u02bblmadi. Internetni tekshirib, qayta urinib ko\u02bbring.');
+      else console.error('Fon rejimida qayta yuklashda xatolik:', e);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [isAdmin, session?.user?.id]);
 
+  /* 1) Kontentni (kurslar/testlar/kategoriyalar) DARHOL, kirish holatini
+     kutmasdan so'raymiz — sahifa ochilgan zahoti, bir marta. Bu payt
+     session/isAdmin hali aniqlanmagan bo'lishi mumkin, lekin bu muammo
+     emas: visibilityFilter bo'sh/false qiymatlar bilan chaqirilganda
+     avtomatik "faqat ommaviy (approved) kontent" so'raydi — bu
+     aksariyat (login qilmagan yoki oddiy) foydalanuvchi uchun to'g'ri
+     va yetarli. Shu tufayli LCP (birinchi mazmunli chizilish) endi
+     autentifikatsiya zanjirini kutib turmaydi. */
   useEffect(() => {
-    // Autentifikatsiya holati (kim ekanligimiz) aniqlanguncha kutamiz —
-    // shunda "kim ko'rishi kerak" filtri to'g'ri qatorlar bilan bir marta
-    // so'raladi, keyin qayta yuklab o'tirmaydi.
-    if (authLoading) return;
+    if (initialFetchRef.current) return;
+    initialFetchRef.current = true;
     loadAppData();
-  }, [authLoading, loadAppData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* 2) Kirish holati keyinroq aniqlanganda — FAQAT agar foydalanuvchi
+     haqiqatan tizimga kirgan yoki administrator bo'lsa, bitta qo'shimcha,
+     FON REJIMIDAGI (jim, spinner qaytarmaydigan) qayta yuklashni
+     bajaramiz — chunki faqat shu holatlarda ko'rinadigan qatorlar
+     to'plami birinchi (ommaviy) so'rovdan farq qilishi mumkin (masalan
+     o'zining tasdiqlanmagan kontenti, yoki administratorning hammasini
+     ko'rish huquqi). Login qilmagan foydalanuvchi uchun natija baribir
+     bir xil bo'lgani sababli — bu holatda qo'shimcha so'rov yuborilmaydi.
+     Bu effekt ham faqat bir marta ishlaydi (authAwareRefetchRef). */
+  useEffect(() => {
+    if (authLoading) return;
+    if (authAwareRefetchRef.current) return;
+    authAwareRefetchRef.current = true;
+    if (session?.user?.id || isAdmin) {
+      loadAppData(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, session?.user?.id, isAdmin]);
 
   /* Ulashilgan havola orqali kirilganda (?course=ID yoki ?test=ID),
      lekin o'sha narsa "xususiy" bo'lgani uchun oddiy ro'yxatga
@@ -4692,7 +4727,7 @@ export default function App() {
           <div className="flex flex-col items-center gap-3 py-20 text-center">
             <span className="text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>{error}</span>
             <button
-              onClick={loadAppData}
+              onClick={() => loadAppData()}
               className="w-11 h-11 rounded-full flex items-center justify-center transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2"
               style={{ background: C.cover, color: C.white, outlineColor: C.gold }}
               aria-label="Qayta urinib ko'rish"
