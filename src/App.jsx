@@ -4110,10 +4110,26 @@ export default function App() {
     const existing = tests.find((t) => t.id === id);
     if (existing && existing.questions !== undefined) return existing.questions;
     try {
-      const rows = await sbRequest(`tests?select=id,questions&id=eq.${encodeURIComponent(id)}`);
-      if (rows[0]) {
-        setTests((prev) => prev.map((t) => (t.id === id ? { ...t, questions: rows[0].questions } : t)));
-        return rows[0].questions;
+      if (existing) {
+        // Test ro'yxatda bor, faqat savollari hali yuklanmagan —
+        // faqat shu maydonni so'raymiz (yengil so'rov).
+        const rows = await sbRequest(`tests?select=id,questions&id=eq.${encodeURIComponent(id)}`);
+        if (rows[0]) {
+          setTests((prev) => prev.map((t) => (t.id === id ? { ...t, questions: rows[0].questions } : t)));
+          return rows[0].questions;
+        }
+      } else {
+        // Test ro'yxatda UMUMAN yo'q (masalan "Jonli test"ga xona kodi
+        // orqali qo'shilgan ishtirokchida hali to'liq ro'yxat ulgurmagan
+        // bo'lishi mumkin) — to'liq qatorni so'rab, ro'yxatga YANGI
+        // element sifatida qo'shamiz (avvalgi .map() bu holatda hech
+        // narsa qilmasdi, chunki mos keladigan element yo'q edi).
+        const rows = await sbRequest(`tests?select=*&id=eq.${encodeURIComponent(id)}`);
+        if (rows[0]) {
+          const full = testFromRow(rows[0]);
+          setTests((prev) => (prev.some((t) => t.id === id) ? prev.map((t) => (t.id === id ? full : t)) : [...prev, full]));
+          return full.questions;
+        }
       }
     } catch (e) {
       // Jim tarzda o'tkazib yuborish — keyingi urinishda qayta so'raladi.

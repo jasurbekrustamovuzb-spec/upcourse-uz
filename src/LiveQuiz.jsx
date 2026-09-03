@@ -463,9 +463,18 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const test = tests.find((t) => t.id === room.testId);
 
   useEffect(() => {
-    if (test && test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+    if (test) {
+      if (test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+      return;
+    }
+    let cancelled = false;
+    if (ensureTestContent) {
+      ensureTestContent(room.testId);
+      const t = setTimeout(() => { if (!cancelled) ensureTestContent(room.testId); }, 1500);
+      return () => { cancelled = true; clearTimeout(t); };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.testId, test?.questions]);
+  }, [room.testId, test, test?.questions, ensureTestContent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -978,9 +987,21 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
   const test = tests.find((t) => t.id === room.testId);
 
   useEffect(() => {
-    if (test && test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+    if (test) {
+      if (test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
+      return;
+    }
+    // Test hali umuman topilmagan bo'lsa ham — jim o'tirmasdan, uni
+    // to'g'ridan-to'g'ri so'rashga urinamiz, va topilmasa 1.5 soniyadan
+    // keyin qayta urinamiz (masalan tarmoq/vaqt sabab kechikkan bo'lsa).
+    let cancelled = false;
+    if (ensureTestContent) {
+      ensureTestContent(room.testId);
+      const t = setTimeout(() => { if (!cancelled) ensureTestContent(room.testId); }, 1500);
+      return () => { cancelled = true; clearTimeout(t); };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.testId, test?.questions]);
+  }, [room.testId, test, test?.questions, ensureTestContent]);
 
   useEffect(() => {
     /* MUHIM: "Hammaga bir xil" (sync) rejimida, savol boshlangach
@@ -1026,6 +1047,14 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
           <Loader2 className="animate-spin" size={16} />
           Boshqaruvchi testni boshlashini kuting...
         </div>
+      </div>
+    );
+  }
+
+  if (phase === 'quiz' && !test) {
+    return (
+      <div className="flex items-center gap-2 text-sm py-10 justify-center" style={{ ...fontBody, color: C.inkSoft }}>
+        <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
       </div>
     );
   }
