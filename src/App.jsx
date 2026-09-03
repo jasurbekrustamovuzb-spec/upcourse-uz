@@ -518,6 +518,15 @@ const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title
 const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', author_id: t.authorId || null, status: t.status || 'approved' });
 const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', questionCount: r.question_count ?? undefined });
+/* Jonli test ishtirokchisi uchun: agar test mahalliy (ko'rinish bo'yicha
+   filtrlangan) ro'yxatda bo'lmasa — masalan u hali tasdiqlanmagan/xususiy
+   bo'lsagina, faqat jonli xona orqali ochilgan bo'lsa — to'g'ridan-to'g'ri,
+   alohida so'rab olinadi. Buni bazadagi maxsus qoida (faol jonli xonaga
+   bog'langan testni hammaga ochadigan) ruxsat beradi. */
+export async function sbGetTestById(id) {
+  const rows = await sbSelect('tests', `id=eq.${encodeURIComponent(id)}`);
+  return rows[0] ? testFromRow(rows[0]) : null;
+}
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
 const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null });
@@ -4110,26 +4119,10 @@ export default function App() {
     const existing = tests.find((t) => t.id === id);
     if (existing && existing.questions !== undefined) return existing.questions;
     try {
-      if (existing) {
-        // Test ro'yxatda bor, faqat savollari hali yuklanmagan —
-        // faqat shu maydonni so'raymiz (yengil so'rov).
-        const rows = await sbRequest(`tests?select=id,questions&id=eq.${encodeURIComponent(id)}`);
-        if (rows[0]) {
-          setTests((prev) => prev.map((t) => (t.id === id ? { ...t, questions: rows[0].questions } : t)));
-          return rows[0].questions;
-        }
-      } else {
-        // Test ro'yxatda UMUMAN yo'q (masalan "Jonli test"ga xona kodi
-        // orqali qo'shilgan ishtirokchida hali to'liq ro'yxat ulgurmagan
-        // bo'lishi mumkin) — to'liq qatorni so'rab, ro'yxatga YANGI
-        // element sifatida qo'shamiz (avvalgi .map() bu holatda hech
-        // narsa qilmasdi, chunki mos keladigan element yo'q edi).
-        const rows = await sbRequest(`tests?select=*&id=eq.${encodeURIComponent(id)}`);
-        if (rows[0]) {
-          const full = testFromRow(rows[0]);
-          setTests((prev) => (prev.some((t) => t.id === id) ? prev.map((t) => (t.id === id ? full : t)) : [...prev, full]));
-          return full.questions;
-        }
+      const rows = await sbRequest(`tests?select=id,questions&id=eq.${encodeURIComponent(id)}`);
+      if (rows[0]) {
+        setTests((prev) => prev.map((t) => (t.id === id ? { ...t, questions: rows[0].questions } : t)));
+        return rows[0].questions;
       }
     } catch (e) {
       // Jim tarzda o'tkazib yuborish — keyingi urinishda qayta so'raladi.
