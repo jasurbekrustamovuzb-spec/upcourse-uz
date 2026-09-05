@@ -3,7 +3,7 @@ import {
   ArrowLeft, Award, Check, Clock3, Loader2, Search, Users, X, Trophy, Medal, BookOpen,
 } from 'lucide-react';
 import {
-  C, fontBody, fontMono, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
+  C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
   sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants,
   sbInsert, sbUpdate, sbDelete, isQuestionCorrect, computeSyncScore,
