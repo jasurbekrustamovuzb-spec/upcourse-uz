@@ -3,12 +3,335 @@ import {
   ArrowLeft, Award, Check, Clock3, Loader2, Search, Users, X, Trophy, Medal, BookOpen,
 } from 'lucide-react';
 import {
-  C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
+  C, fontBody, fontMono, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
   sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants,
   sbInsert, sbUpdate, sbDelete, isQuestionCorrect, computeSyncScore,
   getDeviceKey, estimatedServerNow, advanceSyncPhase,
 } from './App';
+
+/* ------------------------------------------------------------------ */
+/*  Ixcham QR-kod generatori (ISO/IEC 18004, Byte rejimi, "M" xato     */
+/*  tuzatish darajasi) — hech qanday tashqi kutubxona shart emas,      */
+/*  havola qurilmada, jonli ravishda chiziladi (hech qayerga           */
+/*  saqlanmaydi). Bu shu faylga xos, faqat "Jonli test" bo'limi        */
+/*  ochilganda yuklanadi — boshqa sahifalarga og'irlik solmaydi.       */
+/*  Algoritm haqiqiy dekoder (OpenCV) bilan sinovdan o'tkazilgan.      */
+/* ------------------------------------------------------------------ */
+const QR = (() => {
+  const EXP_TABLE = new Array(256);
+  const LOG_TABLE = new Array(256);
+  for (let i = 0; i < 8; i++) EXP_TABLE[i] = 1 << i;
+  for (let i = 8; i < 256; i++) {
+    EXP_TABLE[i] = EXP_TABLE[i - 4] ^ EXP_TABLE[i - 5] ^ EXP_TABLE[i - 6] ^ EXP_TABLE[i - 8];
+  }
+  for (let i = 0; i < 255; i++) LOG_TABLE[EXP_TABLE[i]] = i;
+  const glog = (n) => { if (n < 1) throw new Error('glog'); return LOG_TABLE[n]; };
+  const gexp = (n) => { while (n < 0) n += 255; while (n >= 256) n -= 255; return EXP_TABLE[n]; };
+
+  class Poly {
+    constructor(num, shift) {
+      let offset = 0;
+      while (offset < num.length && num[offset] === 0) offset++;
+      this.num = new Array(num.length - offset + (shift || 0));
+      for (let i = 0; i < num.length - offset; i++) this.num[i] = num[i + offset];
+      for (let i = 0; i < (shift || 0); i++) this.num[num.length - offset + i] = 0;
+    }
+    get(i) { return this.num[i]; }
+    len() { return this.num.length; }
+    multiply(e) {
+      const num = new Array(this.len() + e.len() - 1).fill(0);
+      for (let i = 0; i < this.len(); i++) for (let j = 0; j < e.len(); j++) num[i + j] ^= gexp(glog(this.get(i)) + glog(e.get(j)));
+      return new Poly(num, 0);
+    }
+    mod(e) {
+      if (this.len() - e.len() < 0) return this;
+      const ratio = glog(this.get(0)) - glog(e.get(0));
+      const num = this.num.slice();
+      for (let i = 0; i < e.len(); i++) num[i] ^= gexp(glog(e.get(i)) + ratio);
+      return new Poly(num, 0).mod(e);
+    }
+  }
+  const rsGeneratorPoly = (ec) => { let a = new Poly([1], 0); for (let i = 0; i < ec; i++) a = a.multiply(new Poly([1, gexp(i)], 0)); return a; };
+
+  const RS_BLOCK_TABLE = {
+    1: { L: [[26, 19]], M: [[26, 16]], Q: [[26, 13]], H: [[26, 9]] },
+    2: { L: [[44, 34]], M: [[44, 28]], Q: [[44, 22]], H: [[44, 16]] },
+    3: { L: [[70, 55]], M: [[70, 44]], Q: [[35, 17], [35, 17]], H: [[35, 13], [35, 13]] },
+    4: { L: [[100, 80]], M: [[50, 32], [50, 32]], Q: [[50, 24], [50, 24]], H: [[25, 9], [25, 9], [25, 9], [25, 9]] },
+    5: { L: [[134, 108]], M: [[67, 43], [67, 43]], Q: [[33, 15], [33, 15], [34, 16], [34, 16]], H: [[33, 11], [33, 11], [34, 12], [34, 12]] },
+    6: { L: [[86, 68], [86, 68]], M: [[43, 27], [43, 27], [43, 27], [43, 27]], Q: [[43, 19], [43, 19], [43, 19], [43, 19]], H: [[43, 15], [43, 15], [43, 15], [43, 15]] },
+    7: { L: [[98, 78], [98, 78]], M: [[49, 31], [49, 31], [49, 31], [49, 31]], Q: [[32, 14], [32, 14], [33, 15], [33, 15], [33, 15], [33, 15]], H: [[39, 13], [39, 13], [39, 13], [39, 13], [39, 13]] },
+    8: { L: [[121, 97], [121, 97]], M: [[60, 38], [60, 38], [61, 39], [61, 39]], Q: [[40, 18], [40, 18], [40, 18], [41, 19], [41, 19], [41, 19]], H: [[40, 14], [40, 14], [40, 14], [40, 14], [41, 15], [41, 15]] },
+    9: { L: [[146, 116], [146, 116]], M: [[58, 36], [58, 36], [58, 36], [59, 37], [59, 37]], Q: [[36, 16], [36, 16], [36, 16], [36, 16], [37, 17], [37, 17], [37, 17], [37, 17]], H: [[36, 12], [36, 12], [36, 12], [36, 12], [37, 13], [37, 13], [37, 13], [37, 13]] },
+    10: { L: [[86, 68], [86, 68], [87, 69], [87, 69]], M: [[69, 43], [69, 43], [69, 43], [70, 44], [70, 44], [70, 44]], Q: [[43, 19], [43, 19], [43, 19], [43, 19], [43, 19], [43, 19], [44, 20], [44, 20]], H: [[43, 15], [43, 15], [43, 15], [43, 15], [43, 15], [43, 15], [44, 16], [44, 16]] },
+  };
+  const EC_PER_BLOCK = {
+    L: { 1: 7, 2: 10, 3: 15, 4: 20, 5: 26, 6: 18, 7: 20, 8: 24, 9: 30, 10: 18 },
+    M: { 1: 10, 2: 16, 3: 26, 4: 18, 5: 24, 6: 16, 7: 18, 8: 22, 9: 22, 10: 26 },
+    Q: { 1: 13, 2: 22, 3: 18, 4: 26, 5: 18, 6: 24, 7: 18, 8: 22, 9: 20, 10: 24 },
+    H: { 1: 17, 2: 28, 3: 22, 4: 16, 5: 22, 6: 28, 7: 26, 8: 26, 9: 24, 10: 28 },
+  };
+  const getRSBlocks = (version, level) => {
+    const blocks = RS_BLOCK_TABLE[version][level];
+    const ec = EC_PER_BLOCK[level][version];
+    return blocks.map(([total, data]) => ({ totalCount: total, dataCount: data, ecCount: ec }));
+  };
+
+  class BitBuffer {
+    constructor() { this.buffer = []; this.length = 0; }
+    put(num, length) { for (let i = 0; i < length; i++) this.putBit(((num >> (length - i - 1)) & 1) === 1); }
+    putBit(bit) {
+      const bufIndex = Math.floor(this.length / 8);
+      if (this.buffer.length <= bufIndex) this.buffer.push(0);
+      if (bit) this.buffer[bufIndex] |= (0x80 >>> (this.length % 8));
+      this.length++;
+    }
+  }
+
+  const getLengthInBits = (version) => (version <= 9 ? 8 : 16);
+
+  const createBytes = (buffer, rsBlocks) => {
+    let offset = 0, maxDc = 0, maxEc = 0;
+    const dcdata = new Array(rsBlocks.length), ecdata = new Array(rsBlocks.length);
+    for (let r = 0; r < rsBlocks.length; r++) {
+      const dcCount = rsBlocks[r].dataCount, ecCount = rsBlocks[r].ecCount;
+      maxDc = Math.max(maxDc, dcCount); maxEc = Math.max(maxEc, ecCount);
+      dcdata[r] = new Array(dcCount);
+      for (let i = 0; i < dcdata[r].length; i++) dcdata[r][i] = 0xff & buffer.buffer[i + offset];
+      offset += dcCount;
+      const rsPoly = rsGeneratorPoly(ecCount);
+      const rawPoly = new Poly(dcdata[r], rsPoly.len() - 1);
+      const modPoly = rawPoly.mod(rsPoly);
+      ecdata[r] = new Array(rsPoly.len() - 1);
+      for (let i = 0; i < ecdata[r].length; i++) {
+        const modIndex = i + modPoly.len() - ecdata[r].length;
+        ecdata[r][i] = modIndex >= 0 ? modPoly.get(modIndex) : 0;
+      }
+    }
+    const total = rsBlocks.reduce((s, b) => s + b.totalCount, 0);
+    const data = new Array(total); let index = 0;
+    for (let i = 0; i < maxDc; i++) for (let r = 0; r < rsBlocks.length; r++) if (i < dcdata[r].length) data[index++] = dcdata[r][i];
+    for (let i = 0; i < maxEc; i++) for (let r = 0; r < rsBlocks.length; r++) if (i < ecdata[r].length) data[index++] = ecdata[r][i];
+    return data;
+  };
+
+  const PATTERN_POSITION_TABLE = [[], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50], [6, 30, 54]];
+  const G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+  const G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+  const G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+  const getBCHDigit = (data) => { let d = 0; while (data !== 0) { d++; data >>>= 1; } return d; };
+  const getBCHTypeInfo = (data) => {
+    let d = data << 10;
+    while (getBCHDigit(d) - getBCHDigit(G15) >= 0) d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15)));
+    return ((data << 10) | d) ^ G15_MASK;
+  };
+  const getBCHTypeNumber = (data) => {
+    let d = data << 12;
+    while (getBCHDigit(d) - getBCHDigit(G18) >= 0) d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18)));
+    return (data << 12) | d;
+  };
+  const getMask = (pattern, i, j) => {
+    switch (pattern) {
+      case 0: return (i + j) % 2 === 0;
+      case 1: return i % 2 === 0;
+      case 2: return j % 3 === 0;
+      case 3: return (i + j) % 3 === 0;
+      case 4: return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 === 0;
+      case 5: return (i * j) % 2 + (i * j) % 3 === 0;
+      case 6: return ((i * j) % 2 + (i * j) % 3) % 2 === 0;
+      case 7: return ((i * j) % 3 + (i + j) % 2) % 2 === 0;
+      default: throw new Error('mask');
+    }
+  };
+  const EC_LEVEL_BITS = { M: 0, L: 1, H: 2, Q: 3 };
+
+  class QRCode {
+    constructor(version, level) { this.version = version; this.level = level; this.moduleCount = version * 4 + 17; this.modules = null; this.dataCache = null; this.dataList = []; }
+    addData(str) { const bytes = Array.from(new TextEncoder().encode(str)); this.dataList.push(bytes); }
+    isDark(r, c) { return this.modules[r][c]; }
+    make() { this.makeImpl(false, this.getBestMaskPattern()); }
+    getBestMaskPattern() {
+      let minLost = Infinity, pattern = 0;
+      for (let i = 0; i < 8; i++) { this.makeImpl(true, i); const lost = this.getLostPoint(); if (lost < minLost) { minLost = lost; pattern = i; } }
+      return pattern;
+    }
+    makeImpl(test, maskPattern) {
+      this.moduleCount = this.version * 4 + 17;
+      this.modules = Array.from({ length: this.moduleCount }, () => new Array(this.moduleCount).fill(null));
+      this.setupPositionProbePattern(0, 0);
+      this.setupPositionProbePattern(this.moduleCount - 7, 0);
+      this.setupPositionProbePattern(0, this.moduleCount - 7);
+      this.setupPositionAdjustPattern();
+      this.setupTimingPattern();
+      this.setupTypeInfo(test, maskPattern);
+      if (this.version >= 7) this.setupTypeNumber(test);
+      if (this.dataCache == null) this.dataCache = this.createData();
+      this.mapData(this.dataCache, maskPattern);
+    }
+    setupPositionProbePattern(row, col) {
+      for (let r = -1; r <= 7; r++) {
+        if (row + r <= -1 || this.moduleCount <= row + r) continue;
+        for (let c = -1; c <= 7; c++) {
+          if (col + c <= -1 || this.moduleCount <= col + c) continue;
+          const dark = (r >= 0 && r <= 6 && (c === 0 || c === 6)) || (c >= 0 && c <= 6 && (r === 0 || r === 6)) || (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+          this.modules[row + r][col + c] = dark;
+        }
+      }
+    }
+    setupTimingPattern() {
+      for (let r = 8; r < this.moduleCount - 8; r++) { if (this.modules[r][6] != null) continue; this.modules[r][6] = (r % 2 === 0); }
+      for (let c = 8; c < this.moduleCount - 8; c++) { if (this.modules[6][c] != null) continue; this.modules[6][c] = (c % 2 === 0); }
+    }
+    setupPositionAdjustPattern() {
+      const positions = PATTERN_POSITION_TABLE[this.version - 1];
+      for (const row of positions) for (const col of positions) {
+        if (this.modules[row][col] != null) continue;
+        for (let r = -2; r <= 2; r++) for (let c = -2; c <= 2; c++) {
+          this.modules[row + r][col + c] = (r === -2 || r === 2 || c === -2 || c === 2 || (r === 0 && c === 0));
+        }
+      }
+    }
+    setupTypeNumber(test) {
+      const bits = getBCHTypeNumber(this.version);
+      for (let i = 0; i < 18; i++) { const mod = (!test && ((bits >> i) & 1) === 1); this.modules[Math.floor(i / 3)][i % 3 + this.moduleCount - 8 - 3] = mod; }
+      for (let i = 0; i < 18; i++) { const mod = (!test && ((bits >> i) & 1) === 1); this.modules[i % 3 + this.moduleCount - 8 - 3][Math.floor(i / 3)] = mod; }
+    }
+    setupTypeInfo(test, maskPattern) {
+      const data = (EC_LEVEL_BITS[this.level] << 3) | maskPattern;
+      const bits = getBCHTypeInfo(data);
+      for (let i = 0; i < 15; i++) {
+        const mod = (!test && ((bits >> i) & 1) === 1);
+        if (i < 6) this.modules[i][8] = mod;
+        else if (i < 8) this.modules[i + 1][8] = mod;
+        else this.modules[this.moduleCount - 15 + i][8] = mod;
+      }
+      for (let i = 0; i < 15; i++) {
+        const mod = (!test && ((bits >> i) & 1) === 1);
+        if (i < 8) this.modules[8][this.moduleCount - i - 1] = mod;
+        else if (i < 9) this.modules[8][15 - i - 1 + 1] = mod;
+        else this.modules[8][15 - i - 1] = mod;
+      }
+      this.modules[this.moduleCount - 8][8] = (!test);
+    }
+    mapData(data, maskPattern) {
+      let inc = -1, row = this.moduleCount - 1, bitIndex = 7, byteIndex = 0;
+      for (let col = this.moduleCount - 1; col > 0; col -= 2) {
+        if (col === 6) col--;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          for (let c = 0; c < 2; c++) {
+            if (this.modules[row][col - c] == null) {
+              let dark = false;
+              if (byteIndex < data.length) dark = ((data[byteIndex] >>> bitIndex) & 1) === 1;
+              if (getMask(maskPattern, row, col - c)) dark = !dark;
+              this.modules[row][col - c] = dark;
+              bitIndex--;
+              if (bitIndex === -1) { byteIndex++; bitIndex = 7; }
+            }
+          }
+          row += inc;
+          if (row < 0 || this.moduleCount <= row) { row -= inc; inc = -inc; break; }
+        }
+      }
+    }
+    createData() {
+      const rsBlocks = getRSBlocks(this.version, this.level);
+      const buffer = new BitBuffer();
+      for (const data of this.dataList) {
+        buffer.put(4, 4);
+        buffer.put(data.length, getLengthInBits(this.version));
+        for (const b of data) buffer.put(b, 8);
+      }
+      const totalDataCount = rsBlocks.reduce((s, b) => s + b.dataCount, 0);
+      if (buffer.length + 4 <= totalDataCount * 8) buffer.put(0, 4);
+      while (buffer.length % 8 !== 0) buffer.putBit(false);
+      while (true) {
+        if (buffer.length >= totalDataCount * 8) break;
+        buffer.put(0xEC, 8);
+        if (buffer.length >= totalDataCount * 8) break;
+        buffer.put(0x11, 8);
+      }
+      return createBytes(buffer, rsBlocks);
+    }
+    getLostPoint() {
+      const n = this.moduleCount; let lost = 0;
+      for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) {
+        let same = 0; const dark = this.isDark(row, col);
+        for (let r = -1; r <= 1; r++) { if (row + r < 0 || n <= row + r) continue; for (let c = -1; c <= 1; c++) { if (col + c < 0 || n <= col + c) continue; if (r === 0 && c === 0) continue; if (dark === this.isDark(row + r, col + c)) same++; } }
+        if (same > 5) lost += (3 + same - 5);
+      }
+      for (let row = 0; row < n - 1; row++) for (let col = 0; col < n - 1; col++) {
+        let count = 0;
+        if (this.isDark(row, col)) count++; if (this.isDark(row + 1, col)) count++;
+        if (this.isDark(row, col + 1)) count++; if (this.isDark(row + 1, col + 1)) count++;
+        if (count === 0 || count === 4) lost += 3;
+      }
+      for (let row = 0; row < n; row++) for (let col = 0; col < n - 6; col++) {
+        if (this.isDark(row, col) && !this.isDark(row, col + 1) && this.isDark(row, col + 2) && this.isDark(row, col + 3) && this.isDark(row, col + 4) && !this.isDark(row, col + 5) && this.isDark(row, col + 6)) lost += 40;
+      }
+      for (let col = 0; col < n; col++) for (let row = 0; row < n - 6; row++) {
+        if (this.isDark(row, col) && !this.isDark(row + 1, col) && this.isDark(row + 2, col) && this.isDark(row + 3, col) && this.isDark(row + 4, col) && !this.isDark(row + 5, col) && this.isDark(row + 6, col)) lost += 40;
+      }
+      let darkCount = 0;
+      for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) if (this.isDark(row, col)) darkCount++;
+      lost += Math.floor(Math.abs(Math.floor((100 * darkCount) / (n * n)) - 50) / 5) * 10;
+      return lost;
+    }
+  }
+
+  function encode(text, level) {
+    const lvl = level || 'M';
+    for (let version = 1; version <= 10; version++) {
+      const rsBlocks = getRSBlocks(version, lvl);
+      const totalData = rsBlocks.reduce((s, b) => s + b.dataCount, 0);
+      const lengthBits = getLengthInBits(version);
+      const bytesLen = new TextEncoder().encode(text).length;
+      const neededBits = 4 + lengthBits + bytesLen * 8;
+      if (neededBits <= totalData * 8) {
+        const qr = new QRCode(version, lvl);
+        qr.addData(text);
+        qr.make();
+        return qr;
+      }
+    }
+    throw new Error('Matn juda uzun — QR kodga sig\u02bbmaydi');
+  }
+
+  return { encode };
+})();
+
+/* QR kodni SVG sifatida chizadi — rasm fayli emas, hisoblangan
+   to'rtburchaklar to'plami, shuning uchun har qanday o'lchamda
+   xira bo'lmaydi va hech qayerga saqlanmaydi. */
+function QRCodeSVG({ value }) {
+  const qr = React.useMemo(() => {
+    try { return QR.encode(value, 'M'); } catch (e) { return null; }
+  }, [value]);
+  if (!qr) return null;
+  const count = qr.moduleCount;
+  const quiet = 2; // oq chegara — skanerlash ishonchliligi uchun kerak
+  const total = count + quiet * 2;
+  const rects = [];
+  for (let r = 0; r < count; r++) {
+    for (let c = 0; c < count; c++) {
+      if (qr.isDark(r, c)) rects.push(`M${c + quiet},${r + quiet}h1v1h-1z`);
+    }
+  }
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      viewBox={`0 0 ${total} ${total}`}
+      shapeRendering="crispEdges"
+      role="img"
+      aria-label="Xonaga qo'shilish uchun QR kod"
+      style={{ display: 'block', background: '#fff', borderRadius: 8 }}
+    >
+      <path d={rects.join('')} fill="#111" />
+    </svg>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Jonli test rejimi — App.jsx'dan 2c-bosqichda ajratildi.            */
@@ -569,6 +892,12 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
       <div className="p-6 rounded-3xl mb-6 text-center max-w-xs" style={{ background: `linear-gradient(135deg, ${C.coverDeep} 0%, ${C.liveDeep} 100%)`, border: `1px solid ${C.live}` }}>
         <div className="text-xs uppercase tracking-widest mb-2" style={{ ...fontMono, color: C.liveSoft }}>Xona kodi</div>
         <div className="text-4xl mb-4" style={{ ...fontMono, color: C.live, fontWeight: 700, letterSpacing: '0.16em' }}>{room.code}</div>
+        <div className="w-24 h-24 sm:w-36 sm:h-36 mx-auto mb-4 p-1.5" style={{ background: '#fff', borderRadius: 12 }}>
+          <QRCodeSVG value={buildShareUrl({ live: room.code })} />
+        </div>
+        <p className="text-[11px] mb-3" style={{ ...fontBody, color: 'rgba(251,250,243,0.6)' }}>
+          Telefon kamerasi bilan skanerlab ham qoʻshilish mumkin
+        </p>
         <div className="flex items-center justify-center gap-3">
           <button onClick={copyCode} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>{copied ? 'Nusxalandi ✓' : 'Kodni nusxalash'}</button>
           <span style={{ color: 'rgba(251,250,243,0.35)' }}>·</span>
