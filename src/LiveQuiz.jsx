@@ -892,7 +892,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
       <div className="p-6 rounded-3xl mb-6 text-center max-w-xs" style={{ background: `linear-gradient(135deg, ${C.coverDeep} 0%, ${C.liveDeep} 100%)`, border: `1px solid ${C.live}` }}>
         <div className="text-xs uppercase tracking-widest mb-2" style={{ ...fontMono, color: C.liveSoft }}>Xona kodi</div>
         <div className="text-4xl mb-4" style={{ ...fontMono, color: C.live, fontWeight: 700, letterSpacing: '0.16em' }}>{room.code}</div>
-        <div className="w-24 h-24 sm:w-36 sm:h-36 mx-auto mb-4 p-1.5" style={{ background: '#fff', borderRadius: 12 }}>
+        <div className="w-32 h-32 sm:w-56 sm:h-56 mx-auto mb-4 p-2" style={{ background: '#fff', borderRadius: 12 }}>
           <QRCodeSVG value={buildShareUrl({ live: room.code })} />
         </div>
         <p className="text-[11px] mb-3" style={{ ...fontBody, color: 'rgba(251,250,243,0.6)' }}>
