@@ -541,7 +541,12 @@ const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: 
 const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', questionCount: r.question_count ?? undefined });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
-const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null });
+const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
+
+/* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
+   foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
+   uchun ishlatiladi. */
+export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: false, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
@@ -1341,6 +1346,23 @@ export function ShareButton({ url, title, small }) {
   );
 }
 
+/* ShareButton bilan bir xil mantiq, lekin ⋮ menyu ichidan (alohida
+   ko'rinadigan tugmasiz) chaqirish uchun — masalan kartochka menyusidagi
+   "Ulashish" bandi. */
+async function shareItem(url, title) {
+  if (!url) return;
+  if (navigator.share) {
+    try {
+      await navigator.share({ url, title: title || 'UpCourse Uz' });
+      return;
+    } catch (e) { /* foydalanuvchi ulashish oynasini bekor qilgan bo'lishi mumkin */ }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    window.alert('Havola nusxalandi!');
+  } catch (e) { /* clipboard mavjud bo'lmasa e'tiborsiz qoldiriladi */ }
+}
+
 
 export function EmptyState({ text, cta }) {
   return (
@@ -1799,16 +1821,21 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = courses.filter((c) => c.status === 'approved');
   const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
-  const active = viewable.find((c) => c.id === openId);
+  /* To'liq courses ro'yxatidan qidiramiz — shu tufayli ulashilgan havola
+     orqali kirilgan tekshirilmoqda/xususiy kurs ham (muallifi/admin
+     bo'lmasa ham) ochiladi (ensureCourseContent ID bo'yicha to'g'ridan-
+     to'g'ri yuklab, courses ro'yxatiga qo'shib qo'yadi). */
+  const active = courses.find((c) => c.id === openId);
   const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
   const q = query.trim().toLowerCase();
 
   /* Ulashilgan havola orqali kirilgan bo'lsa (?course=ID), shu kursni
-     avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. */
+     avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. Statusidan
+     qat'i nazar ochishga urinib ko'ramiz. */
   useEffect(() => {
-    if (initialOpenId && viewable.some((c) => c.id === initialOpenId)) goCourse(initialOpenId);
+    if (initialOpenId) goCourse(initialOpenId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((c) => c.categoryId === cat.id)) : [];
@@ -1986,12 +2013,13 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                 </div>
               </div>
               <div className="flex items-center flex-shrink-0 gap-1">
-                {isAdmin && (
-                  <ItemMenu actions={[
+                <ItemMenu actions={[
+                  { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ course: c.id }), c.title) },
+                  ...(isAdmin ? [
                     { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(c.id) },
                     { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
-                  ]} />
-                )}
+                  ] : []),
+                ]} />
                 <ChevronRight size={16} style={{ color: C.gold }} />
               </div>
             </div>
@@ -2468,37 +2496,47 @@ function SettingChip({ active, onClick, children }) {
   );
 }
 
-function QuizSetupPanel({ test, onExit, onStart }) {
+/* Sozlamalar (mode/count/partsTotal/partIndex/shuffle) asosida savollar
+   ro'yxatini hisoblaydi. QuizSetupPanel ichida ham, sozlamalar ekranini
+   ko'rsatmasdan to'g'ridan-to'g'ri boshlashda ham ishlatiladi. */
+function computeQuizQuestions(test, cfg) {
   const total = test.questions.length;
-  const [immediate, setImmediate] = useState(false);
-  const [autoScroll, setAutoScroll] = useState(false);
-  const [shuffle, setShuffle] = useState(false);
-  const [mode, setMode] = useState('all'); // all | random | first | split
-  const [count, setCount] = useState(Math.min(5, total));
-  const [partsTotal, setPartsTotal] = useState(2);
-  const [partIndex, setPartIndex] = useState(1);
-
-  function computeQuestions() {
-    let base = test.questions;
-    if (mode === 'random') {
-      base = shuffleArray(test.questions).slice(0, Math.max(1, Math.min(count, total)));
-    } else if (mode === 'first') {
-      base = test.questions.slice(0, Math.max(1, Math.min(count, total)));
-    } else if (mode === 'split') {
-      const parts = Math.max(2, Math.min(partsTotal, total));
-      const size = Math.ceil(total / parts);
-      const start = (Math.max(1, Math.min(partIndex, parts)) - 1) * size;
-      base = test.questions.slice(start, start + size);
-      if (base.length === 0) base = test.questions.slice(0, size);
-    }
-    if (shuffle) base = shuffleArray(base);
-    return base;
+  const mode = cfg.mode || 'all';
+  const count = cfg.count ?? Math.min(5, total);
+  let base = test.questions;
+  if (mode === 'random') {
+    base = shuffleArray(test.questions).slice(0, Math.max(1, Math.min(count, total)));
+  } else if (mode === 'first') {
+    base = test.questions.slice(0, Math.max(1, Math.min(count, total)));
+  } else if (mode === 'split') {
+    const partsTotal = cfg.partsTotal ?? 2;
+    const partIndex = cfg.partIndex ?? 1;
+    const parts = Math.max(2, Math.min(partsTotal, total));
+    const size = Math.ceil(total / parts);
+    const start = (Math.max(1, Math.min(partIndex, parts)) - 1) * size;
+    base = test.questions.slice(start, start + size);
+    if (base.length === 0) base = test.questions.slice(0, size);
   }
+  if (cfg.shuffle) base = shuffleArray(base);
+  return base;
+}
+
+function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
+  const total = test.questions.length;
+  const init = initialConfig || DEFAULT_TEST_PREFS;
+  const [immediate, setImmediate] = useState(!!init.immediate);
+  const [autoScroll, setAutoScroll] = useState(!!init.autoScroll);
+  const [shuffle, setShuffle] = useState(!!init.shuffle);
+  const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | split
+  const [count, setCount] = useState(Math.min(init.count || 5, total));
+  const [partsTotal, setPartsTotal] = useState(init.partsTotal || 2);
+  const [partIndex, setPartIndex] = useState(init.partIndex || 1);
 
   function start() {
-    const questions = computeQuestions();
+    const cfg = { immediate, autoScroll, shuffle, mode, count, partsTotal, partIndex };
+    const questions = computeQuizQuestions(test, cfg);
     if (questions.length === 0) return;
-    onStart({ immediate, autoScroll, questions });
+    onStart({ ...cfg, questions });
   }
 
   const parts = Math.max(2, Math.min(partsTotal, total));
@@ -2789,10 +2827,27 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
   );
 }
 
-function QuizView({ test, onExit }) {
-  const [config, setConfig] = useState(null);
+/* effectivePrefs — joriy (saqlangan yoki andoza) sozlamalar. forceSetup
+   true bo'lsa (⋮ menyudagi "Sozlamalar" orqali ochilganda), avval
+   sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash" tugmasi)
+   test darhol shu sozlamalar bilan boshlanadi — sozlamalar ekrani
+   umuman ko'rsatilmaydi. onSavePrefs berilgan bo'lsa (foydalanuvchi
+   tizimga kirgan bo'lsa) — sozlamalar o'zgartirilganda akkauntga
+   saqlanadi; berilmasa (akkaunti yo'q), hech qayerga saqlanmaydi. */
+function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
+  const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
+  const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
+  const [lastConfig, setLastConfig] = useState(prefs);
+
+  function handleStart(cfg) {
+    const { questions, ...rest } = cfg;
+    setLastConfig(rest);
+    setConfig(cfg);
+    if (onSavePrefs) onSavePrefs(rest);
+  }
+
   if (!config) {
-    return <QuizSetupPanel test={test} onExit={onExit} onStart={setConfig} />;
+    return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
   return <QuizPlayer test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} />;
 }
@@ -2801,15 +2856,19 @@ function QuizView({ test, onExit }) {
 /*  Jonli test rejimi — endi ./LiveQuiz.jsx faylida (lazy-load)        */
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, initialLiveCode, ensureTestContent }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialLiveCode, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
+  const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
   const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  const goTest = (id) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); pushNav(() => setActiveId(null)); };
+  /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
+     oldin sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash")
+     saqlangan/andoza sozlamalar bilan darhol boshlanadi. */
+  const goTest = (id, forceSetup) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); setSetupMode(!!forceSetup); pushNav(() => { setActiveId(null); setSetupMode(false); }); };
   const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTxtImport = () => onGoToCommunity('testlar', '', 'txt');
@@ -2819,16 +2878,25 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = tests.filter((t) => t.status === 'approved');
   const viewable = isAdmin ? tests : tests.filter((t) => t.status === 'approved' || t.authorId === myId);
-  const active = viewable.find((t) => t.id === activeId);
+  /* To'liq tests ro'yxatidan qidiramiz (faqat viewable'dan emas) — shu
+     tufayli ulashilgan havola orqali kirilgan tekshirilmoqda/xususiy
+     test ham (uning muallifi yoki admin bo'lmasa ham) ochiladi:
+     ensureTestContent uni ID bo'yicha to'g'ridan-to'g'ri yuklab, tests
+     ro'yxatiga qo'shib qo'yadi. */
+  const active = tests.find((t) => t.id === activeId);
   const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
   const q = query.trim().toLowerCase();
+  const effectivePrefs = profile?.testPrefs || DEFAULT_TEST_PREFS;
+  const onSavePrefs = session ? saveTestPrefs : undefined;
 
   /* Ulashilgan havola orqali kirilgan bo'lsa (?test=ID), shu testni
-     avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. */
+     avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. Statusidan
+     qat'i nazar ochishga urinib ko'ramiz (ensureTestContent ID bo'yicha
+     to'g'ridan-to'g'ri so'raydi). */
   useEffect(() => {
-    if (initialOpenId && viewable.some((t) => t.id === initialOpenId)) goTest(initialOpenId);
+    if (initialOpenId) goTest(initialOpenId);
     if (initialLiveCode) pushNav(() => setLiveOpen(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2851,7 +2919,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         </div>
       );
     }
-    return <QuizView test={active} onExit={back} />;
+    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} />;
   }
 
   if (liveOpen) return (
@@ -3033,12 +3101,14 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                {isAdmin && (
-                  <ItemMenu actions={[
+                <ItemMenu actions={[
+                  { label: 'Sozlamalar', icon: Settings, onClick: () => goTest(t.id, true) },
+                  { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
+                  ...(isAdmin ? [
                     { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
                     { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
-                  ]} />
-                )}
+                  ] : []),
+                ]} />
                 <button
                   onClick={() => goTest(t.id)}
                   className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
@@ -3064,12 +3134,15 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
+export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, updateCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
   const [categoryId, setCategoryId] = useState(null);
+  const [editId, setEditId] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   const goOpen = (id) => { if (ensureCourseContent) ensureCourseContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
+  const goEdit = (id) => { if (ensureCourseContent) ensureCourseContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const active = courses.find((c) => c.id === openId);
+  const editing = courses.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = courses.filter((c) => c.categoryId === categoryId);
   const categoriesWithPending = categories.filter((cat) => courses.some((c) => c.categoryId === cat.id));
@@ -3077,6 +3150,28 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
   const backLabel = isMine ? 'Profil' : 'Admin panel';
   const heading = isMine ? 'Mening mavzularim' : 'Hamjamiyat — Kurslar';
   const countLabel = isMine ? `${courses.length} ta` : `${courses.length} ta kutilmoqda`;
+
+  if (editing) {
+    return (
+      <div>
+        <button
+          onClick={back}
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Ortga
+        </button>
+        <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
+        {editing.content === undefined ? (
+          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
+            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+          </div>
+        ) : (
+          <EditCourseForm course={editing} onSave={(data) => updateCourse(editing.id, data, editing.title)} onDone={back} />
+        )}
+      </div>
+    );
+  }
 
   if (active) {
     return (
@@ -3193,6 +3288,8 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
             </div>
             <div className="flex items-center flex-shrink-0 gap-1">
               <ItemMenu actions={[
+                { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ course: c.id }), c.title) },
+                ...(updateCourse ? [{ label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(c.id) }] : []),
                 ...(approveCourse && c.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) }] : []),
                 ...(!isMine || c.status === 'pending' || c.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) }] : []),
               ]} />
@@ -3212,12 +3309,15 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
   );
 }
 
-export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
+export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, updateTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
+  const [editId, setEditId] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   const goOpen = (id) => { if (ensureTestContent) ensureTestContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
+  const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const active = tests.find((t) => t.id === openId);
+  const editing = tests.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = tests.filter((t) => t.categoryId === categoryId);
   const categoriesWithPending = categories.filter((cat) => tests.some((t) => t.categoryId === cat.id));
@@ -3225,6 +3325,28 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
   const backLabel = isMine ? 'Profil' : 'Admin panel';
   const heading = isMine ? 'Mening testlarim' : 'Hamjamiyat — Testlar';
   const countLabel = isMine ? `${tests.length} ta` : `${tests.length} ta kutilmoqda`;
+
+  if (editing) {
+    return (
+      <div>
+        <button
+          onClick={back}
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Ortga
+        </button>
+        <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
+        {editing.questions === undefined ? (
+          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
+            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+          </div>
+        ) : (
+          <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
+        )}
+      </div>
+    );
+  }
 
   if (active) {
     if (active.questions === undefined) {
@@ -3315,6 +3437,8 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
             </div>
             <div className="flex flex-col items-end gap-2 flex-shrink-0">
               <ItemMenu actions={[
+                { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
+                ...(updateTest ? [{ label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) }] : []),
                 ...(approveTest && t.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
                 ...(!isMine || t.status === 'pending' || t.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
               ]} />
@@ -4099,6 +4223,22 @@ export default function App() {
     }
   }
 
+  /* Test boshlash sozlamalarini akkauntga saqlaydi — faqat login qilgan
+     foydalanuvchi uchun (QuizView shu funksiyani faqat session mavjud
+     bo'lganda uzatadi). Profildagi boshqa ustunlarga tegmaydi (merge-
+     duplicates upsert faqat berilgan ustunni yangilaydi). Jim tarzda
+     ishlaydi — xatolik bo'lsa ham foydalanuvchi testni davom ettiraveradi,
+     shunchaki keyingi safar qayta so'raladi. */
+  async function saveTestPrefs(prefs) {
+    if (!session) return;
+    try {
+      await sbUpsert('profiles', { id: session.user.id, test_prefs: prefs });
+      setProfile((prev) => (prev ? { ...prev, testPrefs: prefs } : prev));
+    } catch (e) {
+      console.error('Test sozlamalarini saqlashda xatolik:', e);
+    }
+  }
+
   async function handleSignOut() {
     await sbSignOut();
     setSession(null);
@@ -4771,7 +4911,7 @@ export default function App() {
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} />
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : null} ensureCourseContent={ensureCourseContent} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'profil' && (
                 <ProfileView
                   session={session}
@@ -4810,9 +4950,11 @@ export default function App() {
                     submitCourse={submitCourse}
                     approveCourse={approveCourse}
                     deleteCourse={deleteCourse}
+                    updateCourse={updateCourse}
                     submitTest={submitTest}
                     approveTest={approveTest}
                     deleteTest={deleteTest}
+                    updateTest={updateTest}
                     renameCategory={renameCategory}
                     deleteCategory={deleteCategory}
                     addNews={addNews}

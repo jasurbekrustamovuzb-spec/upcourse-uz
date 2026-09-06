@@ -115,7 +115,7 @@ function AdminNewsView({ news, addNews, deleteNews, onBack }) {
   );
 }
 
-export default function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent, ensureTestContent }) {
+export default function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent, ensureTestContent }) {
   const [subTab, setSubTab] = useState(null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
@@ -139,6 +139,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         submitCourse={submitCourse}
         approveCourse={approveCourse}
         deleteCourse={deleteCourse}
+        updateCourse={updateCourse}
         formOpen={false}
         onOpenForm={() => {}}
         onCloseForm={() => {}}
@@ -159,6 +160,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         submitTest={submitTest}
         approveTest={approveTest}
         deleteTest={deleteTest}
+        updateTest={updateTest}
         formOpen={false}
         onOpenForm={() => {}}
         onCloseForm={() => {}}
@@ -178,6 +180,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         onBack={() => setSubTab(null)}
         submitCourse={submitCourse}
         deleteCourse={deleteCourse}
+        updateCourse={updateCourse}
         formOpen={false}
         onOpenForm={() => {}}
         onCloseForm={() => {}}
@@ -197,6 +200,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         onBack={() => setSubTab(null)}
         submitTest={submitTest}
         deleteTest={deleteTest}
+        updateTest={updateTest}
         formOpen={false}
         onOpenForm={() => {}}
         onCloseForm={() => {}}
