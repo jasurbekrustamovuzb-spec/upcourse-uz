@@ -267,16 +267,37 @@ async function getAccessToken() {
 }
 
 async function sbRequest(path, options = {}) {
+  function doFetch(token) {
+    return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      ...options,
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+  }
+
   const token = (await getAccessToken()) || SUPABASE_ANON_KEY;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-  });
+  let res = await doFetch(token);
+
+  /* Nozik holat: sahifa endigina ochilganda, keshlangan token hali
+     server tomonidan yangilanish jarayonida bo'lishi mumkin — shu payt
+     u eskirgan/yaroqsiz bo'lsa, Supabase butun so'rovni 401 bilan rad
+     etadi, hatto so'ralayotgan ma'lumot (masalan tasdiqlangan
+     kurslar/testlar) hammaga ochiq bo'lsa ham. Bunday holatda — FAQAT
+     401 uchun — so'rovni token keshini chetlab o'tib, toʻgʻridan-toʻgʻri
+     ommaviy kalit bilan bir marta qayta yuboramiz. Agar resurs
+     haqiqatan ham kirish talab qilsa (masalan shaxsiy ma'lumot), bu
+     qayta urinish ham 401/403 bilan tugaydi va xato baribir to'g'ri
+     ko'rsatiladi — bu faqat "yolg'on signal" holatlarini qutqaradi,
+     haqiqiy ruxsat xatolarini yashirmaydi. Token keshlash mexanizmining
+     o'ziga tegilmagan, faqat ustiga qo'shilgan zaxira qatlam. */
+  if (res.status === 401 && token !== SUPABASE_ANON_KEY) {
+    res = await doFetch(SUPABASE_ANON_KEY);
+  }
+
   try {
     const serverDate = res.headers.get('date');
     if (serverDate) {
