@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2
+  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -934,7 +934,7 @@ export function IconButtonDelete({ onClick, label }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Bayram sovg'alari (kolleksiya) tizimi                              */
+/*  Nishonlar (kolleksiya) tizimi                                      */
 /*  — 1-bosqich: banner + qabul qilish + saqlash.                      */
 /*  Bu tizim kelajakdagi har bir bayram uchun qayta ishlatiladi:       */
 /*  collectibles jadvaliga yangi qator qo'shilsa, yangi sovg'a paydo   */
@@ -944,6 +944,22 @@ export function IconButtonDelete({ onClick, label }) {
 
 const collectibleFromRow = (r) => ({ id: r.id, title: r.title, subtitle: r.subtitle || '' });
 const userCollectibleFromRow = (r) => ({ id: r.id, userId: r.user_id, collectibleId: r.collectible_id, equipped: !!r.equipped, collectedAt: r.collected_at });
+
+/* Foydalanuvchi biror nishonni "ishlatish"ga qo'yganda, uning boshqa
+   barcha nishonlarini "ishlatilmayapti" holatiga o'tkazadi — bir vaqtda
+   faqat bitta nishon ishlatilishi uchun. Jim tarzda ishlaydi (xatolik
+   bo'lsa ham asosiy oqimni to'xtatmaydi, faqat konsolga yozadi). */
+async function unequipOtherCollectibles(userId, exceptCollectibleId) {
+  try {
+    await sbRequest(`user_collectibles?user_id=eq.${userId}&collectible_id=neq.${exceptCollectibleId}&equipped=eq.true`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ equipped: false }),
+    });
+  } catch (e) {
+    console.error('Boshqa nishonlarni o\'chirishda xatolik:', e);
+  }
+}
 
 /* Davlat bayrog'ining rasmiy ko'rinishiga mos: ko'k-oq-yashil teng
    chiziqlar, orasida ingichka qizil chiziqlar, ko'k qismda yarim oy va
@@ -1027,10 +1043,75 @@ function MiniIndependenceBadge({ size = 18, title }) {
   );
 }
 
-const GIFT_ID = 'mustaqillik-35';
+/* "Kashfiyotchi" nishoni — bayramga bog'liq bo'lmagan, doimiy nishon.
+   Intiluvchan, izlanuvchan foydalanuvchilar uchun. Xuddi Mustaqillik
+   nishoni kabi sof SVG + lucide Compass ikonkasi, tashqi rasm yo'q. */
+function ExplorerBadge({ size = 168 }) {
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="explorerGold" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stopColor="#F3D999" />
+            <stop offset="55%" stopColor="#D4AC6E" />
+            <stop offset="100%" stopColor="#9C7530" />
+          </radialGradient>
+          <radialGradient id="explorerCenter" cx="35%" cy="30%" r="75%">
+            <stop offset="0%" stopColor="#245A38" />
+            <stop offset="100%" stopColor="#143621" />
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="96" fill="url(#explorerGold)" />
+        <circle cx="100" cy="100" r="82" fill="url(#explorerCenter)" stroke="#F3D999" strokeWidth="2" />
+        <circle cx="100" cy="100" r="74" fill="none" stroke="#D4AC6E" strokeWidth="1" opacity="0.6" />
+        <text x="100" y="62" textAnchor="middle" fontSize="12" letterSpacing="2" fill="#D4AC6E" fontFamily="'IBM Plex Mono', monospace">KASHFIYOTCHI</text>
+        <text x="100" y="152" textAnchor="middle" fontSize="12" letterSpacing="3" fill="#D4AC6E" fontFamily="'IBM Plex Mono', monospace">NISHONI</text>
+      </svg>
+      <Compass size={Math.round(size * 0.32)} strokeWidth={1.5} style={{ position: 'absolute', top: '38%', left: '50%', transform: 'translate(-50%, -50%)', color: '#FBFAF3' }} />
+    </div>
+  );
+}
+
+/* Ixcham versiya — profilda ism yonida ko'rinadigan kichik nishon. */
+function MiniExplorerBadge({ size = 18, title }) {
+  return (
+    <span title={title || "Kashfiyotchi nishoni"} className="relative inline-flex items-center justify-center flex-shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="20" r="19" fill="#D4AC6E" />
+        <circle cx="20" cy="20" r="15.5" fill="#1F3D2B" />
+      </svg>
+      <Compass size={Math.round(size * 0.52)} strokeWidth={2} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#FBFAF3' }} />
+    </span>
+  );
+}
+
+/* Faol nishon — vaqti-vaqti bilan almashishi mumkin. Eski nishonlar
+   (masalan Mustaqillik-35) shu ro'yxatdan olib tashlanmaydi — faqat
+   yangisi ustiga qo'shiladi, shu tufayli avval olganlar hech narsa
+   yo'qotmaydi. GIFT_ID — hozir taklif qilinayotgan (banner orqali
+   reklama qilinadigan) nishon. */
+const INDEPENDENCE_ID = 'mustaqillik-35';
+const GIFT_ID = 'kashfiyotchi-1';
+
+/* Har bir nishon turi uchun katta (modal ichidagi) ko'rinish + matnlar. */
+const GIFT_CONTENT = {
+  [INDEPENDENCE_ID]: {
+    Badge: IndependenceBadge,
+    title: "Mustaqillik bayrami — 35 yil!",
+    subtitle: "Sizga ushbu esdalik nishonini sovg'a qilamiz",
+    offer: "Mustaqil O'zbekistonimizning 35 yilligi sharafiga — barcha foydalanuvchilarimizga chin qalbdan tabriklar va shu esdalik nishoni!",
+  },
+  [GIFT_ID]: {
+    Badge: ExplorerBadge,
+    title: "Kashfiyotchi nishoni",
+    subtitle: "Intiluvchan, izlanuvchan har bir foydalanuvchi uchun",
+    offer: "Yangi mavzu ochish, test yechish, bilim izlashda davom etish — bularning barchasi sizni haqiqiy Kashfiyotchiga aylantiradi. Nishonni oling va kolleksiyangizga qoʻshing!",
+  },
+};
 
 function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }) {
   const targetId = collectibleId || GIFT_ID;
+  const meta = GIFT_CONTENT[targetId] || GIFT_CONTENT[GIFT_ID];
   const [phase, setPhase] = useState('loading'); // loading | offer | owned | busy | error
   const [equipped, setEquipped] = useState(false);
   const [rowId, setRowId] = useState(null);
@@ -1066,6 +1147,7 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
       setEquipped(true);
       setPhase('owned');
       setAuthorBadgeCache(session.user.id, targetId);
+      unequipOtherCollectibles(session.user.id, targetId);
       if (onChange) onChange(true);
     } catch (e) {
       setPhase('error');
@@ -1080,6 +1162,7 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
     if (onChange) onChange(next);
     try {
       await sbUpdate('user_collectibles', rowId, { equipped: next });
+      if (next) unequipOtherCollectibles(session.user.id, targetId);
     } catch (e) {
       setEquipped(!next); // saqlanmasa — orqaga qaytaramiz
       setAuthorBadgeCache(session.user.id, !next ? targetId : null);
@@ -1095,9 +1178,9 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
         style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 20px 50px rgba(0,0,0,0.35)' }}
       >
         <div className="pt-8 pb-6 px-6" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
-          <IndependenceBadge />
-          <div className="mt-4 text-lg" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>Mustaqillik bayrami — 35 yil!</div>
-          <div className="text-[13px] mt-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>Sizga ushbu esdalik nishonini sovg'a qilamiz</div>
+          <meta.Badge />
+          <div className="mt-4 text-lg" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>{meta.title}</div>
+          <div className="text-[13px] mt-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>{meta.subtitle}</div>
         </div>
         <div className="p-6">
           {phase === 'loading' && (
@@ -1110,7 +1193,7 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
           {phase === 'offer' && (
             <>
               <p className="text-[14px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
-                Mustaqil O'zbekistonimizning 35 yilligi sharafiga — barcha foydalanuvchilarimizga chin qalbdan tabriklar va shu esdalik nishoni!
+                {meta.offer}
               </p>
               <SolidButton onClick={accept} icon={Award}>Qabul qilish</SolidButton>
             </>
@@ -1157,33 +1240,37 @@ function GiftBanner({ onOpen }) {
       className="w-full flex items-center gap-3 p-3.5 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5"
       style={{ background: `linear-gradient(120deg, ${C.cover}, ${C.coverDeep})`, border: `1px solid ${C.coverLine}` }}
     >
-      <MiniIndependenceBadge size={34} />
+      <MiniExplorerBadge size={34} />
       <div className="min-w-0 flex-1">
-        <div className="text-[14px] truncate" style={{ ...fontBody, color: C.white, fontWeight: 600 }}>🎉 Mustaqillik bayrami sovg'asini oling</div>
-        <div className="text-[12px] truncate" style={{ ...fontBody, color: 'rgba(251,250,243,0.7)' }}>35 yillik esdalik nishoni — sizni kutmoqda</div>
+        <div className="text-[14px] truncate" style={{ ...fontBody, color: C.white, fontWeight: 600 }}>🧭 Kashfiyotchi nishonini oching</div>
+        <div className="text-[12px] truncate" style={{ ...fontBody, color: 'rgba(251,250,243,0.7)' }}>Bilim yoʻlida izlanuvchilar uchun — sizni kutmoqda</div>
       </div>
       <ChevronRight size={18} style={{ color: C.gold, flexShrink: 0 }} />
     </button>
   );
 }
 
-/* Ixcham nishon — hozircha faqat bitta kolleksiya bor (Mustaqillik-35),
-   shuning uchun vizual to'g'ridan-to'g'ri shu. Kelajakda yangi bayram
-   qo'shilsa, shu yerga collectibleId bo'yicha yangi "case" qo'shiladi. */
+/* Ixcham nishon — collectibleId bo'yicha mos vizualni tanlaydi. Yangi
+   nishon turi qo'shilganda, shu yerga yangi "else if" qatori qo'shiladi
+   — eskilari hech qachon o'chirilmaydi, shuning uchun avval olingan
+   nishonlar doim to'g'ri ko'rinishda qoladi. */
 function CollectibleThumb({ collectibleId, size = 40, inline }) {
-  const content = collectibleId === GIFT_ID
-    ? <MiniIndependenceBadge size={size} />
-    : (
+  let content;
+  if (collectibleId === INDEPENDENCE_ID) content = <MiniIndependenceBadge size={size} />;
+  else if (collectibleId === GIFT_ID) content = <MiniExplorerBadge size={size} />;
+  else {
+    content = (
       <span className="inline-flex items-center justify-center rounded-full flex-shrink-0" style={{ width: size, height: size, background: C.goldSoft }}>
         <Award size={Math.round(size * 0.5)} style={{ color: C.gold }} />
       </span>
     );
+  }
   if (inline) return <span className="inline-flex align-middle ml-1.5" style={{ verticalAlign: 'middle' }}>{content}</span>;
   return content;
 }
 
 /* Profildagi "Kolleksiyalar" bo'limi — foydalanuvchi to'plagan barcha
-   bayram sovg'alarini ko'rsatadi. Faqat shu bo'lim ochilganda (Profil
+   nishonlarni ko'rsatadi. Faqat shu bo'lim ochilganda (Profil
    ichidan qo'lda bosilganda) ikkita yengil so'rov ketadi — sahifa
    yuklanganda yoki Profilga kirilganda avtomatik ishlamaydi. */
 function CollectionsView({ session, onBack }) {
@@ -1212,7 +1299,10 @@ function CollectionsView({ session, onBack }) {
   }, [session.user.id]);
 
   function handleEquipChange(collectibleId, next) {
-    setOwned((prev) => prev.map((o) => (o.collectibleId === collectibleId ? { ...o, equipped: next } : o)));
+    setOwned((prev) => prev.map((o) => {
+      if (o.collectibleId === collectibleId) return { ...o, equipped: next };
+      return next ? { ...o, equipped: false } : o;
+    }));
   }
 
   return (
@@ -1234,7 +1324,7 @@ function CollectionsView({ session, onBack }) {
 
       {state === 'ready' && (
         owned.length === 0 ? (
-          <EmptyState text="Hozircha kolleksiyangizda hech narsa yoʻq. Bayram sovgʻalarini yigʻib boring!" />
+          <EmptyState text="Hozircha kolleksiyangizda hech narsa yoʻq. Nishonlarni yigʻib boring!" />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {owned.map((uc) => {
@@ -3930,7 +4020,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
             <Award size={20} style={{ color: C.gold }} />
             <div>
               <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kolleksiyalar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Bayram sovgʻalaringiz</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Yigʻgan nishonlaringiz</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
