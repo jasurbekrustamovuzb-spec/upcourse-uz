@@ -1067,7 +1067,7 @@ function ExplorerBadge({ size = 168 }) {
         <text x="100" y="62" textAnchor="middle" fontSize="12" letterSpacing="2" fill="#D4AC6E" fontFamily="'IBM Plex Mono', monospace">KASHFIYOTCHI</text>
         <text x="100" y="152" textAnchor="middle" fontSize="12" letterSpacing="3" fill="#D4AC6E" fontFamily="'IBM Plex Mono', monospace">NISHONI</text>
       </svg>
-      <Compass size={Math.round(size * 0.32)} strokeWidth={1.5} style={{ position: 'absolute', top: '38%', left: '50%', transform: 'translate(-50%, -50%) rotate(-45deg)', color: '#FBFAF3' }} />
+      <Compass size={Math.round(size * 0.34)} strokeWidth={1.5} style={{ position: 'absolute', top: '54%', left: '50%', transform: 'translate(-50%, -50%) rotate(15deg)', color: '#FBFAF3' }} />
     </div>
   );
 }
@@ -1080,7 +1080,7 @@ function MiniExplorerBadge({ size = 18, title }) {
         <circle cx="20" cy="20" r="19" fill="#D4AC6E" />
         <circle cx="20" cy="20" r="15.5" fill="#1F3D2B" />
       </svg>
-      <Compass size={Math.round(size * 0.52)} strokeWidth={2} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(-45deg)', color: '#FBFAF3' }} />
+      <Compass size={Math.round(size * 0.52)} strokeWidth={2} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%) rotate(15deg)', color: '#FBFAF3' }} />
     </span>
   );
 }
