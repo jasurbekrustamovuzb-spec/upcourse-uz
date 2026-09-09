@@ -5,7 +5,7 @@ import {
 import {
   C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
-  sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants,
+  sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants, sbFindParticipantByDevice,
   sbInsert, sbUpdate, sbDelete, isQuestionCorrect, computeSyncScore,
   getDeviceKey, estimatedServerNow, advanceSyncPhase,
 } from './App';
@@ -1411,10 +1411,54 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
   );
 }
 
-function LiveQuizHub({ tests, session, onExit, initialCode, ensureTestContent }) {
+function LiveQuizHub({ tests, session, onExit, initialCode, restoreSession, onSessionChange, ensureTestContent }) {
   const [mode, setMode] = useState(initialCode ? 'join-form' : null);
   const [room, setRoom] = useState(null);
   const [participant, setParticipant] = useState(null);
+  const [restoring, setRestoring] = useState(!!(restoreSession && !initialCode));
+
+  /* Sahifa yangilanganda (refresh, internet uzilib qolgan bo'lsa ham)
+     avvalgi xonaga avtomatik qaytib ulanish. Aniq havola (?live=KOD)
+     bo'lsa, u ustunlik qiladi — bu holat ishga tushmaydi. Xona
+     topilmasa yoki tugagan bo'lsa, jim tarzda oddiy boshlang'ich
+     ekranga qaytamiz (xatolik ko'rsatilmaydi). */
+  useEffect(() => {
+    if (initialCode || !restoreSession) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const foundRoom = await sbFindRoomByCode(restoreSession.code);
+        if (cancelled) return;
+        if (!foundRoom || foundRoom.status === 'finished') { if (onSessionChange) onSessionChange(null); setRestoring(false); return; }
+        if (restoreSession.role === 'host') {
+          if (foundRoom.hostId !== session?.user?.id) { if (onSessionChange) onSessionChange(null); setRestoring(false); return; }
+          setRoom(foundRoom);
+          setMode('host-lobby');
+        } else {
+          const foundParticipant = await sbFindParticipantByDevice(foundRoom.id, getDeviceKey());
+          if (cancelled) return;
+          if (!foundParticipant) { if (onSessionChange) onSessionChange(null); setRestoring(false); return; }
+          setRoom(foundRoom);
+          setParticipant(foundParticipant);
+          setMode('participant');
+        }
+      } catch (e) {
+        if (!cancelled) { if (onSessionChange) onSessionChange(null); }
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (restoring) {
+    return (
+      <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+        <Loader2 size={15} className="animate-spin" /> Xonaga qaytib ulanmoqda...
+      </div>
+    );
+  }
 
   if (!mode) {
     return (
@@ -1447,16 +1491,16 @@ function LiveQuizHub({ tests, session, onExit, initialCode, ensureTestContent })
   }
 
   if (mode === 'host-setup') {
-    return <LiveHostSetup tests={tests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); }} onBack={() => setMode(null)} ensureTestContent={ensureTestContent} />;
+    return <LiveHostSetup tests={tests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); if (onSessionChange) onSessionChange({ role: 'host', code: r.code }); }} onBack={() => setMode(null)} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'host-lobby' && room) {
-    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); }} ensureTestContent={ensureTestContent} />;
+    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); if (onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'join-form') {
-    return <LiveJoinForm initialCode={initialCode} onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); }} onBack={() => setMode(null)} />;
+    return <LiveJoinForm initialCode={initialCode} onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); if (onSessionChange) onSessionChange({ role: 'participant', code: r.code }); }} onBack={() => setMode(null)} />;
   }
   if (mode === 'participant' && room && participant) {
-    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); }} ensureTestContent={ensureTestContent} />;
+    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); if (onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
   }
   return null;
 }

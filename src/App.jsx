@@ -440,6 +440,14 @@ export async function sbSelectParticipants(roomId) {
   const rows = await sbRequest(`live_participants?select=*&room_id=eq.${encodeURIComponent(roomId)}&order=joined_at.asc`);
   return rows.map(liveParticipantFromRow);
 }
+/* Sahifa yangilanganda (refresh) xonaga "o'sha ishtirokchi" sifatida
+   qaytib qo'shilish uchun — qurilma kaliti (device_key) bo'yicha
+   avvalgi ishtirokchi qatorini qidiradi. Topilsa, yangi qator
+   yaratilmaydi, xuddi shu qatordan davom etiladi. */
+export async function sbFindParticipantByDevice(roomId, deviceKey) {
+  const rows = await sbRequest(`live_participants?select=*&room_id=eq.${encodeURIComponent(roomId)}&device_key=eq.${encodeURIComponent(deviceKey)}`);
+  return rows.length ? liveParticipantFromRow(rows[0]) : null;
+}
 
 /* Jonli test xonasini kuzatish — WebSocket (Realtime) orqali.
    Oldin: har bir qurilma xona holatini "so'rab turardi" (REST so'rov,
@@ -2990,13 +2998,17 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
 /*  Jonli test rejimi — endi ./LiveQuiz.jsx faylida (lazy-load)        */
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, ensureTestContent }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
   const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
+  /* Jonli xona holati (xona ochgan/qo'shilgan bo'lsa) — LiveQuizHub
+     shuni o'zgarganda xabar beradi, biz esa sessionStorage'ga yozamiz,
+     shu tufayli refresh qilinganda xonaga qaytib kirish mumkin. */
+  const [liveSession, setLiveSession] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
@@ -3038,15 +3050,17 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
     if (initialOpenId) goTest(initialOpenId);
     else if (initialCategoryId) goCategory(initialCategoryId);
     if (initialLiveCode) pushNav(() => setLiveOpen(false));
+    else if (initialLiveSession) { setLiveSession(initialLiveSession); setLiveOpen(true); pushNav(() => setLiveOpen(false)); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Joriy holatni (qaysi test yoki soha ochiq) sessionStorage'ga yozib
-     boramiz. Agar bu test keyinchalik o'chirilgan bo'lsa, "active" topilmay
-     qoladi va sahifa oddiy ro'yxatga qaytadi — xatolik chiqmaydi. */
+  /* Joriy holatni (qaysi test yoki soha ochiq, jonli xonadamizmi)
+     sessionStorage'ga yozib boramiz. Agar bu test keyinchalik
+     o'chirilgan bo'lsa, "active" topilmay qoladi va sahifa oddiy
+     ro'yxatga qaytadi — xatolik chiqmaydi. */
   useEffect(() => {
-    writePosition({ testlar: { openId: activeId, categoryId } });
-  }, [activeId, categoryId]);
+    writePosition({ testlar: { openId: activeId, categoryId, live: liveOpen ? liveSession : null } });
+  }, [activeId, categoryId, liveOpen, liveSession]);
 
 
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((t) => t.categoryId === cat.id)) : [];
@@ -3076,7 +3090,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
       </div>
     }>
-      <LiveQuizHub tests={viewable} session={session} onExit={back} initialCode={initialLiveCode} ensureTestContent={ensureTestContent} />
+      <LiveQuizHub tests={viewable} session={session} onExit={back} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
     </Suspense>
   );
 
@@ -5083,7 +5097,7 @@ export default function App() {
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} />
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null)} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null)} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null)} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'profil' && (
                 <ProfileView
                   session={session}
