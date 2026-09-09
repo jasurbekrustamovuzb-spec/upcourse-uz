@@ -1,10 +1,10 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Plus, ChevronRight, ArrowLeft, Trash2,
   Pencil, ShieldCheck, Lock, Clock3,
 } from 'lucide-react';
 import {
-  C, fontBody, fontMono, NavContext, formatDate,
+  C, fontBody, fontMono, NavContext, formatDate, writePosition,
   SectionHeading, EmptyState, EntryNumber, ItemMenu, GhostButton, IconButtonDelete,
   RenameCategoryModal, AddNewsForm, CommunityCoursesView, CommunityTestsView,
 } from './App';
@@ -115,12 +115,18 @@ function AdminNewsView({ news, addNews, deleteNews, onBack }) {
   );
 }
 
-export default function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent, ensureTestContent }) {
-  const [subTab, setSubTab] = useState(null);
+export default function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent, ensureTestContent, initialSubTab }) {
+  const [subTab, setSubTab] = useState(initialSubTab || null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
   const { pushNav } = useContext(NavContext);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
+
+  /* Qaysi bo'lim ochiqligini eslab qolamiz — sahifa yangilanganda
+     (refresh) admin panelning o'sha bo'limida qolish uchun. */
+  useEffect(() => {
+    writePosition({ admin: { subTab } });
+  }, [subTab]);
 
   const pendingCourses = courses.filter((c) => c.status === 'pending');
   const pendingTests = tests.filter((t) => t.status === 'pending');

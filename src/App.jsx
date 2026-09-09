@@ -190,6 +190,38 @@ function parseDeepLink() {
   return null;
 }
 
+/* ------------------------------------------------------------------ */
+/*  "Qayerda edim?" — sahifa yangilanganda (refresh) foydalanuvchini    */
+/*  Bosh sahifaga emas, oxirgi turgan joyiga qaytarish uchun.           */
+/*                                                                      */
+/*  sessionStorage ishlatiladi (localStorage emas) — shu tufayli bu     */
+/*  faqat joriy brauzer tabi ochiq turgan davrda ishlaydi; tabni yopib  */
+/*  qayta ochganda (yoki boshqa kunda qaytganda) tabiiy ravishda Bosh   */
+/*  sahifadan boshlanadi. Bu ataylab shunday — eski, allaqachon         */
+/*  tugatilgan holatni haftalar o'tib ham qayta ochib qo'ymaslik uchun. */
+/*  Hech qanday tarmoq so'rovi yubormaydi, shuning uchun yuklanish      */
+/*  jarayoniga umuman ta'sir qilmaydi.                                  */
+const POSITION_KEY = 'upcourse_last_position';
+
+function readPosition() {
+  try {
+    const raw = sessionStorage.getItem(POSITION_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+/* Faqat berilgan kalitlarni yangilaydi, qolganlariga tegmaydi — shu
+   tufayli turli bo'limlar (Kurslar, Testlar, Admin panel) bir-birining
+   saqlagan holatini o'chirib qo'ymaydi. */
+export function writePosition(patch) {
+  try {
+    const current = readPosition();
+    sessionStorage.setItem(POSITION_KEY, JSON.stringify({ ...current, ...patch }));
+  } catch (e) { /* xotira yo'q yoki to'lgan bo'lsa e'tiborsiz qoldiriladi */ }
+}
+
 export function formatDate(iso) {
   try {
     const d = new Date(iso);
@@ -1897,7 +1929,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, ensureCourseContent }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -1923,11 +1955,23 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
 
   /* Ulashilgan havola orqali kirilgan bo'lsa (?course=ID), shu kursni
      avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. Statusidan
-     qat'i nazar ochishga urinib ko'ramiz. */
+     qat'i nazar ochishga urinib ko'ramiz. Havola bo'lmasa, oxirgi
+     saqlangan pozitsiyani (ochiq kurs yoki kirilgan soha) tiklaymiz —
+     refresh qilinganda shu yerda qolish uchun. */
   useEffect(() => {
     if (initialOpenId) goCourse(initialOpenId);
+    else if (initialCategoryId) goCategory(initialCategoryId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* Joriy holatni (qaysi kurs yoki soha ochiq) sessionStorage'ga yozib
+     boramiz. Agar keyinchalik shu kurs/soha o'chirilgan bo'lsa, "active"/
+     "activeCategory" topilmay qoladi va sahifa shunchaki oddiy ro'yxatga
+     qaytadi — xatolik chiqmaydi (yuqorida ham xuddi shunday ishlaydi). */
+  useEffect(() => {
+    writePosition({ kurslar: { openId, categoryId } });
+  }, [openId, categoryId]);
+
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((c) => c.categoryId === cat.id)) : [];
   const matchedCourses = q ? approved.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
@@ -2946,7 +2990,7 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
 /*  Jonli test rejimi — endi ./LiveQuiz.jsx faylida (lazy-load)        */
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialLiveCode, ensureTestContent }) {
+function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [setupMode, setSetupMode] = useState(false);
@@ -2984,12 +3028,26 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   /* Ulashilgan havola orqali kirilgan bo'lsa (?test=ID), shu testni
      avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. Statusidan
      qat'i nazar ochishga urinib ko'ramiz (ensureTestContent ID bo'yicha
-     to'g'ridan-to'g'ri so'raydi). */
+     to'g'ridan-to'g'ri so'raydi). Havola bo'lmasa, oxirgi saqlangan
+     pozitsiyani tiklaymiz — masalan internet uzilib sahifa yangilanib
+     ketgan bo'lsa, foydalanuvchi Bosh sahifaga emas, aynan shu test
+     turgan joyga qaytadi (test qaytadan, boshidan boshlanadi — allaqachon
+     bergan javoblar saqlanmaydi, lekin hech bo'lmasa qaysi testda
+     ekanini qayta izlashga hojat qolmaydi). */
   useEffect(() => {
     if (initialOpenId) goTest(initialOpenId);
+    else if (initialCategoryId) goCategory(initialCategoryId);
     if (initialLiveCode) pushNav(() => setLiveOpen(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* Joriy holatni (qaysi test yoki soha ochiq) sessionStorage'ga yozib
+     boramiz. Agar bu test keyinchalik o'chirilgan bo'lsa, "active" topilmay
+     qoladi va sahifa oddiy ro'yxatga qaytadi — xatolik chiqmaydi. */
+  useEffect(() => {
+    writePosition({ testlar: { openId: activeId, categoryId } });
+  }, [activeId, categoryId]);
+
 
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((t) => t.categoryId === cat.id)) : [];
   const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
@@ -4167,14 +4225,24 @@ function getTabMeta(id) {
 export default function App() {
   /* Havola orqali kirilgan bo'lsa (?course=/?test=/?live=/?u=), qaysi
      bo'limdan boshlash kerakligini shu yerda hal qilamiz — faqat
-     sahifa birinchi ochilgan paytdagi URL'ga qarab, bitta marta. */
+     sahifa birinchi ochilgan paytdagi URL'ga qarab, bitta marta.
+     Agar aniq havola bo'lmasa — oxirgi saqlangan pozitsiyaga qaraymiz
+     (refresh qilinganda o'sha joyda qolish uchun). Aniq havola doim
+     ustunlik qiladi — kimdir ulashgan havolani ochsa, u avvalgi
+     saqlangan holatdan muhimroq. */
   const initialDeepLinkRef = useRef(parseDeepLink());
   const initialDeepLink = initialDeepLinkRef.current;
+  const initialPositionRef = useRef(initialDeepLink ? {} : readPosition());
+  const initialPosition = initialPositionRef.current;
+  const VALID_TABS = ['kurslar', 'testlar', 'yangiliklar', 'profil', 'admin'];
   const initialTab = (() => {
-    if (!initialDeepLink) return 'kurslar';
-    if (initialDeepLink.type === 'course') return 'kurslar';
-    if (initialDeepLink.type === 'test' || initialDeepLink.type === 'live') return 'testlar';
-    if (initialDeepLink.type === 'profile') return 'profil';
+    if (initialDeepLink) {
+      if (initialDeepLink.type === 'course') return 'kurslar';
+      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'live') return 'testlar';
+      if (initialDeepLink.type === 'profile') return 'profil';
+      return 'kurslar';
+    }
+    if (initialPosition.tab && VALID_TABS.includes(initialPosition.tab)) return initialPosition.tab;
     return 'kurslar';
   })();
 
@@ -4209,6 +4277,20 @@ export default function App() {
 
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
+
+  /* Saqlangan pozitsiya "admin panel" bo'lib, lekin profil yuklangach
+     bu foydalanuvchi admin emasligi ma'lum bo'lsa — bo'sh ekranda
+     qolib ketmasligi uchun Bosh sahifaga qaytaramiz. */
+  useEffect(() => {
+    if (!authLoading && tab === 'admin' && !isAdmin) setTab('kurslar');
+  }, [authLoading, isAdmin, tab]);
+
+  /* Joriy bo'limni (tab) sessionStorage'ga yozib boramiz — sahifa
+     yangilanganda (refresh) shu yerdan qayta o'qib, o'sha bo'limdan
+     boshlash uchun. Tarmoqqa hech qanday so'rov ketmaydi. */
+  useEffect(() => {
+    writePosition({ tab });
+  }, [tab]);
 
   Object.assign(C, theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE);
 
@@ -5000,8 +5082,8 @@ export default function App() {
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : null} ensureCourseContent={ensureCourseContent} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : null} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null)} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null)} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'profil' && (
                 <ProfileView
                   session={session}
@@ -5051,6 +5133,7 @@ export default function App() {
                     deleteNews={deleteNews}
                     ensureCourseContent={ensureCourseContent}
                     ensureTestContent={ensureTestContent}
+                    initialSubTab={initialDeepLink ? null : (initialPosition.admin?.subTab || null)}
                   />
                 </Suspense>
               )}
