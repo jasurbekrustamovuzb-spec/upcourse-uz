@@ -4248,6 +4248,20 @@ export default function App() {
   const initialDeepLink = initialDeepLinkRef.current;
   const initialPositionRef = useRef(initialDeepLink ? {} : readPosition());
   const initialPosition = initialPositionRef.current;
+  /* Havola o'qilgach, URL'dagi ?course=/?test=/?live=/?u= manzil
+     qatorida QOLIB KETMASLIGI kerak — aks holda har safar sahifa
+     yangilanganda (refresh) xuddi shu havola qayta-qayta o'qilib,
+     foydalanuvchi doim o'sha "qo'shilish" ekraniga qaytarib
+     yuboraveradi (masalan jonli xonaga qo'shilgandan keyin refresh
+     qilinsa, ism qayta-qayta so'ralib turadi). Bir marta o'qib
+     olingach, manzilni tozalaymiz — shundan keyingi refresh'lar
+     yuqoridagi "saqlangan pozitsiya" orqali to'g'ri joyga qaytaradi. */
+  useEffect(() => {
+    if (initialDeepLink) {
+      try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* e'tiborsiz qoldiriladi */ }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const VALID_TABS = ['kurslar', 'testlar', 'yangiliklar', 'profil', 'admin'];
   const initialTab = (() => {
     if (initialDeepLink) {
