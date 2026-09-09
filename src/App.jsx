@@ -756,10 +756,11 @@ function AuthorLine({ authorId, authorName, className, style }) {
 
 /* Boshqa foydalanuvchining ommaviy profili — ismi, @username'i, bio'si
    va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
-function PublicProfileView({ username, courses, tests, onBack }) {
+function PublicProfileView({ username, courses, tests, onBack, onOpenItem }) {
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState(null);
   const [err, setErr] = useState(false);
+  const [section, setSection] = useState('kurslar'); // kurslar | testlar — kelajakda yana tab qo'shsa bo'ladi
   const badge = useAuthorBadge(row?.id);
 
   useEffect(() => {
@@ -812,51 +813,113 @@ function PublicProfileView({ username, courses, tests, onBack }) {
   const fullName = `${row.firstName} ${row.lastName}`.trim();
   const myCourses = courses.filter((c) => c.authorId === row.id && c.status === 'approved');
   const myTests = tests.filter((t) => t.authorId === row.id && t.status === 'approved');
+  const items = section === 'kurslar' ? myCourses : myTests;
+
+  /* Instagram uslubidagi kvadrat "plitka" — kurs/test kartochkasi.
+     Kelajakda shu funksiyaga (masalan kolleksiya belgisi, ball, yoqtirish
+     soni) qo'shimcha kichik elementlar qo'shish oson bo'lishi uchun
+     alohida, mustaqil komponent qilib chiqarildi. */
+  const Tile = ({ item, kind }) => (
+    <button
+      onClick={() => onOpenItem(kind, item.id)}
+      className="aspect-square min-w-0 rounded-lg flex flex-col items-center justify-center gap-2 p-2.5 text-center transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
+      style={{ background: C.surface, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+    >
+      {kind === 'kurslar' ? <BookOpen size={20} style={{ color: C.gold, flexShrink: 0 }} /> : <ListChecks size={20} style={{ color: C.gold, flexShrink: 0 }} />}
+      <div
+        className="text-[12px] leading-tight w-full"
+        style={{ ...fontBody, color: C.ink, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+      >
+        {item.title}
+      </div>
+    </button>
+  );
 
   return (
     <div>
       {backButton}
-      <div className="flex items-center gap-3 mb-5">
-        <div
-          className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: bannerGradient(row.bannerKey) }}
-        >
-          <span style={{ ...fontDisplay, color: C.white, fontWeight: 700, fontSize: '20px' }}>
-            {(row.firstName || '?').slice(0, 1).toUpperCase()}{(row.lastName || '').slice(0, 1).toUpperCase()}
-          </span>
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="text-xl truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{fullName || `@${row.username}`}</div>
-            {badge && <CollectibleThumb collectibleId={badge} size={20} />}
+
+      <div className="rounded-lg overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <div className="h-24 sm:h-28" style={{ background: bannerGradient(row.bannerKey) }} />
+        <div className="px-5 pb-5 -mt-12 relative">
+          <div className="flex items-end justify-between gap-3">
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: C.surface, border: `3px solid ${C.surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
+            >
+              <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: bannerGradient(row.bannerKey) }}>
+                <span className="text-xl" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>
+                  {(row.firstName || '?').slice(0, 1).toUpperCase()}{(row.lastName || '').slice(0, 1).toUpperCase()}
+                </span>
+              </div>
+            </div>
+            {/* Kelajakda shu joyga "Kuzatish" (Follow) tugmasi qo'shiladi — 
+                layout shunga tayyor turibdi. */}
           </div>
-          <div className="text-sm" style={{ ...fontMono, color: C.math }}>@{row.username}</div>
+
+          <div className="mt-3 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+              <span className="font-medium text-lg truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{fullName || `@${row.username}`}</span>
+              {badge && <CollectibleThumb collectibleId={badge} size={20} />}
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{row.username}</div>
+              <ShareButton url={buildShareUrl({ u: row.username })} title={fullName || row.username} small />
+            </div>
+            {row.bio && <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{row.bio}</p>}
+          </div>
+
+          <div className="flex gap-6 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+            <div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myCourses.length}</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mavzular</div>
+            </div>
+            <div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myTests.length}</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
+            </div>
+            <div title="Tez orada">
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Followers</div>
+            </div>
+            <div title="Tez orada">
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Following</div>
+            </div>
+          </div>
         </div>
       </div>
-      {row.bio && <p className="text-[15px] mb-6 max-w-xl" style={{ ...fontBody, color: C.ink }}>{row.bio}</p>}
 
-      <SectionHeading eyebrow={`${myCourses.length} ta`} title="Mavzular" />
-      {myCourses.length === 0 ? (
-        <div className="text-sm mb-8" style={{ ...fontBody, color: C.inkSoft }}>Hozircha ommaviy mavzu yoʻq.</div>
-      ) : (
-        <div className="grid sm:grid-cols-2 gap-3 mb-8">
-          {myCourses.map((c) => (
-            <div key={c.id} className="p-3.5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <div className="text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
-            </div>
-          ))}
+      {/* Instagram uslubidagi bo'lim almashtirgich. Kelajakda yana bo'lim
+          (masalan "Kolleksiyalar") qo'shilsa, shu qatorga yana bitta
+          tugma qo'shish kifoya. */}
+      <div className="flex" style={{ borderTop: `1px solid ${C.rule}` }}>
+        <button
+          onClick={() => setSection('kurslar')}
+          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[12px]"
+          style={{ ...fontMono, letterSpacing: '0.04em', color: section === 'kurslar' ? C.ink : C.inkSoft, borderTop: `2px solid ${section === 'kurslar' ? C.ink : 'transparent'}`, marginTop: '-1px' }}
+        >
+          <BookOpen size={15} /> MAVZULAR
+        </button>
+        <button
+          onClick={() => setSection('testlar')}
+          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[12px]"
+          style={{ ...fontMono, letterSpacing: '0.04em', color: section === 'testlar' ? C.ink : C.inkSoft, borderTop: `2px solid ${section === 'testlar' ? C.ink : 'transparent'}`, marginTop: '-1px' }}
+        >
+          <ListChecks size={15} /> TESTLAR
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="py-10 text-center">
+          <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+            {section === 'kurslar' ? 'Hozircha ommaviy mavzu yoʻq.' : 'Hozircha ommaviy test yoʻq.'}
+          </div>
         </div>
-      )}
-
-      <SectionHeading eyebrow={`${myTests.length} ta`} title="Testlar" />
-      {myTests.length === 0 ? (
-        <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Hozircha ommaviy test yoʻq.</div>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-3">
-          {myTests.map((t) => (
-            <div key={t.id} className="p-3.5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <div className="text-[15px] truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-            </div>
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-3">
+          {items.map((item) => (
+            <Tile key={item.id} item={item} kind={section} />
           ))}
         </div>
       )}
@@ -4291,6 +4354,21 @@ export default function App() {
   });
   const [readingActive, setReadingActive] = useState(false);
   const [viewingUsername, setViewingUsername] = useState(null);
+  /* Boshqa birovning profilida kurs/testni bosganda, o'sha kurs/testni
+     ochish uchun — "bir martalik" ko'rsatma. Kurslar/Testlar ekrani
+     buni o'zining oddiy initialOpenId'i kabi o'qiydi (deep link bilan
+     bir xil mexanizm), shundan keyin darhol tozalanadi (pastdagi
+     useEffect'ga qarang) — aks holda o'sha bo'limga keyinroq oddiy
+     yo'l bilan qaytilganda ham eskicha qayta ochilib qolar edi. */
+  const [openRequest, setOpenRequest] = useState(null); // {type:'course'|'test', id}
+  useEffect(() => {
+    if (openRequest) setOpenRequest(null);
+  }, [openRequest]);
+  const openFromProfile = (kind, id) => {
+    setOpenRequest({ type: kind === 'kurslar' ? 'course' : 'test', id });
+    setTab(kind === 'kurslar' ? 'kurslar' : 'testlar');
+    setViewingUsername(null);
+  };
   const [giftOpen, setGiftOpen] = useState(false);
   /* Kontent so'rovini (loadAppData) kirish holatidan mustaqil, tezroq
      ishga tushirish uchun ikkita "faqat bir marta" bayrog'i — pastdagi
@@ -5108,10 +5186,10 @@ export default function App() {
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
               {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
               {viewingUsername && (
-                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} />
+                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null)} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null)} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'profil' && (
                 <ProfileView
                   session={session}
