@@ -14,6 +14,11 @@ import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClie
 /* ------------------------------------------------------------------ */
 const AdminPanelView = lazy(() => import('./AdminPanel.jsx'));
 const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
+/* Matematik klaviatura (MathLive) — faqat matematik test yaratilganda
+   yoki yechilganda yuklanadi, boshqa hech qachon. Bitta fayldan ikkita
+   nomlangan eksportni alohida lazy() qilib olamiz. */
+const MathField = lazy(() => import('./MathTools.jsx').then((m) => ({ default: m.MathField })));
+const MathDisplay = lazy(() => import('./MathTools.jsx').then((m) => ({ default: m.MathDisplay })));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -2373,15 +2378,16 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
 
   function addQuestion() {
     if (!qText.trim()) return;
+    const mathFlag = mode === 'math' ? { math: true } : {};
     if (qType === 'mcq') {
       if (opts.some((o) => !o.trim())) return;
-      setQuestions([...questions, { id: uid(), type: 'mcq', text: qText.trim(), options: opts.map((o) => o.trim()), correct, imageUrl: imageUrl || undefined }]);
+      setQuestions([...questions, { id: uid(), type: 'mcq', text: qText.trim(), options: opts.map((o) => o.trim()), correct, imageUrl: imageUrl || undefined, ...mathFlag }]);
       setOpts(['', '', '', '']);
       setCorrect(0);
     } else {
       const answers = answersText.split(/[,\n]/).map((a) => a.trim()).filter(Boolean);
       if (answers.length === 0) return;
-      setQuestions([...questions, { id: uid(), type: 'open', text: qText.trim(), answers, imageUrl: imageUrl || undefined }]);
+      setQuestions([...questions, { id: uid(), type: 'open', text: qText.trim(), answers, imageUrl: imageUrl || undefined, ...mathFlag }]);
       setAnswersText('');
     }
     setQText('');
@@ -2443,7 +2449,12 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                   <img src={q.imageUrl} alt="" className="w-10 h-10 object-cover rounded-sm flex-shrink-0" style={{ border: `1px solid ${C.rule}` }} />
                 )}
                 <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
-                  <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
+                  <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span>{' '}
+                  {q.math ? (
+                    <Suspense fallback={<span>{q.text}</span>}>
+                      <MathDisplay latex={q.text} />
+                    </Suspense>
+                  ) : q.text}
                   {q.type === 'open' && (
                     <span className="ml-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>(yozma javob)</span>
                   )}
@@ -2505,7 +2516,13 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             )}
           </div>
 
-          <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
+          {isMathMode ? (
+            <Suspense fallback={<div className="mb-4 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Matematik klaviatura yuklanmoqda...</div>}>
+              <MathField label="Savol matni (formula)" value={qText} onChange={setQText} placeholder="Masalan: x^2+3x-4=0" />
+            </Suspense>
+          ) : (
+            <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
+          )}
 
           <div className="mb-3">
             <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
@@ -2544,14 +2561,22 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                     className="flex-shrink-0"
                     title="Toʻgʻri javob"
                   />
-                  <input
-                    type="text"
-                    value={o}
-                    onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
-                    placeholder={`Variant ${String.fromCharCode(65 + i)}`}
-                    className="w-full bg-transparent outline-none py-1.5 text-[15px]"
-                    style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
-                  />
+                  {isMathMode ? (
+                    <div className="w-full">
+                      <Suspense fallback={<div className="text-xs py-1.5" style={{ ...fontBody, color: C.inkSoft }}>Yuklanmoqda...</div>}>
+                        <MathField value={o} onChange={(v) => { const next = [...opts]; next[i] = v; setOpts(next); }} placeholder={`Variant ${String.fromCharCode(65 + i)}`} />
+                      </Suspense>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={o}
+                      onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
+                      placeholder={`Variant ${String.fromCharCode(65 + i)}`}
+                      className="w-full bg-transparent outline-none py-1.5 text-[15px]"
+                      style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
+                    />
+                  )}
                 </div>
               ))}
               <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
@@ -2641,6 +2666,10 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
 function EditTestForm({ test, onSave, onDone }) {
   const [title, setTitle] = useState(test.title);
   const [questions, setQuestions] = useState(test.questions);
+  /* Agar bu testda avval matematik formulali savol bo'lgan bo'lsa,
+     tahrirlashda ham matematik klaviaturani ishlatamiz — aks holda
+     formula xom LaTeX matni sifatida ko'rinib qolardi. */
+  const isMathTest = test.questions.some((q) => q.math);
 
   async function submit() {
     if (!title.trim() || questions.length === 0) return;
@@ -2651,7 +2680,7 @@ function EditTestForm({ test, onSave, onDone }) {
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Test nomi" value={title} onChange={setTitle} />
-      <QuestionBuilder questions={questions} setQuestions={setQuestions} />
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={isMathTest ? 'math' : 'manual'} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Saqlash</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
@@ -2961,7 +2990,12 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
               return (
                 <div key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }}>
                   <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
-                    <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
+                    <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span>{' '}
+                    {q.math ? (
+                      <Suspense fallback={<span>{q.text}</span>}>
+                        <MathDisplay latex={q.text} />
+                      </Suspense>
+                    ) : q.text}
                   </div>
                   {q.imageUrl && (
                     <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
@@ -3010,7 +3044,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                             style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
                           >
                             <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                            <span>{opt}</span>
+                            <span>{q.math ? (<Suspense fallback={<span>{opt}</span>}><MathDisplay latex={opt} /></Suspense>) : opt}</span>
                             {showResult && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
                             {showResult && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
                           </button>
