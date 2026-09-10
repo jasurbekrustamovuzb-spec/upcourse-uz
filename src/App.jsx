@@ -733,6 +733,11 @@ let _goToPublicProfile = null;
 function AuthorLine({ authorId, authorName, className, style }) {
   const username = useAuthorUsername(authorId);
   const badge = useAuthorBadge(authorId);
+  // authorId bor-u, lekin username so'rovi hali javob bermagan bo'lsa —
+  // vaqtincha eski (muzlatilgan) authorName'ni "miltillatib" ko'rsatmasdan,
+  // javob kelguncha kutamiz (aks holda "Bunyod ." bir lahzaga chiqib,
+  // keyin @username bilan almashib turardi).
+  if (authorId && username === undefined) return null;
   if (!authorName && !username) return null;
   return (
     <div className={className || 'text-xs mt-1.5'} style={{ ...fontBody, color: C.inkSoft, ...style }}>
