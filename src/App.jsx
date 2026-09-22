@@ -4326,6 +4326,14 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const VALID_TABS = ['kurslar', 'testlar', 'yangiliklar', 'profil', 'admin'];
+  /* Jonli test havolasi (masalan /live/ABC123) orqali kirilganda —
+     qo'shilish ekrani (LiveJoinForm/LiveQuizHub) kurslar, testlar
+     ro'yxati yoki yangiliklarga UMUMAN muhtoj emas (faqat xona kodi +
+     ism kifoya). Shuning uchun bu holatda asosiy "Yuklanmoqda..."
+     pardasini (va fon rejimidagi xatolik ekranini) chetlab o'tamiz —
+     foydalanuvchi darhol qo'shilish ekranini ko'radi, kurslar/testlar
+     ma'lumoti esa fonda, sekin-asta yuklanaveradi (kerak bo'lsa). */
+  const skipMainLoadingGate = initialDeepLink?.type === 'live';
   const initialTab = (() => {
     if (initialDeepLink) {
       if (initialDeepLink.type === 'course') return 'kurslar';
@@ -5122,7 +5130,7 @@ export default function App() {
 
       {/* Content */}
       <main className="flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full">
-        {loading ? (
+        {(loading && !skipMainLoadingGate) ? (
           <div aria-busy="true" aria-label="Yuklanmoqda">
             {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
             <div className="mb-6">
@@ -5162,7 +5170,7 @@ export default function App() {
               ))}
             </div>
           </div>
-        ) : error ? (
+        ) : (error && !skipMainLoadingGate) ? (
           <div className="flex flex-col items-center gap-3 py-20 text-center">
             <span className="text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>{error}</span>
             <button
