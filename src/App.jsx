@@ -661,65 +661,85 @@ async function suggestAvailableUsername(firstName, lastName, currentUserId) {
 
 /* Mualliflarning username'ini authorId bo'yicha keshlab oladi — bir xil
    muallifning kartochkasi ko'p marta chiqsa ham, faqat bir marta so'raladi. */
-const _authorUsernameCache = {};
+/* Mualliflarning username va nishonini ko'p marta, alohida-alohida
+   so'rash o'rniga — bir nechta kartochka bir vaqtda ekranga chiqqanda
+   (masalan "Kurslar" ro'yxati), ularning barcha authorId'larini bitta
+   qisqa lahzada yig'ib, BITTA so'rov bilan (id=in.(...)) olib kelamiz.
+   Bu ayniqsa yangi kiruvchi uchun muhim — har bir qo'shimcha so'rov
+   tarmoq kechikishi tufayli sezilarli vaqt yeydi (hatto ma'lumotning
+   o'zi kichik bo'lsa ham). */
+function makeBatchedLookup(table, idColumn, extraFilter, pickValue, orderColumn) {
+  const cache = {};
+  const listeners = {};
+  let pending = new Set();
+  let scheduled = false;
+
+  function notify(id, value) {
+    cache[id] = value;
+    (listeners[id] || new Set()).forEach((fn) => fn(value));
+  }
+
+  async function flush() {
+    scheduled = false;
+    const ids = Array.from(pending);
+    pending = new Set();
+    if (ids.length === 0) return;
+    try {
+      const filter = `${idColumn}=in.(${ids.join(',')})${extraFilter ? `&${extraFilter}` : ''}`;
+      const rows = await sbSelect(table, filter, orderColumn);
+      const byId = {};
+      rows.forEach((r) => {
+        const id = r[idColumn];
+        if (byId[id] === undefined) byId[id] = pickValue(r);
+      });
+      ids.forEach((id) => notify(id, byId[id] !== undefined ? byId[id] : null));
+    } catch (e) {
+      ids.forEach((id) => notify(id, null));
+    }
+  }
+
+  function request(id) {
+    if (cache[id] !== undefined) return;
+    pending.add(id);
+    if (!scheduled) {
+      scheduled = true;
+      queueMicrotask(flush);
+    }
+  }
+
+  function useLookup(id) {
+    const [val, setVal] = useState(() => (id ? cache[id] : undefined));
+    useEffect(() => {
+      if (!id) { setVal(undefined); return; }
+      if (!listeners[id]) listeners[id] = new Set();
+      listeners[id].add(setVal);
+      if (cache[id] !== undefined) setVal(cache[id]);
+      else request(id);
+      return () => { listeners[id]?.delete(setVal); };
+    }, [id]);
+    return val;
+  }
+
+  return { useLookup, notify, cache };
+}
+
+const _usernameLookup = makeBatchedLookup('profiles', 'id', null, (r) => r.username || null);
 function useAuthorUsername(authorId) {
-  const [username, setUsername] = useState(() => (authorId ? _authorUsernameCache[authorId] : undefined));
-  useEffect(() => {
-    if (!authorId) { setUsername(undefined); return; }
-    if (_authorUsernameCache[authorId] !== undefined) { setUsername(_authorUsernameCache[authorId]); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const rows = await sbSelect('profiles', `id=eq.${authorId}`);
-        const uname = rows[0]?.username || null;
-        _authorUsernameCache[authorId] = uname;
-        if (!cancelled) setUsername(uname);
-      } catch (e) {
-        if (!cancelled) setUsername(null);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [authorId]);
-  return username;
+  return _usernameLookup.useLookup(authorId);
 }
 
 /* Mualliflarning "ishlatilayotgan" bayram nishonini ham xuddi shu tarzda
-   — authorId bo'yicha keshlab, faqat kerak bo'lganda (kartochka
-   ko'ringanda) so'raymiz. Sahifa yuklanishiga umuman ta'sir qilmaydi.
-   Nishon o'zgartirilganda (GiftModal orqali) setAuthorBadgeCache chaqirilib,
-   ochiq turgan barcha shu foydalanuvchiga tegishli ko'rinishlar darhol
-   yangilanadi. */
-const _authorBadgeCache = {};
-const _authorBadgeListeners = {};
+   — bir nechta authorId'ni birlashtirib, bitta so'rov bilan olib
+   kelamiz. Nishon o'zgartirilganda (GiftModal orqali) setAuthorBadgeCache
+   chaqirilib, ochiq turgan barcha shu foydalanuvchiga tegishli
+   ko'rinishlar darhol yangilanadi. */
+const _badgeLookup = makeBatchedLookup('user_collectibles', 'user_id', 'equipped=eq.true', (r) => r.collectible_id || null, 'collected_at');
 function setAuthorBadgeCache(authorId, collectibleId) {
   if (!authorId) return;
-  _authorBadgeCache[authorId] = collectibleId || null;
-  (_authorBadgeListeners[authorId] || []).forEach((fn) => fn(collectibleId || null));
+  _badgeLookup.notify(authorId, collectibleId || null);
 }
 function useAuthorBadge(authorId) {
-  const [badge, setBadge] = useState(() => (authorId ? _authorBadgeCache[authorId] : undefined));
-  useEffect(() => {
-    if (!authorId) { setBadge(undefined); return; }
-    if (!_authorBadgeListeners[authorId]) _authorBadgeListeners[authorId] = new Set();
-    _authorBadgeListeners[authorId].add(setBadge);
-    let cancelled = false;
-    if (_authorBadgeCache[authorId] !== undefined) {
-      setBadge(_authorBadgeCache[authorId]);
-    } else {
-      (async () => {
-        try {
-          const rows = await sbSelect('user_collectibles', `user_id=eq.${authorId}&equipped=eq.true`, 'collected_at');
-          const badgeId = rows[0]?.collectible_id || null;
-          _authorBadgeCache[authorId] = badgeId;
-          if (!cancelled) setBadge(badgeId);
-        } catch (e) {
-          if (!cancelled) setBadge(null);
-        }
-      })();
-    }
-    return () => { cancelled = true; _authorBadgeListeners[authorId]?.delete(setBadge); };
-  }, [authorId]);
-  return badge;
+  return _badgeLookup.useLookup(authorId);
 }
 
 /* Boshqa foydalanuvchining ommaviy profiliga o'tish — komponentlar
