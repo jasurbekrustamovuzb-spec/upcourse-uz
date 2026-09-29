@@ -347,7 +347,7 @@ async function sbRequest(path, options = {}) {
   return res.json();
 }
 
-const sbSelect = (table, filter, orderColumn = 'created_at') => sbRequest(`${table}?select=*&order=${orderColumn}.asc${filter ? `&${filter}` : ''}`);
+const sbSelect = (table, filter, orderColumn = 'created_at', options = {}) => sbRequest(`${table}?select=*&order=${orderColumn}.asc${filter ? `&${filter}` : ''}`, options);
 
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
    tekshirish uchun) yoki muallifning o'zi (o'z holatini ko'rishi uchun)
@@ -4861,10 +4861,27 @@ export default function App() {
         console.error('Testlar va yangiliklarni fon rejimida yuklab bo‘lmadi:', e);
       });
 
-      const [catRows, courseRows] = await Promise.all([
-        sbSelect('categories', vis),
-        sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`),
-      ]);
+      const initialDataController = new AbortController();
+      let initialDataTimeoutId;
+      let catRows;
+      let courseRows;
+      try {
+        [catRows, courseRows] = await Promise.race([
+          Promise.all([
+            sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal }),
+            sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal }),
+          ]),
+          new Promise((_, reject) => {
+            initialDataTimeoutId = setTimeout(() => {
+              initialDataController.abort();
+              reject(new Error('Bosh sahifa maʼlumotlarini yuklash vaqti tugadi.'));
+            }, 15000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(initialDataTimeoutId);
+        if (!initialDataController.signal.aborted) initialDataController.abort();
+      }
 
       setCategories(catRows.map(categoryFromRow));
       setCourses(courseRows.map(courseFromRow));
