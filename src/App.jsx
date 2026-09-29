@@ -579,7 +579,7 @@ const categoryFromRow = (r) => ({ id: r.id, name: r.name, author: r.author || ''
 const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title: c.title, summary: c.summary || '', content: c.content, video_url: c.videoUrl || null, author: c.author || '', author_id: c.authorId || null, status: c.status || 'approved' });
 const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', author_id: t.authorId || null, status: t.status || 'approved' });
-const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', questionCount: r.question_count ?? undefined });
+const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', questionCount: Array.isArray(r.questions) ? getQuestionCount(r.questions) : (r.question_count ?? undefined) });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
 const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
@@ -2304,15 +2304,79 @@ function isOpenAnswerCorrect(question, userAnswer) {
 /* Har ikki savol turi (variantli / yozma) uchun umumiy tekshiruv */
 export function isQuestionCorrect(q, userAnswer) {
   if (q.type === 'open') return isOpenAnswerCorrect(q, userAnswer);
+  if (q.type === 'matching') {
+    if (!Array.isArray(q.pairs)) return userAnswer === q.correct || userAnswer?.[q.id] === q.correct;
+    return q.pairs.length > 0 && q.pairs.every((pair) => userAnswer?.[pair.id] === pair.correct);
+  }
   return userAnswer === q.correct;
+}
+
+export function getQuestionCount(questions = []) {
+  return questions.reduce((sum, q) => sum + (q.type === 'matching' ? (Array.isArray(q.pairs) ? q.pairs.length : 1) : 1), 0);
+}
+
+export function getQuestionScore(q, userAnswer) {
+  if (q.type === 'matching') {
+    if (!Array.isArray(q.pairs)) return isQuestionCorrect(q, userAnswer) ? 1 : 0;
+    return q.pairs.reduce((sum, pair) => sum + (userAnswer?.[pair.id] === pair.correct ? 1 : 0), 0);
+  }
+  return isQuestionCorrect(q, userAnswer) ? 1 : 0;
+}
+
+export function MatchingTestQuestion({ question, answer = {}, onChange, disabled = false, showResult = false, accent = 'gold' }) {
+  const accentColor = accent === 'live' ? C.live : C.gold;
+  const items = question.pairs || [{ id: question.id, text: question.text, correct: question.correct }];
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return (
+    <div>
+      <div className="text-xs mb-3" style={{ ...fontMono, color: accentColor }}>Moslashtiring — har bir raqam uchun harfni tanlang</div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <section className="min-w-0">
+          <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Matnlar</div>
+          <div className="space-y-2">
+            {items.map((pair, index) => {
+              const selected = typeof answer === 'number' && !question.pairs ? answer : answer[pair.id];
+              const correct = selected === pair.correct;
+              return (
+                <div key={pair.id} className="flex items-center gap-2 p-2.5 rounded-sm" style={{ background: showResult ? (correct ? C.successTint : C.dangerTint) : C.surface, border: `1px solid ${showResult ? (correct ? C.accent : C.red) : C.rule}` }}>
+                  <span className="w-7 h-7 flex items-center justify-center rounded-full text-xs flex-shrink-0" style={{ ...fontMono, color: C.white, background: accentColor }}>{index + 1}</span>
+                  <span className="min-w-0 flex-1 text-sm" style={{ ...fontBody, color: C.ink }}>{pair.text}</span>
+                  <select value={selected ?? ''} onChange={(event) => onChange(pair.id, event.target.value === '' ? undefined : Number(event.target.value))} disabled={disabled || showResult} aria-label={`${index + 1}-matn uchun mos harf`} className="w-16 px-2 py-2 rounded-sm text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }}>
+                    <option value="">—</option>
+                    {(question.options || []).map((_, optionIndex) => <option key={optionIndex} value={optionIndex}>{letters[optionIndex]}</option>)}
+                  </select>
+                  {showResult && <span className="text-xs flex-shrink-0" style={{ ...fontMono, color: correct ? C.accent : C.red }}>{correct ? 'OK' : letters[pair.correct]}</span>}
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>
+            Javoblar: {items.map((pair, index) => `${index + 1}${answer[pair.id] === undefined ? '—' : letters[answer[pair.id]]}`).join('  ')}
+          </div>
+        </section>
+        <section className="min-w-0">
+          <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Variantlar</div>
+          <div className="space-y-2">
+            {(question.options || []).map((option, index) => (
+              <div key={index} className="flex items-start gap-2 p-2.5 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+                <span className="w-7 h-7 flex items-center justify-center rounded-full text-xs flex-shrink-0" style={{ ...fontMono, color: C.white, background: C.cover }}>{letters[index]}</span>
+                <span className="text-sm" style={{ ...fontBody, color: C.ink }}>{option}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 /* "Barchaga bir xil" (Kahoot) rejimida vaqtga proporsional ball:
    to'g'ri javob kamida 50, zudlik bilan javob bersa 100 gacha boradi. */
 export function computeSyncScore(correct, timeTakenMs, limitMs) {
-  if (!correct) return 0;
+  const accuracy = Math.max(0, Math.min(1, Number(correct) || 0));
+  if (accuracy === 0) return 0;
   const frac = Math.max(0, Math.min(1, 1 - timeTakenMs / Math.max(1, limitMs)));
-  return Math.round(50 + 50 * frac);
+  return Math.round((50 + 50 * frac) * accuracy);
 }
 
 /* TXT fayldan variantli savollarni o'qish. Kutilgan format:
@@ -2677,6 +2741,14 @@ function EditTestForm({ test, onSave, onDone }) {
     if (ok) onDone();
   }
 
+  if (test.questions.some((question) => question.type === 'matching')) {
+    return (
+      <Suspense fallback={<div className="mt-6 flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Matching test muharriri yuklanmoqda...</div>}>
+        <MatchingTestForm initialTest={test} onSave={onSave} onDone={onDone} />
+      </Suspense>
+    );
+  }
+
   return (
     <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Test nomi" value={title} onChange={setTitle} />
@@ -2757,6 +2829,8 @@ function computeQuizQuestions(test, cfg) {
 
 function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const total = test.questions.length;
+  const unitTotal = getQuestionCount(test.questions);
+  const itemLabel = test.questions.some((question) => question.type === 'matching') ? `${unitTotal} ta moslik` : `${unitTotal} ta savol`;
   const init = initialConfig || DEFAULT_TEST_PREFS;
   const [immediate, setImmediate] = useState(!!init.immediate);
   const [autoScroll, setAutoScroll] = useState(!!init.autoScroll);
@@ -2787,7 +2861,7 @@ function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
 
       <h3 className="text-2xl sm:text-3xl mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
       {test.description && <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
-      <div className="text-xs mb-6" style={{ ...fontMono, color: C.gold }}>{total} ta savol mavjud</div>
+      <div className="text-xs mb-6" style={{ ...fontMono, color: C.gold }}>{itemLabel} mavjud</div>
 
       <div className="flex flex-wrap gap-2 mb-5">
         <SettingChip active={immediate} onClick={() => setImmediate((v) => !v)}>Darhol javob koʻrsatish</SettingChip>
@@ -2865,6 +2939,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
 
   const allAnswered = questions.every((q) => {
     const a = answers[q.id];
+    if (q.type === 'matching') return Array.isArray(q.pairs) ? q.pairs.every((pair) => a?.[pair.id] !== undefined) : a !== undefined;
     return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
   });
 
@@ -2876,6 +2951,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
     const fromIndex = questions.findIndex((q) => q.id === fromQid);
     const next = questions.slice(fromIndex + 1).find((q) => {
       const a = latestAnswers[q.id];
+      if (q.type === 'matching') return Array.isArray(q.pairs) ? !q.pairs.every((pair) => a?.[pair.id] !== undefined) : a === undefined;
       return q.type === 'open' ? !(typeof a === 'string' && a.trim().length > 0) : a === undefined;
     });
     if (next) {
@@ -2892,6 +2968,19 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
       return next;
     });
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+  }
+
+  function selectMatching(qid, pairId, optionIndex) {
+    if (finished || paused) return;
+    const nextMatching = { ...(answers[qid] || {}) };
+    if (optionIndex === undefined) delete nextMatching[pairId];
+    else nextMatching[pairId] = optionIndex;
+    const next = { ...answers, [qid]: nextMatching };
+    setAnswers(next);
+    scrollToNextUnanswered(qid, next);
+    if (config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
+      setRevealed((revealedAnswers) => ({ ...revealedAnswers, [qid]: true }));
+    }
   }
 
   function setOpenAnswer(qid, text) {
@@ -2911,9 +3000,10 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
   }
 
   if (finished) {
-    const correctCount = questions.reduce((s, qq) => s + (isQuestionCorrect(qq, answers[qq.id]) ? 1 : 0), 0);
-    const incorrectCount = questions.length - correctCount;
-    const percent = Math.round((correctCount / questions.length) * 100);
+    const correctCount = questions.reduce((s, qq) => s + getQuestionScore(qq, answers[qq.id]), 0);
+    const totalCount = getQuestionCount(questions);
+    const incorrectCount = totalCount - correctCount;
+    const percent = Math.round((correctCount / totalCount) * 100);
     return (
       <div>
         <button
@@ -2989,14 +3079,15 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
                 <div key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }}>
-                  <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+                  {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
                     <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
-                  </div>
-                  {q.type === 'matching' && <div className="text-xs mb-2" style={{ ...fontMono, color: C.mathDeep }}>Mos variantni tanlang</div>}
+                  </div>}
                   {q.imageUrl && (
                     <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
                   )}
-                  {q.type === 'open' ? (
+                  {q.type === 'matching' ? (
+                    <MatchingTestQuestion question={q} answer={answers[q.id]} onChange={(pairId, optionIndex) => selectMatching(q.id, pairId, optionIndex)} disabled={finished || paused} showResult={showResult} />
+                  ) : q.type === 'open' ? (
                     <div>
                       <input
                         type="text"
@@ -4605,7 +4696,7 @@ export default function App() {
         // faqat shu maydonni so'raymiz (yengil so'rov).
         const rows = await sbRequest(`tests?select=id,questions&id=eq.${encodeURIComponent(id)}`);
         if (rows[0]) {
-          setTests((prev) => prev.map((t) => (t.id === id ? { ...t, questions: rows[0].questions } : t)));
+          setTests((prev) => prev.map((t) => (t.id === id ? { ...t, questions: rows[0].questions, questionCount: getQuestionCount(rows[0].questions || []) } : t)));
           return rows[0].questions;
         }
       } else {
@@ -4872,7 +4963,7 @@ export default function App() {
         return null;
       }
     }
-    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
+    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, questionCount: getQuestionCount(data.questions), author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
     try {
       await sbInsert('tests', testToRow(row));
       setTests([row, ...tests]);

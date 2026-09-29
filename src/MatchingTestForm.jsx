@@ -4,12 +4,18 @@ import { C, fontBody, fontMono, GhostButton, SolidButton } from './App';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-export default function MatchingTestForm({ initialCategoryName = '', onSubmit, onDone, onView }) {
+export default function MatchingTestForm({ initialCategoryName = '', initialTest, onSubmit, onSave, onDone, onView }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName);
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(initialTest?.title || '');
   const [visibility, setVisibility] = useState('public');
-  const [left, setLeft] = useState([{ text: '', answer: 0 }, { text: '', answer: 1 }]);
-  const [right, setRight] = useState(['', '']);
+  const [left, setLeft] = useState(() => {
+    const questions = (initialTest?.questions || []).filter((question) => question.type === 'matching');
+    const groupedPairs = questions.flatMap((question) => question.pairs || []);
+    if (groupedPairs.length) return groupedPairs.map((pair) => ({ id: pair.id, text: pair.text, answer: pair.correct }));
+    if (questions.length) return questions.map((question) => ({ id: question.id, text: question.text, answer: question.correct }));
+    return [{ text: '', answer: 0 }, { text: '', answer: 1 }];
+  });
+  const [right, setRight] = useState(() => initialTest?.questions?.find((question) => question.type === 'matching')?.options || ['', '']);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [newId, setNewId] = useState(null);
@@ -42,7 +48,7 @@ export default function MatchingTestForm({ initialCategoryName = '', onSubmit, o
     setLeft((items) => items.map((item) => ({ ...item, answer: item.answer > index ? item.answer - 1 : item.answer })));
   }
 
-  const valid = categoryName.trim() && title.trim() && left.length >= 2 && right.length >= 2
+  const valid = (initialTest || categoryName.trim()) && title.trim() && left.length >= 2 && right.length >= 2
     && left.every((item) => item.text.trim() && right[item.answer]?.trim())
     && right.every((item) => item.trim());
 
@@ -51,16 +57,22 @@ export default function MatchingTestForm({ initialCategoryName = '', onSubmit, o
     setBusy(true);
     setError('');
     const options = right.map((text) => text.trim());
-    const questions = left.map((item, index) => ({
-      id: `match-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
+    const questions = [{
+      id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type: 'matching',
-      text: item.text.trim(),
+      text: '',
       options,
-      correct: item.answer,
-    }));
-    const id = await onSubmit({ categoryName: categoryName.trim(), title: title.trim(), description: '', questions, visibility });
-    if (id) setNewId(id);
-    else setError('Testni saqlashda xatolik yuz berdi. Qayta urinib ko‘ring.');
+      pairs: left.map((item, index) => ({ id: item.id || `pair-${Date.now()}-${index}`, text: item.text.trim(), correct: item.answer })),
+    }];
+    if (initialTest) {
+      const saved = await onSave({ categoryId: initialTest.categoryId, title: title.trim(), description: initialTest.description || '', questions });
+      if (saved) onDone();
+      else setError('Testni yangilashda xatolik yuz berdi. Qayta urinib ko‘ring.');
+    } else {
+      const id = await onSubmit({ categoryName: categoryName.trim(), title: title.trim(), description: '', questions, visibility });
+      if (id) setNewId(id);
+      else setError('Testni saqlashda xatolik yuz berdi. Qayta urinib ko‘ring.');
+    }
     setBusy(false);
   }
 
@@ -89,15 +101,17 @@ export default function MatchingTestForm({ initialCategoryName = '', onSubmit, o
         <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Chap tomondagi har bir bandga o‘ng tomondan mos javobni tanlang. Kerak bo‘lsa, bitta javob bir necha marta ishlatilishi mumkin.</div>
       </div>
 
-      <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Soha nomi</label>
-      <input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder="Masalan: Ingliz tili" className="w-full px-3 py-2.5 rounded-sm text-sm outline-none mb-4" style={inputStyle} />
+      {!initialTest && <>
+        <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Soha nomi</label>
+        <input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder="Masalan: Ingliz tili" className="w-full px-3 py-2.5 rounded-sm text-sm outline-none mb-4" style={inputStyle} />
+      </>}
       <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Test nomi</label>
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Masalan: So‘zlarni ma’nosi bilan moslang" className="w-full px-3 py-2.5 rounded-sm text-sm outline-none mb-5" style={inputStyle} />
 
       <div className="grid md:grid-cols-2 gap-5">
         <section>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>1-qism · Moslashtiriladigan matnlar</div>
+            <div className="text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>1-qism - Moslashtiriladigan matnlar</div>
             <span className="text-xs" style={{ ...fontMono, color: C.gold }}>{left.length}</span>
           </div>
           <div className="space-y-2">
@@ -117,7 +131,7 @@ export default function MatchingTestForm({ initialCategoryName = '', onSubmit, o
 
         <section>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>2-qism · Javob variantlari</div>
+            <div className="text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>2-qism - Javob variantlari</div>
             <span className="text-xs" style={{ ...fontMono, color: C.gold }}>{right.length}</span>
           </div>
           <div className="space-y-2">
@@ -140,17 +154,17 @@ export default function MatchingTestForm({ initialCategoryName = '', onSubmit, o
         </div>
       </div>
 
-      <div className="mt-5 mb-3">
+      {!initialTest && <div className="mt-5 mb-3">
         <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Ko‘rinishi</div>
         <div className="flex gap-2">
           {[['public', Users, 'Ommaviy'], ['private', Lock, 'Xususiy']].map(([value, Icon, label]) => (
             <button key={value} type="button" onClick={() => setVisibility(value)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-sm" style={{ ...fontBody, color: visibility === value ? C.white : C.ink, background: visibility === value ? C.cover : C.surface, border: `1px solid ${visibility === value ? C.cover : C.rule}` }}><Icon size={15} />{label}</button>
           ))}
         </div>
-      </div>
+      </div>}
       {error && <div role="alert" className="text-sm mb-3" style={{ ...fontBody, color: C.red }}>{error}</div>}
       <div className="flex gap-3">
-        <SolidButton onClick={submit} icon={Check} disabled={!valid || busy}>{busy ? 'Saqlanmoqda…' : 'Matching testni saqlash'}</SolidButton>
+        <SolidButton onClick={submit} icon={Check} disabled={!valid || busy}>{busy ? 'Saqlanmoqda…' : initialTest ? 'Matching testni yangilash' : 'Matching testni saqlash'}</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
       </div>
     </div>

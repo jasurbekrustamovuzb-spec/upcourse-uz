@@ -4,9 +4,10 @@ import {
 } from 'lucide-react';
 import {
   C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
+  MatchingTestQuestion, getQuestionCount, getQuestionScore,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
   sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants, sbFindParticipantByDevice,
-  sbInsert, sbUpdate, sbDelete, isQuestionCorrect, computeSyncScore,
+  sbInsert, sbUpdate, sbDelete, computeSyncScore,
   getDeviceKey, estimatedServerNow, advanceSyncPhase,
 } from './App';
 
@@ -524,12 +525,13 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
 
       {room.phase === 'question' && !peekLeaderboard && currentQuestion && (
         <div className="max-w-2xl">
-          <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}</div>
-          {currentQuestion.type === 'matching' && <div className="text-xs mb-2" style={{ ...fontMono, color: C.liveDeep }}>Mos variantni tanlang</div>}
+          {currentQuestion.type !== 'matching' && <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}</div>}
           {currentQuestion.imageUrl && (
             <img src={currentQuestion.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
           )}
-          {currentQuestion.type === 'open' ? (
+          {currentQuestion.type === 'matching' ? (
+            <MatchingTestQuestion question={currentQuestion} answer={{}} onChange={() => {}} disabled accent="live" />
+          ) : currentQuestion.type === 'open' ? (
             <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Yozma javobli savol — ishtirokchilar o'z ekranida javob yozmoqda.</div>
           ) : (
             <div className="space-y-2">
@@ -555,7 +557,9 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
           {(() => {
             const correctText = currentQuestion.type === 'open'
               ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
-              : currentQuestion.options?.[currentQuestion.correct] ?? '';
+              : currentQuestion.type === 'matching'
+                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                : currentQuestion.options?.[currentQuestion.correct] ?? '';
             const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
             return (
               <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.successTint, border: `1px solid ${C.accent}`, color: C.ink }}>
@@ -621,6 +625,8 @@ function LiveHostSetup({ tests, session, onCreated, onBack, ensureTestContent })
       if (liveMode === 'sync' && questionsForOrder === undefined && ensureTestContent) {
         questionsForOrder = await ensureTestContent(testId);
       }
+      const matchingPairs = (questionsForOrder || []).reduce((sum, question) => sum + (question.type === 'matching' ? getQuestionCount([question]) : 0), 0);
+      const roomQuestionSeconds = matchingPairs ? Math.max(perQSeconds, Math.min(180, matchingPairs * 8)) : perQSeconds;
       let code = randomRoomCode();
       for (let i = 0; i < 3; i++) {
         const existing = await sbFindRoomByCode(code);
@@ -632,7 +638,7 @@ function LiveHostSetup({ tests, session, onCreated, onBack, ensureTestContent })
         code, test_id: testId, host_id: session.user.id,
         host_name: (meta.given_name || meta.full_name || meta.name || '').trim(),
         status: 'waiting', duration_seconds: duration,
-        mode: liveMode, per_question_seconds: perQSeconds, phase: 'lobby', current_index: 0,
+        mode: liveMode, per_question_seconds: roomQuestionSeconds, phase: 'lobby', current_index: 0,
         question_order: liveMode === 'sync' && questionsForOrder ? shuffledIndices(questionsForOrder.length) : null,
       };
       const [created] = await sbInsert('live_rooms', row);
@@ -754,6 +760,7 @@ function LiveHostSetup({ tests, session, onCreated, onBack, ensureTestContent })
               <option value={120}>120 soniya</option>
               <option value={180}>180 soniya</option>
             </select>
+            <div className="text-xs -mt-2 mb-4" style={{ ...fontBody, color: C.inkSoft }}>Matching topshiriqlarida juftliklar soniga qarab vaqt avtomatik uzaytiriladi.</div>
           </>
         ) : (
           <>
@@ -937,6 +944,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
    chiqadi; javob bergan zahoti ball hisoblanadi (tezroq — ko'proq). */
 function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const [myAnswers, setMyAnswers] = useState({});
+  const [matchingDraft, setMatchingDraft] = useState({});
   const [openText, setOpenText] = useState('');
   const [now, setNow] = useState(estimatedServerNow());
   const [participants, setParticipants] = useState([]);
@@ -999,23 +1007,26 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     if (myAnswers[currentQuestion.id] !== undefined) return;
     submittingRef.current = true;
     const timeTakenMs = Math.min(phaseLimitMs, Math.max(0, now - phaseStartedMs));
-    const correct = isQuestionCorrect(currentQuestion, answerValue);
-    const points = computeSyncScore(correct, timeTakenMs, phaseLimitMs);
-    const newAnswers = { ...myAnswers, [currentQuestion.id]: { answer: answerValue, correct, points } };
+    const correctUnits = getQuestionScore(currentQuestion, answerValue);
+    const totalUnits = getQuestionCount([currentQuestion]);
+    const accuracy = totalUnits ? correctUnits / totalUnits : 0;
+    const correct = accuracy === 1;
+    const points = computeSyncScore(accuracy, timeTakenMs, phaseLimitMs);
+    const newAnswers = { ...myAnswers, [currentQuestion.id]: { answer: answerValue, correct, points, correctUnits, totalUnits } };
     setMyAnswers(newAnswers);
     try {
       const newScore = scoreRef.current + points;
       scoreRef.current = newScore;
-      await sbUpdate('live_participants', participant.id, { score: newScore, total: test.questions.length, answers: newAnswers });
+      await sbUpdate('live_participants', participant.id, { score: newScore, total: getQuestionCount(test.questions), answers: newAnswers });
     } catch (e) { /* keyingi savolda qayta urinish mumkin */ }
     submittingRef.current = false;
   }
 
   useEffect(() => {
     if (room.phase !== 'question' || !currentQuestion || secondsLeft > 0 || hasAnswered) return;
-    submitAnswer(null);
+    submitAnswer(currentQuestion.type === 'matching' ? matchingDraft[currentQuestion.id] || {} : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, room.phase, hasAnswered]);
+  }, [secondsLeft, room.phase, hasAnswered, matchingDraft]);
 
   /* Bosqichni faqat tuzuvchi emas — istalgan faol ishtirokchi ham
      oldinga surishi mumkin (masalan tuzuvchining tabi fonda qolib
@@ -1057,7 +1068,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
 
       {room.phase === 'question' && currentQuestion && (
         <div className="max-w-2xl">
-          <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}</div>
+          {currentQuestion.type !== 'matching' && <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}</div>}
           {currentQuestion.imageUrl && (
             <img src={currentQuestion.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
           )}
@@ -1066,6 +1077,21 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
             <div className="flex items-center gap-2 px-4 py-3 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.liveTint, border: `1px solid ${C.live}`, color: C.ink }}>
               <Check size={16} style={{ color: C.live }} /> Javobingiz qabul qilindi. Kuting...
             </div>
+          ) : currentQuestion.type === 'matching' ? (
+            <>
+              <MatchingTestQuestion
+                question={currentQuestion}
+                answer={matchingDraft[currentQuestion.id] || {}}
+                onChange={(pairId, optionIndex) => setMatchingDraft((prev) => {
+                  const next = { ...prev, [currentQuestion.id]: { ...(prev[currentQuestion.id] || {}) } };
+                  if (optionIndex === undefined) delete next[currentQuestion.id][pairId];
+                  else next[currentQuestion.id][pairId] = optionIndex;
+                  return next;
+                })}
+                accent="live"
+              />
+              <div className="mt-4"><SolidButton onClick={() => submitAnswer(matchingDraft[currentQuestion.id] || {})} icon={Check} disabled={(currentQuestion.pairs || []).some((pair) => matchingDraft[currentQuestion.id]?.[pair.id] === undefined)}>Javoblarni yuborish</SolidButton></div>
+            </>
           ) : currentQuestion.type === 'open' ? (
             <div className="flex items-center gap-2">
               <input
@@ -1108,21 +1134,24 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
           {(() => {
             const myAnswer = myAnswers[currentQuestion.id];
             const wasCorrect = !!myAnswer?.correct;
+            const hasMatchingCredit = currentQuestion.type === 'matching' && (myAnswer?.correctUnits || 0) > 0;
             const correctText = currentQuestion.type === 'open'
               ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
-              : currentQuestion.options?.[currentQuestion.correct] ?? '';
+              : currentQuestion.type === 'matching'
+                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                : currentQuestion.options?.[currentQuestion.correct] ?? '';
             return (
               <div
                 className="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-[15px]"
-                style={{ ...fontBody, background: wasCorrect ? C.successTint : C.dangerTint, border: `1px solid ${wasCorrect ? C.accent : C.red}`, color: C.ink }}
+                style={{ ...fontBody, background: wasCorrect || hasMatchingCredit ? C.successTint : C.dangerTint, border: `1px solid ${wasCorrect || hasMatchingCredit ? C.accent : C.red}`, color: C.ink }}
               >
-                {wasCorrect ? <Check size={18} style={{ color: C.accent, flexShrink: 0 }} /> : <X size={18} style={{ color: C.red, flexShrink: 0 }} />}
+                {wasCorrect || hasMatchingCredit ? <Check size={18} style={{ color: C.accent, flexShrink: 0 }} /> : <X size={18} style={{ color: C.red, flexShrink: 0 }} />}
                 <div className="min-w-0">
                   <div style={{ fontWeight: 600 }}>{wasCorrect ? "Toʻgʻri javob!" : 'Xato javob'}</div>
                   {!wasCorrect && correctText !== '' && (
                     <div className="text-sm mt-0.5" style={{ color: C.inkSoft }}>Toʻgʻri javob: {correctText}</div>
                   )}
-                  {wasCorrect && myAnswer?.points > 0 && (
+                  {myAnswer?.points > 0 && (
                     <div className="text-sm mt-0.5" style={{ ...fontMono, color: C.inkSoft }}>+{myAnswer.points} ball</div>
                   )}
                 </div>
@@ -1218,9 +1247,9 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
   async function submit(currentAnswers) {
     if (submitted) return;
     setSubmitted(true);
-    const score = test.questions.reduce((s, q) => s + (isQuestionCorrect(q, currentAnswers[q.id]) ? 1 : 0), 0);
+    const score = test.questions.reduce((s, q) => s + getQuestionScore(q, currentAnswers[q.id]), 0);
     try {
-      await sbUpdate('live_participants', participant.id, { score, total: test.questions.length, submitted_at: new Date().toISOString() });
+      await sbUpdate('live_participants', participant.id, { score, total: getQuestionCount(test.questions), submitted_at: new Date().toISOString() });
     } catch (e) { /* natija topshirilmasa ham foydalanuvchi natijalar ekraniga o'tadi */ }
     onDone();
   }
@@ -1249,6 +1278,16 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     setAnswers((a) => ({ ...a, [qid]: text }));
   }
 
+  function setMatchingAnswer(qid, pairId, optionIndex) {
+    if (submitted) return;
+    setAnswers((prev) => {
+      const next = { ...prev, [qid]: { ...(prev[qid] || {}) } };
+      if (optionIndex === undefined) delete next[qid][pairId];
+      else next[qid][pairId] = optionIndex;
+      return next;
+    });
+  }
+
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = String(remaining % 60).padStart(2, '0');
 
@@ -1266,14 +1305,15 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
       <div className="space-y-6 max-w-2xl">
         {test.questions.map((q, qi) => (
           <div key={q.id}>
-            <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+            {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
               <span style={{ ...fontMono, color: C.live }}>{qi + 1}.</span> {q.text}
-            </div>
-            {q.type === 'matching' && <div className="text-xs mb-2" style={{ ...fontMono, color: C.liveDeep }}>Mos variantni tanlang</div>}
+            </div>}
             {q.imageUrl && (
               <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
             )}
-            {q.type === 'open' ? (
+            {q.type === 'matching' ? (
+              <MatchingTestQuestion question={q} answer={answers[q.id] || {}} onChange={(pairId, optionIndex) => setMatchingAnswer(q.id, pairId, optionIndex)} disabled={submitted} accent="live" />
+            ) : q.type === 'open' ? (
               <input
                 type="text"
                 value={answers[q.id] || ''}
