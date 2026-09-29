@@ -1612,8 +1612,16 @@ function extractYouTubeId(url) {
 function YouTubeEmbed({ url }) {
   const [playing, setPlaying] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const shellRef = useRef(null);
+  const controlsTimerRef = useRef(null);
   const videoId = extractYouTubeId(url);
+
+  function revealControls() {
+    setControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    if (playing) controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 2600);
+  }
 
   useEffect(() => {
     const updateFullscreen = () => {
@@ -1625,6 +1633,14 @@ function YouTubeEmbed({ url }) {
       document.removeEventListener('fullscreenchange', updateFullscreen);
       document.removeEventListener('webkitfullscreenchange', updateFullscreen);
     };
+  }, []);
+
+  useEffect(() => {
+    if (playing) revealControls();
+  }, [playing, fullscreen]);
+
+  useEffect(() => () => {
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
   }, []);
 
   if (!videoId) return null;
@@ -1683,6 +1699,9 @@ function YouTubeEmbed({ url }) {
       <div
         className="youtube-embed-shell relative w-full overflow-hidden rounded-sm"
         ref={shellRef}
+        onPointerEnter={revealControls}
+        onPointerMove={revealControls}
+        onTouchStart={revealControls}
         style={{ aspectRatio: '16 / 9', background: '#000', border: `1px solid ${C.rule}` }}
       >
         {playing ? (
@@ -1716,11 +1735,11 @@ function YouTubeEmbed({ url }) {
             </span>
           </button>
         )}
-        {playing && (
+        {playing && controlsVisible && (
           <button
             type="button"
             onClick={toggleFullscreen}
-            className="absolute z-20 bottom-2 right-2 flex items-center justify-center w-10 h-10 rounded-full focus-visible:outline focus-visible:outline-2"
+            className="absolute z-20 bottom-2 right-2 flex items-center justify-center w-10 h-10 rounded-full focus-visible:outline focus-visible:outline-2 transition-opacity"
             style={{ color: C.white, background: 'rgba(0,0,0,0.68)', outlineColor: C.goldSoft }}
             aria-label={fullscreen ? 'To‘liq ekrandan chiqish' : 'To‘liq ekranda ko‘rish'}
             title={fullscreen ? 'To‘liq ekrandan chiqish' : 'To‘liq ekranda ko‘rish'}
