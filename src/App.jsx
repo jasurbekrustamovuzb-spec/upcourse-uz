@@ -1616,13 +1616,37 @@ function YouTubeEmbed({ url }) {
 
   return (
     <div className="max-w-2xl mx-auto my-5">
+      <style>{`
+        .youtube-embed-frame:fullscreen,
+        .youtube-embed-frame:-webkit-full-screen,
+        .youtube-embed-shell:fullscreen,
+        .youtube-embed-shell:-webkit-full-screen {
+          position: fixed !important;
+          inset: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          height: 100dvh !important;
+          max-width: 100vw !important;
+          max-height: 100dvh !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          transform: none !important;
+          background: #000 !important;
+        }
+        .youtube-embed-frame:fullscreen,
+        .youtube-embed-frame:-webkit-full-screen {
+          display: block !important;
+        }
+      `}</style>
       <div
-        className="relative w-full overflow-hidden rounded-sm"
+        className="youtube-embed-shell relative w-full overflow-hidden rounded-sm"
         style={{ aspectRatio: '16 / 9', background: '#000', border: `1px solid ${C.rule}` }}
       >
         {playing ? (
           <iframe
-            className="absolute inset-0 w-full h-full"
+            className="youtube-embed-frame absolute inset-0 w-full h-full"
             src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
             title="YouTube video"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
