@@ -4615,6 +4615,7 @@ export default function App() {
      ikkita alohida useEffect shularga tayanadi (LCP tezlashtirish). */
   const initialFetchRef = useRef(false);
   const authAwareRefetchRef = useRef(false);
+  const appDataGenerationRef = useRef(0);
 
   useEffect(() => {
     _goToPublicProfile = (username) => setViewingUsername(username);
@@ -4822,6 +4823,7 @@ export default function App() {
   }, [tests]);
 
   const loadAppData = useCallback(async (silent) => {
+    const requestGeneration = ++appDataGenerationRef.current;
     if (!silent) setLoading(true);
     setError(null);
     if (!isSupabaseConfigured()) {
@@ -4842,6 +4844,7 @@ export default function App() {
         sbRequest(`tests?select=${testListCols}&order=created_at.asc${visQ}`),
         sbSelect('news'),
       ]).then(([testRows, newsRows]) => {
+        if (requestGeneration !== appDataGenerationRef.current) return;
         setTests(testRows.map(testFromRow));
         setNews(newsRows.map(newsFromRow));
       }).catch((e) => {
