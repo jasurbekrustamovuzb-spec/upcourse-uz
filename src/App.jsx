@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass
+  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -1444,45 +1444,75 @@ function extractYouTubeId(url) {
   } catch (e) {
     // not a valid URL
   }
-  return null;
-}
-
-function YouTubeEmbed({ url }) {
+  returfunction YouTubeEmbed({ url }) {
   const [playing, setPlaying] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const playerShellRef = useRef(null);
   const videoId = extractYouTubeId(url);
+  const fullscreenCss = [
+    ".youtube-player-shell:fullscreen, .youtube-player-shell:-webkit-full-screen { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: #000 !important; z-index: 2147483647 !important; display: flex !important; align-items: center !important; justify-content: center !important; }",
+    ".youtube-player-shell:fullscreen .youtube-player-frame, .youtube-player-shell:-webkit-full-screen .youtube-player-frame { position: static !important; inset: auto !important; flex: 0 0 auto !important; width: 100% !important; height: 100% !important; max-width: 100vw !important; max-height: 100vh !important; transform: none !important; }"
+  ].join('');
+
+  useEffect(() => {
+    const shell = playerShellRef.current;
+    if (!shell) return;
+    const syncFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === shell || document.webkitFullscreenElement === shell);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenState);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreenState);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
+    };
+  }, []);
+
   if (!videoId) return null;
+
+  async function toggleFullscreen() {
+    const shell = playerShellRef.current;
+    if (!shell) return;
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) await exit.call(document);
+        return;
+      }
+      const request = shell.requestFullscreen || shell.webkitRequestFullscreen;
+      if (request) await request.call(shell);
+    } catch (e) {
+      // Brauzer fullscreenni rad etsa, YouTube playeri odatdagidek ishlashda davom etadi.
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto my-5">
       <div
-        className="relative w-full overflow-hidden rounded-sm"
-        style={{ aspectRatio: '16 / 9', background: '#000', border: `1px solid ${C.rule}` }}
+        ref={playerShellRef}
+        className="youtube-player-shell relative w-full overflow-hidden rounded-sm"
+        style={{ aspectRatio: '16 / 9', background: '#000', border: '1px solid ' + C.rule }}
       >
+        <style>{fullscreenCss}</style>
         {playing ? (
           <>
-            <style>{`
-              .youtube-player-frame:fullscreen,
-              .youtube-player-frame:-webkit-full-screen {
-                position: fixed !important;
-                inset: 0 !important;
-                width: 100vw !important;
-                height: 100vh !important;
-                max-width: none !important;
-                max-height: none !important;
-                margin: 0 !important;
-                border: 0 !important;
-                border-radius: 0 !important;
-                background: #000 !important;
-                transform: none !important;
-              }
-            `}</style>
             <iframe
               className="youtube-player-frame absolute inset-0 w-full h-full"
-              src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+              src={'https://www.youtube.com/embed/' + videoId + '?autoplay=1&fs=0'}
               title="YouTube video"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
             />
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="absolute top-3 right-3 z-20 flex items-center justify-center rounded-md transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2"
+              style={{ width: 38, height: 38, background: 'rgba(0,0,0,0.72)', color: '#fff', outlineColor: C.gold }}
+              aria-label={isFullscreen ? 'Toʻliq ekrandan chiqish' : 'Toʻliq ekranga oʻtish'}
+              title={isFullscreen ? 'Toʻliq ekrandan chiqish' : 'Toʻliq ekran'}
+            >
+              <Maximize2 size={18} />
+            </button>
           </>
         ) : (
           <button
@@ -1492,7 +1522,7 @@ function YouTubeEmbed({ url }) {
             aria-label="Videoni ishga tushirish"
           >
             <img
-              src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+              src={'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg'}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
               loading="lazy"
@@ -1500,7 +1530,7 @@ function YouTubeEmbed({ url }) {
             <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(20,30,20,0.25)' }}>
               <span
                 className="flex items-center justify-center rounded-full transition-transform group-hover:scale-105"
-                style={{ width: 62, height: 62, background: 'rgba(20,30,20,0.72)', border: `2px solid ${C.goldSoft}` }}
+                style={{ width: 62, height: 62, background: 'rgba(20,30,20,0.72)', border: '2px solid ' + C.goldSoft }}
               >
                 <PlayIcon />
               </span>
