@@ -13,7 +13,7 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
     const groupedPairs = questions.flatMap((question) => question.pairs || []);
     if (groupedPairs.length) return groupedPairs.map((pair) => ({ id: pair.id, text: pair.text, answer: pair.correct }));
     if (questions.length) return questions.map((question) => ({ id: question.id, text: question.text, answer: question.correct }));
-    return [{ text: '', answer: 0 }, { text: '', answer: 1 }];
+    return [{ text: '', answer: null }, { text: '', answer: null }];
   });
   const [right, setRight] = useState(() => initialTest?.questions?.find((question) => question.type === 'matching')?.options || ['', '']);
   const [busy, setBusy] = useState(false);
@@ -29,7 +29,7 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
   }
 
   function addPair() {
-    setLeft((items) => [...items, { text: '', answer: 0 }]);
+    setLeft((items) => [...items, { text: '', answer: null }]);
     if (left.length >= right.length) setRight((items) => [...items, '']);
   }
 
@@ -108,33 +108,50 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
       <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Test nomi</label>
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Masalan: So‘zlarni ma’nosi bilan moslang" className="w-full px-3 py-2.5 rounded-sm text-sm outline-none mb-5" style={inputStyle} />
 
-      <div className="grid md:grid-cols-2 gap-5">
-        <section>
+      <div className="grid md:grid-cols-2 gap-5 min-w-0">
+        <section className="min-w-0">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>1-qism - Moslashtiriladigan matnlar</div>
             <span className="text-xs" style={{ ...fontMono, color: C.gold }}>{left.length}</span>
           </div>
           <div className="space-y-2">
             {left.map((item, index) => (
-              <div key={index} className="flex items-center gap-2 p-2 rounded-sm" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
-                <span className="w-7 h-7 flex items-center justify-center rounded-full text-xs flex-shrink-0" style={{ ...fontMono, color: C.white, background: C.cover }}>{index + 1}</span>
-                <input value={item.text} onChange={(e) => changeLeft(index, 'text', e.target.value)} aria-label={`${index + 1}-matn`} placeholder={`${index + 1}. Matn`} className="min-w-0 flex-1 px-2 py-2 rounded-sm text-sm outline-none" style={inputStyle} />
-                <select value={item.answer} onChange={(e) => changeLeft(index, 'answer', Number(e.target.value))} aria-label={`${index + 1}-javob`} className="w-16 px-2 py-2 rounded-sm text-sm" style={inputStyle}>
-                  {right.map((_, ri) => <option key={ri} value={ri}>{LETTERS[ri]}</option>)}
-                </select>
-                <button type="button" onClick={() => removePair(index)} aria-label="Matnni o‘chirish" disabled={left.length <= 2} className="p-1 disabled:opacity-30" style={{ color: C.red }}><Trash2 size={15} /></button>
+              <div key={index} className="p-2 rounded-sm min-w-0" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-7 h-7 flex items-center justify-center rounded-full text-xs flex-shrink-0" style={{ ...fontMono, color: C.white, background: C.cover }}>{index + 1}</span>
+                  <input value={item.text} onChange={(e) => changeLeft(index, 'text', e.target.value)} aria-label={`${index + 1}-matn`} placeholder={`${index + 1}. Matn`} className="min-w-0 flex-1 px-2 py-2 rounded-sm text-sm outline-none" style={inputStyle} />
+                  <button type="button" onClick={() => removePair(index)} aria-label="Matnni o‘chirish" disabled={left.length <= 2} className="p-1 flex-shrink-0 disabled:opacity-30" style={{ color: C.red }}><Trash2 size={15} /></button>
+                </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mos javob:</span>
+                {right.map((_, ri) => {
+                  const selected = item.answer === ri;
+                  return <button
+                    key={ri}
+                    type="button"
+                    onClick={() => changeLeft(index, 'answer', ri)}
+                    aria-label={`${index + 1}-matn uchun ${LETTERS[ri]} javobni tanlash`}
+                    aria-pressed={selected}
+                    className="min-w-9 h-9 px-2 rounded-full text-sm font-medium transition-colors"
+                    style={{ ...fontMono, color: selected ? C.white : C.mathDeep, background: selected ? C.math : C.surface, border: `1px solid ${selected ? C.math : C.rule}` }}
+                  >{LETTERS[ri]}</button>;
+                })}
+                <span className="ml-1 text-xs" style={{ ...fontBody, color: item.answer === null ? C.inkSoft : C.mathDeep }}>
+                  {item.answer === null ? 'Tanlanmagan' : `Tanlandi: ${LETTERS[item.answer]}`}
+                </span>
+              </div>
               </div>
             ))}
           </div>
           <button type="button" onClick={addPair} className="mt-2 inline-flex items-center gap-1 text-xs px-3 py-2 rounded-sm" style={{ ...fontBody, color: C.cover, border: `1px solid ${C.rule}` }}><Plus size={14} /> Yana matn qo‘shish</button>
         </section>
 
-        <section>
+        <section className="min-w-0">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>2-qism - Javob variantlari</div>
             <span className="text-xs" style={{ ...fontMono, color: C.gold }}>{right.length}</span>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 min-w-0">
             {right.map((item, index) => (
               <div key={index} className="flex items-center gap-2 p-2 rounded-sm" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
                 <span className="w-7 h-7 flex items-center justify-center rounded-full text-xs flex-shrink-0" style={{ ...fontMono, color: C.white, background: C.math }}>{LETTERS[index]}</span>
@@ -150,7 +167,7 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
       <div className="mt-5 p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
         <div className="text-xs mb-2" style={{ ...fontMono, color: C.inkSoft }}>Mosliklar ko‘rinishi</div>
         <div className="flex flex-wrap gap-2">
-          {left.map((item, index) => <span key={index} className="px-2.5 py-1.5 rounded-full text-xs" style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}>{index + 1}{LETTERS[item.answer]} <span style={{ color: C.inkSoft }}>{item.text || 'Matn'}</span></span>)}
+          {left.map((item, index) => <span key={index} className="px-2.5 py-1.5 rounded-full text-xs" style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}>{index + 1}{item.answer === null ? '—' : LETTERS[item.answer]} <span style={{ color: C.inkSoft }}>{item.text || 'Matn'}</span></span>)}
         </div>
       </div>
 
