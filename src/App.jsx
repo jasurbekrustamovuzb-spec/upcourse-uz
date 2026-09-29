@@ -15,6 +15,7 @@ import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClie
 const AdminPanelView = lazy(() => import('./AdminPanel.jsx'));
 const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
+const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -3268,6 +3269,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
   const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
+  const [teamBattleOpen, setTeamBattleOpen] = useState(false);
   /* Jonli xona holati (xona ochgan/qo'shilgan bo'lsa) — LiveQuizHub
      shuni o'zgarganda xabar beradi, biz esa sessionStorage'ga yozamiz,
      shu tufayli refresh qilinganda xonaga qaytib kirish mumkin. */
@@ -3280,6 +3282,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const goTest = (id, forceSetup) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); setSetupMode(!!forceSetup); pushNav(() => { setActiveId(null); setSetupMode(false); }); };
   const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
+  const goTeamBattle = () => { setTeamBattleOpen(true); pushNav(() => setTeamBattleOpen(false)); };
   const goTxtImport = () => onGoToCommunity('testlar', '', 'txt');
   const goMathTest = () => onGoToCommunity('testlar', '', 'math');
   const goMatchingTest = () => onGoToCommunity('testlar', '', 'matching');
@@ -3358,6 +3361,16 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
     </Suspense>
   );
 
+  if (teamBattleOpen) return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
+      </div>
+    }>
+      <TeamBattleHub tests={viewable} categories={categories} ensureTestContent={ensureTestContent} onExit={back} />
+    </Suspense>
+  );
+
   if (editing) {
     return (
       <div>
@@ -3426,6 +3439,13 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
             style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
           >
             <ListChecks size={14} /> Matching test yaratish
+          </button>
+          <button
+            onClick={goTeamBattle}
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.coverLine}`, outlineColor: C.gold, fontWeight: 600 }}
+          >
+            <Users size={14} /> Jamoaviy jang
           </button>
           <button
             onClick={goMathTest}
