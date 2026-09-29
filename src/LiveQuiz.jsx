@@ -525,6 +525,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
       {room.phase === 'question' && !peekLeaderboard && currentQuestion && (
         <div className="max-w-2xl">
           <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}</div>
+          {currentQuestion.type === 'matching' && <div className="text-xs mb-2" style={{ ...fontMono, color: C.liveDeep }}>Mos variantni tanlang</div>}
           {currentQuestion.imageUrl && (
             <img src={currentQuestion.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
           )}
@@ -1268,6 +1269,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
             <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
               <span style={{ ...fontMono, color: C.live }}>{qi + 1}.</span> {q.text}
             </div>
+            {q.type === 'matching' && <div className="text-xs mb-2" style={{ ...fontMono, color: C.liveDeep }}>Mos variantni tanlang</div>}
             {q.imageUrl && (
               <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
             )}

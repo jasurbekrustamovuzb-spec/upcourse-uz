@@ -14,6 +14,7 @@ import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClie
 /* ------------------------------------------------------------------ */
 const AdminPanelView = lazy(() => import('./AdminPanel.jsx'));
 const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
+const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -2603,6 +2604,14 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
   const [visibility, setVisibility] = useState('public');
   const [newId, setNewId] = useState(null);
 
+  if (formMode === 'matching') {
+    return (
+      <Suspense fallback={<div className="mt-6 flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Matching test muharriri yuklanmoqda...</div>}>
+        <MatchingTestForm initialCategoryName={initialCategoryName} onSubmit={onSubmit} onDone={onDone} onView={onView} />
+      </Suspense>
+    );
+  }
+
   if (newId) {
     return (
       <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
@@ -2983,6 +2992,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                   <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
                     <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
                   </div>
+                  {q.type === 'matching' && <div className="text-xs mb-2" style={{ ...fontMono, color: C.mathDeep }}>Mos variantni tanlang</div>}
                   {q.imageUrl && (
                     <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
                   )}
@@ -3102,6 +3112,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTxtImport = () => onGoToCommunity('testlar', '', 'txt');
   const goMathTest = () => onGoToCommunity('testlar', '', 'math');
+  const goMatchingTest = () => onGoToCommunity('testlar', '', 'matching');
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
@@ -3231,13 +3242,20 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
           </div>
           <ChevronRight size={16} style={{ color: C.live, flexShrink: 0, marginLeft: 'auto' }} />
         </button>
-        <div className="grid grid-cols-2 gap-2 mb-5">
+        <div className="grid grid-cols-1 gap-2 mb-2">
           <button
             onClick={goTxtImport}
             className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
           >
             <FileText size={13} /> TXT fayldan
+          </button>
+          <button
+            onClick={goMatchingTest}
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
+          >
+            <ListChecks size={14} /> Matching test yaratish
           </button>
           <button
             onClick={goMathTest}
