@@ -4835,16 +4835,26 @@ export default function App() {
       const visQ = vis ? `&${vis}` : '';
       const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
       const testListCols = 'id,category_id,title,description,author,author_id,status,created_at,question_count';
-      const [catRows, courseRows, testRows, newsRows] = await Promise.all([
+      // Home ekrani uchun zarur kategoriyalar va kurslarni kutamiz.
+      // Testlar va yangiliklar shu bilan parallel yuklanadi, lekin
+      // birinchi ekran ko‘rinishini ushlab turmaydi.
+      Promise.all([
+        sbRequest(`tests?select=${testListCols}&order=created_at.asc${visQ}`),
+        sbSelect('news'),
+      ]).then(([testRows, newsRows]) => {
+        setTests(testRows.map(testFromRow));
+        setNews(newsRows.map(newsFromRow));
+      }).catch((e) => {
+        console.error('Testlar va yangiliklarni fon rejimida yuklab bo‘lmadi:', e);
+      });
+
+      const [catRows, courseRows] = await Promise.all([
         sbSelect('categories', vis),
         sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`),
-        sbRequest(`tests?select=${testListCols}&order=created_at.asc${visQ}`), sbSelect('news'),
       ]);
 
       setCategories(catRows.map(categoryFromRow));
       setCourses(courseRows.map(courseFromRow));
-      setTests(testRows.map(testFromRow));
-      setNews(newsRows.map(newsFromRow));
     } catch (e) {
       // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
       // odatda ishlab ketadi) — shuning uchun foydalanuvchiga texnik
