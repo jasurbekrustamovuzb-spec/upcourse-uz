@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Plus, X, Check, ChevronRight, ArrowLeft, Award, Loader2, Paperclip, RotateCcw,
+  Plus, X, Check, ChevronRight, ArrowLeft, Award, Loader2, Paperclip, RotateCcw, Link2,
   Clock3, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2
 } from 'lucide-react';
 import {
@@ -67,6 +67,11 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
   const [opts, setOpts] = useState(['', '', '', '']);
   const [correct, setCorrect] = useState(0);
   const [answersText, setAnswersText] = useState('');
+  const [matchingPairs, setMatchingPairs] = useState([
+    { left: '', right: '' },
+    { left: '', right: '' },
+    { left: '', right: '' },
+  ]);
   const [importError, setImportError] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
@@ -81,6 +86,15 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
       setQuestions([...questions, { id: uid(), type: 'mcq', text: qText.trim(), options: opts.map((o) => o.trim()), correct, imageUrl: imageUrl || undefined }]);
       setOpts(['', '', '', '']);
       setCorrect(0);
+    } else if (qType === 'matching') {
+      const pairs = matchingPairs.map((pair) => ({ left: pair.left.trim(), right: pair.right.trim() }));
+      if (pairs.length < 2 || pairs.some((pair) => !pair.left || !pair.right)) return;
+      setQuestions([...questions, { id: uid(), type: 'matching', text: qText.trim(), pairs, imageUrl: imageUrl || undefined }]);
+      setMatchingPairs([
+        { left: '', right: '' },
+        { left: '', right: '' },
+        { left: '', right: '' },
+      ]);
     } else {
       const answers = answersText.split(/[,\n]/).map((a) => a.trim()).filter(Boolean);
       if (answers.length === 0) return;
@@ -150,6 +164,9 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                   {q.type === 'open' && (
                     <span className="ml-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>(yozma javob)</span>
                   )}
+                  {q.type === 'matching' && (
+                    <span className="ml-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>(moslashtirish · {(q.pairs || []).length} juftlik)</span>
+                  )}
                 </div>
               </div>
               <button onClick={() => removeQuestion(q.id)} className="flex-shrink-0 ml-3" style={{ color: C.inkSoft }}><X size={15} /></button>
@@ -203,6 +220,13 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             >
               Yozma javob
             </button>
+            <button
+              onClick={() => setQType('matching')}
+              className="px-3 py-1.5 rounded-sm text-sm"
+              style={{ ...fontBody, background: qType === 'matching' ? C.cover : 'transparent', color: qType === 'matching' ? C.white : C.inkSoft, border: `1px solid ${qType === 'matching' ? C.cover : C.rule}` }}
+            >
+              Moslashtirish
+            </button>
             {isMathMode && qType === 'open' && (
               <InfoHint text={'Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham toʻgʻri hisoblanadi, chunki javob son sifatida solishtiriladi.'} />
             )}
@@ -245,7 +269,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                     checked={correct === i}
                     onChange={() => setCorrect(i)}
                     className="flex-shrink-0"
-                    title="Toʻgʻri javob"
+                    title="To‘g‘ri javob"
                   />
                   <input
                     type="text"
@@ -257,21 +281,47 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                   />
                 </div>
               ))}
-              <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
+              <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>To‘g‘ri javobni radio tugma bilan belgilang.</div>
             </>
+          ) : qType === 'open' ? (
+            <TextField
+              label="To‘g‘ri javob(lar)"
+              value={answersText}
+              onChange={setAnswersText}
+              placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
+              textarea
+              rows={2}
+            />
           ) : (
-            <>
-              <TextField
-                label="Toʻgʻri javob(lar)"
-                value={answersText}
-                onChange={setAnswersText}
-                placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
-                textarea
-                rows={2}
-              />
-            </>
+            <div className="space-y-2 mb-3">
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Har bir qatorda chapdagi tushuncha va unga mos tarif yoki bog‘liq matnni kiriting.</div>
+              {matchingPairs.map((pair, index) => (
+                <div key={index} className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
+                  <input
+                    type="text"
+                    value={pair.left}
+                    onChange={(e) => { const next = [...matchingPairs]; next[index] = { ...next[index], left: e.target.value }; setMatchingPairs(next); }}
+                    placeholder={`Chap tomon ${index + 1}`}
+                    className="w-full min-w-0 bg-transparent outline-none py-2 px-2 rounded-sm text-[14px]"
+                    style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
+                  />
+                  <Link2 size={14} style={{ color: C.gold }} />
+                  <div className="flex items-center gap-1 min-w-0">
+                    <input
+                      type="text"
+                      value={pair.right}
+                      onChange={(e) => { const next = [...matchingPairs]; next[index] = { ...next[index], right: e.target.value }; setMatchingPairs(next); }}
+                      placeholder={`Mos javob ${index + 1}`}
+                      className="w-full min-w-0 bg-transparent outline-none py-2 px-2 rounded-sm text-[14px]"
+                      style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
+                    />
+                    {matchingPairs.length > 2 && <button onClick={() => setMatchingPairs(matchingPairs.filter((_, i) => i !== index))} className="p-1 flex-shrink-0" style={{ color: C.inkSoft }} aria-label="Juftlikni olib tashlash"><X size={14} /></button>}
+                  </div>
+                </div>
+              ))}
+              <button onClick={() => setMatchingPairs([...matchingPairs, { left: '', right: '' }])} className="text-xs inline-flex items-center gap-1 mt-1" style={{ ...fontBody, color: C.gold }}><Plus size={13} /> Juftlik qo‘shish</button>
+            </div>
           )}
-
           <GhostButton onClick={addQuestion} icon={Plus} disabled={imageUploading}>Savolni testga qoʻshish</GhostButton>
         </div>
       )}
@@ -522,6 +572,12 @@ function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
+function isQuestionAnswered(question, answer) {
+  if (question.type === 'open') return typeof answer === 'string' && answer.trim().length > 0;
+  if (question.type === 'matching') return Array.isArray(answer) && answer.length === (question.pairs || []).length && answer.every((item) => Number.isInteger(item));
+  return answer !== undefined;
+}
+
 function QuizPlayer({ test, config, onExit, onRestart }) {
   const questions = config.questions;
   const [answers, setAnswers] = useState({});
@@ -539,7 +595,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
 
   const allAnswered = questions.every((q) => {
     const a = answers[q.id];
-    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
+    return isQuestionAnswered(q, a);
   });
 
   /* "Keyingi savolga avtomatik oʻtish" yoqilgan boʻlsa — foydalanuvchi
@@ -550,7 +606,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
     const fromIndex = questions.findIndex((q) => q.id === fromQid);
     const next = questions.slice(fromIndex + 1).find((q) => {
       const a = latestAnswers[q.id];
-      return q.type === 'open' ? !(typeof a === 'string' && a.trim().length > 0) : a === undefined;
+      return !isQuestionAnswered(q, a);
     });
     if (next) {
       const el = questionRefs.current[next.id];
@@ -577,6 +633,16 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
     if (finished || paused) return;
     setAnswers((a) => { scrollToNextUnanswered(qid, a); return a; });
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+  }
+
+  function setMatchingAnswer(qid, nextValue) {
+    if (finished || paused) return;
+    setAnswers((a) => {
+      const next = { ...a, [qid]: nextValue };
+      if (isQuestionAnswered(questions.find((question) => question.id === qid), nextValue)) scrollToNextUnanswered(qid, next);
+      return next;
+    });
+    if (config.immediate && isQuestionAnswered(questions.find((question) => question.id === qid), nextValue)) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
   function submit() {
@@ -669,7 +735,15 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                   {q.imageUrl && (
                     <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
                   )}
-                  {q.type === 'open' ? (
+                  {q.type === 'matching' ? (
+                    <MatchingQuestion
+                      question={q}
+                      value={answers[q.id] || []}
+                      onChange={(next) => setMatchingAnswer(q.id, next)}
+                      disabled={showResult}
+                      showResult={showResult}
+                    />
+                  ) : q.type === 'open' ? (
                     <div>
                       <input
                         type="text"
