@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass
+  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Minimize2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -1611,23 +1611,55 @@ function extractYouTubeId(url) {
 
 function YouTubeEmbed({ url }) {
   const [playing, setPlaying] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const shellRef = useRef(null);
   const videoId = extractYouTubeId(url);
+
+  useEffect(() => {
+    const updateFullscreen = () => {
+      setFullscreen(document.fullscreenElement === shellRef.current || document.webkitFullscreenElement === shellRef.current);
+    };
+    document.addEventListener('fullscreenchange', updateFullscreen);
+    document.addEventListener('webkitfullscreenchange', updateFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', updateFullscreen);
+      document.removeEventListener('webkitfullscreenchange', updateFullscreen);
+    };
+  }, []);
+
   if (!videoId) return null;
+
+  async function toggleFullscreen() {
+    const shell = shellRef.current;
+    if (!shell) return;
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        return;
+      }
+      if (shell.requestFullscreen) await shell.requestFullscreen();
+      else if (shell.webkitRequestFullscreen) shell.webkitRequestFullscreen();
+    } catch (e) {
+      // Fullscreen can be blocked by the browser; inline playback remains available.
+    }
+  }
 
   return (
     <div className="max-w-2xl mx-auto my-5">
       <style>{`
-        .youtube-embed-frame:fullscreen,
-        .youtube-embed-frame:-webkit-full-screen,
         .youtube-embed-shell:fullscreen,
         .youtube-embed-shell:-webkit-full-screen {
           position: fixed !important;
           inset: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
           width: 100vw !important;
           height: 100vh !important;
           height: 100dvh !important;
-          max-width: 100vw !important;
-          max-height: 100dvh !important;
+          max-width: none !important;
+          max-height: none !important;
           margin: 0 !important;
           padding: 0 !important;
           border: 0 !important;
@@ -1635,21 +1667,30 @@ function YouTubeEmbed({ url }) {
           transform: none !important;
           background: #000 !important;
         }
-        .youtube-embed-frame:fullscreen,
-        .youtube-embed-frame:-webkit-full-screen {
+        .youtube-embed-shell:fullscreen .youtube-embed-frame,
+        .youtube-embed-shell:-webkit-full-screen .youtube-embed-frame {
+          position: relative !important;
+          inset: auto !important;
           display: block !important;
+          width: min(100vw, 177.7778dvh) !important;
+          height: min(100dvh, 56.25vw) !important;
+          max-width: 100vw !important;
+          max-height: 100dvh !important;
+          aspect-ratio: 16 / 9 !important;
+          flex: none !important;
         }
       `}</style>
       <div
         className="youtube-embed-shell relative w-full overflow-hidden rounded-sm"
+        ref={shellRef}
         style={{ aspectRatio: '16 / 9', background: '#000', border: `1px solid ${C.rule}` }}
       >
         {playing ? (
           <iframe
             className="youtube-embed-frame absolute inset-0 w-full h-full"
-            src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&fs=0`}
             title="YouTube video"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             allowFullScreen
           />
         ) : (
@@ -1673,6 +1714,18 @@ function YouTubeEmbed({ url }) {
                 <PlayIcon />
               </span>
             </span>
+          </button>
+        )}
+        {playing && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="absolute z-20 bottom-2 right-2 flex items-center justify-center w-10 h-10 rounded-full focus-visible:outline focus-visible:outline-2"
+            style={{ color: C.white, background: 'rgba(0,0,0,0.68)', outlineColor: C.goldSoft }}
+            aria-label={fullscreen ? 'To‘liq ekrandan chiqish' : 'To‘liq ekranda ko‘rish'}
+            title={fullscreen ? 'To‘liq ekrandan chiqish' : 'To‘liq ekranda ko‘rish'}
+          >
+            {fullscreen ? <Minimize2 size={19} /> : <Maximize2 size={19} />}
           </button>
         )}
       </div>
