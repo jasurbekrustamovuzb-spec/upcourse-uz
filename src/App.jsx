@@ -1497,6 +1497,10 @@ function SearchBox({ value, onChange, placeholder }) {
     <div className="relative mb-5">
       <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
       <input
+        id="upcourse-search"
+        name="search"
+        type="search"
+        aria-label="Qidirish"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
