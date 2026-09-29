@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2
+  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -14,17 +14,6 @@ import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClie
 /* ------------------------------------------------------------------ */
 const AdminPanelView = lazy(() => import('./AdminPanel.jsx'));
 const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
-const ProfileView = lazy(() => import('./Profile.jsx').then(({ ProfileView: Component }) => ({ default: Component })));
-const PublicProfileView = lazy(() => import('./Profile.jsx').then(({ PublicProfileView: Component }) => ({ default: Component })));
-const QuizView = lazy(() => import('./QuizComponents.jsx').then(({ QuizView: Component }) => ({ default: Component })));
-const AddTestForm = lazy(() => import('./QuizComponents.jsx').then(({ AddTestForm: Component }) => ({ default: Component })));
-const EditTestForm = lazy(() => import('./QuizComponents.jsx').then(({ EditTestForm: Component }) => ({ default: Component })));
-function LazyFallback() {
-  return <div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>;
-}
-function LazyQuizView(props) { return <Suspense fallback={<LazyFallback />}><LazyQuizView {...props} /></Suspense>; }
-function LazyAddTestForm(props) { return <Suspense fallback={<LazyFallback />}><LazyAddTestForm {...props} /></Suspense>; }
-function LazyEditTestForm(props) { return <Suspense fallback={<LazyFallback />}><LazyEditTestForm {...props} /></Suspense>; }
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -174,7 +163,7 @@ const SEED_NEWS = [
   { id: 'n2', title: 'Yangi mavzu va testlar muntazam qoʻshib boriladi', date: '2026-08-16', content: 'Platforma tarkibi vaqt oʻtishi bilan kengaytiriladi: yangi mavzular, testlar va yangiliklar muntazam ravishda qoʻshib boriladi. Yangilanishlarni kuzatib boring.' },
 ];
 
-export function uid() {
+function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
@@ -356,7 +345,7 @@ async function sbRequest(path, options = {}) {
   return res.json();
 }
 
-export const sbSelect = (table, filter, orderColumn = 'created_at') => sbRequest(`${table}?select=*&order=${orderColumn}.asc${filter ? `&${filter}` : ''}`);
+const sbSelect = (table, filter, orderColumn = 'created_at') => sbRequest(`${table}?select=*&order=${orderColumn}.asc${filter ? `&${filter}` : ''}`);
 
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
    tekshirish uchun) yoki muallifning o'zi (o'z holatini ko'rishi uchun)
@@ -375,7 +364,7 @@ const sbUpsert = (table, row) => sbRequest(`${table}`, { method: 'POST', headers
 
 /* Savol rasmlari (geometriya chizmalari va h.k.) shu omborga yuklanadi. */
 const IMAGE_BUCKET = 'question-images';
-export async function sbUploadImage(file) {
+async function sbUploadImage(file) {
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token || SUPABASE_ANON_KEY;
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
@@ -592,7 +581,7 @@ const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: 
 const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', questionCount: r.question_count ?? undefined });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
-export const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
+const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
 
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
@@ -602,22 +591,22 @@ export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: false, shuffle
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
    shu tayyor ranglardan birini tanlaydi. */
-export const BANNER_PRESETS = {
+const BANNER_PRESETS = {
   green: { from: '#1F3D2B', to: '#3C6B4A', label: 'Yashil' },
   gold: { from: '#8A611E', to: '#D4AC6E', label: 'Oltin' },
   maroon: { from: '#5A2320', to: '#A8433A', label: 'Malla-qizil' },
   navy: { from: '#16283D', to: '#2E4E73', label: 'Ko\u2018k' },
 };
-export function bannerGradient(key) {
+function bannerGradient(key) {
   const b = BANNER_PRESETS[key] || BANNER_PRESETS.green;
   return `linear-gradient(120deg, ${b.from}, ${b.to})`;
 }
 
 /* username: kichik lotin harflari, raqam, pastik chiziq, 5-20 belgi */
-export function normalizeUsername(v) {
+function normalizeUsername(v) {
   return (v || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
 }
-export function isValidUsername(v) {
+function isValidUsername(v) {
   return /^[a-z0-9_]{5,20}$/.test(v || '');
 }
 /* Rasmiy/chalkashlik tug'diradigan nomlar — oddiy foydalanuvchi ololmaydi. */
@@ -626,12 +615,12 @@ const RESERVED_USERNAMES = new Set([
   'root', 'moderator', 'moder', 'official', 'system', 'staff', 'team',
   'test', 'null', 'undefined', 'settings', 'profile', 'user', 'users',
 ]);
-export function isReservedUsername(v) {
+function isReservedUsername(v) {
   return RESERVED_USERNAMES.has((v || '').toLowerCase());
 }
 /* Username band emasligini tekshiradi (o'zining joriy username'idan tashqari),
    rasmiy nomlarni ham "band" deb hisoblaydi. */
-export async function checkUsernameAvailable(username, currentUserId) {
+async function checkUsernameAvailable(username, currentUserId) {
   if (isReservedUsername(username)) return false;
   const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
   return !rows.some((r) => r.id !== currentUserId);
@@ -641,7 +630,7 @@ export async function checkUsernameAvailable(username, currentUserId) {
    bo'shab qolgan nomini "o'g'irlab" olish yoki tez-tez almashtirib
    chalkashlik tug'dirishning oldini olish uchun. */
 const USERNAME_CHANGE_COOLDOWN_DAYS = 14;
-export function usernameChangeDaysLeft(usernameChangedAt) {
+function usernameChangeDaysLeft(usernameChangedAt) {
   if (!usernameChangedAt) return 0;
   const elapsedDays = (Date.now() - new Date(usernameChangedAt).getTime()) / (1000 * 60 * 60 * 24);
   return Math.max(0, Math.ceil(USERNAME_CHANGE_COOLDOWN_DAYS - elapsedDays));
@@ -650,7 +639,7 @@ export function usernameChangeDaysLeft(usernameChangedAt) {
 /* Ism (va bor bo'lsa familiya) asosida Instagram uslubida username taklif
    qiladi — band bo'lsa, tasodifiy raqamlar bilan bo'sh variant topguncha
    qidiradi. */
-export async function suggestAvailableUsername(firstName, lastName, currentUserId) {
+async function suggestAvailableUsername(firstName, lastName, currentUserId) {
   const base = normalizeUsername(`${firstName || ''}${lastName ? `_${lastName}` : ''}`) || 'talaba';
   const root = base.length >= 5 ? base : `${base}user`.slice(0, 20);
   const candidates = [root];
@@ -749,7 +738,7 @@ function setAuthorBadgeCache(authorId, collectibleId) {
   if (!authorId) return;
   _badgeLookup.notify(authorId, collectibleId || null);
 }
-export function useAuthorBadge(authorId) {
+function useAuthorBadge(authorId) {
   return _badgeLookup.useLookup(authorId);
 }
 
@@ -787,6 +776,178 @@ function AuthorLine({ authorId, authorName, className, style }) {
 
 /* Boshqa foydalanuvchining ommaviy profili — ismi, @username'i, bio'si
    va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
+function PublicProfileView({ username, courses, tests, onBack, onOpenItem }) {
+  const [loading, setLoading] = useState(true);
+  const [row, setRow] = useState(null);
+  const [err, setErr] = useState(false);
+  const [section, setSection] = useState('kurslar'); // kurslar | testlar — kelajakda yana tab qo'shsa bo'ladi
+  const badge = useAuthorBadge(row?.id);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setErr(false);
+    (async () => {
+      try {
+        const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
+        if (!cancelled) setRow(rows[0] ? profileFromRow(rows[0]) : null);
+      } catch (e) {
+        if (!cancelled) setErr(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [username]);
+
+  const backButton = (
+    <button
+      onClick={onBack}
+      className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+      style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+    >
+      <ArrowLeft size={15} /> Ortga
+    </button>
+  );
+
+  if (loading) {
+    return (
+      <div>
+        {backButton}
+        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
+        </div>
+      </div>
+    );
+  }
+
+  if (err || !row) {
+    return (
+      <div>
+        {backButton}
+        <EmptyState text="Foydalanuvchi topilmadi." cta="Ehtimol, u hisobini o'chirgan yoki username o'zgargan." />
+      </div>
+    );
+  }
+
+  const fullName = `${row.firstName} ${row.lastName}`.trim();
+  const myCourses = courses.filter((c) => c.authorId === row.id && c.status === 'approved');
+  const myTests = tests.filter((t) => t.authorId === row.id && t.status === 'approved');
+  const items = section === 'kurslar' ? myCourses : myTests;
+
+  /* Instagram uslubidagi kvadrat "plitka" — kurs/test kartochkasi.
+     Kelajakda shu funksiyaga (masalan kolleksiya belgisi, ball, yoqtirish
+     soni) qo'shimcha kichik elementlar qo'shish oson bo'lishi uchun
+     alohida, mustaqil komponent qilib chiqarildi. */
+  const Tile = ({ item, kind }) => (
+    <button
+      onClick={() => onOpenItem(kind, item.id)}
+      className="aspect-square min-w-0 rounded-lg flex flex-col items-center justify-center gap-2 p-2.5 text-center transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
+      style={{ background: C.surface, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+    >
+      {kind === 'kurslar' ? <BookOpen size={20} style={{ color: C.gold, flexShrink: 0 }} /> : <ListChecks size={20} style={{ color: C.gold, flexShrink: 0 }} />}
+      <div
+        className="text-[12px] leading-tight w-full"
+        style={{ ...fontBody, color: C.ink, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+      >
+        {item.title}
+      </div>
+    </button>
+  );
+
+  return (
+    <div>
+      {backButton}
+
+      <div className="rounded-lg overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <div className="h-24 sm:h-28" style={{ background: bannerGradient(row.bannerKey) }} />
+        <div className="px-5 pb-5 -mt-12 relative">
+          <div className="flex items-end justify-between gap-3">
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: C.surface, border: `3px solid ${C.surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
+            >
+              <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: bannerGradient(row.bannerKey) }}>
+                <span className="text-xl" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>
+                  {(row.firstName || '?').slice(0, 1).toUpperCase()}{(row.lastName || '').slice(0, 1).toUpperCase()}
+                </span>
+              </div>
+            </div>
+            {/* Kelajakda shu joyga "Kuzatish" (Follow) tugmasi qo'shiladi — 
+                layout shunga tayyor turibdi. */}
+          </div>
+
+          <div className="mt-3 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+              <span className="font-medium text-lg truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{fullName || `@${row.username}`}</span>
+              {badge && <CollectibleThumb collectibleId={badge} size={20} />}
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{row.username}</div>
+              <ShareButton url={buildShareUrl({ u: row.username })} title={fullName || row.username} small />
+            </div>
+            {row.bio && <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{row.bio}</p>}
+          </div>
+
+          <div className="flex gap-6 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+            <div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myCourses.length}</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mavzular</div>
+            </div>
+            <div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myTests.length}</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
+            </div>
+            <div title="Tez orada">
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Followers</div>
+            </div>
+            <div title="Tez orada">
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Following</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Instagram uslubidagi bo'lim almashtirgich. Kelajakda yana bo'lim
+          (masalan "Kolleksiyalar") qo'shilsa, shu qatorga yana bitta
+          tugma qo'shish kifoya. */}
+      <div className="flex" style={{ borderTop: `1px solid ${C.rule}` }}>
+        <button
+          onClick={() => setSection('kurslar')}
+          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[12px]"
+          style={{ ...fontMono, letterSpacing: '0.04em', color: section === 'kurslar' ? C.ink : C.inkSoft, borderTop: `2px solid ${section === 'kurslar' ? C.ink : 'transparent'}`, marginTop: '-1px' }}
+        >
+          <BookOpen size={15} /> MAVZULAR
+        </button>
+        <button
+          onClick={() => setSection('testlar')}
+          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[12px]"
+          style={{ ...fontMono, letterSpacing: '0.04em', color: section === 'testlar' ? C.ink : C.inkSoft, borderTop: `2px solid ${section === 'testlar' ? C.ink : 'transparent'}`, marginTop: '-1px' }}
+        >
+          <ListChecks size={15} /> TESTLAR
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="py-10 text-center">
+          <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+            {section === 'kurslar' ? 'Hozircha ommaviy mavzu yoʻq.' : 'Hozircha ommaviy test yoʻq.'}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-3">
+          {items.map((item) => (
+            <Tile key={item.id} item={item} kind={section} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 /* ------------------------------------------------------------------ */
 /*  Small shared UI bits                                              */
 /* ------------------------------------------------------------------ */
@@ -1216,7 +1377,7 @@ function GiftBanner({ onOpen }) {
    nishon turi qo'shilganda, shu yerga yangi "else if" qatori qo'shiladi
    — eskilari hech qachon o'chirilmaydi, shuning uchun avval olingan
    nishonlar doim to'g'ri ko'rinishda qoladi. */
-export function CollectibleThumb({ collectibleId, size = 40, inline }) {
+function CollectibleThumb({ collectibleId, size = 40, inline }) {
   let content;
   if (collectibleId === INDEPENDENCE_ID) content = <MiniIndependenceBadge size={size} />;
   else if (collectibleId === GIFT_ID) content = <MiniExplorerBadge size={size} />;
@@ -1235,7 +1396,7 @@ export function CollectibleThumb({ collectibleId, size = 40, inline }) {
    nishonlarni ko'rsatadi. Faqat shu bo'lim ochilganda (Profil
    ichidan qo'lda bosilganda) ikkita yengil so'rov ketadi — sahifa
    yuklanganda yoki Profilga kirilganda avtomatik ishlamaydi. */
-export function CollectionsView({ session, onBack }) {
+function CollectionsView({ session, onBack }) {
   const [state, setState] = useState('loading'); // loading | ready | error
   const [catalog, setCatalog] = useState([]);
   const [owned, setOwned] = useState([]);
@@ -1449,74 +1610,23 @@ function extractYouTubeId(url) {
 
 function YouTubeEmbed({ url }) {
   const [playing, setPlaying] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const playerShellRef = useRef(null);
   const videoId = extractYouTubeId(url);
-  const fullscreenCss = [
-    ".youtube-player-shell:fullscreen, .youtube-player-shell:-webkit-full-screen { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: #000 !important; z-index: 2147483647 !important; display: flex !important; align-items: center !important; justify-content: center !important; }",
-    ".youtube-player-shell:fullscreen .youtube-player-frame, .youtube-player-shell:-webkit-full-screen .youtube-player-frame { position: static !important; inset: auto !important; flex: 0 0 auto !important; width: min(100vw, 177.7778vh) !important; height: min(100vh, 56.25vw) !important; aspect-ratio: 16 / 9 !important; max-width: 100vw !important; max-height: 100vh !important; transform: none !important; }"
-  ].join('');
-
-  useEffect(() => {
-    const shell = playerShellRef.current;
-    if (!shell) return;
-    const syncFullscreenState = () => {
-      setIsFullscreen(document.fullscreenElement === shell || document.webkitFullscreenElement === shell);
-    };
-    document.addEventListener('fullscreenchange', syncFullscreenState);
-    document.addEventListener('webkitfullscreenchange', syncFullscreenState);
-    return () => {
-      document.removeEventListener('fullscreenchange', syncFullscreenState);
-      document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
-    };
-  }, []);
-
   if (!videoId) return null;
-
-  async function toggleFullscreen() {
-    const shell = playerShellRef.current;
-    if (!shell) return;
-    try {
-      if (document.fullscreenElement || document.webkitFullscreenElement) {
-        const exit = document.exitFullscreen || document.webkitExitFullscreen;
-        if (exit) await exit.call(document);
-        return;
-      }
-      const request = shell.requestFullscreen || shell.webkitRequestFullscreen;
-      if (request) await request.call(shell);
-    } catch (e) {
-      // Brauzer fullscreenni rad etsa, YouTube playeri odatdagidek ishlashda davom etadi.
-    }
-  }
 
   return (
     <div className="max-w-2xl mx-auto my-5">
       <div
-        ref={playerShellRef}
-        className="youtube-player-shell relative w-full overflow-hidden rounded-sm"
-        style={{ aspectRatio: '16 / 9', background: '#000', border: '1px solid ' + C.rule }}
+        className="relative w-full overflow-hidden rounded-sm"
+        style={{ aspectRatio: '16 / 9', background: '#000', border: `1px solid ${C.rule}` }}
       >
-        <style>{fullscreenCss}</style>
         {playing ? (
-          <>
-            <iframe
-              className="youtube-player-frame absolute inset-0 w-full h-full"
-              src={'https://www.youtube.com/embed/' + videoId + '?autoplay=1&fs=0'}
-              title="YouTube video"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              className="absolute bottom-12 right-3 z-20 flex items-center justify-center rounded-md transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2"
-              style={{ width: 38, height: 38, background: 'rgba(0,0,0,0.72)', color: '#fff', outlineColor: C.gold }}
-              aria-label={isFullscreen ? 'Toʻliq ekrandan chiqish' : 'Toʻliq ekranga oʻtish'}
-              title={isFullscreen ? 'Toʻliq ekrandan chiqish' : 'Toʻliq ekran'}
-            >
-              <Maximize2 size={18} />
-            </button>
-          </>
+          <iframe
+            className="absolute inset-0 w-full h-full"
+            src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+            title="YouTube video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
         ) : (
           <button
             onClick={() => setPlaying(true)}
@@ -1525,7 +1635,7 @@ function YouTubeEmbed({ url }) {
             aria-label="Videoni ishga tushirish"
           >
             <img
-              src={'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg'}
+              src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
               loading="lazy"
@@ -1533,7 +1643,7 @@ function YouTubeEmbed({ url }) {
             <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(20,30,20,0.25)' }}>
               <span
                 className="flex items-center justify-center rounded-full transition-transform group-hover:scale-105"
-                style={{ width: 62, height: 62, background: 'rgba(20,30,20,0.72)', border: '2px solid ' + C.goldSoft }}
+                style={{ width: 62, height: 62, background: 'rgba(20,30,20,0.72)', border: `2px solid ${C.goldSoft}` }}
               >
                 <PlayIcon />
               </span>
@@ -1841,7 +1951,7 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   );
 }
 
-export function VisibilityToggle({ value, onChange }) {
+function VisibilityToggle({ value, onChange }) {
   return (
     <div className="mb-3">
       <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div>
@@ -2190,17 +2300,9 @@ function isOpenAnswerCorrect(question, userAnswer) {
   return false;
 }
 
-/* Matching savolida javob — chap tomondagi har bir band uchun o‘ng tomondagi juftlik indekslari. */
-export function isMatchingAnswerCorrect(question, userAnswer) {
-  const pairs = question.pairs || [];
-  if (!Array.isArray(userAnswer) || userAnswer.length !== pairs.length) return false;
-  return userAnswer.every((pairIndex, leftIndex) => Number(pairIndex) === leftIndex);
-}
-
-/* Har uch savol turi (variantli / yozma / moslashtirish) uchun umumiy tekshiruv */
+/* Har ikki savol turi (variantli / yozma) uchun umumiy tekshiruv */
 export function isQuestionCorrect(q, userAnswer) {
   if (q.type === 'open') return isOpenAnswerCorrect(q, userAnswer);
-  if (q.type === 'matching') return isMatchingAnswerCorrect(q, userAnswer);
   return userAnswer === q.correct;
 }
 
@@ -2223,6 +2325,762 @@ export function computeSyncScore(correct, timeTakenMs, limitMs) {
    shu sababli keyingi savol qatori raqamlangan ("1.") yoki
    raqamsiz ("Savol matni?") bo'lishidan qat'iy nazar to'g'ri
    aniqlanadi. */
+function parseTxtQuestions(rawText) {
+  const lines = rawText.replace(/\r\n/g, '\n').split('\n');
+  const questions = [];
+  let cur = null;
+
+  function pushCurrent() {
+    if (cur && cur.text && cur.options.length >= 2 && cur.correct !== null) {
+      questions.push({ id: uid(), type: 'mcq', text: cur.text, options: cur.options, correct: cur.correct });
+    }
+    cur = null;
+  }
+
+  for (let raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    const optMatch = line.match(/^([A-DА-Г])[).]\s*(.+)$/i);
+    const ansMatch = line.match(/^ANSWER[:\s]+([A-DА-Г])/i);
+
+    if (ansMatch && cur) {
+      const letter = ansMatch[1].toUpperCase();
+      const idx = 'ABCD'.indexOf(letter);
+      if (idx !== -1) cur.correct = idx;
+      // Savol "ANSWER:" bilan tugadi — uni saqlab, keyingi qatorni
+      // (raqamli yoki raqamsiz) yangi savol boshlanishi deb qabul qilamiz.
+      pushCurrent();
+      continue;
+    }
+    if (optMatch && cur && cur.correct === null) {
+      cur.options.push(optMatch[2].trim());
+      continue;
+    }
+    // Variant yoki ANSWER qatori emas — demak bu savol matni.
+    // Boshida "1." yoki "12)" kabi raqam bo'lsa, shunchaki matn deb
+    // qabul qilib, raqamni olib tashlaymiz (bor-yo'qligi farq qilmaydi).
+    const stripped = line.replace(/^\d+[.)]\s*/, '');
+    if (!cur) {
+      cur = { text: stripped, options: [], correct: null };
+    } else if (cur.options.length === 0) {
+      // Savol matni bir necha qatorga bo'lingan bo'lishi mumkin.
+      cur.text += ' ' + stripped;
+    } else {
+      // Variantlar allaqachon boshlangan, lekin ANSWER qatori kelmasdan
+      // yangi savol matni chiqdi — demak oldingi savol "ANSWER:"siz
+      // qolib ketgan. Uni tashlab, yangi savolni shu yerdan boshlaymiz.
+      pushCurrent();
+      cur = { text: stripped, options: [], correct: null };
+    }
+  }
+  pushCurrent();
+  return questions;
+}
+
+function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
+  const [qType, setQType] = useState(mode === 'math' ? 'open' : 'mcq');
+  const [qText, setQText] = useState('');
+  const [opts, setOpts] = useState(['', '', '', '']);
+  const [correct, setCorrect] = useState(0);
+  const [answersText, setAnswersText] = useState('');
+  const [importError, setImportError] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState('');
+  const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
+
+  function addQuestion() {
+    if (!qText.trim()) return;
+    if (qType === 'mcq') {
+      if (opts.some((o) => !o.trim())) return;
+      setQuestions([...questions, { id: uid(), type: 'mcq', text: qText.trim(), options: opts.map((o) => o.trim()), correct, imageUrl: imageUrl || undefined }]);
+      setOpts(['', '', '', '']);
+      setCorrect(0);
+    } else {
+      const answers = answersText.split(/[,\n]/).map((a) => a.trim()).filter(Boolean);
+      if (answers.length === 0) return;
+      setQuestions([...questions, { id: uid(), type: 'open', text: qText.trim(), answers, imageUrl: imageUrl || undefined }]);
+      setAnswersText('');
+    }
+    setQText('');
+    setImageUrl('');
+  }
+
+  function removeQuestion(id) {
+    setQuestions(questions.filter((q) => q.id !== id));
+  }
+
+  async function handleImageFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImageError('');
+    setImageUploading(true);
+    try {
+      const url = await sbUploadImage(file);
+      setImageUrl(url);
+    } catch (err) {
+      setImageError('Rasm yuklashda xatolik yuz berdi. Qaytadan urinib koʻring.');
+    } finally {
+      setImageUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  function handleTxtFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImportError('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parseTxtQuestions(String(reader.result));
+        if (parsed.length === 0) {
+          setImportError('Faylda savol topilmadi. Format toʻgʻriligini tekshiring: savol matni, keyin "A) variant" qatorlari, oxirida "ANSWER: A".');
+          return;
+        }
+        setQuestions([...questions, ...parsed]);
+      } catch (err) {
+        setImportError('Faylni oʻqishda xatolik yuz berdi.');
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+    e.target.value = '';
+  }
+
+  const isTxtMode = mode === 'txt';
+  const isMathMode = mode === 'math';
+
+  return (
+    <>
+      {questions.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {questions.map((q, i) => (
+            <div key={q.id} className="flex items-start justify-between p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+              <div className="flex items-start gap-2 min-w-0">
+                {q.imageUrl && (
+                  <img src={q.imageUrl} alt="" className="w-10 h-10 object-cover rounded-sm flex-shrink-0" style={{ border: `1px solid ${C.rule}` }} />
+                )}
+                <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
+                  <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
+                  {q.type === 'open' && (
+                    <span className="ml-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>(yozma javob)</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => removeQuestion(q.id)} className="flex-shrink-0 ml-3" style={{ color: C.inkSoft }}><X size={15} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <input ref={fileInputRef} type="file" accept=".txt" onChange={handleTxtFile} className="hidden" />
+
+      {isTxtMode ? (
+        <div className="p-6 rounded-2xl mb-4 text-center" style={{ background: C.mathTint, border: `1px solid ${C.math}` }}>
+          <FileText size={22} style={{ color: C.math }} className="mx-auto mb-2" />
+          <div className="flex items-center justify-center gap-1.5 mb-4">
+            <div className="text-[15px]" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>TXT fayldan savollarni yuklang</div>
+            <InfoHint text={'Har bir savol alohida qatorda (raqami bo\u2018lsa ham, bo\u2018lmasa ham farqi yo\u2018q), keyin "A)", "B)", "C)", "D)" variantlari, oxirida "ANSWER: A" (yoki B, C, D) yozilgan bo\u2018lishi kerak.'} />
+          </div>
+          <SolidButton onClick={() => fileInputRef.current && fileInputRef.current.click()} icon={Paperclip}>TXT faylni tanlash</SolidButton>
+          {importError && <div className="text-xs mt-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
+        </div>
+      ) : (
+        <div className="p-4 rounded-sm mb-4" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="text-xs tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol qoʻshish</div>
+            {!isMathMode && (
+              <button
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0 focus-visible:outline focus-visible:outline-2"
+                style={{ background: C.mathTint, color: C.mathDeep, outlineColor: C.mathSoft }}
+                aria-label="TXT fayldan yuklash"
+                title="TXT fayldan yuklash"
+              >
+                <FileText size={13} />
+              </button>
+            )}
+          </div>
+          {importError && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
+
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={() => setQType('mcq')}
+              className="px-3 py-1.5 rounded-sm text-sm"
+              style={{ ...fontBody, background: qType === 'mcq' ? C.cover : 'transparent', color: qType === 'mcq' ? C.white : C.inkSoft, border: `1px solid ${qType === 'mcq' ? C.cover : C.rule}` }}
+            >
+              Variantli
+            </button>
+            <button
+              onClick={() => setQType('open')}
+              className="px-3 py-1.5 rounded-sm text-sm"
+              style={{ ...fontBody, background: qType === 'open' ? C.cover : 'transparent', color: qType === 'open' ? C.white : C.inkSoft, border: `1px solid ${qType === 'open' ? C.cover : C.rule}` }}
+            >
+              Yozma javob
+            </button>
+            {isMathMode && qType === 'open' && (
+              <InfoHint text={'Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham toʻgʻri hisoblanadi, chunki javob son sifatida solishtiriladi.'} />
+            )}
+          </div>
+
+          <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
+
+          <div className="mb-3">
+            <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
+            {imageUrl ? (
+              <div className="flex items-center gap-3">
+                <img src={imageUrl} alt="" className="w-16 h-16 object-cover rounded-sm" style={{ border: `1px solid ${C.rule}` }} />
+                <button onClick={() => setImageUrl('')} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: C.red }}>
+                  <X size={13} /> Rasmni olib tashlash
+                </button>
+              </div>
+            ) : (
+              <>
+                <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
+                <button
+                  onClick={() => imageInputRef.current && imageInputRef.current.click()}
+                  disabled={imageUploading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-visible:outline focus-visible:outline-2"
+                  style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+                >
+                  <ImageIcon size={13} /> {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish'}
+                </button>
+              </>
+            )}
+            {imageError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{imageError}</div>}
+          </div>
+
+          {qType === 'mcq' ? (
+            <>
+              {opts.map((o, i) => (
+                <div key={i} className="flex items-center gap-2 mb-2">
+                  <input
+                    type="radio"
+                    name="correct-opt"
+                    checked={correct === i}
+                    onChange={() => setCorrect(i)}
+                    className="flex-shrink-0"
+                    title="Toʻgʻri javob"
+                  />
+                  <input
+                    type="text"
+                    value={o}
+                    onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
+                    placeholder={`Variant ${String.fromCharCode(65 + i)}`}
+                    className="w-full bg-transparent outline-none py-1.5 text-[15px]"
+                    style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
+                  />
+                </div>
+              ))}
+              <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
+            </>
+          ) : (
+            <>
+              <TextField
+                label="Toʻgʻri javob(lar)"
+                value={answersText}
+                onChange={setAnswersText}
+                placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
+                textarea
+                rows={2}
+              />
+            </>
+          )}
+
+          <GhostButton onClick={addQuestion} icon={Plus} disabled={imageUploading}>Savolni testga qoʻshish</GhostButton>
+        </div>
+      )}
+    </>
+  );
+}
+
+function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView, formMode }) {
+  const [categoryName, setCategoryName] = useState(initialCategoryName || '');
+  const [title, setTitle] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [visibility, setVisibility] = useState('public');
+  const [newId, setNewId] = useState(null);
+
+  if (newId) {
+    return (
+      <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
+        <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
+        <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Testingiz yuborildi!</div>
+        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
+          {visibility === 'private'
+            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+            : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
+        </div>
+        <div className="flex gap-3 justify-center">
+          <SolidButton onClick={() => onView(newId)} icon={ChevronRight}>Koʻrish</SolidButton>
+          <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
+        </div>
+      </div>
+    );
+  }
+
+  const canSubmit = title.trim() && questions.length > 0 && (lockedCategoryId || categoryName.trim());
+
+  async function submit() {
+    if (!canSubmit) return;
+    const payload = lockedCategoryId
+      ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions, visibility }
+      : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions, visibility };
+    const id = await onSubmit(payload);
+    if (id) setNewId(id);
+  }
+
+  return (
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+      {formMode === 'txt' && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
+          <FileText size={14} style={{ flexShrink: 0 }} /> TXT fayldan test yaratish — savollarni qoʻlda yozish shart emas.
+        </div>
+      )}
+      {formMode === 'math' && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
+          <Calculator size={14} style={{ flexShrink: 0 }} /> Matematik test — savollarga rasm/chizma qoʻshishingiz va yozma javob (kasr, ildiz, daraja) qabul qilishingiz mumkin.
+        </div>
+      )}
+      {!lockedCategoryId && (
+        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Sohaga nom bering" />
+      )}
+      <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
+      <VisibilityToggle value={visibility} onChange={setVisibility} />
+      <div className="flex gap-3">
+        <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
+        <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
+      </div>
+    </div>
+  );
+}
+
+function EditTestForm({ test, onSave, onDone }) {
+  const [title, setTitle] = useState(test.title);
+  const [questions, setQuestions] = useState(test.questions);
+
+  async function submit() {
+    if (!title.trim() || questions.length === 0) return;
+    const ok = await onSave({ categoryId: test.categoryId, title: title.trim(), description: test.description || '', questions });
+    if (ok) onDone();
+  }
+
+  return (
+    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+      <TextField label="Test nomi" value={title} onChange={setTitle} />
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} />
+      <div className="flex gap-3">
+        <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Saqlash</SolidButton>
+        <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
+      </div>
+    </div>
+  );
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function formatDuration(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Testni boshlashdan oldingi ixcham sozlamalar paneli                */
+/* ------------------------------------------------------------------ */
+
+function SettingChip({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] transition-colors flex-shrink-0"
+      style={{
+        ...fontBody,
+        color: active ? C.white : C.ink,
+        background: active ? C.accent : C.surface,
+        border: `1px solid ${active ? C.accent : C.rule}`,
+        fontWeight: active ? 600 : 400,
+      }}
+    >
+      <span
+        className="inline-block rounded-full flex-shrink-0"
+        style={{ width: 7, height: 7, background: active ? C.white : C.rule }}
+      />
+      {children}
+    </button>
+  );
+}
+
+/* Sozlamalar (mode/count/partsTotal/partIndex/shuffle) asosida savollar
+   ro'yxatini hisoblaydi. QuizSetupPanel ichida ham, sozlamalar ekranini
+   ko'rsatmasdan to'g'ridan-to'g'ri boshlashda ham ishlatiladi. */
+function computeQuizQuestions(test, cfg) {
+  const total = test.questions.length;
+  const mode = cfg.mode || 'all';
+  const count = cfg.count ?? Math.min(5, total);
+  let base = test.questions;
+  if (mode === 'random') {
+    base = shuffleArray(test.questions).slice(0, Math.max(1, Math.min(count, total)));
+  } else if (mode === 'first') {
+    base = test.questions.slice(0, Math.max(1, Math.min(count, total)));
+  } else if (mode === 'split') {
+    const partsTotal = cfg.partsTotal ?? 2;
+    const partIndex = cfg.partIndex ?? 1;
+    const parts = Math.max(2, Math.min(partsTotal, total));
+    const size = Math.ceil(total / parts);
+    const start = (Math.max(1, Math.min(partIndex, parts)) - 1) * size;
+    base = test.questions.slice(start, start + size);
+    if (base.length === 0) base = test.questions.slice(0, size);
+  }
+  if (cfg.shuffle) base = shuffleArray(base);
+  return base;
+}
+
+function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
+  const total = test.questions.length;
+  const init = initialConfig || DEFAULT_TEST_PREFS;
+  const [immediate, setImmediate] = useState(!!init.immediate);
+  const [autoScroll, setAutoScroll] = useState(!!init.autoScroll);
+  const [shuffle, setShuffle] = useState(!!init.shuffle);
+  const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | split
+  const [count, setCount] = useState(Math.min(init.count || 5, total));
+  const [partsTotal, setPartsTotal] = useState(init.partsTotal || 2);
+  const [partIndex, setPartIndex] = useState(init.partIndex || 1);
+
+  function start() {
+    const cfg = { immediate, autoScroll, shuffle, mode, count, partsTotal, partIndex };
+    const questions = computeQuizQuestions(test, cfg);
+    if (questions.length === 0) return;
+    onStart({ ...cfg, questions });
+  }
+
+  const parts = Math.max(2, Math.min(partsTotal, total));
+
+  return (
+    <div>
+      <button
+        onClick={onExit}
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+      >
+        <ArrowLeft size={15} /> Barcha testlar
+      </button>
+
+      <h3 className="text-2xl sm:text-3xl mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+      {test.description && <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+      <div className="text-xs mb-6" style={{ ...fontMono, color: C.gold }}>{total} ta savol mavjud</div>
+
+      <div className="flex flex-wrap gap-2 mb-5">
+        <SettingChip active={immediate} onClick={() => setImmediate((v) => !v)}>Darhol javob koʻrsatish</SettingChip>
+        <SettingChip active={autoScroll} onClick={() => setAutoScroll((v) => !v)}>Keyingi savolga avtomatik oʻtish</SettingChip>
+        <SettingChip active={shuffle} onClick={() => setShuffle((v) => !v)}>Savollarni aralashtirish</SettingChip>
+      </div>
+
+      <div className="mb-6">
+        <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Savollar toʻplami</div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <SettingChip active={mode === 'all'} onClick={() => setMode('all')}>Hammasi ({total})</SettingChip>
+          <SettingChip active={mode === 'random'} onClick={() => setMode('random')}>Tasodifiy N ta</SettingChip>
+          <SettingChip active={mode === 'first'} onClick={() => setMode('first')}>Dastlabki N ta</SettingChip>
+          {total > 1 && <SettingChip active={mode === 'split'} onClick={() => setMode('split')}>Qismlarga boʻlib</SettingChip>}
+
+          {(mode === 'random' || mode === 'first') && (
+            <input
+              type="number"
+              min={1}
+              max={total}
+              value={count}
+              onChange={(e) => setCount(Math.max(1, Math.min(total, Number(e.target.value) || 1)))}
+              className="w-16 px-2 py-1.5 rounded-sm text-[13px] outline-none"
+              style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+            />
+          )}
+
+          {mode === 'split' && (
+            <>
+              <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Necha qism:</span>
+              <input
+                type="number"
+                min={2}
+                max={total}
+                value={partsTotal}
+                onChange={(e) => { setPartsTotal(Math.max(2, Math.min(total, Number(e.target.value) || 2))); setPartIndex(1); }}
+                className="w-14 px-2 py-1.5 rounded-sm text-[13px] outline-none"
+                style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+              />
+              <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Qaysi qism:</span>
+              <select
+                value={partIndex}
+                onChange={(e) => setPartIndex(Number(e.target.value))}
+                className="px-2 py-1.5 rounded-sm text-[13px] outline-none"
+                style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
+              >
+                {Array.from({ length: parts }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>{p}-qism</option>
+                ))}
+              </select>
+            </>
+          )}
+        </div>
+      </div>
+
+      <SolidButton onClick={start} icon={Award}>Testni boshlash</SolidButton>
+    </div>
+  );
+}
+
+function QuizPlayer({ test, config, onExit, onRestart }) {
+  const questions = config.questions;
+  const [answers, setAnswers] = useState({});
+  const [revealed, setRevealed] = useState({});
+  const [finished, setFinished] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const questionRefs = useRef({});
+
+  useEffect(() => {
+    if (finished || paused) return;
+    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [finished, paused]);
+
+  const allAnswered = questions.every((q) => {
+    const a = answers[q.id];
+    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
+  });
+
+  /* "Keyingi savolga avtomatik oʻtish" yoqilgan boʻlsa — foydalanuvchi
+     javob belgilagach, qoʻlda pastga qorishtirmasdan, ekranni keyingi
+     javob berilmagan savol markazga kelguncha silliq skroll qilamiz. */
+  function scrollToNextUnanswered(fromQid, latestAnswers) {
+    if (!config.autoScroll) return;
+    const fromIndex = questions.findIndex((q) => q.id === fromQid);
+    const next = questions.slice(fromIndex + 1).find((q) => {
+      const a = latestAnswers[q.id];
+      return q.type === 'open' ? !(typeof a === 'string' && a.trim().length > 0) : a === undefined;
+    });
+    if (next) {
+      const el = questionRefs.current[next.id];
+      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 220);
+    }
+  }
+
+  function select(qid, idx) {
+    if (finished || paused) return;
+    setAnswers((a) => {
+      const next = { ...a, [qid]: idx };
+      scrollToNextUnanswered(qid, next);
+      return next;
+    });
+    if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+  }
+
+  function setOpenAnswer(qid, text) {
+    if (finished || paused) return;
+    setAnswers((a) => ({ ...a, [qid]: text }));
+  }
+
+  function confirmOpenAnswer(qid) {
+    if (finished || paused) return;
+    setAnswers((a) => { scrollToNextUnanswered(qid, a); return a; });
+    if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+  }
+
+  function submit() {
+    setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
+    setFinished(true);
+  }
+
+  if (finished) {
+    const correctCount = questions.reduce((s, qq) => s + (isQuestionCorrect(qq, answers[qq.id]) ? 1 : 0), 0);
+    const incorrectCount = questions.length - correctCount;
+    const percent = Math.round((correctCount / questions.length) * 100);
+    return (
+      <div>
+        <button
+          onClick={onExit}
+          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Barcha testlar
+        </button>
+        <h3 className="text-2xl sm:text-3xl mb-5" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title} — yakunlandi</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mb-8">
+          <div className="p-4 rounded-sm text-center" style={{ background: C.cover }}>
+            <div className="text-2xl" style={{ ...fontMono, color: C.gold, fontWeight: 700 }}>{percent}%</div>
+            <div className="text-xs mt-1" style={{ ...fontBody, color: C.goldSoft }}>Natija</div>
+          </div>
+          <div className="p-4 rounded-sm text-center" style={{ background: C.successTint, border: `1px solid ${C.accent}` }}>
+            <div className="text-2xl" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}>{correctCount}</div>
+            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri</div>
+          </div>
+          <div className="p-4 rounded-sm text-center" style={{ background: C.dangerTint, border: `1px solid ${C.red}` }}>
+            <div className="text-2xl" style={{ ...fontMono, color: C.red, fontWeight: 700 }}>{incorrectCount}</div>
+            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Notoʻgʻri</div>
+          </div>
+          <div className="p-4 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <div className="text-2xl" style={{ ...fontMono, color: C.ink, fontWeight: 700 }}>{formatDuration(seconds)}</div>
+            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Sarflangan vaqt</div>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <GhostButton onClick={onRestart} icon={RotateCcw}>Sozlamalarni oʻzgartirish</GhostButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+        <button
+          onClick={onExit}
+          className="inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"
+          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+        >
+          <ArrowLeft size={15} /> Barcha testlar
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[13px]" style={{ ...fontMono, color: C.gold, background: C.cover }}>
+            <Clock3 size={13} /> {formatDuration(seconds)}
+          </div>
+          <button
+            onClick={() => setPaused((p) => !p)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-sm text-[13px]"
+            style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
+          >
+            {paused ? <><Play2 size={13} /> Davom</> : <><Pause size={13} /> Pauza</>}
+          </button>
+        </div>
+      </div>
+
+      <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+      {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+
+      {paused ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <Pause size={26} style={{ color: C.gold }} className="mb-3" />
+          <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>Test pauzada — vaqt hisoblagich toʻxtatildi.</div>
+          <SolidButton onClick={() => setPaused(false)} icon={Play2}>Davom ettirish</SolidButton>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-6 max-w-2xl">
+            {questions.map((q, qi) => {
+              const showResult = config.immediate ? !!revealed[q.id] : finished;
+              return (
+                <div key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }}>
+                  <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+                    <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
+                  </div>
+                  {q.imageUrl && (
+                    <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
+                  )}
+                  {q.type === 'open' ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={answers[q.id] || ''}
+                        onChange={(e) => setOpenAnswer(q.id, e.target.value)}
+                        onBlur={() => confirmOpenAnswer(q.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+                        disabled={showResult}
+                        placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
+                        className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
+                        style={{
+                          ...fontBody, color: C.ink,
+                          background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
+                          border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
+                        }}
+                      />
+                      {showResult && (
+                        <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
+                          {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
+                          Toʻgʻri javob: {(q.answers || []).join(' yoki ')}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {q.options.map((opt, oi) => {
+                        const isSelected = answers[q.id] === oi;
+                        let bg = C.surface, border = C.rule;
+                        if (showResult) {
+                          if (oi === q.correct) { bg = C.successTint; border = C.accent; }
+                          else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
+                        } else if (isSelected) {
+                          border = C.gold; bg = C.selectedTint;
+                        }
+                        return (
+                          <button
+                            key={oi}
+                            onClick={() => select(q.id, oi)}
+                            disabled={showResult}
+                            className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+                            style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
+                          >
+                            <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                            <span>{opt}</span>
+                            {showResult && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
+                            {showResult && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-3 mt-8">
+            <SolidButton onClick={submit} icon={Check} disabled={!allAnswered}>Javoblarni tekshirish</SolidButton>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* effectivePrefs — joriy (saqlangan yoki andoza) sozlamalar. forceSetup
+   true bo'lsa (⋮ menyudagi "Sozlamalar" orqali ochilganda), avval
+   sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash" tugmasi)
+   test darhol shu sozlamalar bilan boshlanadi — sozlamalar ekrani
+   umuman ko'rsatilmaydi. onSavePrefs berilgan bo'lsa (foydalanuvchi
+   tizimga kirgan bo'lsa) — sozlamalar o'zgartirilganda akkauntga
+   saqlanadi; berilmasa (akkaunti yo'q), hech qayerga saqlanmaydi. */
+function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
+  const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
+  const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
+  const [lastConfig, setLastConfig] = useState(prefs);
+
+  function handleStart(cfg) {
+    const { questions, ...rest } = cfg;
+    setLastConfig(rest);
+    setConfig(cfg);
+    if (onSavePrefs) onSavePrefs(rest);
+  }
+
+  if (!config) {
+    return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
+  }
+  return <QuizPlayer test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} />;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Jonli test rejimi — endi ./LiveQuiz.jsx faylida (lazy-load)        */
+/* ------------------------------------------------------------------ */
+
 function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
@@ -2306,7 +3164,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         </div>
       );
     }
-    return <LazyQuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} />;
+    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} />;
   }
 
   if (liveOpen) return (
@@ -2335,7 +3193,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
             <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
           </div>
         ) : (
-          <LazyEditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
+          <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
         )}
       </div>
     );
@@ -2729,7 +3587,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
             <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
           </div>
         ) : (
-          <LazyEditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
+          <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
         )}
       </div>
     );
@@ -2743,7 +3601,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
         </div>
       );
     }
-    return <LazyQuizView test={active} onExit={back} />;
+    return <QuizView test={active} onExit={back} />;
   }
 
   if (!categoryId) {
@@ -2785,7 +3643,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
         )}
 
         {formOpen ? (
-          <LazyAddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
+          <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
         ) : (
           <div className="mt-6">
             <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
@@ -2842,7 +3700,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
       </div>
 
       {formOpen ? (
-        <LazyAddTestForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
+        <AddTestForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
       ) : (
         <div className="mt-6">
           <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
@@ -2856,6 +3714,481 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
 /* ------------------------------------------------------------------ */
 /*  Profil — login (Google), roʻyxatdan oʻtish, "Mening kurslarim"      */
 /* ------------------------------------------------------------------ */
+
+function BannerPicker({ value, onChange }) {
+  return (
+    <div className="mb-4 text-left">
+      <label className="block text-xs mb-2" style={{ ...fontMono, color: C.inkSoft }}>Banner rangi</label>
+      <div className="flex gap-2">
+        {Object.entries(BANNER_PRESETS).map(([key, b]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            aria-label={b.label}
+            className="w-9 h-9 rounded-full flex-shrink-0 transition-transform"
+            style={{
+              background: bannerGradient(key),
+              border: value === key ? `2px solid ${C.gold}` : `2px solid transparent`,
+              outline: value === key ? `1px solid ${C.gold}` : 'none',
+              outlineOffset: '2px',
+              transform: value === key ? 'scale(1.08)' : 'scale(1)',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UsernameField({ value, onChange, currentUserId, locked, lockedDaysLeft }) {
+  const [status, setStatus] = useState('idle'); // idle | checking | ok | taken | invalid | reserved
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (locked) return;
+    if (!value) { setStatus('idle'); return; }
+    if (!isValidUsername(value)) { setStatus('invalid'); return; }
+    if (isReservedUsername(value)) { setStatus('reserved'); return; }
+    setStatus('checking');
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      try {
+        const available = await checkUsernameAvailable(value, currentUserId);
+        setStatus(available ? 'ok' : 'taken');
+      } catch (e) {
+        setStatus('idle');
+      }
+    }, 450);
+    return () => clearTimeout(timerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, locked]);
+
+  const helper = locked
+    ? `Username'ni ${lockedDaysLeft} kundan keyin qayta o'zgartira olasiz`
+    : {
+        idle: 'Kamida 5 ta belgi: kichik lotin harflari, raqam, pastki chiziq (_)',
+        invalid: 'Notoʻgʻri format — faqat a-z, 0-9 va _ (5-20 belgi)',
+        checking: 'Tekshirilmoqda...',
+        ok: 'Bu username boʻsh ✓',
+        taken: 'Bu username band, boshqasini tanlang',
+        reserved: 'Bu nom band (rasmiy nom sifatida saqlangan)',
+      }[status];
+  const helperColor = locked ? C.inkSoft : status === 'ok' ? C.gold : (status === 'taken' || status === 'invalid' || status === 'reserved') ? C.red : C.inkSoft;
+
+  return (
+    <div className="mb-1 text-left">
+      <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Username</label>
+      <div className="flex items-center rounded-sm overflow-hidden" style={{ border: `1px solid ${C.rule}`, background: locked ? C.paper : C.paperSoft, opacity: locked ? 0.7 : 1 }}>
+        <span className="pl-3 pr-1 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>@</span>
+        <input
+          value={value}
+          onChange={(e) => onChange(normalizeUsername(e.target.value))}
+          placeholder="username"
+          disabled={locked}
+          className="flex-1 py-2.5 pr-3 text-[15px] bg-transparent outline-none"
+          style={{ ...fontBody, color: C.ink }}
+        />
+        {locked && <Lock size={14} style={{ color: C.inkSoft, marginRight: 10, flexShrink: 0 }} />}
+      </div>
+      <div className="text-xs mt-1 mb-4" style={{ ...fontMono, color: helperColor }}>{helper}</div>
+    </div>
+  );
+}
+
+function ProfileSetupForm({ defaultFirstName, defaultLastName, defaultBio, defaultBannerKey, currentUserId, onSave }) {
+  const [firstName, setFirstName] = useState(defaultFirstName || '');
+  const [lastName, setLastName] = useState(defaultLastName || '');
+  const [username, setUsername] = useState('');
+  const [usernameTouched, setUsernameTouched] = useState(false);
+  const [bio, setBio] = useState(defaultBio || '');
+  const [bannerKey, setBannerKey] = useState(defaultBannerKey || 'green');
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  /* Instagram uslubida: ism (va familiya, bo'lsa) o'zgargan sayin, agar
+     foydalanuvchi username'ni o'zi qo'lda tahrirlamagan bo'lsa, avtomatik
+     bo'sh nom taklif qilib beriladi. */
+  useEffect(() => {
+    if (usernameTouched) return;
+    if (!firstName.trim()) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const suggested = await suggestAvailableUsername(firstName.trim(), lastName.trim(), currentUserId);
+      if (!cancelled && !usernameTouched) setUsername(suggested);
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstName, lastName, usernameTouched]);
+
+  const canSubmit = firstName.trim() && isValidUsername(username);
+
+  async function submit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setFormError(null);
+    const res = await onSave(firstName.trim(), lastName.trim(), username, bio.trim(), bannerKey);
+    setBusy(false);
+    if (res && res.ok === false) setFormError(res.error);
+  }
+
+  return (
+    <div className="max-w-sm mx-auto mt-10 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+      <UserCircle2 size={28} style={{ color: C.gold }} className="mx-auto mb-2" />
+      <div className="text-lg mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Profilni tugating</div>
+      <div className="text-left">
+        <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
+        <TextField label="Familiya (ixtiyoriy)" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
+        <UsernameField value={username} onChange={(v) => { setUsernameTouched(true); setUsername(v); }} currentUserId={currentUserId} />
+        <TextField label="Bio (ixtiyoriy)" value={bio} onChange={setBio} placeholder="O'zingiz haqingizda qisqacha..." textarea rows={2} />
+        <BannerPicker value={bannerKey} onChange={setBannerKey} />
+      </div>
+      {formError && (
+        <div className="text-xs mb-3 text-left" style={{ ...fontBody, color: C.red }}>{formError}</div>
+      )}
+      <SolidButton onClick={submit} icon={Check} disabled={busy || !canSubmit}>
+        {busy ? 'Saqlanmoqda...' : 'Davom etish'}
+      </SolidButton>
+    </div>
+  );
+}
+
+function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClose }) {
+  const [firstName, setFirstName] = useState(profile.firstName || '');
+  const [lastName, setLastName] = useState(profile.lastName || '');
+  const [username, setUsername] = useState(profile.username || '');
+  const [bio, setBio] = useState(profile.bio || '');
+  const [bannerKey, setBannerKey] = useState(profile.bannerKey || 'green');
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+
+  const daysLeft = usernameChangeDaysLeft(profile.usernameChangedAt);
+  const usernameLocked = daysLeft > 0 && username !== profile.username;
+  const canSubmit = firstName.trim() && (username === profile.username ? true : isValidUsername(username)) && !usernameLocked;
+
+  async function submit() {
+    if (!canSubmit) return;
+    setBusy(true);
+    setFormError(null);
+    const res = await onSave(firstName.trim(), lastName.trim(), username, bio.trim(), bannerKey);
+    setBusy(false);
+    if (res && res.ok === false) setFormError(res.error);
+    else onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-sm p-6 my-8"
+        style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Settings size={18} style={{ color: C.gold }} />
+            <span className="text-base" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Sozlamalar</span>
+          </div>
+          <button onClick={onClose} aria-label="Yopish" style={{ color: C.inkSoft }}><X size={18} /></button>
+        </div>
+
+        <div className="text-left">
+          <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
+          <TextField label="Familiya (ixtiyoriy)" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
+          <UsernameField
+            value={username}
+            onChange={setUsername}
+            currentUserId={currentUserId}
+            locked={daysLeft > 0}
+            lockedDaysLeft={daysLeft}
+          />
+          <TextField label="Bio" value={bio} onChange={setBio} placeholder="O'zingiz haqingizda qisqacha..." textarea rows={2} />
+          <BannerPicker value={bannerKey} onChange={setBannerKey} />
+        </div>
+        {formError && (
+          <div className="text-xs mb-3 text-left" style={{ ...fontBody, color: C.red }}>{formError}</div>
+        )}
+        <SolidButton onClick={submit} icon={Check} disabled={busy || !canSubmit}>
+          {busy ? 'Saqlanmoqda...' : 'Saqlash'}
+        </SolidButton>
+
+        <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+          {!confirmSignOut ? (
+            <button
+              onClick={() => setConfirmSignOut(true)}
+              className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm"
+              style={{ ...fontBody, color: C.red, border: `1px solid ${C.red}` }}
+            >
+              <LogOut size={14} /> Hisobdan chiqish
+            </button>
+          ) : (
+            <div className="text-center">
+              <p className="text-xs mb-2" style={{ ...fontBody, color: C.inkSoft }}>Hisobdan chiqishni tasdiqlaysizmi?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmSignOut(false)}
+                  className="flex-1 text-[13px] px-3 py-2 rounded-sm"
+                  style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  onClick={onSignOut}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm"
+                  style={{ ...fontBody, color: C.white, background: C.red }}
+                >
+                  <LogOut size={14} /> Ha, chiqish
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout }) {
+  const [subTab, setSubTab] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [openCourseId, setOpenCourseId] = useState(null);
+  const [openTestId, setOpenTestId] = useState(null);
+  const [courseFormOpen, setCourseFormOpen] = useState(false);
+  const [testFormOpen, setTestFormOpen] = useState(false);
+  const [prefillCategory, setPrefillCategory] = useState('');
+  const [testFormMode, setTestFormMode] = useState(null);
+  const myBadge = useAuthorBadge(session?.user?.id);
+  const { pushNav } = useContext(NavContext);
+  const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
+
+  useEffect(() => {
+    if (target) {
+      setSubTab(target.type);
+      pushNav(() => setSubTab(null));
+      if (target.action === 'add') {
+        setOpenCourseId(null);
+        setOpenTestId(null);
+        setPrefillCategory(target.prefillCategory || '');
+        setTestFormMode(target.formMode || null);
+        if (target.type === 'kurslar') { setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }
+        if (target.type === 'testlar') { setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }
+      } else {
+        if (target.type === 'kurslar') { setOpenCourseId(target.id); pushNav(() => setOpenCourseId(null)); }
+        if (target.type === 'testlar') { setOpenTestId(target.id); pushNav(() => setOpenTestId(null)); }
+      }
+      onConsumeTarget();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="max-w-sm mx-auto mt-10 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <UserCircle2 size={28} style={{ color: C.gold }} className="mx-auto mb-2" />
+        <div className="text-lg mb-2" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Profil</div>
+        <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
+          Oʻz kursingizni yaratish, testlar tuzish va ularni kuzatib borish uchun hisob yarating. Kurslarni oʻrganish va testlarni ishlash uchun ro'yxatdan o'tish shart emas.
+        </p>
+        <SolidButton onClick={signInWithGoogle} icon={LogIn}>Google orqali kirish</SolidButton>
+        <div className="mt-6 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+          UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
+          <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile || !profile.username) {
+    const meta = session.user?.user_metadata || {};
+    const guessFirst = profile?.firstName || (meta.given_name || (meta.full_name || meta.name || '').split(' ')[0] || '');
+    const guessLast = profile?.lastName || (meta.family_name || (meta.full_name || meta.name || '').split(' ').slice(1).join(' ') || '');
+    return (
+      <ProfileSetupForm
+        defaultFirstName={guessFirst}
+        defaultLastName={guessLast}
+        defaultBio={profile?.bio || ''}
+        defaultBannerKey={profile?.bannerKey || 'green'}
+        currentUserId={session.user.id}
+        onSave={onSaveProfile}
+      />
+    );
+  }
+
+
+  const myCourses = courses.filter((c) => c.authorId === session.user.id);
+  const myTests = tests.filter((t) => t.authorId === session.user.id);
+
+  if (subTab === 'kurslar') {
+    return (
+      <CommunityCoursesView
+        mode="mine"
+        courses={myCourses}
+        categories={categories}
+        openId={openCourseId}
+        setOpenId={setOpenCourseId}
+        onBack={() => setSubTab(null)}
+        submitCourse={submitCourse}
+        approveCourse={null}
+        deleteCourse={deleteCourse}
+        formOpen={courseFormOpen}
+        onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }}
+        onCloseForm={() => setCourseFormOpen(false)}
+        prefillCategory={prefillCategory}
+        ensureCourseContent={ensureCourseContent}
+      />
+    );
+  }
+  if (subTab === 'testlar') {
+    return (
+      <CommunityTestsView
+        mode="mine"
+        tests={myTests}
+        categories={categories}
+        openId={openTestId}
+        setOpenId={setOpenTestId}
+        onBack={() => setSubTab(null)}
+        submitTest={submitTest}
+        approveTest={null}
+        deleteTest={deleteTest}
+        formOpen={testFormOpen}
+        onOpenForm={() => { setPrefillCategory(''); setTestFormMode(null); setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }}
+        onCloseForm={() => setTestFormOpen(false)}
+        prefillCategory={prefillCategory}
+        formMode={testFormMode}
+        ensureTestContent={ensureTestContent}
+      />
+    );
+  }
+
+  if (subTab === 'kolleksiya') {
+    return <CollectionsView session={session} onBack={() => setSubTab(null)} />;
+  }
+
+  return (
+    <div>
+      <div className="rounded-sm overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <div className="h-28 sm:h-32" style={{ background: bannerGradient(profile.bannerKey) }} />
+        <div className="px-5 pb-5 -mt-12 relative">
+          <div className="flex items-end justify-between gap-3">
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: C.surface, border: `3px solid ${C.surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
+            >
+              <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: bannerGradient(profile.bannerKey) }}>
+                <span className="text-xl" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>
+                  {(profile.firstName[0] || '').toUpperCase()}{(profile.lastName[0] || '').toUpperCase()}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Sozlamalar"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-full flex-shrink-0 mb-1"
+              style={{ color: C.inkSoft, border: `1px solid ${C.rule}`, background: C.surface }}
+            >
+              <Settings size={16} />
+            </button>
+          </div>
+
+          {settingsOpen && (
+            <ProfileSettingsPanel
+              profile={profile}
+              currentUserId={session.user.id}
+              onSave={onSaveProfile}
+              onSignOut={onSignOut}
+              onClose={() => setSettingsOpen(false)}
+            />
+          )}
+
+          <div className="mt-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-lg" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{`${profile.firstName} ${profile.lastName}`.trim()}</span>
+              {myBadge && <CollectibleThumb collectibleId={myBadge} size={20} />}
+              {isAdmin && (
+                <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}><ShieldCheck size={11} /> Admin</span>
+              )}
+            </div>
+            {profile.username && (
+              <div className="flex items-center gap-2">
+                <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{profile.username}</div>
+                <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`.trim()} small />
+              </div>
+            )}
+            {profile.bio && (
+              <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{profile.bio}</p>
+            )}
+          </div>
+
+          <div className="flex gap-6 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+            <div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myCourses.length}</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mavzular</div>
+            </div>
+            <div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myTests.length}</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
+            </div>
+            <div title="Tez orada">
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Followers</div>
+            </div>
+            <div title="Tez orada">
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
+              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Following</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
+      <div className="grid sm:grid-cols-2 gap-4">
+        <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <BookOpen size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening mavzularim</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myCourses.length} ta</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <ListChecks size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening testlarim</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myTests.length} ta</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('kolleksiya')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Award size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kolleksiyalar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Yigʻgan nishonlaringiz</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+      </div>
+
+      <div className="mt-8 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+        UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
+        <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>
+      </div>
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Yangiliklar (News)                                                  */
@@ -3290,30 +4623,16 @@ export default function App() {
       const visQ = vis ? `&${vis}` : '';
       const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
       const testListCols = 'id,category_id,title,description,author,author_id,status,created_at,question_count';
-      // Bosh sahifa faqat kategoriyalar va kurslar tayyor bo‘lishini kutadi.
-      // Testlar va yangiliklar parallel ravishda fonda yuklanadi — yangi
-      // tashrifchi birinchi mazmunli ekranni ularsiz ham darhol ko‘radi.
-      const auxiliaryPromise = Promise.all([
-        sbRequest(`tests?select=${testListCols}&order=created_at.asc${visQ}`),
-        sbSelect('news'),
-      ]);
-      const [catRows, courseRows] = await Promise.all([
+      const [catRows, courseRows, testRows, newsRows] = await Promise.all([
         sbSelect('categories', vis),
         sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`),
+        sbRequest(`tests?select=${testListCols}&order=created_at.asc${visQ}`), sbSelect('news'),
       ]);
 
       setCategories(catRows.map(categoryFromRow));
       setCourses(courseRows.map(courseFromRow));
-      if (!silent) setLoading(false);
-
-      try {
-        const [testRows, newsRows] = await auxiliaryPromise;
-        setTests(testRows.map(testFromRow));
-        setNews(newsRows.map(newsFromRow));
-      } catch (auxError) {
-        // Yordamchi bo‘limlar xatosi bosh sahifani bloklamaydi.
-        console.error('Testlar/yangiliklarni fonda yuklashda xatolik:', auxError);
-      }
+      setTests(testRows.map(testFromRow));
+      setNews(newsRows.map(newsFromRow));
     } catch (e) {
       // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
       // odatda ishlab ketadi) — shuning uchun foydalanuvchiga texnik
@@ -3895,13 +5214,12 @@ export default function App() {
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
               {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
               {viewingUsername && (
-                <Suspense fallback={<LazyFallback />}><PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} /></Suspense>
+                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} />
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'profil' && (
-                <Suspense fallback={<LazyFallback />}>
-<ProfileView
+                <ProfileView
                   session={session}
                   profile={profile}
                   authLoading={authLoading}
@@ -3923,7 +5241,6 @@ export default function App() {
                   ensureTestContent={ensureTestContent}
                   onGoToAbout={() => goTo('about')}
                 />
-                </Suspense>
               )}
               {!viewingUsername && tab === 'admin' && isAdmin && (
                 <Suspense fallback={

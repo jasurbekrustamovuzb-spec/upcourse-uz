@@ -9,7 +9,6 @@ import {
   sbInsert, sbUpdate, sbDelete, isQuestionCorrect, computeSyncScore,
   getDeviceKey, estimatedServerNow, advanceSyncPhase,
 } from './App';
-import MatchingQuestion, { isMatchingComplete } from './MatchingQuestion';
 
 /* ------------------------------------------------------------------ */
 /*  Ixcham QR-kod generatori (ISO/IEC 18004, Byte rejimi, "M" xato     */
@@ -375,12 +374,6 @@ function LiveLeaderboardList({ participants, showAsPoints }) {
   );
 }
 
-function formatCorrectAnswer(question) {
-  if (question.type === 'matching') return (question.pairs || []).map((pair) => pair.left + ' → ' + pair.right).join(' · ');
-  if (question.type === 'open') return (question.answers && question.answers[0]) || '';
-  return question.options?.[question.correct] ?? '';
-}
-
 /* "Barchaga bir xil" (Kahoot uslubi) rejimida tuzuvchi ekrani —
    savol/reyting almashtirish, avtomatik keyingi savolga o'tish,
    yakunda podium (3-2-1 o'rin) ko'rsatish. */
@@ -535,9 +528,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
           {currentQuestion.imageUrl && (
             <img src={currentQuestion.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
           )}
-          {currentQuestion.type === 'matching' ? (
-            <MatchingQuestion question={currentQuestion} value={(currentQuestion.pairs || []).map((_, index) => index)} disabled />
-          ) : currentQuestion.type === 'open' ? (
+          {currentQuestion.type === 'open' ? (
             <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Yozma javobli savol — ishtirokchilar o'z ekranida javob yozmoqda.</div>
           ) : (
             <div className="space-y-2">
@@ -561,7 +552,9 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
       {room.phase === 'intermission' && showingReveal && !peekLeaderboard && currentQuestion && (
         <div className="max-w-2xl">
           {(() => {
-            const correctText = formatCorrectAnswer(currentQuestion);
+            const correctText = currentQuestion.type === 'open'
+              ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
+              : currentQuestion.options?.[currentQuestion.correct] ?? '';
             const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
             return (
               <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.successTint, border: `1px solid ${C.accent}`, color: C.ink }}>
@@ -944,7 +937,6 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
 function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const [myAnswers, setMyAnswers] = useState({});
   const [openText, setOpenText] = useState('');
-  const [matchingDraft, setMatchingDraft] = useState([]);
   const [now, setNow] = useState(estimatedServerNow());
   const [participants, setParticipants] = useState([]);
   const scoreRef = useRef(participant.score || 0);
@@ -999,8 +991,6 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
 
   useEffect(() => {
     setOpenText('');
-    setMatchingDraft([]);
-    setMatchingDraft([]);
   }, [room.currentIndex]);
 
   async function submitAnswer(answerValue) {
@@ -1075,17 +1065,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
             <div className="flex items-center gap-2 px-4 py-3 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.liveTint, border: `1px solid ${C.live}`, color: C.ink }}>
               <Check size={16} style={{ color: C.live }} /> Javobingiz qabul qilindi. Kuting...
             </div>
-          ) : currentQuestion.type === 'matching' ? (
-             <MatchingQuestion
-               key={currentQuestion.id}
-               question={currentQuestion}
-               value={matchingDraft}
-               onChange={(next) => {
-                 setMatchingDraft(next);
-                 if (isMatchingComplete(currentQuestion, next)) submitAnswer(next);
-               }}
-             />
-           ) : currentQuestion.type === 'open' ? (
+          ) : currentQuestion.type === 'open' ? (
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -1127,7 +1107,9 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
           {(() => {
             const myAnswer = myAnswers[currentQuestion.id];
             const wasCorrect = !!myAnswer?.correct;
-            const correctText = formatCorrectAnswer(currentQuestion);
+            const correctText = currentQuestion.type === 'open'
+              ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
+              : currentQuestion.options?.[currentQuestion.correct] ?? '';
             return (
               <div
                 className="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-[15px]"
@@ -1289,15 +1271,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
             {q.imageUrl && (
               <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
             )}
-            {q.type === 'matching' ? (
-               <MatchingQuestion
-                 key={q.id}
-                 question={q}
-                 value={answers[q.id] || []}
-                 onChange={(next) => setAnswers((current) => ({ ...current, [q.id]: next }))}
-                 disabled={submitted}
-               />
-             ) : q.type === 'open' ? (
+            {q.type === 'open' ? (
               <input
                 type="text"
                 value={answers[q.id] || ''}
