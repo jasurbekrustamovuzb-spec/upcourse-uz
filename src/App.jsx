@@ -2190,9 +2190,17 @@ function isOpenAnswerCorrect(question, userAnswer) {
   return false;
 }
 
-/* Har ikki savol turi (variantli / yozma) uchun umumiy tekshiruv */
+/* Matching savolida javob — chap tomondagi har bir band uchun o‘ng tomondagi juftlik indekslari. */
+export function isMatchingAnswerCorrect(question, userAnswer) {
+  const pairs = question.pairs || [];
+  if (!Array.isArray(userAnswer) || userAnswer.length !== pairs.length) return false;
+  return userAnswer.every((pairIndex, leftIndex) => Number(pairIndex) === leftIndex);
+}
+
+/* Har uch savol turi (variantli / yozma / moslashtirish) uchun umumiy tekshiruv */
 export function isQuestionCorrect(q, userAnswer) {
   if (q.type === 'open') return isOpenAnswerCorrect(q, userAnswer);
+  if (q.type === 'matching') return isMatchingAnswerCorrect(q, userAnswer);
   return userAnswer === q.correct;
 }
 
