@@ -1444,7 +1444,10 @@ function extractYouTubeId(url) {
   } catch (e) {
     // not a valid URL
   }
-  returfunction YouTubeEmbed({ url }) {
+  return null;
+}
+
+function YouTubeEmbed({ url }) {
   const [playing, setPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const playerShellRef = useRef(null);
