@@ -1454,7 +1454,7 @@ function YouTubeEmbed({ url }) {
   const videoId = extractYouTubeId(url);
   const fullscreenCss = [
     ".youtube-player-shell:fullscreen, .youtube-player-shell:-webkit-full-screen { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: #000 !important; z-index: 2147483647 !important; display: flex !important; align-items: center !important; justify-content: center !important; }",
-    ".youtube-player-shell:fullscreen .youtube-player-frame, .youtube-player-shell:-webkit-full-screen .youtube-player-frame { position: static !important; inset: auto !important; flex: 0 0 auto !important; width: 100% !important; height: 100% !important; max-width: 100vw !important; max-height: 100vh !important; transform: none !important; }"
+    ".youtube-player-shell:fullscreen .youtube-player-frame, .youtube-player-shell:-webkit-full-screen .youtube-player-frame { position: static !important; inset: auto !important; flex: 0 0 auto !important; width: min(100vw, 177.7778vh) !important; height: min(100vh, 56.25vw) !important; aspect-ratio: 16 / 9 !important; max-width: 100vw !important; max-height: 100vh !important; transform: none !important; }"
   ].join('');
 
   useEffect(() => {
@@ -1509,7 +1509,7 @@ function YouTubeEmbed({ url }) {
             <button
               type="button"
               onClick={toggleFullscreen}
-              className="absolute top-3 right-3 z-20 flex items-center justify-center rounded-md transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2"
+              className="absolute bottom-12 right-3 z-20 flex items-center justify-center rounded-md transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2"
               style={{ width: 38, height: 38, background: 'rgba(0,0,0,0.72)', color: '#fff', outlineColor: C.gold }}
               aria-label={isFullscreen ? 'Toʻliq ekrandan chiqish' : 'Toʻliq ekranga oʻtish'}
               title={isFullscreen ? 'Toʻliq ekrandan chiqish' : 'Toʻliq ekran'}
