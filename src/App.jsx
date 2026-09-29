@@ -2105,7 +2105,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2222,7 +2222,17 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
       <div>
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
         <SearchBox value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
-        {isSearching ? (
+        {isLoading ? (
+          <div aria-busy="true" aria-label="Mavzular yuklanmoqda" className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="p-3 sm:p-4 rounded-sm animate-pulse" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+                <div className="h-4 rounded-sm" style={{ background: C.rule, width: `${58 + (i % 3) * 12}%`, opacity: 0.6 }} />
+                <div className="h-3 rounded-sm mt-2.5" style={{ background: C.rule, width: '42%', opacity: 0.45 }} />
+                <div className="h-3 rounded-sm mt-1.5" style={{ background: C.rule, width: '60%', opacity: 0.35 }} />
+              </div>
+            ))}
+          </div>
+        ) : isSearching ? (
           noSearchResults ? (
             <EmptyState text="Hech narsa topilmadi." cta="Boshqa soʻz bilan qidirib koʻring." />
           ) : (
@@ -5375,7 +5385,7 @@ export default function App() {
 
       {/* Content */}
       <main className="flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full">
-        {(loading && !skipMainLoadingGate) ? (
+        {(loading && !skipMainLoadingGate && tab !== 'kurslar') ? (
           <div aria-busy="true" aria-label="Yuklanmoqda">
             {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
             <div className="mb-6">
@@ -5441,7 +5451,7 @@ export default function App() {
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'profil' && (
                 <ProfileView
