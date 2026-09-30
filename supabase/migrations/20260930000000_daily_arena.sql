@@ -39,14 +39,15 @@ create or replace function public.daily_arena_division(p_rank bigint)
 returns text language sql immutable set search_path = public, pg_temp
 as $$
   select case
-    when p_rank <= 10 then 'legend'
-    when p_rank <= 100 then 'diamond'
-    when p_rank <= 250 then 'platinum'
-    when p_rank <= 500 then 'gold'
-    when p_rank <= 1000 then 'silver'
+    when coalesce(p_rank,0) >= 15000 then 'legend'
+    when coalesce(p_rank,0) >= 9000 then 'diamond'
+    when coalesce(p_rank,0) >= 5000 then 'platinum'
+    when coalesce(p_rank,0) >= 2500 then 'gold'
+    when coalesce(p_rank,0) >= 1000 then 'silver'
     else 'bronze'
   end
 $$;
+revoke all on function public.daily_arena_division(bigint) from public, anon, authenticated;
 revoke all on function public.daily_arena_division(bigint) from public, anon, authenticated;
 
 create or replace function public.daily_arena_options(p_correct text, p_decoys text[], p_offset integer)
@@ -344,6 +345,7 @@ declare
   v_answers jsonb;
   v_completed boolean;
   v_month date := date_trunc('month',(now() at time zone 'Asia/Tashkent'))::date;
+  v_month_points bigint := 0;
 begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
   v_challenge := public.daily_arena_build_challenge(v_date);
@@ -387,20 +389,13 @@ begin
 
   insert into public.daily_arena_badges(user_id,season_start,badge)
     values(v_user,v_month,'debut') on conflict do nothing;
-  -- Division sovgʻalari saqlanib qoladi; oylik reyting o'zgarganda o'chmaydi.
-  with totals as (
-    select user_id,sum(score)::bigint points,min(completed_at) completed
+  select coalesce(sum(score),0)::bigint into v_month_points
     from public.daily_arena_progress
-    where challenge_date >= v_month and challenge_date < (v_month + interval '1 month')::date
-    group by user_id
-  ), ranked as (
-    select user_id,row_number() over(order by points desc,completed asc nulls last,user_id) place
-    from totals
-  )
+    where user_id=v_user and challenge_date>=v_month and challenge_date<(v_month+interval '1 month')::date;
   insert into public.daily_arena_badges(user_id,season_start,badge)
-  select v_user,v_month,b.badge from ranked r
-  cross join (values ('silver',1000),('gold',500),('platinum',250),('diamond',100),('legend',10)) as b(badge,top_rank)
-  where r.user_id=v_user and r.place<=b.top_rank
+  select v_user,v_month,b.badge
+  from (values ('silver',1000),('gold',2500),('platinum',5000),('diamond',9000),('legend',15000)) as b(badge,minimum_points)
+  where v_month_points>=b.minimum_points
   on conflict do nothing;
 
   return jsonb_build_object(
@@ -411,6 +406,8 @@ begin
   );
 end
 $$;
+revoke all on function public.daily_arena_submit_answer(smallint,text) from public, anon;
+grant execute on function public.daily_arena_submit_answer(smallint,text) to authenticated;
 revoke all on function public.daily_arena_submit_answer(smallint,text) from public, anon;
 grant execute on function public.daily_arena_submit_answer(smallint,text) to authenticated;
 
@@ -424,22 +421,7 @@ declare
   v_rows jsonb;
   v_total bigint;
 begin
-  with totals as (
-    select p.user_id,sum(p.score)::bigint points,min(p.completed_at) completed
-    from public.daily_arena_progress p
-    where (v_period='day' and p.challenge_date=v_today)
-       or (v_period='month' and p.challenge_date>=v_month and p.challenge_date<(v_month+interval '1 month')::date)
-    group by p.user_id
-  ), ranked as (
-    select t.*,row_number() over(order by t.points desc,t.completed asc nulls last,t.user_id) place,
-      count(*) over() total
-    from totals t
-  ), visible as (
-    select r.*,public.daily_arena_division(r.place) division from ranked r
-    where p_division is null or public.daily_arena_division(r.place)=p_division
-  )
-  select count(*) into v_total from ranked;
-  with totals as (
+  with period_totals as (
     select p.user_id,sum(p.score)::bigint points,min(p.completed_at) completed
     from public.daily_arena_progress p
     where (v_period='day' and p.challenge_date=v_today)
@@ -447,10 +429,28 @@ begin
     group by p.user_id
   ), ranked as (
     select t.*,row_number() over(order by t.points desc,t.completed asc nulls last,t.user_id) place
-    from totals t
+    from period_totals t
+  )
+  select count(*) into v_total from ranked;
+
+  with period_totals as (
+    select p.user_id,sum(p.score)::bigint points,min(p.completed_at) completed
+    from public.daily_arena_progress p
+    where (v_period='day' and p.challenge_date=v_today)
+       or (v_period='month' and p.challenge_date>=v_month and p.challenge_date<(v_month+interval '1 month')::date)
+    group by p.user_id
+  ), monthly_totals as (
+    select p.user_id,sum(p.score)::bigint season_points
+    from public.daily_arena_progress p
+    where p.challenge_date>=v_month and p.challenge_date<(v_month+interval '1 month')::date
+    group by p.user_id
+  ), ranked as (
+    select t.*,row_number() over(order by t.points desc,t.completed asc nulls last,t.user_id) place
+    from period_totals t
   ), visible as (
-    select r.*,public.daily_arena_division(r.place) division from ranked r
-    where p_division is null or public.daily_arena_division(r.place)=p_division
+    select r.*,public.daily_arena_division(coalesce(m.season_points,0)) division
+    from ranked r left join monthly_totals m on m.user_id=r.user_id
+    where p_division is null or public.daily_arena_division(coalesce(m.season_points,0))=p_division
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'rank',v.place,'user_id',v.user_id,'division',v.division,'points',v.points,
@@ -462,6 +462,8 @@ begin
   return jsonb_build_object('period',v_period,'month',v_month,'participants',coalesce(v_total,0),'rows',v_rows);
 end
 $$;
+revoke all on function public.daily_arena_leaderboard(text,text,integer) from public;
+grant execute on function public.daily_arena_leaderboard(text,text,integer) to anon, authenticated;
 revoke all on function public.daily_arena_leaderboard(text,text,integer) from public;
 grant execute on function public.daily_arena_leaderboard(text,text,integer) to anon, authenticated;
 
@@ -488,7 +490,7 @@ begin
     from totals t
   )
   select points,place,total into v_points,v_rank,v_total from ranked where user_id=v_target;
-  if v_rank is not null then v_division:=public.daily_arena_division(v_rank); end if;
+  v_division:=public.daily_arena_division(v_points);
   select coalesce(jsonb_agg(jsonb_build_object('badge',badge,'season',season_start,'earned_at',earned_at) order by season_start desc,badge),'[]'::jsonb)
     into v_badges from public.daily_arena_badges where user_id=v_target;
   return jsonb_build_object(
@@ -497,5 +499,7 @@ begin
   );
 end
 $$;
+revoke all on function public.daily_arena_get_profile(uuid) from public;
+grant execute on function public.daily_arena_get_profile(uuid) to anon, authenticated;
 revoke all on function public.daily_arena_get_profile(uuid) from public;
 grant execute on function public.daily_arena_get_profile(uuid) to anon, authenticated;
