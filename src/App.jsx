@@ -4562,9 +4562,9 @@ function useNavStack() {
 /* ------------------------------------------------------------------ */
 
 /* Asosiy navigatsiya — mobil pastki panel va desktop yon panelda ishlatiladi.
-   "Kurs yaratish" markaziy tugmasi alohida, TABS ichida emas.
-   "Biz haqimizda" va "Admin panel" ushbu asosiy 4 ta band ichiga kirmaydi —
-   ular sarlavha/footer orqali ochiladi (pastga qarang). */
+   Mobil panelda beshta asosiy bo‘lim teng joy egallaydi; yaratish menyusi
+   faqat desktop yon panelda qoladi. "Biz haqimizda" va "Admin panel"
+   footer/yon panel orqali ochiladi. */
 const TABS = [
   { id: 'kurslar', label: 'Bosh sahifa', icon: Home },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
@@ -5304,13 +5304,11 @@ export default function App() {
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const createMenuDeskRef = useRef(null);
-  const createMenuMobileRef = useRef(null);
   useEffect(() => {
     if (!createMenuOpen) return;
     function handler(e) {
       const insideDesk = createMenuDeskRef.current && createMenuDeskRef.current.contains(e.target);
-      const insideMobile = createMenuMobileRef.current && createMenuMobileRef.current.contains(e.target);
-      if (!insideDesk && !insideMobile) setCreateMenuOpen(false);
+      if (!insideDesk) setCreateMenuOpen(false);
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -5640,81 +5638,31 @@ export default function App() {
 
       </div>
 
-      {/* Mobil pastki navigatsiya paneli */}
+      {/* Mobil pastki navigatsiya paneli: beshta bo‘lim teng kenglikda */}
       {!readingActive && (
         <nav
-          className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center justify-around px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-2 rounded-t-[28px]"
+          className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center px-1.5 pb-[max(6px,env(safe-area-inset-bottom))] pt-2"
           style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})`, boxShadow: '0 -6px 20px rgba(15,61,46,0.25)' }}
           aria-label="Asosiy navigatsiya"
         >
-          {TABS.slice(0, 2).map((t) => {
+          {TABS.map((t) => {
             const Icon = t.icon;
             const activeTab = tab === t.id;
+            const label = t.id === 'arena' ? 'Arena' : t.label;
             return (
               <button
                 key={t.id}
                 onClick={() => goTo(t.id)}
-                className="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl focus-visible:outline focus-visible:outline-2"
+                aria-current={activeTab ? 'page' : undefined}
+                className="nav-btn flex flex-1 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1.5 rounded-2xl focus-visible:outline focus-visible:outline-2"
                 style={{
-                  color: activeTab ? C.cover : 'rgba(251,250,243,0.65)',
+                  color: activeTab ? C.cover : 'rgba(251,250,243,0.72)',
                   background: activeTab ? C.gold : 'transparent',
                   outlineColor: C.gold,
                 }}
               >
                 <Icon size={19} strokeWidth={activeTab ? 2.3 : 1.8} />
-                <span className="text-[10px]" style={{ ...fontBody, fontWeight: activeTab ? 600 : 400 }}>{t.label}</span>
-              </button>
-            );
-          })}
-
-          <div className="relative" ref={createMenuMobileRef}>
-            <button
-              onClick={() => setCreateMenuOpen((v) => !v)}
-              aria-label="Yaratish"
-              className="nav-btn flex items-center justify-center w-12 h-12 rounded-full -mt-5 shadow-lg focus-visible:outline focus-visible:outline-2"
-              style={{ background: C.gold, color: C.cover, outlineColor: C.goldSoft, boxShadow: '0 4px 14px rgba(212,172,110,0.45)' }}
-            >
-              <Plus size={22} strokeWidth={2.4} style={{ transform: createMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.15s' }} />
-            </button>
-            {createMenuOpen && (
-              <div
-                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-30 rounded-xl overflow-hidden"
-                style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.22)', minWidth: '180px' }}
-              >
-                <button
-                  onClick={() => pickCreate('kurslar')}
-                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[14px] text-left"
-                  style={{ ...fontBody, color: C.ink }}
-                >
-                  <BookOpen size={16} style={{ color: C.gold }} /> Mavzu yaratish
-                </button>
-                <button
-                  onClick={() => pickCreate('testlar')}
-                  className="w-full flex items-center gap-2.5 px-4 py-3 text-[14px] text-left"
-                  style={{ ...fontBody, color: C.ink, borderTop: `1px solid ${C.rule}` }}
-                >
-                  <ListChecks size={16} style={{ color: C.gold }} /> Test yaratish
-                </button>
-              </div>
-            )}
-          </div>
-
-          {TABS.slice(2).map((t) => {
-            const Icon = t.icon;
-            const activeTab = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => goTo(t.id)}
-                className="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl focus-visible:outline focus-visible:outline-2"
-                style={{
-                  color: activeTab ? C.cover : 'rgba(251,250,243,0.65)',
-                  background: activeTab ? C.gold : 'transparent',
-                  outlineColor: C.gold,
-                }}
-              >
-                <Icon size={19} strokeWidth={activeTab ? 2.3 : 1.8} />
-                <span className="text-[10px]" style={{ ...fontBody, fontWeight: activeTab ? 600 : 400 }}>{t.label}</span>
+                <span className="text-[10px] leading-tight whitespace-nowrap" style={{ ...fontBody, fontWeight: activeTab ? 600 : 400 }}>{label}</span>
               </button>
             );
           })}
