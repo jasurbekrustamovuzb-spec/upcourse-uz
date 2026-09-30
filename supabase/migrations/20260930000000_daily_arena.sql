@@ -30,6 +30,7 @@ create table if not exists public.daily_arena_badges (
 alter table public.daily_arena_progress enable row level security;
 alter table public.daily_arena_stage_attempts enable row level security;
 alter table public.daily_arena_badges enable row level security;
+revoke all on table public.daily_arena_progress, public.daily_arena_stage_attempts, public.daily_arena_badges from anon, authenticated;
 
 create index if not exists daily_arena_progress_date_score_idx
   on public.daily_arena_progress(challenge_date, score desc, completed_at);
@@ -120,36 +121,36 @@ declare
   v_logic_prompts text[] := array[
     'Barcha arxivchilar tartibli. Malika arxivchi. Qaysi xulosa shartlardan kelib chiqadi?',
     'Agar signal yoqilgan boʻlsa, chiroq yonadi. Chiroq yonmayapti. Nimani aniq xulosa qilish mumkin?',
-    'Uch taqdimotdan biri ertalab, qolganlari tushdan keyin. Ali ertalab emas, Vali Alidan oldin. Kim ertalab taqdimot qiladi?',
-    'Uch bayonotdan aynan bittasi rost: “Kalit qutida”, “Kalit stol ostida”, “Kalit qutida emas”. Kalit qayerda?',
-    'A, B, C navbat bilan chiqadi. A B dan oldin, C A dan keyin. Qaysi tartib ikkala shartga ham mos?'
+    'Vali, Ali va Zuhra ketma-ket tartibda chiqadi. Vali Alidan oldin, Zuhra Alidan keyin chiqadi. Birinchi boʻlib kim chiqadi?',
+    'Kalit A, B yoki C qutida. A yozuvi: “Kalit A da emas.” B yozuvi: “Kalit A da.” C yozuvi: “Kalit C da emas.” Yozuvlardan aynan bittasi rost. Kalit qaysi qutida?',
+    'A, B, C navbat bilan chiqadi. A B dan oldin, C A dan keyin va B dan oldin. Qaysi tartib ikkala shartga ham mos?'
   ];
   v_logic_correct text[] := array[
     'Malika tartibli.',
     'Signal yoqilmagan.',
     'Vali.',
-    'Quti ichida.',
+    'C qutida.',
     'A, C, B.'
   ];
   v_logic_d1 text[] := array[
     'Barcha tartibli odamlar arxivchi.',
     'Signal albatta yoqilgan.',
     'Ali.',
-    'Stol ostida.',
+    'A qutida.',
     'B, A, C.'
   ];
   v_logic_d2 text[] := array[
     'Malika arxivchi emas.',
     'Chiroq buzilganini aniq bilamiz.',
     'Ali va Vali.',
-    'Ikkala joyda ham.',
+    'B qutida.',
     'C, A, B.'
   ];
   v_logic_d3 text[] := array[
     'Malika tartibli yoki arxivchi emas.',
     'Signal yoqilgan, ammo chiroq ishlamayapti.',
     'Ali ham, Vali ham emas.',
-    'Berilganlardan aniqlab boʻlmaydi.',
+    'Aniqlab boʻlmaydi.',
     'A, B, C.'
   ];
 begin
@@ -224,7 +225,7 @@ begin
         when 2 then v_words := array['mantiq','fikrlar','tartib','sabab','dalil'];
         when 3 then v_words := array['tafakkur','ehtimol','muvozanat','xulosa','izlanish'];
         when 4 then v_words := array['tasavvur','munosabat','kuzatuv','qarorlar','tahlillar'];
-        else v_words := array['muvaffaqiyat','masuliyat','mustaqillik','qonuniyat','muammolar'];
+        else v_words := array['muvaffaqiyat','mehnatsevar','mustaqillik','qonuniyat','muammolar'];
       end case;
       v_word := v_words[mod(v_variant + v_stage - 1, array_length(v_words,1)) + 1];
       v_correct := lower(v_word);
