@@ -122,7 +122,7 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
           {loadingId === test.id ? <Loader2 size={18} className="animate-spin flex-shrink-0" style={{ color: C.math }} /> : <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: C.mathDeep, background: C.mathTint }}><Shuffle size={15} /></span>}
           <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium" style={{ ...fontBody }}>{test.title}</span><span className="block text-xs mt-0.5 truncate" style={{ ...fontBody, color: C.inkSoft }}>{categories.find((cat) => cat.id === test.categoryId)?.name || 'Test'} · {test.questionCount || test.questions?.length || 0} savol</span></span>
           {selectedTest?.id === test.id && <Check size={17} style={{ color: C.math, flexShrink: 0 }} />}
-        </button>)}</div>
+        </button>)}</div>}
         {!testsLoading && !testsLoadError && !filteredTests.length && <p className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>{tests.length ? 'Qidiruv boʻyicha test topilmadi.' : 'Hozircha foydalanish mumkin boʻlgan test yoʻq.'}</p>}
       </section>
       <section className="p-4 sm:p-5 rounded-xl mb-4" style={{ background: C.surface, border: `1px solid ${C.rule}`, opacity: selectedTest ? 1 : 0.58 }}>
