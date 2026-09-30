@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2
+  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -16,6 +16,8 @@ const AdminPanelView = lazy(() => import('./AdminPanel.jsx'));
 const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
 const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
+const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
+const ArenaProfileBadgeView = lazy(() => import('./DailyArena.jsx').then((module) => ({ default: module.ArenaProfileBadge })));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -888,6 +890,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem }) {
               <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{row.username}</div>
               <ShareButton url={buildShareUrl({ u: row.username })} title={fullName || row.username} small />
             </div>
+            <Suspense fallback={null}><ArenaProfileBadgeView userId={row.id} /></Suspense>
             {row.bio && <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{row.bio}</p>}
           </div>
 
@@ -2105,7 +2108,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2221,6 +2224,21 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     return (
       <div>
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
+        <button
+          type="button"
+          onClick={onOpenArena}
+          className="w-full flex items-center justify-between gap-4 p-4 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
+          style={{ background: `linear-gradient(110deg, ${C.cover}, ${C.coverDeep})`, color: C.white, border: `1px solid ${C.coverLine}`, outlineColor: C.gold }}
+        >
+          <span className="flex items-center gap-3 min-w-0">
+            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: C.gold, color: C.cover }}><Zap size={19} /></span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold" style={fontBody}>Bugungi Arena</span>
+              <span className="block text-xs mt-1 opacity-80" style={fontBody}>Har kuni yangi mantiqiy chaqiriq · reyting va ligalar</span>
+            </span>
+          </span>
+          <ChevronRight size={18} className="flex-shrink-0" />
+        </button>
         <SearchBox value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
         {isLoading ? (
           <div aria-busy="true" aria-label="Mavzular yuklanmoqda" className="grid sm:grid-cols-2 gap-3 sm:gap-4">
@@ -4362,6 +4380,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
                 <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`.trim()} small />
               </div>
             )}
+            <Suspense fallback={null}><ArenaProfileBadgeView userId={session.user.id} /></Suspense>
             {profile.bio && (
               <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{profile.bio}</p>
             )}
@@ -4549,6 +4568,7 @@ function useNavStack() {
 const TABS = [
   { id: 'kurslar', label: 'Bosh sahifa', icon: Home },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
+  { id: 'arena', label: 'Kunlik Arena', icon: Zap },
   { id: 'yangiliklar', label: 'Yangiliklar', icon: Newspaper },
   { id: 'profil', label: 'Profil', icon: UserCircle2 },
 ];
@@ -4585,7 +4605,7 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const VALID_TABS = ['kurslar', 'testlar', 'yangiliklar', 'profil', 'admin'];
+  const VALID_TABS = ['kurslar', 'testlar', 'arena', 'yangiliklar', 'profil', 'admin'];
   /* Jonli test havolasi (masalan /live/ABC123) orqali kirilganda —
      qo'shilish ekrani (LiveJoinForm/LiveQuizHub) kurslar, testlar
      ro'yxati yoki yangiliklarga UMUMAN muhtoj emas (faqat xona kodi +
@@ -5551,8 +5571,13 @@ export default function App() {
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
+              {!viewingUsername && tab === 'arena' && (
+                <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
+                  <DailyArenaView session={session} onExit={() => goTo('kurslar')} />
+                </Suspense>
+              )}
               {!viewingUsername && tab === 'profil' && (
                 <ProfileView
                   session={session}
