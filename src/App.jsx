@@ -3276,7 +3276,7 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
 /*  Jonli test rejimi — endi ./LiveQuiz.jsx faylida (lazy-load)        */
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent }) {
+function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [setupMode, setSetupMode] = useState(false);
@@ -3371,7 +3371,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
       </div>
     }>
-      <LiveQuizHub tests={viewable} session={session} onExit={back} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
+      <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={back} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
     </Suspense>
   );
 
@@ -3381,7 +3381,7 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
       </div>
     }>
-      <TeamBattleHub tests={viewable} categories={categories} ensureTestContent={ensureTestContent} onExit={back} />
+      <TeamBattleHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} categories={categories} ensureTestContent={ensureTestContent} onExit={back} />
     </Suspense>
   );
 
@@ -3470,7 +3470,16 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
-        {isSearching ? (
+        {testsLoading && !tests.length ? (
+          <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+            <Loader2 size={17} className="animate-spin" /> Testlar yuklanmoqda...
+          </div>
+        ) : testsLoadError && !tests.length ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
+            <span>{testsLoadError}</span>
+            <button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button>
+          </div>
+        ) : isSearching ? (
           noSearchResults ? (
             <EmptyState text="Hech narsa topilmadi." cta="Boshqa soʻz bilan qidirib koʻring." />
           ) : (
@@ -3553,7 +3562,16 @@ function TestsView({ tests, categories, updateTest, deleteTest, renameCategory, 
         <ArrowLeft size={15} /> Barcha sohalar
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
-      {inCategory.length === 0 ? (
+      {testsLoading && !tests.length ? (
+        <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={17} className="animate-spin" /> Testlar yuklanmoqda...
+        </div>
+      ) : testsLoadError && !tests.length ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
+          <span>{testsLoadError}</span>
+          <button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button>
+        </div>
+      ) : inCategory.length === 0 ? (
         <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
@@ -4591,6 +4609,9 @@ export default function App() {
   const [categories, setCategories] = useState([]);
   const [courses, setCourses] = useState([]);
   const [tests, setTests] = useState([]);
+  const [testsLoading, setTestsLoading] = useState(false);
+  const [testsLoadError, setTestsLoadError] = useState(null);
+  const testsLoadRef = useRef({ generation: 0, loadedKey: null, requestKey: null, promise: null });
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -4832,6 +4853,68 @@ export default function App() {
     return existing?.questions;
   }, [tests]);
 
+  const loadTests = useCallback(async (force = false) => {
+    const userId = session?.user?.id || null;
+    const cacheKey = isAdmin ? 'admin' : userId ? 'user:' + userId : 'public';
+    const loadState = testsLoadRef.current;
+    if (!force && loadState.loadedKey === cacheKey) return;
+    if (!force && loadState.requestKey === cacheKey && loadState.promise) return loadState.promise;
+    if (!isSupabaseConfigured()) {
+      setTestsLoadError('Testlarni yuklash uchun Supabase ulanishi sozlanmagan.');
+      return;
+    }
+    const generation = ++loadState.generation;
+    loadState.requestKey = cacheKey;
+    setTestsLoading(true);
+    setTestsLoadError(null);
+    const request = (async () => {
+      const controller = new AbortController();
+      let timeoutId;
+      try {
+        const vis = visibilityFilter(userId, isAdmin);
+        const visQ = vis ? '&' + vis : '';
+        const columns = 'id,category_id,title,description,author,author_id,status,created_at,question_count';
+        const rows = await Promise.race([
+          sbRequest('tests?select=' + columns + '&order=created_at.asc' + visQ, { signal: controller.signal }),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+              controller.abort();
+              reject(new Error('Testlarni yuklash vaqti tugadi.'));
+            }, 20000);
+          }),
+        ]);
+        if (loadState.generation !== generation) return;
+        setTests((previous) => {
+          const previousById = new Map(previous.map((test) => [test.id, test]));
+          return rows.map((row) => {
+            const next = testFromRow(row);
+            const cached = previousById.get(next.id);
+            return cached?.questions !== undefined
+              ? { ...next, questions: cached.questions, questionCount: cached.questionCount ?? next.questionCount }
+              : next;
+          });
+        });
+        loadState.loadedKey = cacheKey;
+        setTestsLoadError(null);
+      } catch (e) {
+        if (loadState.generation === generation) {
+          setTestsLoadError('Testlarni yuklab boʻlmadi. Internetni tekshirib, qayta urinib koʻring.');
+          console.error('Testlar roʻyxatini yuklab boʻlmadi:', e);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        if (!controller.signal.aborted) controller.abort();
+        if (loadState.generation === generation) {
+          loadState.requestKey = null;
+          loadState.promise = null;
+          setTestsLoading(false);
+        }
+      }
+    })();
+    loadState.promise = request;
+    return request;
+  }, [isAdmin, session?.user?.id]);
+
   const loadAppData = useCallback(async (silent) => {
     const requestGeneration = ++appDataGenerationRef.current;
     if (!silent) setLoading(true);
@@ -4846,19 +4929,13 @@ export default function App() {
       const vis = visibilityFilter(myId, isAdmin);
       const visQ = vis ? `&${vis}` : '';
       const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
-      const testListCols = 'id,category_id,title,description,author,author_id,status,created_at,question_count';
-      // Home ekrani uchun zarur kategoriyalar va kurslarni kutamiz.
-      // Testlar va yangiliklar shu bilan parallel yuklanadi, lekin
-      // birinchi ekran ko‘rinishini ushlab turmaydi.
-      Promise.all([
-        sbRequest(`tests?select=${testListCols}&order=created_at.asc${visQ}`),
-        sbSelect('news'),
-      ]).then(([testRows, newsRows]) => {
+      // Yangiliklar fon rejimida yuklanadi. Testlar soʻrovi faqat
+      // Testlar yoki testlardan foydalanadigan ekran ochilganda yuboriladi.
+      sbSelect('news').then((newsRows) => {
         if (requestGeneration !== appDataGenerationRef.current) return;
-        setTests(testRows.map(testFromRow));
         setNews(newsRows.map(newsFromRow));
       }).catch((e) => {
-        console.error('Testlar va yangiliklarni fon rejimida yuklab bo‘lmadi:', e);
+        console.error('Yangiliklarni fon rejimida yuklab bo‘lmadi:', e);
       });
 
       const initialDataController = new AbortController();
@@ -4922,6 +4999,12 @@ export default function App() {
      ko'rish huquqi). Login qilmagan foydalanuvchi uchun natija baribir
      bir xil bo'lgani sababli — bu holatda qo'shimcha so'rov yuborilmaydi.
      Bu effekt ham faqat bir marta ishlaydi (authAwareRefetchRef). */
+  useEffect(() => {
+    const testsNeeded = tab === 'testlar' || tab === 'profil' || (tab === 'admin' && isAdmin);
+    if (!testsNeeded || authLoading) return;
+    loadTests();
+  }, [tab, viewingUsername, authLoading, isAdmin, loadTests]);
+
   useEffect(() => {
     if (authLoading) return;
     if (authAwareRefetchRef.current) return;
@@ -4997,10 +5080,10 @@ export default function App() {
       // aks holda ular "egasiz" (orphan) qatorlar sifatida bazada qolib,
       // hajmni bekorga band qilib turaveradi.
       const relatedCourses = courses.filter((c) => c.categoryId === id);
-      const relatedTests = tests.filter((t) => t.categoryId === id);
+      const relatedTestRows = await sbRequest('tests?select=id&category_id=eq.' + encodeURIComponent(id));
       await Promise.all([
         ...relatedCourses.map((c) => sbDelete('courses', c.id)),
-        ...relatedTests.map((t) => sbDelete('tests', t.id)),
+        ...relatedTestRows.map((test) => sbDelete('tests', test.id)),
       ]);
       await sbDelete('categories', id);
       setCategories(categories.filter((c) => c.id !== id));
@@ -5469,7 +5552,7 @@ export default function App() {
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} />
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'profil' && (
                 <ProfileView
                   session={session}
