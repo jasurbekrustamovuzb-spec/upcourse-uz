@@ -121,7 +121,7 @@ declare
   v_logic_prompts text[] := array[
     'Barcha arxivchilar tartibli. Malika arxivchi. Qaysi xulosa shartlardan kelib chiqadi?',
     'Agar signal yoqilgan boʻlsa, chiroq yonadi. Chiroq yonmayapti. Nimani aniq xulosa qilish mumkin?',
-    'Vali, Ali va Zuhra ketma-ket tartibda chiqadi. Vali Alidan oldin, Zuhra Alidan keyin chiqadi. Birinchi boʻlib kim chiqadi?',
+    'Uch kishi — Vali, Ali va Zuhra — bittadan navbat bilan chiqadi. Vali Alidan oldin, Zuhra Alidan keyin chiqadi. Birinchi boʻlib kim chiqadi?',
     'Kalit A, B yoki C qutida. A yozuvi: “Kalit A da emas.” B yozuvi: “Kalit A da.” C yozuvi: “Kalit C da emas.” Yozuvlardan aynan bittasi rost. Kalit qaysi qutida?',
     'A, B, C navbat bilan chiqadi. A B dan oldin, C A dan keyin va B dan oldin. Qaysi tartib ikkala shartga ham mos?'
   ];
@@ -147,7 +147,7 @@ declare
     'C, A, B.'
   ];
   v_logic_d3 text[] := array[
-    'Malika tartibli yoki arxivchi emas.',
+    'Malika ham arxivchi, ham tartibli emas.',
     'Signal yoqilgan, ammo chiroq ishlamayapti.',
     'Ali ham, Vali ham emas.',
     'Aniqlab boʻlmaydi.',
