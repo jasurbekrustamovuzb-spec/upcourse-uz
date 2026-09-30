@@ -34,7 +34,7 @@ function toCards(test) {
   return shuffle(cards);
 }
 
-export default function TeamBattle({ tests = [], categories = [], ensureTestContent, onExit }) {
+export default function TeamBattle({ tests = [], testsLoading = false, testsLoadError = null, onRetryTests, categories = [], ensureTestContent, onExit }) {
   const [selectedTest, setSelectedTest] = useState(null);
   const [testSearch, setTestSearch] = useState('');
   const [deck, setDeck] = useState([]);
@@ -118,12 +118,12 @@ export default function TeamBattle({ tests = [], categories = [], ensureTestCont
             style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}`, '--tw-ring-color': C.mathSoft }}
           />
         </div>
-        <div className="grid sm:grid-cols-2 gap-2">{filteredTests.map((test) => <button key={test.id} type="button" onClick={() => chooseTest(test)} disabled={!!loadingId} className="min-w-0 flex items-center gap-3 text-left p-3 rounded-lg transition-colors disabled:opacity-60" style={{ background: selectedTest?.id === test.id ? C.mathTint : C.paper, border: `1px solid ${selectedTest?.id === test.id ? C.math : C.rule}` }}>
+        {testsLoading && !tests.length ? <div role="status" className="flex items-center gap-2 py-4 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={16} className="animate-spin" /> Testlar yuklanmoqda...</div> : testsLoadError && !tests.length ? <div role="alert" className="flex flex-wrap items-center gap-3 py-4 text-sm" style={{ ...fontBody, color: C.red }}><span>{testsLoadError}</span><button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button></div> : <div className="grid sm:grid-cols-2 gap-2">{filteredTests.map((test) => <button key={test.id} type="button" onClick={() => chooseTest(test)} disabled={!!loadingId} className="min-w-0 flex items-center gap-3 text-left p-3 rounded-lg transition-colors disabled:opacity-60" style={{ background: selectedTest?.id === test.id ? C.mathTint : C.paper, border: `1px solid ${selectedTest?.id === test.id ? C.math : C.rule}` }}>
           {loadingId === test.id ? <Loader2 size={18} className="animate-spin flex-shrink-0" style={{ color: C.math }} /> : <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: C.mathDeep, background: C.mathTint }}><Shuffle size={15} /></span>}
           <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium" style={{ ...fontBody }}>{test.title}</span><span className="block text-xs mt-0.5 truncate" style={{ ...fontBody, color: C.inkSoft }}>{categories.find((cat) => cat.id === test.categoryId)?.name || 'Test'} · {test.questionCount || test.questions?.length || 0} savol</span></span>
           {selectedTest?.id === test.id && <Check size={17} style={{ color: C.math, flexShrink: 0 }} />}
         </button>)}</div>
-        {!filteredTests.length && <p className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>{tests.length ? 'Qidiruv boʻyicha test topilmadi.' : 'Hozircha foydalanish mumkin boʻlgan test yoʻq.'}</p>}
+        {!testsLoading && !testsLoadError && !filteredTests.length && <p className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>{tests.length ? 'Qidiruv boʻyicha test topilmadi.' : 'Hozircha foydalanish mumkin boʻlgan test yoʻq.'}</p>}
       </section>
       <section className="p-4 sm:p-5 rounded-xl mb-4" style={{ background: C.surface, border: `1px solid ${C.rule}`, opacity: selectedTest ? 1 : 0.58 }}>
         <h2 className="text-base font-semibold mb-3" style={{ ...fontBody }}>2. Guruhlarni sozlang</h2>
