@@ -620,6 +620,43 @@ export function ProfileView({ session, profile, authLoading, onSaveProfile, onSi
         </div>
       </div>
 
+      <SectionHeading eyebrow="Yangi kontent" title="Yaratish" />
+      <div className="grid sm:grid-cols-2 gap-3 mb-8">
+        <button
+          onClick={() => {
+            setSubTab('kurslar');
+            setPrefillCategory('');
+            setCourseFormOpen(true);
+            pushNav(() => { setSubTab(null); setCourseFormOpen(false); });
+          }}
+          className="flex items-center gap-3 p-4 rounded-sm text-left transition-transform hover:-translate-y-0.5"
+          style={{ background: C.goldSoft, border: `1px solid ${C.gold}` }}
+        >
+          <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: C.surface, color: C.gold }}><Plus size={19} /></span>
+          <span>
+            <span className="block font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>Mavzu yaratish</span>
+            <span className="block text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>Yangi kurs yoki mavzu qoʻshing</span>
+          </span>
+        </button>
+        <button
+          onClick={() => {
+            setSubTab('testlar');
+            setPrefillCategory('');
+            setTestFormMode(null);
+            setTestFormOpen(true);
+            pushNav(() => { setSubTab(null); setTestFormOpen(false); });
+          }}
+          className="flex items-center gap-3 p-4 rounded-sm text-left transition-transform hover:-translate-y-0.5"
+          style={{ background: C.goldSoft, border: `1px solid ${C.gold}` }}
+        >
+          <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: C.surface, color: C.gold }}><Plus size={19} /></span>
+          <span>
+            <span className="block font-medium text-[15px]" style={{ ...fontBody, color: C.ink }}>Test yaratish</span>
+            <span className="block text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>Yangi test tuzing va ulashing</span>
+          </span>
+        </button>
+      </div>
+
       <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
       <div className="grid sm:grid-cols-2 gap-4">
         <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
