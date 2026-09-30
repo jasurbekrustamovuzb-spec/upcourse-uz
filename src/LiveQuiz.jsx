@@ -588,7 +588,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   );
 }
 
-function LiveHostSetup({ tests, session, onCreated, onBack, ensureTestContent }) {
+function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, session, onCreated, onBack, ensureTestContent }) {
   const myId = session?.user?.id;
   const myTests = tests.filter((t) => t.authorId === myId);
   const [scope, setScope] = useState(myTests.length > 0 ? 'mine' : 'all');
@@ -650,6 +650,12 @@ function LiveHostSetup({ tests, session, onCreated, onBack, ensureTestContent })
     }
   }
 
+  if (testsLoading && tests.length === 0) {
+    return <div><button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button><div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={17} className="animate-spin" /> Testlar yuklanmoqda...</div></div>;
+  }
+  if (testsLoadError && tests.length === 0) {
+    return <div><button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button><div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}><span>{testsLoadError}</span><button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button></div></div>;
+  }
   if (tests.length === 0) {
     return (
       <div>
@@ -1453,7 +1459,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
   );
 }
 
-function LiveQuizHub({ tests, session, onExit, initialCode, restoreSession, onSessionChange, ensureTestContent }) {
+function LiveQuizHub({ tests, testsLoading, testsLoadError, onRetryTests, session, onExit, initialCode, restoreSession, onSessionChange, ensureTestContent }) {
   const [mode, setMode] = useState(initialCode ? 'join-form' : null);
   const [room, setRoom] = useState(null);
   const [participant, setParticipant] = useState(null);
@@ -1533,7 +1539,7 @@ function LiveQuizHub({ tests, session, onExit, initialCode, restoreSession, onSe
   }
 
   if (mode === 'host-setup') {
-    return <LiveHostSetup tests={tests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); if (onSessionChange) onSessionChange({ role: 'host', code: r.code }); }} onBack={() => setMode(null)} ensureTestContent={ensureTestContent} />;
+    return <LiveHostSetup tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); if (onSessionChange) onSessionChange({ role: 'host', code: r.code }); }} onBack={() => setMode(null)} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'host-lobby' && room) {
     return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); if (onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
