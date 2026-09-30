@@ -114,7 +114,7 @@ export default function DailyArena({ session, onExit }) {
   }
 
   function next() {
-    if (feedback?.completed) return;
+    if (feedback?.completed) { setStage(6); setFeedback(null); return; }
     setStage(feedback?.next_stage || stage + 1);
     setFeedback(null); setChoice(''); setTextAnswer(''); setPairs([]);
   }
