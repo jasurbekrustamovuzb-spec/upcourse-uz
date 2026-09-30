@@ -180,6 +180,22 @@ begin
 end
 $$;
 
+-- Old preview versions granted divisions by leaderboard position. Rebuild those souvenirs from monthly points.
+delete from public.daily_arena_badges
+where badge in ('silver','gold','platinum','diamond','legend');
+
+with monthly_totals as (
+  select user_id,date_trunc('month',challenge_date)::date season_start,sum(score)::bigint points
+  from public.daily_arena_progress
+  group by user_id,date_trunc('month',challenge_date)::date
+)
+insert into public.daily_arena_badges(user_id,season_start,badge)
+select m.user_id,m.season_start,b.badge
+from monthly_totals m
+cross join (values ('silver',1000),('gold',2500),('platinum',5000),('diamond',9000),('legend',15000)) as b(badge,minimum_points)
+where m.points>=b.minimum_points
+on conflict do nothing;
+
 revoke all on function public.daily_arena_division(bigint) from public, anon, authenticated;
 revoke all on function public.daily_arena_submit_answer(smallint,text) from public, anon;
 grant execute on function public.daily_arena_submit_answer(smallint,text) to authenticated;
