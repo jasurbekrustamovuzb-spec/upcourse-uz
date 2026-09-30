@@ -4,12 +4,12 @@ import { C, fontBody, fontDisplay, fontMono } from './App';
 import { signInWithGoogle, supabase } from './supabaseClient';
 
 const DIVISIONS = [
-  { id: 'bronze', name: 'Bronza', color: '#9A6642', range: 'Top 1000 dan tashqarida' },
-  { id: 'silver', name: 'Kumush', color: '#718096', range: 'Top 1000' },
-  { id: 'gold', name: 'Oltin', color: '#B8863B', range: 'Top 500' },
-  { id: 'platinum', name: 'Platina', color: '#477C8A', range: 'Top 250' },
-  { id: 'diamond', name: 'Olmos', color: '#4776B5', range: 'Top 100' },
-  { id: 'legend', name: 'Afsona', color: '#8D5CBD', range: 'Top 10' },
+  { id: 'bronze', name: 'Bronza', color: '#9A6642', range: '0–999 ball' },
+  { id: 'silver', name: 'Kumush', color: '#718096', range: '1 000+ ball' },
+  { id: 'gold', name: 'Oltin', color: '#B8863B', range: '2 500+ ball' },
+  { id: 'platinum', name: 'Platina', color: '#477C8A', range: '5 000+ ball' },
+  { id: 'diamond', name: 'Olmos', color: '#4776B5', range: '9 000+ ball' },
+  { id: 'legend', name: 'Afsona', color: '#8D5CBD', range: '15 000+ ball' },
 ];
 const LEVELS = ['Isinish', 'Diqqat', 'Tafakkur', 'Murakkab', 'Usta'];
 const MAX_POINTS = [30, 60, 110, 200, 360];
