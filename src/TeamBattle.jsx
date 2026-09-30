@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Eye, Loader2, RotateCcw, Shuffle, Trophy, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Eye, Loader2, RotateCcw, Search, Shuffle, Trophy, Users, X } from 'lucide-react';
 import { C, fontBody, fontMono } from './App';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -36,6 +36,7 @@ function toCards(test) {
 
 export default function TeamBattle({ tests = [], categories = [], ensureTestContent, onExit }) {
   const [selectedTest, setSelectedTest] = useState(null);
+  const [testSearch, setTestSearch] = useState('');
   const [deck, setDeck] = useState([]);
   const [loadingId, setLoadingId] = useState(null);
   const [error, setError] = useState('');
@@ -91,6 +92,13 @@ export default function TeamBattle({ tests = [], categories = [], ensureTestCont
   const finished = deck.length > 0 && usedIds.size === deck.length && !activeId;
   const ranked = groupNames.slice(0, groupCount).map((name, index) => ({ name, score: scores[index] || 0, index })).sort((a, b) => b.score - a.score);
   const winners = ranked.length ? ranked.filter((team) => team.score === ranked[0].score) : [];
+  const normalizedTestSearch = testSearch.trim().toLocaleLowerCase();
+  const filteredTests = normalizedTestSearch
+    ? tests.filter((test) => {
+      const categoryName = categories.find((category) => category.id === test.categoryId)?.name || '';
+      return `${test.title} ${categoryName}`.toLocaleLowerCase().includes(normalizedTestSearch);
+    })
+    : tests;
 
   return <div className="max-w-6xl mx-auto px-3 sm:px-5 py-4 sm:py-6" style={{ color: C.ink }}>
     <button type="button" onClick={onExit} className="inline-flex items-center gap-1.5 text-sm mb-5" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={16} /> Testlarga qaytish</button>
@@ -98,12 +106,24 @@ export default function TeamBattle({ tests = [], categories = [], ensureTestCont
       <div className="flex items-start gap-3 mb-5"><div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ color: C.white, background: C.cover }}><Users size={21} /></div><div><h1 className="text-2xl sm:text-3xl font-semibold" style={{ ...fontBody }}>Jamoaviy jang</h1><p className="text-sm mt-1" style={{ ...fontBody, color: C.inkSoft }}>Test tanlang, guruhlarni sozlang va savollarni navbat bilan oching.</p></div></div>
       <section className="p-4 sm:p-5 rounded-xl mb-4" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
         <h2 className="text-base font-semibold mb-3" style={{ ...fontBody }}>1. Savollar bor testni tanlang</h2>
-        <div className="grid sm:grid-cols-2 gap-2">{tests.map((test) => <button key={test.id} type="button" onClick={() => chooseTest(test)} disabled={!!loadingId} className="min-w-0 flex items-center gap-3 text-left p-3 rounded-lg transition-colors disabled:opacity-60" style={{ background: selectedTest?.id === test.id ? C.mathTint : C.paper, border: `1px solid ${selectedTest?.id === test.id ? C.math : C.rule}` }}>
+        <div className="relative mb-3">
+          <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: C.inkSoft }} />
+          <input
+            type="search"
+            aria-label="Jamoaviy jang uchun test qidirish"
+            value={testSearch}
+            onChange={(event) => setTestSearch(event.target.value)}
+            placeholder="Test yoki soha nomini qidiring..."
+            className="w-full pl-9 pr-3 py-2.5 rounded-lg text-sm outline-none focus:ring-2"
+            style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}`, '--tw-ring-color': C.mathSoft }}
+          />
+        </div>
+        <div className="grid sm:grid-cols-2 gap-2">{filteredTests.map((test) => <button key={test.id} type="button" onClick={() => chooseTest(test)} disabled={!!loadingId} className="min-w-0 flex items-center gap-3 text-left p-3 rounded-lg transition-colors disabled:opacity-60" style={{ background: selectedTest?.id === test.id ? C.mathTint : C.paper, border: `1px solid ${selectedTest?.id === test.id ? C.math : C.rule}` }}>
           {loadingId === test.id ? <Loader2 size={18} className="animate-spin flex-shrink-0" style={{ color: C.math }} /> : <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: C.mathDeep, background: C.mathTint }}><Shuffle size={15} /></span>}
           <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium" style={{ ...fontBody }}>{test.title}</span><span className="block text-xs mt-0.5 truncate" style={{ ...fontBody, color: C.inkSoft }}>{categories.find((cat) => cat.id === test.categoryId)?.name || 'Test'} · {test.questionCount || test.questions?.length || 0} savol</span></span>
           {selectedTest?.id === test.id && <Check size={17} style={{ color: C.math, flexShrink: 0 }} />}
         </button>)}</div>
-        {!tests.length && <p className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Hozircha foydalanish mumkin boʻlgan test yoʻq.</p>}
+        {!filteredTests.length && <p className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>{tests.length ? 'Qidiruv boʻyicha test topilmadi.' : 'Hozircha foydalanish mumkin boʻlgan test yoʻq.'}</p>}
       </section>
       <section className="p-4 sm:p-5 rounded-xl mb-4" style={{ background: C.surface, border: `1px solid ${C.rule}`, opacity: selectedTest ? 1 : 0.58 }}>
         <h2 className="text-base font-semibold mb-3" style={{ ...fontBody }}>2. Guruhlarni sozlang</h2>
