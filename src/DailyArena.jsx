@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, ChevronRight, Loader2, Medal, RefreshCw, Trophy, Users, XCircle, Zap } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ChevronRight, Loader2, Medal, RefreshCw, Trophy, UserRound, Users, XCircle, Zap } from 'lucide-react';
 import { C, fontBody, fontDisplay, fontMono } from './App';
 import { signInWithGoogle, supabase } from './supabaseClient';
 
@@ -50,7 +50,7 @@ function Choice({ value, selected, onClick, visual = false }) {
   </button>;
 }
 
-export default function DailyArena({ session, onExit }) {
+export default function DailyArena({ session, onOpenProfile, onExit }) {
   const [challenge, setChallenge] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -66,6 +66,7 @@ export default function DailyArena({ session, onExit }) {
   const [board, setBoard] = useState(null);
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardError, setBoardError] = useState('');
+  const [openingProfileId, setOpeningProfileId] = useState(null);
 
   const loadChallenge = useCallback(async () => {
     setLoading(true); setError('');
@@ -83,6 +84,16 @@ export default function DailyArena({ session, onExit }) {
     else setBoard(data);
     setBoardLoading(false);
   }, [period, division]);
+
+  async function openPublicProfile(row) {
+    if (!row?.user_id || !onOpenProfile) return;
+    setOpeningProfileId(row.user_id);
+    try {
+      await onOpenProfile(row.user_id);
+    } finally {
+      setOpeningProfileId(null);
+    }
+  }
 
   useEffect(() => {
     if (!boardOpen) return undefined;
@@ -197,7 +208,38 @@ export default function DailyArena({ session, onExit }) {
           : boardLoading && !board ? <Notice><Loader2 size={15} className="inline animate-spin mr-2" />Reyting yangilanmoqda...</Notice>
             : boardError ? <Notice error>{boardError} <button onClick={loadBoard} className="underline ml-1">Qayta urinish</button></Notice>
               : <div><div className="flex justify-between text-[10px] mb-2" style={{ ...fontMono, color: C.inkSoft }}><span>{period === 'day' ? 'Kunlik' : 'Oylik'}</span><span>{board?.participants || 0} kishi</span></div>
-                <ol className="space-y-1.5">{boardRows.slice(0,10).map((row) => <li key={row.user_id} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: row.user_id === session?.user?.id ? C.successTint : C.paper }}><span className="w-6 text-center text-xs" style={{ ...fontMono, color: C.gold }}>#{row.rank}</span><span className="min-w-0 flex-1 truncate text-xs" style={{ ...fontBody }}>{row.name}</span><span className="text-[10px]" style={{ ...fontMono, color: divisionInfo(row.division).color }}>{row.points}</span></li>)}</ol>
+                <ol className="space-y-2">{boardRows.slice(0,10).map((row) => {
+                  const tier = divisionInfo(row.division);
+                  const rankColor = row.rank === 1 ? C.gold : row.rank === 2 ? C.silver : row.rank === 3 ? C.bronze : C.inkSoft;
+                  const initials = (row.name || 'U').replace(/^@/, '').split(/[ ._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'U';
+                  const isOpening = openingProfileId === row.user_id;
+                  return (
+                    <li key={row.user_id} className="flex items-center gap-2.5 p-2.5 rounded-xl" style={{ background: row.user_id === session?.user?.id ? C.successTint : C.paper, border: '1px solid ' + (row.rank <= 3 ? rankColor + '55' : C.rule) }}>
+                      <span className="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-[10px]" style={{ ...fontMono, color: rankColor, background: rankColor + '18' }}>#{row.rank}</span>
+                      <button
+                        type="button"
+                        onClick={() => openPublicProfile(row)}
+                        disabled={!onOpenProfile || isOpening}
+                        aria-label={`${row.name} profilini ko‘rish`}
+                        title="Profilni koʻrish"
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left rounded-lg focus-visible:outline focus-visible:outline-2 disabled:cursor-default"
+                        style={{ ...fontBody, color: C.ink, outlineColor: C.gold }}
+                      >
+                        <span className="w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center text-[10px] font-semibold" style={{ color: tier.color, background: tier.color + '1A', border: '1px solid ' + tier.color + '55' }}>
+                          {isOpening ? <Loader2 size={14} className="animate-spin" /> : initials}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-medium">{row.name}</span>
+                          <span className="flex items-center gap-1 text-[9px]" style={{ color: C.inkSoft }}><UserRound size={10} /> Profilni koʻrish</span>
+                        </span>
+                      </button>
+                      <span className="flex-shrink-0 text-right">
+                        <span className="block text-xs font-semibold" style={{ ...fontMono, color: tier.color }}>{row.points}</span>
+                        <span className="block text-[9px]" style={{ ...fontBody, color: C.inkSoft }}>ball</span>
+                      </span>
+                    </li>
+                  );
+                })}</ol>
                 {!boardRows.length && <p className="text-sm py-4 text-center" style={{ ...fontBody, color: C.inkSoft }}>Hali natijalar yoʻq. Birinchi boʻlib qatnashing!</p>}
                 {boardLoading && <p className="text-[10px] text-center mt-2">Yangilanmoqda...</p>}<p className="text-[10px] text-center mt-2" style={{ ...fontBody, color: C.inkSoft }}>15 soniyada yangilanadi · Top 100</p>
               </div>}
