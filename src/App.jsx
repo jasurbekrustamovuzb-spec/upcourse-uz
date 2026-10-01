@@ -4490,14 +4490,16 @@ export function AddNewsForm({ onAdd, onDone }) {
   );
 }
 
-function NewsView({ news }) {
+function NewsView({ news, isLoading }) {
   const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   return (
     <div>
       <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklar" />
 
-      {sorted.length === 0 ? (
+      {isLoading && sorted.length === 0 ? (
+        <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={16} className="animate-spin" /> Yangiliklar yuklanmoqda...</div>
+      ) : sorted.length === 0 ? (
         <EmptyState text="Hozircha yangilik yoʻq." />
       ) : (
         <div className="space-y-4 max-w-2xl">
@@ -4648,6 +4650,8 @@ export default function App() {
   const [testsLoadError, setTestsLoadError] = useState(null);
   const testsLoadRef = useRef({ generation: 0, loadedKey: null, requestKey: null, promise: null });
   const [news, setNews] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const newsLoadRef = useRef({ loaded: false, promise: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
@@ -4676,12 +4680,12 @@ export default function App() {
     setViewingUsername(null);
   };
   const [giftOpen, setGiftOpen] = useState(false);
-  /* Kontent so'rovini (loadAppData) kirish holatidan mustaqil, tezroq
-     ishga tushirish uchun ikkita "faqat bir marta" bayrog'i — pastdagi
-     ikkita alohida useEffect shularga tayanadi (LCP tezlashtirish). */
+  /* Bosh sahifa kontenti kirish holatini kutmasdan yuklanadi. */
   const initialFetchRef = useRef(false);
-  const authAwareRefetchRef = useRef(false);
-  const appDataGenerationRef = useRef(0);
+  const ownContentLoadRef = useRef({ loadedFor: null, promise: null, generation: 0 });
+  const adminContentLoadedRef = useRef(false);
+  const contentOwnerRef = useRef(null);
+  const activeUserIdRef = useRef(null);
 
   useEffect(() => {
     _goToPublicProfile = (username) => setViewingUsername(username);
@@ -4711,15 +4715,9 @@ export default function App() {
     try { localStorage.setItem('upcourse-theme', theme); } catch {}
   }, [theme]);
 
-  /* Google orqali kirish holatini kuzatish + profil qatorini yuklash.
-     Eslatma: avval bu yerda ikkita mustaqil manba bor edi — getSession()
-     va onAuthStateChange — ular deyarli bir vaqtda ishga tushib,
-     "isAdmin" qiymati ikki bosqichda (avval false, keyin true) o'zgarib
-     ketardi. Bosh ma'lumot yuklovchisi shu o'zgarishga qarab ishlaydi
-     (pastda), shuning uchun categories/courses/tests/news IKKI MARTA
-     so'ralib ketardi. Endi faqat BITTA manba — onAuthStateChange —
-     ishlatiladi (u o'zi ulanganda joriy sessiyani ham avtomatik beradi),
-     shu bilan poyga (race) yo'qoladi. */
+  /* Google orqali kirish holatini kuzatish va profil qatorini yuklash.
+     Ommaviy bosh sahifa so‘rovlari auth holatidan mustaqil; auth kelganda
+     katta kurs/test ro‘yxatlarini qayta so‘ramaymiz. */
   useEffect(() => {
     let cancelled = false;
     let lastLoadedUid = null;
@@ -4736,6 +4734,16 @@ export default function App() {
     }
     async function applySession(newSession) {
       if (cancelled) return;
+      const nextUserId = newSession?.user?.id || null;
+      if (contentOwnerRef.current !== nextUserId) {
+        contentOwnerRef.current = nextUserId;
+        ownContentLoadRef.current = { loadedFor: null, promise: null, generation: ownContentLoadRef.current.generation + 1 };
+        adminContentLoadedRef.current = false;
+        setCategories((previous) => previous.filter((item) => item.status === 'approved'));
+        setCourses((previous) => previous.filter((item) => item.status === 'approved'));
+        setTests((previous) => previous.filter((item) => item.status === 'approved'));
+      }
+      activeUserIdRef.current = nextUserId;
       setSession(newSession || null);
       if (newSession) {
         await loadProfile(newSession.user.id);
@@ -4951,7 +4959,8 @@ export default function App() {
   }, [isAdmin, session?.user?.id]);
 
   const loadAppData = useCallback(async (silent) => {
-    const requestGeneration = ++appDataGenerationRef.current;
+    let succeeded = false;
+    const requestUserId = session?.user?.id || null;
     if (!silent) setLoading(true);
     setError(null);
     if (!isSupabaseConfigured()) {
@@ -4964,15 +4973,6 @@ export default function App() {
       const vis = visibilityFilter(myId, isAdmin);
       const visQ = vis ? `&${vis}` : '';
       const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
-      // Yangiliklar fon rejimida yuklanadi. Testlar soʻrovi faqat
-      // Testlar yoki testlardan foydalanadigan ekran ochilganda yuboriladi.
-      sbSelect('news').then((newsRows) => {
-        if (requestGeneration !== appDataGenerationRef.current) return;
-        setNews(newsRows.map(newsFromRow));
-      }).catch((e) => {
-        console.error('Yangiliklarni fon rejimida yuklab bo‘lmadi:', e);
-      });
-
       const initialDataController = new AbortController();
       let initialDataTimeoutId;
       let catRows;
@@ -4995,8 +4995,13 @@ export default function App() {
         if (!initialDataController.signal.aborted) initialDataController.abort();
       }
 
+      // Admin panel so‘rovi akkaunt almashganidan keyin tugasa, eski
+      // akkauntning yopiq materiallarini yangi sessiyaga qo‘shmaymiz.
+      if (requestUserId && activeUserIdRef.current !== requestUserId) return false;
+
       setCategories(catRows.map(categoryFromRow));
       setCourses(courseRows.map(courseFromRow));
+      succeeded = true;
     } catch (e) {
       // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
       // odatda ishlab ketadi) — shuning uchun foydalanuvchiga texnik
@@ -5008,7 +5013,63 @@ export default function App() {
       else console.error('Fon rejimida qayta yuklashda xatolik:', e);
     }
     if (!silent) setLoading(false);
+    return succeeded;
   }, [isAdmin, session?.user?.id]);
+
+  // Yangiliklar kurslar sahifasining birinchi chizilishiga kerak emas.
+  // So‘rovni faqat Yangiliklar yoki Admin bo‘limi ochilganda yuboramiz.
+  const loadNews = useCallback(async () => {
+    const state = newsLoadRef.current;
+    if (state.loaded) return;
+    if (state.promise) return state.promise;
+    setNewsLoading(true);
+    state.promise = sbSelect('news')
+      .then((rows) => {
+        setNews(rows.map(newsFromRow));
+        state.loaded = true;
+      })
+      .catch((e) => {
+        console.error('Yangiliklarni yuklab bo‘lmadi:', e);
+      })
+      .finally(() => { state.promise = null; setNewsLoading(false); });
+    return state.promise;
+  }, []);
+
+  // Oddiy foydalanuvchining tasdiqlanmagan/shaxsiy materiallari kerak
+  // bo‘lganda (Profil ochilganda) olinadi. Ommaviy qatorlar qayta
+  // yuklanmaydi; shu bilan login ortidan keladigan katta takroriy so‘rov
+  // kichik, muallifga tegishli so‘rovlarga aylanadi.
+  const loadOwnPrivateContent = useCallback(async (userId) => {
+    if (!userId) return;
+    const state = ownContentLoadRef.current;
+    if (state.loadedFor === userId) return;
+    if (state.promise) return state.promise;
+    const generation = state.generation;
+    state.promise = Promise.all([
+      sbSelect('categories', `author_id=eq.${encodeURIComponent(userId)}&status=neq.approved`),
+      sbRequest(`courses?select=id,category_id,title,summary,video_url,author,author_id,status,created_at&author_id=eq.${encodeURIComponent(userId)}&status=neq.approved`),
+    ]).then(([categoryRows, courseRows]) => {
+      if (ownContentLoadRef.current.generation !== generation || activeUserIdRef.current !== userId) return;
+      setCategories((previous) => {
+        const byId = new Map(previous
+          .filter((item) => item.status === 'approved' || item.authorId === userId)
+          .map((item) => [item.id, item]));
+        categoryRows.map(categoryFromRow).forEach((item) => byId.set(item.id, item));
+        return [...byId.values()];
+      });
+      setCourses((previous) => {
+        const byId = new Map(previous
+          .filter((item) => item.status === 'approved' || item.authorId === userId)
+          .map((item) => [item.id, item]));
+        courseRows.map(courseFromRow).forEach((item) => byId.set(item.id, item));
+        return [...byId.values()];
+      });
+      state.loadedFor = userId;
+    }).catch((e) => {
+      console.error('Shaxsiy materiallarni yuklab bo‘lmadi:', e);
+    }).finally(() => { state.promise = null; });
+    return state.promise;
+  }, []);
 
   /* 1) Kontentni (kurslar/testlar/kategoriyalar) DARHOL, kirish holatini
      kutmasdan so'raymiz — sahifa ochilgan zahoti, bir marta. Bu payt
@@ -5025,15 +5086,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* 2) Kirish holati keyinroq aniqlanganda — FAQAT agar foydalanuvchi
-     haqiqatan tizimga kirgan yoki administrator bo'lsa, bitta qo'shimcha,
-     FON REJIMIDAGI (jim, spinner qaytarmaydigan) qayta yuklashni
-     bajaramiz — chunki faqat shu holatlarda ko'rinadigan qatorlar
-     to'plami birinchi (ommaviy) so'rovdan farq qilishi mumkin (masalan
-     o'zining tasdiqlanmagan kontenti, yoki administratorning hammasini
-     ko'rish huquqi). Login qilmagan foydalanuvchi uchun natija baribir
-     bir xil bo'lgani sababli — bu holatda qo'shimcha so'rov yuborilmaydi.
-     Bu effekt ham faqat bir marta ishlaydi (authAwareRefetchRef). */
+  /* Testlar ro‘yxati faqat uni ishlatadigan bo‘limlar ochilganda olinadi. */
   useEffect(() => {
     const testsNeeded = tab === 'testlar' || tab === 'profil' || (tab === 'admin' && isAdmin);
     if (!testsNeeded || authLoading) return;
@@ -5041,14 +5094,17 @@ export default function App() {
   }, [tab, viewingUsername, authLoading, isAdmin, loadTests]);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (authAwareRefetchRef.current) return;
-    authAwareRefetchRef.current = true;
-    if (session?.user?.id || isAdmin) {
-      loadAppData(true);
+    if (authLoading || loading) return;
+    if (tab === 'yangiliklar' || (tab === 'admin' && isAdmin)) loadNews();
+    if (tab === 'profil' && session?.user?.id) loadOwnPrivateContent(session.user.id);
+    // Adminning barcha materiallari faqat Admin paneli ochilganda kerak.
+    if (tab === 'admin' && isAdmin && !adminContentLoadedRef.current) {
+      adminContentLoadedRef.current = true;
+      loadAppData(true).then((loaded) => {
+        if (!loaded) adminContentLoadedRef.current = false;
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, session?.user?.id, isAdmin]);
+  }, [tab, authLoading, loading, isAdmin, session?.user?.id, loadNews, loadOwnPrivateContent, loadAppData]);
 
   /* Ulashilgan havola orqali kirilganda (?course=ID yoki ?test=ID),
      lekin o'sha narsa "xususiy" bo'lgani uchun oddiy ro'yxatga
@@ -5664,7 +5720,7 @@ export default function App() {
                   />
                 </Suspense>
               )}
-              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} />}
+              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} />}
               {!viewingUsername && tab === 'about' && <AboutView />}
             </PaperPanel>
           </>
