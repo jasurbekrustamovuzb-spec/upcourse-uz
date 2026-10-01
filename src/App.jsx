@@ -20,6 +20,7 @@ const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
 const ArenaProfileBadgeView = lazy(() => import('./DailyArena.jsx').then((module) => ({ default: module.ArenaProfileBadge })));
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
 const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
+const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -854,7 +855,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
   const fullName = `${row.firstName} ${row.lastName}`.trim();
   const myCourses = courses.filter((c) => c.authorId === row.id && c.status === 'approved');
   const myTests = tests.filter((t) => t.authorId === row.id && t.status === 'approved');
-  const items = section === 'kurslar' ? myCourses : myTests;
+  const items = section === 'kurslar' ? myCourses : section === 'testlar' ? myTests : [];
 
   /* Instagram uslubidagi kvadrat "plitka" — kurs/test kartochkasi.
      Kelajakda shu funksiyaga (masalan kolleksiya belgisi, ball, yoqtirish
@@ -943,9 +944,20 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
         >
           <ListChecks size={15} /> TESTLAR
         </button>
+        <button
+          onClick={() => setSection('kolleksiyalar')}
+          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] sm:text-[12px]"
+          style={{ ...fontMono, letterSpacing: '0.04em', color: section === 'kolleksiyalar' ? C.ink : C.inkSoft, borderTop: `2px solid ${section === 'kolleksiyalar' ? C.ink : 'transparent'}`, marginTop: '-1px' }}
+        >
+          <Award size={15} /> NISHONLAR
+        </button>
       </div>
 
-      {items.length === 0 ? (
+      {section === 'kolleksiyalar' ? (
+        <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 size={18} className="animate-spin" style={{ color: C.gold }} /></div>}>
+          <PublicCollectionsView userId={row.id} />
+        </Suspense>
+      ) : items.length === 0 ? (
         <div className="py-10 text-center">
           <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
             {section === 'kurslar' ? 'Hozircha ommaviy mavzu yoʻq.' : 'Hozircha ommaviy test yoʻq.'}
@@ -1392,7 +1404,7 @@ function GiftBanner({ onOpen }) {
    nishon turi qo'shilganda, shu yerga yangi "else if" qatori qo'shiladi
    — eskilari hech qachon o'chirilmaydi, shuning uchun avval olingan
    nishonlar doim to'g'ri ko'rinishda qoladi. */
-function CollectibleThumb({ collectibleId, size = 40, inline }) {
+export function CollectibleThumb({ collectibleId, size = 40, inline }) {
   let content;
   if (collectibleId === INDEPENDENCE_ID) content = <MiniIndependenceBadge size={size} />;
   else if (collectibleId === GIFT_ID) content = <MiniExplorerBadge size={size} />;
