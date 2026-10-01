@@ -141,7 +141,7 @@ export default function DailyArena({ session, onOpenProfile, onExit }) {
   const divisionColor = divisionInfo(board?.rows?.find((row) => row.user_id === session?.user?.id)?.division).color;
   const visibleBoardRows = boardRows.slice(0, showTopTen ? 10 : 5);
 
-  return <div className="max-w-7xl mx-auto px-3 sm:px-5 py-3 sm:py-5" style={{ color: C.ink }}>
+  return <div className="w-full px-0 py-2 sm:py-3" style={{ color: C.ink }}>
     <div className="flex items-center justify-between gap-3 mb-3">
       <button type="button" onClick={onExit} className="inline-flex items-center gap-1.5 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
         <ArrowLeft size={16} /> Orqaga
