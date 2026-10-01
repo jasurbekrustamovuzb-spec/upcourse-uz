@@ -797,7 +797,7 @@ function AuthorLine({ authorId, authorName, className, style }) {
 
 /* Boshqa foydalanuvchining ommaviy profili — ismi, @username'i, bio'si
    va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
-function PublicProfileView({ username, courses, tests, onBack, onOpenItem, session }) {
+function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, session }) {
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState(null);
   const [err, setErr] = useState(false);
@@ -919,7 +919,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, sessi
               <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
             </div>
             <Suspense fallback={<div className="h-9 w-24 rounded-full animate-pulse" style={{ background: C.paper }} />}>
-              <ProfileFollowView userId={row.id} session={session} />
+              <ProfileFollowView userId={row.id} session={session} onOpenProfile={onOpenProfile} />
             </Suspense>
           </div>
         </div>
@@ -5695,7 +5695,7 @@ export default function App() {
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
               {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
               {viewingUsername && (
-                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} session={session} />
+                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
