@@ -5302,6 +5302,26 @@ export default function App() {
     if (id !== prevTab) nav.pushNav(() => setTab(prevTab));
   }
 
+  async function openArenaProfile(userId) {
+    if (!userId) return;
+    try {
+      const { data, error: profileError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (!data?.username) {
+        setActionError('Bu ishtirokchining profili hali toʻliq sozlanmagan.');
+        return;
+      }
+      setActionError(null);
+      setViewingUsername(data.username);
+    } catch (e) {
+      setActionError('Profilni ochib boʻlmadi. Qayta urinib koʻring.');
+    }
+  }
+
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const createMenuDeskRef = useRef(null);
   useEffect(() => {
@@ -5573,7 +5593,7 @@ export default function App() {
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
-                  <DailyArenaView session={session} onExit={() => goTo('kurslar')} />
+                  <DailyArenaView session={session} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
                 </Suspense>
               )}
               {!viewingUsername && tab === 'profil' && (
