@@ -1,5 +1,5 @@
 -- Increase the fact bank and alternate a second, distinct set of deduction puzzles.
--- Challenge IDs, dates, attempts, and saved scores are unchanged.
+-- Challenge IDs, dates, attempts, and saved scores are unchanged; safe to rerun.
 do $upgrade$
 declare
   v_definition text;
@@ -83,16 +83,21 @@ begin
   select pg_get_functiondef('public.daily_arena_build_challenge(date)'::regprocedure)
     into v_definition;
 
-  if position(v_fact_old in v_definition) = 0
-     or position(v_logic_old in v_definition) = 0
-     or position(v_fact_index_old in v_definition) = 0 then
+  if position(v_fact_old in v_definition) > 0
+     and position(v_logic_old in v_definition) > 0
+     and position(v_fact_index_old in v_definition) > 0 then
+    v_definition := replace(v_definition, v_fact_old, v_fact_new);
+    v_definition := replace(v_definition, v_logic_old, v_logic_new);
+    v_definition := replace(v_definition, v_fact_index_old, v_fact_index_new);
+    execute v_definition;
+  elsif position('Kuchning SI tizimidagi birligi qaysi?' in v_definition) > 0
+     and position('Barcha laboratoriya mudirlari xavfsizlik kursini oʻtgan.' in v_definition) > 0
+     and position(v_fact_index_new in v_definition) > 0 then
+    -- The full update is already present, so a second run is a no-op.
+    null;
+  else
     raise exception 'Arena content migration could not find the expected function definition; no changes applied.';
   end if;
-
-  v_definition := replace(v_definition, v_fact_old, v_fact_new);
-  v_definition := replace(v_definition, v_logic_old, v_logic_new);
-  v_definition := replace(v_definition, v_fact_index_old, v_fact_index_new);
-  execute v_definition;
 end
 $upgrade$;
 
