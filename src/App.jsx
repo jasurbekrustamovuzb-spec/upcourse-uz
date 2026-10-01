@@ -5537,7 +5537,7 @@ export default function App() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full">
+      <main className={tab === 'arena' ? "flex-1 w-full px-2 sm:px-4 pt-3 pb-6" : "flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full"}>
         {(loading && !skipMainLoadingGate && tab !== 'kurslar') ? (
           <div aria-busy="true" aria-label="Yuklanmoqda">
             {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
