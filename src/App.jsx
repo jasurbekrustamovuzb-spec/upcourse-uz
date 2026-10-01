@@ -18,6 +18,8 @@ const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
 const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
 const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
 const ArenaProfileBadgeView = lazy(() => import('./DailyArena.jsx').then((module) => ({ default: module.ArenaProfileBadge })));
+const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
+const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -795,7 +797,7 @@ function AuthorLine({ authorId, authorName, className, style }) {
 
 /* Boshqa foydalanuvchining ommaviy profili — ismi, @username'i, bio'si
    va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
-function PublicProfileView({ username, courses, tests, onBack, onOpenItem }) {
+function PublicProfileView({ username, courses, tests, onBack, onOpenItem, session }) {
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState(null);
   const [err, setErr] = useState(false);
@@ -892,8 +894,6 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem }) {
                 </span>
               </div>
             </div>
-            {/* Kelajakda shu joyga "Kuzatish" (Follow) tugmasi qo'shiladi — 
-                layout shunga tayyor turibdi. */}
           </div>
 
           <div className="mt-3 min-w-0">
@@ -909,7 +909,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem }) {
             {row.bio && <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{row.bio}</p>}
           </div>
 
-          <div className="flex gap-6 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+          <div className="flex flex-wrap gap-x-6 gap-y-3 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
             <div>
               <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myCourses.length}</div>
               <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mavzular</div>
@@ -918,14 +918,9 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem }) {
               <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myTests.length}</div>
               <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
             </div>
-            <div title="Tez orada">
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
-              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Followers</div>
-            </div>
-            <div title="Tez orada">
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
-              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Following</div>
-            </div>
+            <Suspense fallback={<div className="h-9 w-24 rounded-full animate-pulse" style={{ background: C.paper }} />}>
+              <ProfileFollowView userId={row.id} session={session} />
+            </Suspense>
           </div>
         </div>
       </div>
@@ -4638,6 +4633,10 @@ export default function App() {
       if (initialDeepLink.type === 'profile') return 'profil';
       return 'kurslar';
     }
+    try {
+      const requestedSection = new URLSearchParams(window.location.search).get('section');
+      if (requestedSection && VALID_TABS.includes(requestedSection)) return requestedSection;
+    } catch (e) { /* oddiy boshlang‘ich sahifaga qaytamiz */ }
     if (initialPosition.tab && VALID_TABS.includes(initialPosition.tab)) return initialPosition.tab;
     return 'kurslar';
   })();
@@ -5370,6 +5369,13 @@ export default function App() {
     const prevTab = tab;
     setViewingUsername(null);
     setTab(id);
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('section')) {
+        url.searchParams.set('section', id);
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+      }
+    } catch (e) { /* URL holatini yangilab bo‘lmasa, oddiy navigatsiya davom etadi */ }
     if (id !== prevTab) nav.pushNav(() => setTab(prevTab));
   }
 
@@ -5391,6 +5397,29 @@ export default function App() {
     } catch (e) {
       setActionError('Profilni ochib boʻlmadi. Qayta urinib koʻring.');
     }
+  }
+
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  useEffect(() => {
+    function handleSearchShortcut(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setGlobalSearchOpen(true);
+      }
+    }
+    document.addEventListener('keydown', handleSearchShortcut);
+    return () => document.removeEventListener('keydown', handleSearchShortcut);
+  }, []);
+
+  function openSearchItem(kind, id) {
+    setGlobalSearchOpen(false);
+    setOpenRequest({ type: kind, id });
+    goTo(kind === 'course' ? 'kurslar' : 'testlar');
+  }
+
+  function openSearchProfile(username) {
+    goTo('kurslar');
+    setViewingUsername(username);
   }
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -5457,6 +5486,11 @@ export default function App() {
             <GraduationCap size={20} style={{ color: C.gold }} />
             <span className="text-[15px]" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
           </div>
+          <button type="button" onClick={() => setGlobalSearchOpen(true)} className="nav-btn mb-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px] focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: 'rgba(251,250,243,0.8)', border: `1px solid ${C.coverLine}`, outlineColor: C.gold }}>
+            <Search size={16} />
+            <span className="flex-1">Qidirish</span>
+            <kbd className="text-[10px] opacity-70">Ctrl K</kbd>
+          </button>
           <div className="flex flex-col gap-1">
             {TABS.map((t) => {
               const Icon = t.icon;
@@ -5579,6 +5613,9 @@ export default function App() {
               );
             })()
           )}
+          <button type="button" onClick={() => setGlobalSearchOpen(true)} aria-label="Kurslar, testlar va profillarni qidirish" className="ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ color: C.goldSoft, border: `1px solid ${C.coverLine}` }}>
+            <Search size={18} />
+          </button>
           {!readingActive && (
             <button
               onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
@@ -5658,13 +5695,13 @@ export default function App() {
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
               {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
               {viewingUsername && (
-                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} />
+                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} session={session} />
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
-                  <DailyArenaView session={session} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
+                  <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
                 </Suspense>
               )}
               {!viewingUsername && tab === 'profil' && (
@@ -5759,6 +5796,10 @@ export default function App() {
           })}
         </nav>
       )}
+
+      {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
+        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} />
+      </Suspense>}
 
       {giftOpen && (
         <GiftModal

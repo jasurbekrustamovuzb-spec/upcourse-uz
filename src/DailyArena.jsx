@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, CheckCircle2, ChevronRight, Loader2, Medal, RefreshCw, Trophy, UserRound, XCircle } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ChevronRight, Coins, Loader2, Medal, RefreshCw, ShoppingBag, Tag, Trophy, UserRound, X, XCircle } from 'lucide-react';
 import { C, fontBody, fontDisplay, fontMono } from './App';
 import { signInWithGoogle, supabase } from './supabaseClient';
 
@@ -13,6 +13,18 @@ const DIVISIONS = [
 ];
 const LEVELS = ['Isinish', 'Diqqat', 'Tafakkur', 'Murakkab', 'Usta'];
 const MAX_POINTS = [30, 60, 110, 200, 360];
+const ARENA_MODES = [
+  { id: 'all', label: 'Barcha rejimlar' },
+  { id: 'pattern', label: 'Naqsh laboratoriyasi' },
+  { id: 'logic', label: 'Deduksiya xonasi' },
+  { id: 'word', label: 'Harflar aralashmasi' },
+  { id: 'visual', label: 'Vizual signal' },
+  { id: 'matching', label: 'Moslik sinovi' },
+  { id: 'calculation', label: 'Tez hisob' },
+  { id: 'fact', label: 'Faktlar maydoni' },
+  { id: 'cipher', label: 'Raqamli shifr' },
+  { id: 'attention', label: 'Diqqat sinovi' },
+];
 const divisionInfo = (id) => DIVISIONS.find((item) => item.id === id) || DIVISIONS[0];
 
 export function ArenaProfileBadge({ userId, compact = false }) {
@@ -50,7 +62,7 @@ function Choice({ value, selected, onClick, visual = false }) {
   </button>;
 }
 
-export default function DailyArena({ session, onOpenProfile, onExit }) {
+export default function DailyArena({ session, isAdmin = false, onOpenProfile, onExit }) {
   const [challenge, setChallenge] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -62,6 +74,7 @@ export default function DailyArena({ session, onOpenProfile, onExit }) {
   const [feedback, setFeedback] = useState(null);
   const [period, setPeriod] = useState('day');
   const [division, setDivision] = useState('');
+  const [boardMode, setBoardMode] = useState('all');
   const [boardOpen, setBoardOpen] = useState(true);
   const [board, setBoard] = useState(null);
   const [boardLoading, setBoardLoading] = useState(false);
@@ -69,6 +82,47 @@ export default function DailyArena({ session, onOpenProfile, onExit }) {
   const [openingProfileId, setOpeningProfileId] = useState(null);
   const [showTopTen, setShowTopTen] = useState(false);
   const [showDivisionInfo, setShowDivisionInfo] = useState(false);
+  const [economyOpen, setEconomyOpen] = useState(false);
+  const [economy, setEconomy] = useState(null);
+  const [economyError, setEconomyError] = useState('');
+  const [economyBusy, setEconomyBusy] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [newPromo, setNewPromo] = useState('');
+  const [promoCoins, setPromoCoins] = useState('100');
+  const [promoUses, setPromoUses] = useState('1');
+
+  const loadEconomy = useCallback(async () => {
+    if (!session?.user?.id) return;
+    setEconomyError('');
+    const { data, error: rpcError } = await supabase.rpc('daily_arena_store_catalog');
+    if (rpcError) { setEconomyError('Coin do‘koni hali bazada yoqilmagan.'); return; }
+    setEconomy(data || { coins: 0, items: [] });
+  }, [session?.user?.id]);
+  useEffect(() => { loadEconomy(); }, [loadEconomy]);
+
+  async function redeemPromo(event) {
+    event.preventDefault(); setEconomyBusy(true); setEconomyError('');
+    const { error: rpcError } = await supabase.rpc('daily_arena_redeem_promo', { p_code: promoCode });
+    setEconomyBusy(false);
+    if (rpcError) { setEconomyError(rpcError.message?.includes('PROMO_USED') ? 'Bu kod sizda avval ishlatilgan.' : 'Kod yaroqsiz, muddati tugagan yoki limiti to‘lgan.'); return; }
+    setPromoCode(''); await loadEconomy();
+  }
+
+  async function buyCollectible(item) {
+    setEconomyBusy(true); setEconomyError('');
+    const { error: rpcError } = await supabase.rpc('daily_arena_store_purchase', { p_collectible_id: item.id });
+    setEconomyBusy(false);
+    if (rpcError) { setEconomyError(rpcError.message?.includes('NOT_ENOUGH_COINS') ? 'Coin yetarli emas. Arenada to‘g‘ri javoblar bilan yig‘ing.' : 'Xarid amalga oshmadi.'); return; }
+    await loadEconomy();
+  }
+
+  async function createPromo(event) {
+    event.preventDefault(); setEconomyBusy(true); setEconomyError('');
+    const { error: rpcError } = await supabase.rpc('daily_arena_create_promo', { p_code: newPromo, p_coins: Number(promoCoins), p_max_uses: Number(promoUses) });
+    setEconomyBusy(false);
+    if (rpcError) { setEconomyError('Promo yaratilmadi: kod takrorlangan yoki qiymatlar noto‘g‘ri.'); return; }
+    setNewPromo(''); setEconomyError('Promo kod yaratildi.');
+  }
 
   const loadChallenge = useCallback(async () => {
     setLoading(true); setError('');
@@ -81,11 +135,13 @@ export default function DailyArena({ session, onOpenProfile, onExit }) {
 
   const loadBoard = useCallback(async () => {
     setBoardLoading(true); setBoardError('');
-    const { data, error: rpcError } = await supabase.rpc('daily_arena_leaderboard', { p_period: period, p_division: division || null, p_limit: 100 });
+    const { data, error: rpcError } = boardMode === 'all'
+      ? await supabase.rpc('daily_arena_leaderboard', { p_period: period, p_division: division || null, p_limit: 100 })
+      : await supabase.rpc('daily_arena_mode_leaderboard', { p_period: period, p_division: division || null, p_limit: 100, p_mode: boardMode });
     if (rpcError) { setBoardError('Reytingni yuklab boʻlmadi. Qayta urinib koʻring.'); setBoard(null); }
     else setBoard(data);
     setBoardLoading(false);
-  }, [period, division]);
+  }, [period, division, boardMode]);
 
   async function openPublicProfile(row) {
     if (!row?.user_id || !onOpenProfile) return;
@@ -124,6 +180,7 @@ export default function DailyArena({ session, onOpenProfile, onExit }) {
     setFeedback(data);
     setChoice(''); setTextAnswer(''); setPairs([]);
     setChallenge((old) => old ? { ...old, progress: { ...old.progress, score: data.score, stage: data.next_stage, completed: data.completed } } : old);
+    if ((data.points_awarded || 0) > 0) loadEconomy();
   }
 
   function next() {
@@ -227,6 +284,10 @@ export default function DailyArena({ session, onOpenProfile, onExit }) {
       </section>
 
       <aside className="rounded-2xl p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex-1 rounded-xl p-2.5 flex items-center gap-2" style={{ background: C.goldSoft + '55' }}><Coins size={18} style={{ color: C.gold }} /><div><span className="block text-[9px] uppercase" style={{ ...fontMono, color: C.inkSoft }}>Coin hamyoni</span><b className="text-sm" style={{ ...fontMono, color: C.cover }}>{session?.user?.id ? (economy?.coins ?? '…') : 'Kirish kerak'}</b></div></div>
+          <button type="button" onClick={() => { setEconomyOpen(true); loadEconomy(); }} className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium" style={{ ...fontBody, color: C.white, background: C.cover }}><ShoppingBag size={15} /> Do‘kon</button>
+        </div>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div>
             <div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Siz va boshqalar</div>
@@ -237,6 +298,10 @@ export default function DailyArena({ session, onOpenProfile, onExit }) {
         <div className="flex gap-1.5 mb-2" aria-label="Reyting davri">
           {[['day','Kunlik'],['month','Oylik']].map(([item,label]) => <button type="button" key={item} onClick={() => { setPeriod(item); setBoardOpen(true); setShowTopTen(false); }} aria-pressed={period === item} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium" style={{ ...fontBody, color: period === item ? C.white : C.inkSoft, background: period === item ? C.cover : C.paper, border: '1px solid ' + (period === item ? C.cover : C.rule) }}>{label}</button>)}
         </div>
+        <label htmlFor="arena-mode" className="sr-only">Reyting o‘yin turi</label>
+        <select id="arena-mode" value={boardMode} onChange={(event) => { setBoardMode(event.target.value); setBoardOpen(true); setShowTopTen(false); }} className="w-full p-2 mb-2 rounded-lg text-xs" style={{ ...fontBody, background: C.paper, border: '1px solid ' + C.rule }}>
+          {ARENA_MODES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
         <div className="flex items-center gap-2 mb-3">
           <label htmlFor="arena-division" className="text-[10px] uppercase whitespace-nowrap" style={{ ...fontMono, color: C.inkSoft }}>Liga</label>
           <select id="arena-division" value={division} onChange={(event) => { setDivision(event.target.value); setBoardOpen(true); setShowTopTen(false); }} className="min-w-0 flex-1 p-2 rounded-lg text-xs" style={{ ...fontBody, background: C.paper, border: '1px solid ' + C.rule }}>
@@ -278,5 +343,18 @@ export default function DailyArena({ session, onOpenProfile, onExit }) {
         </div>}
       </aside>
     </div>
+    {economyOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="arena-store-title" style={{ background: 'rgba(12,25,18,.62)' }}>
+      <div className="w-full max-w-xl max-h-[90vh] overflow-auto rounded-2xl p-4 sm:p-5" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
+        <div className="flex items-center justify-between gap-3 mb-4"><div><div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Arena mukofotlari</div><h2 id="arena-store-title" className="text-xl font-semibold" style={{ ...fontDisplay }}>Coin do‘koni</h2></div><button type="button" onClick={() => setEconomyOpen(false)} aria-label="Do‘konni yopish" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: C.paper }}><X size={17} /></button></div>
+        {!session?.user?.id ? <Notice>Mukofot olish va coin ishlatish uchun Google orqali kiring. <button type="button" onClick={signIn} className="underline ml-1">Kirish</button></Notice> : <>
+          <div className="flex items-center gap-2 p-3 rounded-xl mb-3" style={{ background: C.paper }}><Coins size={18} style={{ color: C.gold }} /><span className="text-sm" style={{ ...fontBody }}>Balansingiz</span><b className="ml-auto" style={{ ...fontMono, color: C.cover }}>{economy?.coins ?? 0} coin</b></div>
+          <p className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Har bir bosqichdagi to‘g‘ri javob coin beradi. Coinlar hisobda saqlanadi va kolleksiyadagi esdalik nishonlariga almashtiriladi.</p>
+          {economyError && <p role="status" className="text-xs mb-3" style={{ ...fontBody, color: economyError.startsWith('Promo kod') ? C.accent : C.red }}>{economyError}</p>}
+          <div className="space-y-2 mb-4">{(economy?.items || []).map((item) => <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: C.paper, border: '1px solid ' + C.rule }}><span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ color: C.gold, background: C.goldSoft + '77' }}><Medal size={20} /></span><div className="min-w-0 flex-1"><b className="block text-sm" style={{ ...fontBody }}>{item.title}</b><span className="block text-xs truncate" style={{ ...fontBody, color: C.inkSoft }}>{item.subtitle || 'Kolleksiyaga qo‘shiladigan esdalik nishoni'}</span></div>{item.owned ? <span className="text-xs" style={{ ...fontBody, color: C.accent }}>Olingan</span> : <button type="button" disabled={economyBusy || (economy?.coins || 0) < item.price} onClick={() => buyCollectible(item)} className="px-3 py-2 rounded-lg text-xs disabled:opacity-45" style={{ ...fontBody, color: C.white, background: C.cover }}>{item.price} coin</button>}</div>)}{economy && !economy.items?.length && <Notice>Do‘kon nishonlari hozircha sozlanmagan.</Notice>}</div>
+          <form onSubmit={redeemPromo} className="flex gap-2"><label className="sr-only" htmlFor="arena-promo-code">Promo kod</label><input id="arena-promo-code" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Promo kod" className="min-w-0 flex-1 p-2.5 rounded-lg text-sm" style={{ ...fontBody, background: C.paper, border: '1px solid ' + C.rule }} /><button type="submit" disabled={economyBusy || !promoCode.trim()} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs disabled:opacity-40" style={{ ...fontBody, color: C.white, background: C.cover }}><Tag size={14} /> Ishlatish</button></form>
+          {isAdmin && <form onSubmit={createPromo} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 p-3 rounded-xl" style={{ background: C.paper }}><div className="col-span-2 sm:col-span-4 text-[10px] uppercase" style={{ ...fontMono, color: C.inkSoft }}>Admin · promo yaratish</div><input aria-label="Yangi promo kodi" value={newPromo} onChange={(event) => setNewPromo(event.target.value.toUpperCase())} placeholder="KOD" className="min-w-0 p-2 rounded-lg text-xs" style={{ ...fontBody, border: '1px solid ' + C.rule }} /><input aria-label="Beriladigan coin" type="number" min="1" max="10000" value={promoCoins} onChange={(event) => setPromoCoins(event.target.value)} className="min-w-0 p-2 rounded-lg text-xs" style={{ ...fontBody, border: '1px solid ' + C.rule }} /><input aria-label="Foydalanish limiti" type="number" min="1" max="100000" value={promoUses} onChange={(event) => setPromoUses(event.target.value)} className="min-w-0 p-2 rounded-lg text-xs" style={{ ...fontBody, border: '1px solid ' + C.rule }} /><button type="submit" disabled={economyBusy || !newPromo.trim()} className="col-span-2 sm:col-span-1 rounded-lg text-xs disabled:opacity-40" style={{ ...fontBody, color: C.white, background: C.cover }}>Yaratish</button></form>}
+        </>}
+      </div>
+    </div>}
   </div>;
 }

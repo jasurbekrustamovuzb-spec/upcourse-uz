@@ -5,4 +5,8 @@
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+  <url><loc>https://www.upcourse.uz/kurslar.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.upcourse.uz/testlar.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.upcourse.uz/kunlik-arena.html</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.upcourse.uz/yaratish.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
 </urlset>
