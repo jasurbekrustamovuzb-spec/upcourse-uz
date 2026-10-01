@@ -84,3 +84,64 @@ revoke all on function public.profile_follow_summary(uuid) from public;
 grant execute on function public.profile_follow_summary(uuid) to anon, authenticated;
 revoke all on function public.profile_follow_toggle(uuid, boolean) from public, anon;
 grant execute on function public.profile_follow_toggle(uuid, boolean) to authenticated;
+
+-- Kuzatuvchi ro‘yxatlari faqat foydalanuvchi son ustiga bosganda olinadi.
+create or replace function public.profile_follow_list(
+  p_profile_id uuid,
+  p_list_type text default 'followers',
+  p_limit integer default 50
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_rows jsonb;
+  v_limit integer := least(greatest(coalesce(p_limit, 50), 1), 50);
+begin
+  if p_profile_id is null or not exists (select 1 from public.profiles where id = p_profile_id) then
+    raise exception 'PROFILE_NOT_FOUND';
+  end if;
+  if p_list_type is null or p_list_type not in ('followers', 'following') then
+    raise exception 'INVALID_LIST_TYPE';
+  end if;
+
+  if p_list_type = 'followers' then
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', result.id, 'username', result.username,
+      'first_name', result.first_name, 'last_name', result.last_name
+    ) order by result.created_at desc), '[]'::jsonb)
+    into v_rows
+    from (
+      select pr.id, pr.username, pr.first_name, pr.last_name, f.created_at
+      from public.profile_follows f
+      join public.profiles pr on pr.id = f.follower_id
+      where f.followed_id = p_profile_id
+      order by f.created_at desc
+      limit v_limit
+    ) result;
+  else
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', result.id, 'username', result.username,
+      'first_name', result.first_name, 'last_name', result.last_name
+    ) order by result.created_at desc), '[]'::jsonb)
+    into v_rows
+    from (
+      select pr.id, pr.username, pr.first_name, pr.last_name, f.created_at
+      from public.profile_follows f
+      join public.profiles pr on pr.id = f.followed_id
+      where f.follower_id = p_profile_id
+      order by f.created_at desc
+      limit v_limit
+    ) result;
+  end if;
+
+  return v_rows;
+end
+$$;
+
+revoke all on function public.profile_follow_list(uuid, text, integer) from public;
+grant execute on function public.profile_follow_list(uuid, text, integer) to anon, authenticated;
+
