@@ -9,6 +9,8 @@ create table if not exists public.profile_follows (
 
 create index if not exists profile_follows_followed_created_idx
   on public.profile_follows(followed_id, created_at desc);
+create index if not exists profile_follows_follower_created_idx
+  on public.profile_follows(follower_id, created_at desc);
 
 alter table public.profile_follows enable row level security;
 revoke all on table public.profile_follows from anon, authenticated;
