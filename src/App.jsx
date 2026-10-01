@@ -351,6 +351,21 @@ async function sbRequest(path, options = {}) {
 
 const sbSelect = (table, filter, orderColumn = 'created_at', options = {}) => sbRequest(`${table}?select=*&order=${orderColumn}.asc${filter ? `&${filter}` : ''}`, options);
 
+/* Profil ochilgandagina muallifning yengil roʻyxatini yuklaydi.
+   Bosh sahifa soʻrovlari va katta content/questions ustunlariga taʼsir qilmaydi. */
+export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false) {
+  if (!authorId || !['courses', 'tests'].includes(kind)) return [];
+  const columns = kind === 'courses'
+    ? 'id,category_id,title,summary,video_url,author,author_id,status,created_at'
+    : 'id,category_id,title,description,author,author_id,status,created_at,question_count';
+  const filters = [
+    `author_id=eq.${encodeURIComponent(authorId)}`,
+    ...(approvedOnly ? ['status=eq.approved'] : []),
+  ];
+  const rows = await sbRequest(`${kind}?select=${columns}&${filters.join('&')}&order=created_at.asc`);
+  return rows.map(kind === 'courses' ? courseFromRow : testFromRow);
+}
+
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
    tekshirish uchun) yoki muallifning o'zi (o'z holatini ko'rishi uchun)
    so'raydi. Boshqa barcha holatlarda serverdan faqat tasdiqlangan
@@ -5145,7 +5160,7 @@ export default function App() {
     const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
     try {
       await sbInsert('courses', courseToRow(row));
-      setCourses([row, ...courses]);
+      setCourses((previous) => [row, ...previous.filter((item) => item.id !== row.id)]);
       setActionError(null);
       return row.id;
     } catch (e) {
@@ -5212,7 +5227,7 @@ export default function App() {
     const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, questionCount: getQuestionCount(data.questions), author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
     try {
       await sbInsert('tests', testToRow(row));
-      setTests([row, ...tests]);
+      setTests((previous) => [row, ...previous.filter((item) => item.id !== row.id)]);
       setActionError(null);
       return row.id;
     } catch (e) {
