@@ -8,7 +8,7 @@ import {
 import { signInWithGoogle } from './supabaseClient';
 import {
   C, fontBody, fontDisplay, fontMono, NavContext, SectionHeading, EmptyState, ShareButton,
-  buildShareUrl, sbSelect, profileFromRow, useAuthorBadge, bannerGradient, BANNER_PRESETS,
+  buildShareUrl, sbSelect, sbSelectAuthorContent, profileFromRow, useAuthorBadge, bannerGradient, BANNER_PRESETS,
   normalizeUsername, isValidUsername, isReservedUsername, checkUsernameAvailable,
   usernameChangeDaysLeft, suggestAvailableUsername, TextField, GhostButton, SolidButton,
   CommunityCoursesView, CommunityTestsView, CollectionsView, CollectibleThumb,
@@ -18,21 +18,47 @@ export function PublicProfileView({ username, courses, tests, onBack, onOpenItem
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState(null);
   const [err, setErr] = useState(false);
+  const [authorCourses, setAuthorCourses] = useState([]);
+  const [authorTests, setAuthorTests] = useState([]);
+  const [contentLoading, setContentLoading] = useState(true);
+  const [contentError, setContentError] = useState(false);
   const [section, setSection] = useState('kurslar'); // kurslar | testlar — kelajakda yana tab qo'shsa bo'ladi
   const badge = useAuthorBadge(row?.id);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setContentLoading(true);
     setErr(false);
+    setContentError(false);
+    setRow(null);
+    setAuthorCourses([]);
+    setAuthorTests([]);
     (async () => {
       try {
         const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
-        if (!cancelled) setRow(rows[0] ? profileFromRow(rows[0]) : null);
+        const profileRow = rows[0] ? profileFromRow(rows[0]) : null;
+        if (cancelled) return;
+        setRow(profileRow);
+        if (!profileRow) return;
+
+        // Reytingdan ochilganda ilova kurs/test ro'yxatlarini hali yuklamagan bo'lishi mumkin.
+        // Faqat shu muallifning tasdiqlangan metadata qatorlari so'raladi.
+        const [courseRows, testRows] = await Promise.all([
+          sbSelectAuthorContent('courses', profileRow.id, true),
+          sbSelectAuthorContent('tests', profileRow.id, true),
+        ]);
+        if (!cancelled) {
+          setAuthorCourses(courseRows);
+          setAuthorTests(testRows);
+        }
       } catch (e) {
-        if (!cancelled) setErr(true);
+        if (!cancelled) setContentError(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setContentLoading(false);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -69,8 +95,8 @@ export function PublicProfileView({ username, courses, tests, onBack, onOpenItem
   }
 
   const fullName = `${row.firstName} ${row.lastName}`.trim();
-  const myCourses = courses.filter((c) => c.authorId === row.id && c.status === 'approved');
-  const myTests = tests.filter((t) => t.authorId === row.id && t.status === 'approved');
+  const myCourses = authorCourses;
+  const myTests = authorTests;
   const items = section === 'kurslar' ? myCourses : myTests;
 
   /* Instagram uslubidagi kvadrat "plitka" — kurs/test kartochkasi.
@@ -168,7 +194,15 @@ export function PublicProfileView({ username, courses, tests, onBack, onOpenItem
         </button>
       </div>
 
-      {items.length === 0 ? (
+      {contentLoading ? (
+        <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Materiallar yuklanmoqda...
+        </div>
+      ) : contentError ? (
+        <div className="py-10 text-center text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          Materiallarni yuklab boʻlmadi. Sahifani yangilab qayta urinib koʻring.
+        </div>
+      ) : items.length === 0 ? (
         <div className="py-10 text-center">
           <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
             {section === 'kurslar' ? 'Hozircha ommaviy mavzu yoʻq.' : 'Hozircha ommaviy test yoʻq.'}
@@ -430,7 +464,28 @@ export function ProfileView({ session, profile, authLoading, onSaveProfile, onSi
   const [prefillCategory, setPrefillCategory] = useState('');
   const [testFormMode, setTestFormMode] = useState(null);
   const myBadge = useAuthorBadge(session?.user?.id);
+  const [ownContent, setOwnContent] = useState({ userId: null, courses: [], tests: [], loading: false });
   const { pushNav } = useContext(NavContext);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setOwnContent({ userId: null, courses: [], tests: [], loading: false });
+      return undefined;
+    }
+    let cancelled = false;
+    setOwnContent((previous) => ({ ...previous, userId, loading: true }));
+    Promise.all([
+      sbSelectAuthorContent('courses', userId),
+      sbSelectAuthorContent('tests', userId),
+    ]).then(([ownCourses, ownTests]) => {
+      if (!cancelled) setOwnContent({ userId, courses: ownCourses, tests: ownTests, loading: false });
+    }).catch((error) => {
+      console.error('Muallif materiallarini profil uchun yuklab bo‘lmadi:', error);
+      if (!cancelled) setOwnContent({ userId, courses: [], tests: [], loading: false });
+    });
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
   useEffect(() => {
@@ -495,8 +550,17 @@ export function ProfileView({ session, profile, authLoading, onSaveProfile, onSi
   }
 
 
-  const myCourses = courses.filter((c) => c.authorId === session.user.id);
-  const myTests = tests.filter((t) => t.authorId === session.user.id);
+  const ownCourses = ownContent.userId === session.user.id ? ownContent.courses : [];
+  const ownTests = ownContent.userId === session.user.id ? ownContent.tests : [];
+  // Yangi qo'shilgan yoki boshqa ekran orqali yangilangan qatorlar darhol ko'rinsin.
+  const myCourses = Array.from(new Map([
+    ...ownCourses.map((item) => [item.id, item]),
+    ...courses.filter((item) => item.authorId === session.user.id).map((item) => [item.id, item]),
+  ]).values());
+  const myTests = Array.from(new Map([
+    ...ownTests.map((item) => [item.id, item]),
+    ...tests.filter((item) => item.authorId === session.user.id).map((item) => [item.id, item]),
+  ]).values());
 
   if (subTab === 'kurslar') {
     return (
