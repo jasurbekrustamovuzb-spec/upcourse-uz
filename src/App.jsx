@@ -4534,10 +4534,10 @@ function AboutView() {
     <div>
       <SectionHeading eyebrow="Platforma haqida" title="Biz haqimizda" />
       <div className="space-y-4 max-w-2xl text-base leading-7" style={{ ...fontBody, color: C.ink }}>
-        <p>"UpCourse Uz" — O'z ustida ishlab rivojlanadiganlar uchun yaratilgan ochiq taʼlim platformasi. Maqsadimiz — jamiyat va ilm-fan taraqqiyoti ravnaqiga o‘z hissamizni qo‘shish. Bilimlarni sodda, tizimli va hammabop shaklda taqdim etish.</p>
-        <p>Platformada roʻyxatdan oʻtish yoki profil yaratish shart emas: barcha kurslar, testlar va yangiliklar istalgan foydalanuvchi uchun istalgan paytda ochiq.</p>
-        <p>Kontent doimiy ravishda yangilanib boriladi — yangi mavzular, testlar va eʼlonlar muntazam qoʻshiladi.</p> 
-        <p>Biz bilan bogʻlanish uchun: <a href="https://t.me/Jasurbek_Rustamov" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>t.me/Jasurbek_Rustamov</a></p>
+        <p><strong>UpCourse Uz</strong> — o‘z ustida ishlash va rivojlanishni istaganlar uchun yaratilgan ochiq ta’lim platformasi. Maqsadimiz — bilimlarni sodda, tizimli va hammabop shaklda taqdim etish hamda jamiyat va ilm-fan rivojiga hissa qo‘shish.</p>
+        <p>Platformadagi kurslar, testlar va yangiliklardan foydalanish uchun ro‘yxatdan o‘tish yoki profil yaratish shart emas.</p>
+        <p>Platforma muntazam yangilanib boradi: unga yangi mavzular, testlar va e’lonlar qo‘shiladi.</p>
+        <p>Savol, taklif yoki hamkorlik bo‘yicha <a href="https://t.me/upcourseuz" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}><strong>UpCourse Uz jamoasi bilan bog‘laning</strong></a>.</p>
       </div>
     </div>
   );
