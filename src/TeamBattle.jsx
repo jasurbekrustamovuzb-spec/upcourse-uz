@@ -42,7 +42,7 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
   const [error, setError] = useState('');
   const [groupCount, setGroupCount] = useState(2);
   const [groupNames, setGroupNames] = useState(['1-guruh', '2-guruh']);
-  const [points, setPoints] = useState(10);
+  const [pointsInput, setPointsInput] = useState('10');
   const [turn, setTurn] = useState(0);
   const [usedIds, setUsedIds] = useState(() => new Set());
   const [activeId, setActiveId] = useState(null);
@@ -71,14 +71,19 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
   }
 
   function startGame() {
+    const parsedPoints = Number(pointsInput);
+    if (!Number.isInteger(parsedPoints) || parsedPoints < 1 || parsedPoints > 1000) {
+      setError('Toʻgʻri javob ballini 1 dan 1000 gacha kiriting.');
+      return;
+    }
     setGroupNames((names) => Array.from({ length: groupCount }, (_, i) => names[i] || `${i + 1}-guruh`));
-    setScores(Array(groupCount).fill(0)); setTurn(0); setUsedIds(new Set()); setActiveId(null); setAnswerVisible(false);
+    setScores(Array(groupCount).fill(0)); setTurn(0); setUsedIds(new Set()); setActiveId(null); setAnswerVisible(false); setError('');
   }
 
   function finishCard(correct) {
     const card = deck.find((item) => item.id === activeId);
     if (!card) return;
-    if (correct) setScores((current) => current.map((score, i) => i === turn ? score + Number(points) : score));
+    if (correct) setScores((current) => current.map((score, i) => i === turn ? score + Number(pointsInput) : score));
     setUsedIds((current) => new Set([...current, card.id]));
     setTurn((current) => (current + 1) % groupCount);
     setActiveId(null); setAnswerVisible(false);
@@ -132,7 +137,7 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
           {Array.from({ length: 7 }, (_, i) => i + 2).map((count) => <option key={count} value={count}>{count} ta guruh</option>)}
         </select>
         <div className="grid sm:grid-cols-2 gap-2">{groupNames.slice(0, groupCount).map((name, index) => <label key={index} htmlFor={`battle-group-${index + 1}`} className="block text-xs" style={{ ...fontMono, color: C.inkSoft }}>{index + 1}-guruh nomi<input id={`battle-group-${index + 1}`} name={`group${index + 1}`} value={name} disabled={!selectedTest} onChange={(event) => setGroupNames((names) => names.map((item, i) => i === index ? event.target.value : item))} className="block w-full mt-1 p-2.5 rounded-lg text-sm" style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} /></label>)}</div>
-        <label className="block text-xs mt-3" htmlFor="battle-points" style={{ ...fontMono, color: C.inkSoft }}>Toʻgʻri javob uchun ball<input id="battle-points" name="points" type="number" min="1" max="1000" value={points} disabled={!selectedTest} onChange={(event) => setPoints(Math.max(1, Number(event.target.value) || 1))} className="block w-full sm:w-48 mt-1 p-2.5 rounded-lg text-sm" style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} /></label>
+        <label className="block text-xs mt-3" htmlFor="battle-points" style={{ ...fontMono, color: C.inkSoft }}>Toʻgʻri javob uchun ball<input id="battle-points" name="points" type="number" min="1" max="1000" value={pointsInput} disabled={!selectedTest} onChange={(event) => setPointsInput(event.target.value)} className="block w-full sm:w-48 mt-1 p-2.5 rounded-lg text-sm" style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} /></label>
         {selectedTest && <p className="text-xs mt-3" style={{ ...fontBody, color: C.inkSoft }}>{deck.length} ta savol tasodifiy tartibda joylandi. Har bir savol bir marta ochiladi.</p>}
       </section>
       {error && <div role="alert" className="text-sm mb-3" style={{ ...fontBody, color: C.red }}>{error}</div>}
@@ -149,10 +154,10 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
       <p className="text-center text-xs mt-4" style={{ ...fontBody, color: C.inkSoft }}>Jami {deck.length} ta savol · navbat oʻzi keyingi guruhga oʻtadi</p>
     </div>}
     {activeCard && <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6" style={{ background: 'rgba(15, 20, 25, 0.82)' }} role="dialog" aria-modal="true" aria-label="Jamoaviy jang savoli"><div className="w-full max-w-3xl max-h-[92dvh] overflow-y-auto rounded-2xl p-5 sm:p-8" style={{ color: C.ink, background: C.paper }}>
-      <div className="flex items-start justify-between gap-3 mb-5"><div><div className="text-xs uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Navbat: {groupNames[turn]}</div><div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javob uchun +{points} ball</div></div><button type="button" onClick={() => { setActiveId(null); setAnswerVisible(false); }} aria-label="Savolni yopish" className="p-2 rounded-full" style={{ color: C.inkSoft, background: C.surface }}><X size={19} /></button></div>
+      <div className="flex items-start justify-between gap-3 mb-5"><div><div className="text-xs uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Navbat: {groupNames[turn]}</div><div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javob uchun +{pointsInput} ball</div></div><button type="button" onClick={() => { setActiveId(null); setAnswerVisible(false); }} aria-label="Savolni yopish" className="p-2 rounded-full" style={{ color: C.inkSoft, background: C.surface }}><X size={19} /></button></div>
       <h2 className="text-xl sm:text-3xl font-semibold leading-relaxed whitespace-pre-wrap" style={{ ...fontBody }}>{activeCard.text}</h2>{activeCard.imageUrl && <img src={activeCard.imageUrl} alt="Savol rasmi" className="max-h-60 max-w-full object-contain rounded-lg mt-4" />}
       <div className="mt-5 p-4 sm:p-5 rounded-xl" style={{ background: C.surface, border: `1px solid ${C.rule}`, minHeight: 76 }}>{answerVisible ? <><div className="text-[10px] uppercase tracking-wider mb-1" style={{ ...fontMono, color: C.gold }}>Toʻgʻri javob</div><div className="text-lg sm:text-xl whitespace-pre-wrap" style={{ ...fontBody }}>{activeCard.answer}</div></> : <button type="button" onClick={() => setAnswerVisible(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}><Eye size={17} /> Javobni koʻrish</button>}</div>
-      {answerVisible && <div className="grid sm:grid-cols-2 gap-2 mt-5"><button type="button" onClick={() => finishCard(true)} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.accent }}><Check size={18} /> Toʻgʻri · +{points} ball</button><button type="button" onClick={() => finishCard(false)} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.red }}>Notoʻgʻri · 0 ball</button></div>}
+      {answerVisible && <div className="grid sm:grid-cols-2 gap-2 mt-5"><button type="button" onClick={() => finishCard(true)} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.accent }}><Check size={18} /> Toʻgʻri · +{pointsInput} ball</button><button type="button" onClick={() => finishCard(false)} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.red }}>Notoʻgʻri · 0 ball</button></div>}
     </div></div>}
   </div>;
 }
