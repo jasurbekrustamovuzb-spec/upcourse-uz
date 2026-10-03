@@ -558,15 +558,27 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
             const correctText = currentQuestion.type === 'open'
               ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
               : currentQuestion.type === 'matching'
-                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                ? currentQuestion.pairs
+                  ? currentQuestion.pairs.map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                  : currentQuestion.options?.[currentQuestion.correct] ?? ''
                 : currentQuestion.options?.[currentQuestion.correct] ?? '';
             const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
+            const myResult = myAnswers[currentQuestion.id];
+            const rawAnswer = myResult?.answer;
+            const myAnswerText = currentQuestion.type === 'open'
+              ? (typeof rawAnswer === 'string' && rawAnswer.trim() ? rawAnswer : 'Javob berilmadi')
+              : currentQuestion.type === 'matching'
+                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${rawAnswer?.[pair.id] === undefined ? '—' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[rawAnswer[pair.id]]}`).join(', ')
+                : currentQuestion.options?.[rawAnswer] ?? 'Javob berilmadi';
+            const isCorrect = !!myResult?.correct;
             return (
-              <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.successTint, border: `1px solid ${C.accent}`, color: C.ink }}>
-                <div className="flex items-center gap-2" style={{ fontWeight: 600 }}>
-                  <Check size={18} style={{ color: C.accent }} /> Toʻgʻri javob: {correctText}
+              <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: isCorrect ? C.successTint : C.dangerTint, border: `1px solid ${isCorrect ? C.accent : C.red}`, color: C.ink }}>
+                <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: isCorrect ? C.accent : C.red }}>
+                  {isCorrect ? <Check size={18} /> : <X size={18} />} {isCorrect ? 'Toʻgʻri javob berdingiz' : 'Bu safar notoʻgʻri'}
                 </div>
-                <div className="text-sm mt-1" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{participants.length} ishtirokchi toʻgʻri topdi</div>
+                <div className="text-sm"><span style={{ color: C.inkSoft }}>Sizning javobingiz: </span>{myAnswerText}</div>
+                <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span><strong>{correctText || 'Javob kiritilmagan'}</strong></div>
+                <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{participants.length} ishtirokchi toʻgʻri topdi</div>
               </div>
             );
           })()}
@@ -797,6 +809,9 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState(null);
+  const [ending, setEnding] = useState(false);
+  const [finishError, setFinishError] = useState('');
+  const finishingRef = useRef(false);
   const test = tests.find((t) => t.id === room.testId);
 
   useEffect(() => {
@@ -812,6 +827,22 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.testId, test, test?.questions, ensureTestContent]);
+
+  useEffect(() => {
+    if (room.mode === 'sync' || room.status !== 'active') return undefined;
+    let cancelled = false;
+    async function refreshLiveStatus() {
+      try {
+        const [freshRoom, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (cancelled) return;
+        if (freshRoom) setRoom(freshRoom);
+        setParticipants(list);
+      } catch (e) { /* Realtime yoki keyingi polling urinishida yangilanadi */ }
+    }
+    const timer = setInterval(refreshLiveStatus, 2000);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.id, room.mode, room.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -849,6 +880,33 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
       setStarting(false);
     }
   }
+
+  async function finishRoom() {
+    if (room.status !== 'active' || finishingRef.current) return;
+    finishingRef.current = true;
+    setFinishError('');
+    setEnding(true);
+    try {
+      const [updated] = await sbUpdate('live_rooms', room.id, { status: 'finished' });
+      if (updated) setRoom(liveRoomFromRow(updated));
+      else {
+        finishingRef.current = false;
+        setFinishError('Testni yakunlab boʻlmadi. Qayta urinib koʻring.');
+      }
+    } catch (e) {
+      finishingRef.current = false;
+      setFinishError('Testni yakunlab boʻlmadi. Internetni tekshirib, qayta urinib koʻring.');
+    } finally {
+      setEnding(false);
+    }
+  }
+
+  const allParticipantsSubmitted = participants.length > 0 && participants.every((p) => !!p.submittedAt);
+  useEffect(() => {
+    if (room.mode === 'sync' || room.status !== 'active' || !allParticipantsSubmitted) return;
+    finishRoom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.mode, room.status, room.id, allParticipantsSubmitted, participants]);
 
   function copyCode() {
     try {
@@ -894,6 +952,17 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
       <div>
         <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
         <SectionHeading eyebrow={room.status === 'active' ? 'Test davom etmoqda' : 'Test tugadi'} title="Jonli reyting" />
+        {room.status === 'active' && room.mode !== 'sync' && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <span className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+              Topshirganlar: {participants.filter((p) => p.submittedAt).length}/{participants.length}
+            </span>
+            <SolidButton onClick={finishRoom} icon={Check} disabled={ending}>
+              {ending ? 'Yakunlanmoqda...' : 'Testni hozir yakunlash'}
+            </SolidButton>
+            {finishError && <span role="alert" className="text-sm" style={{ ...fontBody, color: C.red }}>{finishError}</span>}
+          </div>
+        )}
         <LiveLeaderboardList participants={participants} />
       </div>
     );
@@ -1144,23 +1213,31 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
             const correctText = currentQuestion.type === 'open'
               ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
               : currentQuestion.type === 'matching'
-                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                ? currentQuestion.pairs
+                  ? currentQuestion.pairs.map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                  : currentQuestion.options?.[currentQuestion.correct] ?? ''
                 : currentQuestion.options?.[currentQuestion.correct] ?? '';
+            const rawAnswer = myAnswer?.answer;
+            const myAnswerText = currentQuestion.type === 'open'
+              ? (typeof rawAnswer === 'string' && rawAnswer.trim() ? rawAnswer : 'Javob berilmadi')
+              : currentQuestion.type === 'matching'
+                ? currentQuestion.pairs
+                  ? currentQuestion.pairs.map((pair, index) => `${index + 1}${rawAnswer?.[pair.id] === undefined ? '—' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[rawAnswer[pair.id]]}`).join(', ')
+                  : currentQuestion.options?.[rawAnswer] ?? 'Javob berilmadi'
+                : currentQuestion.options?.[rawAnswer] ?? 'Javob berilmadi';
             return (
               <div
-                className="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-[15px]"
-                style={{ ...fontBody, background: wasCorrect || hasMatchingCredit ? C.successTint : C.dangerTint, border: `1px solid ${wasCorrect || hasMatchingCredit ? C.accent : C.red}`, color: C.ink }}
+                className="px-4 py-3.5 rounded-2xl text-[15px]"
+                style={{ ...fontBody, background: wasCorrect ? C.successTint : C.dangerTint, border: `1px solid ${wasCorrect ? C.accent : C.red}`, color: C.ink }}
               >
-                {wasCorrect || hasMatchingCredit ? <Check size={18} style={{ color: C.accent, flexShrink: 0 }} /> : <X size={18} style={{ color: C.red, flexShrink: 0 }} />}
-                <div className="min-w-0">
-                  <div style={{ fontWeight: 600 }}>{wasCorrect ? "Toʻgʻri javob!" : 'Xato javob'}</div>
-                  {!wasCorrect && correctText !== '' && (
-                    <div className="text-sm mt-0.5" style={{ color: C.inkSoft }}>Toʻgʻri javob: {correctText}</div>
-                  )}
-                  {myAnswer?.points > 0 && (
-                    <div className="text-sm mt-0.5" style={{ ...fontMono, color: C.inkSoft }}>+{myAnswer.points} ball</div>
-                  )}
+                <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: wasCorrect ? C.accent : C.red }}>
+                  {wasCorrect ? <Check size={18} /> : <X size={18} />} {wasCorrect ? 'Toʻgʻri javob!' : hasMatchingCredit ? 'Qisman toʻgʻri' : 'Xato javob'}
                 </div>
+                <div className="text-sm"><span style={{ color: C.inkSoft }}>Sizning javobingiz: </span>{myAnswerText}</div>
+                <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span><strong>{correctText || 'Javob kiritilmagan'}</strong></div>
+                {myAnswer?.points > 0 && (
+                  <div className="text-sm mt-2" style={{ ...fontMono, color: C.inkSoft }}>+{myAnswer.points} ball</div>
+                )}
               </div>
             );
           })()}
@@ -1248,22 +1325,47 @@ function LiveJoinForm({ initialCode, onJoined, onBack }) {
 function LiveQuizPlayer({ room, test, participant, onDone }) {
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [confirmIncomplete, setConfirmIncomplete] = useState(false);
   const [remaining, setRemaining] = useState(9999);
+  const submittingRef = useRef(false);
+
+  const roomStartMs = room.startsAt ? new Date(room.startsAt).getTime() : 0;
+  const participantJoinMs = participant.joinedAt ? new Date(participant.joinedAt).getTime() : 0;
+  const quizStartMs = Math.max(roomStartMs || 0, participantJoinMs || 0);
+  const isQuestionAnswered = (question, answer) => {
+    if (question.type === 'matching') {
+      if (Array.isArray(question.pairs)) return question.pairs.every((pair) => answer?.[pair.id] !== undefined);
+      return answer?.[question.id] !== undefined || typeof answer === 'number';
+    }
+    if (question.type === 'open') return typeof answer === 'string' && answer.trim().length > 0;
+    return answer !== undefined && answer !== null;
+  };
+  const unansweredNumbers = test.questions
+    .map((question, index) => isQuestionAnswered(question, answers[question.id]) ? null : index + 1)
+    .filter((number) => number !== null);
 
   async function submit(currentAnswers) {
-    if (submitted) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitted(true);
     const score = test.questions.reduce((s, q) => s + getQuestionScore(q, currentAnswers[q.id]), 0);
     try {
       await sbUpdate('live_participants', participant.id, { score, total: getQuestionCount(test.questions), submitted_at: new Date().toISOString() });
-    } catch (e) { /* natija topshirilmasa ham foydalanuvchi natijalar ekraniga o'tadi */ }
-    onDone();
+      const latestParticipants = await sbSelectParticipants(room.id);
+      if (latestParticipants.length > 0 && latestParticipants.every((p) => !!p.submittedAt)) {
+        await sbUpdate('live_rooms', room.id, { status: 'finished' });
+      }
+    } catch (e) { /* tarmoq uzilsa, xona egasining kuzatuvi natijani baribir yakunlaydi */ }
   }
 
   useEffect(() => {
     function tick() {
-      if (!room.startsAt) return;
-      const end = new Date(room.startsAt).getTime() + room.durationSeconds * 1000;
+      if (room.status === 'finished') {
+        submit(answers);
+        return;
+      }
+      if (!quizStartMs) return;
+      const end = quizStartMs + room.durationSeconds * 1000;
       const left = Math.max(0, Math.round((end - Date.now()) / 1000));
       setRemaining(left);
       if (left === 0) submit(answers);
@@ -1272,7 +1374,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answers]);
+  }, [answers, room.status, quizStartMs, room.durationSeconds]);
 
   function select(qid, idx) {
     if (submitted) return;
@@ -1296,6 +1398,54 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = String(remaining % 60).padStart(2, '0');
+
+  if (submitted) {
+    const score = test.questions.reduce((sum, q) => sum + getQuestionScore(q, answers[q.id]), 0);
+    const total = getQuestionCount(test.questions);
+    return (
+      <div>
+        <SectionHeading eyebrow="Natijalar" title={`${score} / ${total} ball`} />
+        <div className="space-y-4 max-w-2xl mt-5">
+          {test.questions.map((q, qi) => {
+            const userAnswer = answers[q.id];
+            const points = getQuestionScore(q, userAnswer);
+            const count = getQuestionCount([q]);
+            const correct = points === count;
+            let chosenText = 'Javob berilmadi';
+            let correctText = '';
+            if (q.type === 'open') {
+              chosenText = typeof userAnswer === 'string' && userAnswer.trim() ? userAnswer : 'Javob berilmadi';
+              correctText = (q.answers || []).join(' yoki ');
+            } else if (q.type === 'matching') {
+              const pairs = q.pairs || [{ id: q.id, correct: q.correct }];
+              const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+              if (!q.pairs) {
+                chosenText = q.options?.[userAnswer] ?? 'Javob berilmadi';
+                correctText = q.options?.[q.correct] ?? '';
+              } else {
+                chosenText = pairs.map((pair, i) => `${i + 1}. ${userAnswer?.[pair.id] === undefined ? '—' : letters[userAnswer[pair.id]]}`).join(' · ');
+                correctText = pairs.map((pair, i) => `${i + 1}. ${letters[pair.correct]}`).join(' · ');
+              }
+            } else {
+              chosenText = q.options?.[userAnswer] ?? 'Javob berilmadi';
+              correctText = q.options?.[q.correct] ?? '';
+            }
+            return (
+              <article key={q.id} className="p-4 rounded-2xl" style={{ background: correct ? C.successTint : C.dangerTint, border: `1px solid ${correct ? C.accent : C.red}` }}>
+                <div className="text-[15px] mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>{qi + 1}. {q.text || 'Moslashtirish savoli'}</div>
+                <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                  <div><div style={{ ...fontBody, color: C.inkSoft }}>Sizning javobingiz</div><div className="mt-1 break-words" style={{ ...fontBody, color: C.ink }}>{chosenText}</div></div>
+                  <div><div style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javob</div><div className="mt-1 break-words" style={{ ...fontBody, color: C.accent, fontWeight: 600 }}>{correctText || 'Javob kiritilmagan'}</div></div>
+                </div>
+                <div className="mt-3 text-xs" style={{ ...fontMono, color: correct ? C.accent : C.red }}>{correct ? 'Toʻgʻri' : 'Notoʻgʻri'} · {points}/{count} ball</div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="mt-6"><SolidButton onClick={onDone} icon={Trophy}>Reytingni koʻrish</SolidButton></div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -1352,7 +1502,30 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
         ))}
       </div>
       <div className="mt-8">
-        <SolidButton onClick={() => submit(answers)} icon={Check} disabled={submitted}>{submitted ? 'Yuborildi' : 'Yakunlash'}</SolidButton>
+        {unansweredNumbers.length > 0 && (
+          <div className="mb-3 px-4 py-3 rounded-2xl text-sm" style={{ ...fontBody, color: C.red, background: C.dangerTint, border: `1px solid ${C.red}` }}>
+            {unansweredNumbers.length} ta savol javobsiz: {unansweredNumbers.join(', ')}.
+          </div>
+        )}
+        <SolidButton
+          onClick={() => unansweredNumbers.length > 0 ? setConfirmIncomplete(true) : submit(answers)}
+          icon={Check}
+          disabled={submitted}
+        >
+          {submitted ? 'Yuborildi' : unansweredNumbers.length ? 'Javoblarni tekshirib yakunlash' : 'Testni yakunlash'}
+        </SolidButton>
+        {confirmIncomplete && (
+          <div role="alertdialog" aria-modal="true" aria-labelledby="incomplete-submit-title" className="mt-4 p-4 rounded-2xl" style={{ background: C.surface, border: `1px solid ${C.red}` }}>
+            <div id="incomplete-submit-title" className="font-semibold mb-1" style={{ ...fontBody, color: C.ink }}>Javobsiz savollar bor</div>
+            <p className="text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>
+              {unansweredNumbers.length} ta savolga javob belgilanmagan ({unansweredNumbers.join(', ')}). Baribir testni yakunlaysizmi?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <GhostButton onClick={() => setConfirmIncomplete(false)} icon={ArrowLeft}>Davom etish</GhostButton>
+              <SolidButton onClick={() => { setConfirmIncomplete(false); submit(answers); }} icon={Check}>Ha, yakunlash</SolidButton>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -3176,6 +3176,54 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
             <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Sarflangan vaqt</div>
           </div>
         </div>
+        <section className="max-w-2xl mb-8">
+          <h4 className="text-lg mb-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Javoblar tahlili</h4>
+          <div className="space-y-3">
+            {questions.map((q, qi) => {
+              const userAnswer = answers[q.id];
+              const correct = getQuestionScore(q, userAnswer);
+              const total = getQuestionCount([q]);
+              let chosenText = 'Javob berilmadi';
+              let correctText = '';
+              if (q.type === 'open') {
+                chosenText = typeof userAnswer === 'string' && userAnswer.trim() ? userAnswer : 'Javob berilmadi';
+                correctText = (q.answers || []).join(' yoki ');
+              } else if (q.type === 'matching') {
+                const pairs = q.pairs || [{ id: q.id, text: q.text, correct: q.correct }];
+                const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                if (!q.pairs) {
+                  chosenText = q.options?.[userAnswer] ?? 'Javob berilmadi';
+                  correctText = q.options?.[q.correct] ?? '';
+                } else {
+                  chosenText = pairs.map((pair, i) => `${i + 1}. ${userAnswer?.[pair.id] === undefined ? '—' : letters[userAnswer[pair.id]]}`).join(' · ');
+                  correctText = pairs.map((pair, i) => `${i + 1}. ${letters[pair.correct]}`).join(' · ');
+                }
+              } else {
+                chosenText = q.options?.[userAnswer] ?? 'Javob berilmadi';
+                correctText = q.options?.[q.correct] ?? '';
+              }
+              const isCorrect = correct === total;
+              return (
+                <article key={q.id} className="p-4 rounded-sm" style={{ background: isCorrect ? C.successTint : C.dangerTint, border: `1px solid ${isCorrect ? C.accent : C.red}` }}>
+                  <div className="text-sm mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>{qi + 1}. {q.text || 'Moslashtirish savoli'}</div>
+                  <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div style={{ ...fontBody, color: C.inkSoft }}>Sizning javobingiz</div>
+                      <div className="mt-1 break-words" style={{ ...fontBody, color: C.ink }}>{chosenText}</div>
+                    </div>
+                    <div>
+                      <div style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javob</div>
+                      <div className="mt-1 break-words" style={{ ...fontBody, color: C.accent, fontWeight: 600 }}>{correctText || 'Javob kiritilmagan'}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs" style={{ ...fontMono, color: isCorrect ? C.accent : C.red }}>
+                    {isCorrect ? 'Toʻgʻri' : 'Notoʻgʻri'} · {correct}/{total} ball
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
         <div className="flex gap-3">
           <GhostButton onClick={onRestart} icon={RotateCcw}>Sozlamalarni oʻzgartirish</GhostButton>
         </div>
