@@ -1,13 +1,14 @@
 import React, { useState, useContext, useEffect } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Plus, ChevronRight, ArrowLeft, Trash2,
-  Pencil, ShieldCheck, Lock, Clock3,
+  Pencil, ShieldCheck, Lock, Clock3, Tag, Coins, Check,
 } from 'lucide-react';
 import {
   C, fontBody, fontMono, NavContext, formatDate, writePosition,
   SectionHeading, EmptyState, EntryNumber, ItemMenu, GhostButton, IconButtonDelete,
   RenameCategoryModal, AddNewsForm, CommunityCoursesView, CommunityTestsView,
 } from './App';
+import { supabase } from './supabaseClient';
 
 /* ------------------------------------------------------------------ */
 /*  Admin panel — faqat "Admin panel" boʻlimiga kirilganda React.lazy   */
@@ -115,6 +116,84 @@ function AdminNewsView({ news, addNews, deleteNews, onBack }) {
   );
 }
 
+function AdminPromoView({ onBack }) {
+  const [code, setCode] = useState('');
+  const [coins, setCoins] = useState('100');
+  const [uses, setUses] = useState('1');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState(false);
+  const [createdCode, setCreatedCode] = useState('');
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!code.trim() || busy) return;
+    setBusy(true);
+    setNotice('');
+    setError(false);
+    setCreatedCode('');
+    const { data, error: rpcError } = await supabase.rpc('daily_arena_create_promo', {
+      p_code: code,
+      p_coins: Number(coins),
+      p_max_uses: Number(uses),
+    });
+    setBusy(false);
+    if (rpcError) {
+      const message = rpcError.message || '';
+      setNotice(message.includes('ADMIN_REQUIRED')
+        ? 'Bu amal faqat administrator uchun.'
+        : message.includes('INVALID_PROMO')
+          ? 'Kod, coin miqdori yoki foydalanish limiti notoʻgʻri.'
+          : 'Promo kod yaratilmadi. Kod band boʻlishi mumkin.');
+      setError(true);
+      return;
+    }
+    const normalized = data?.code || code.trim().toUpperCase();
+    setCreatedCode(normalized);
+    setCode('');
+    setNotice('Promo kod yaratildi. Uni foydalanuvchilarga ulashing.');
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}>
+        <ArrowLeft size={15} /> Admin panel
+      </button>
+      <SectionHeading eyebrow="Mukofotlar boshqaruvi" title="Promo kod yaratish" />
+      <div className="max-w-xl rounded-sm p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <p className="mb-4 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Kod foydalanuvchi profilidagi Coin hamyonidan ishlatiladi. Har bir hisob kodni bir marta qoʻllashi mumkin.</p>
+        <form onSubmit={submit} className="space-y-3">
+          <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+            Promo kod
+            <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))} minLength={4} maxLength={32} required placeholder="MASALAN: BILIM2026" className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm outline-none" style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+              Beriladigan coin
+              <input type="number" min="1" max="10000" required value={coins} onChange={(event) => setCoins(event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm outline-none" style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} />
+            </label>
+            <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+              Jami ishlatish limiti
+              <input type="number" min="1" max="100000" required value={uses} onChange={(event) => setUses(event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm outline-none" style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} />
+            </label>
+          </div>
+          <button type="submit" disabled={busy || code.trim().length < 4} className="inline-flex items-center justify-center gap-2 rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Tag size={15} />} Promo kod yaratish
+          </button>
+        </form>
+        {notice && <div role="status" className="mt-3 flex items-center gap-2 text-sm" style={{ ...fontBody, color: error ? C.red : C.accent }}>
+          {!error && <Check size={15} />} {notice}
+        </div>}
+        {createdCode && <div className="mt-3 flex items-center gap-2 rounded-sm p-3" style={{ background: C.goldSoft }}>
+          <Coins size={16} style={{ color: C.gold }} />
+          <code className="font-semibold tracking-wide" style={{ color: C.cover }}>{createdCode}</code>
+          <span className="ml-auto text-xs" style={{ ...fontMono, color: C.inkSoft }}>{coins} coin · {uses} marta</span>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPanelView({ courses, tests, categories, news, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, deleteCategory, addNews, deleteNews, ensureCourseContent, ensureTestContent, initialSubTab }) {
   const [subTab, setSubTab] = useState(initialSubTab || null);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -215,6 +294,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
       />
     );
   }
+  if (subTab === 'promo-kodlar') return <AdminPromoView onBack={() => setSubTab(null)} />;
   if (subTab === 'sohalar') {
     return <AdminCategoriesView categories={categories} courses={courses} tests={tests} renameCategory={renameCategory} deleteCategory={deleteCategory} onBack={() => setSubTab(null)} />;
   }
@@ -285,6 +365,16 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
             <div>
               <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Yangiliklar</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{news.length} ta eʼlon</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('promo-kodlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.goldSoft, border: `1px solid ${C.coverLine}` }}>
+          <div className="flex items-center gap-3">
+            <Tag size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Promo kodlar</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Coin mukofotlari yaratish</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
