@@ -4228,7 +4228,7 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
   );
 }
 
-function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout }) {
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -4368,14 +4368,26 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
                 </span>
               </div>
             </div>
-            <button
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Sozlamalar"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full flex-shrink-0 mb-1"
-              style={{ color: C.inkSoft, border: `1px solid ${C.rule}`, background: C.surface }}
-            >
-              <Settings size={16} />
-            </button>
+            <div className="flex items-center gap-2 mb-1">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={onOpenAdmin}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium"
+                  style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.coverLine}` }}
+                >
+                  <ShieldCheck size={14} /> Admin panel
+                </button>
+              )}
+              <button
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Sozlamalar"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-full flex-shrink-0"
+                style={{ color: C.inkSoft, border: `1px solid ${C.rule}`, background: C.surface }}
+              >
+                <Settings size={16} />
+              </button>
+            </div>
           </div>
 
           {settingsOpen && (
@@ -4417,14 +4429,9 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
               <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myTests.length}</div>
               <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
             </div>
-            <div title="Tez orada">
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
-              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Followers</div>
-            </div>
-            <div title="Tez orada">
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.rule }}>—</div>
-              <div className="text-xs" style={{ ...fontBody, color: C.rule }}>Following</div>
-            </div>
+            <Suspense fallback={<span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Yuklanmoqda…</span>}>
+              <ProfileFollowView userId={session.user.id} session={session} onOpenProfile={onOpenProfile} />
+            </Suspense>
           </div>
         </div>
       </div>
@@ -5738,6 +5745,8 @@ export default function App() {
                   ensureCourseContent={ensureCourseContent}
                   ensureTestContent={ensureTestContent}
                   onGoToAbout={() => goTo('about')}
+                  onOpenAdmin={() => goTo('admin')}
+                  onOpenProfile={openSearchProfile}
                 />
               )}
               {!viewingUsername && tab === 'admin' && isAdmin && (
