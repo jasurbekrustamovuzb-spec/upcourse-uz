@@ -816,13 +816,24 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
     setRow(null);
     setAuthorContent({ userId: null, courses: [], tests: [] });
     (async () => {
+      let profileRow;
       try {
         const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
-        const profileRow = rows[0] ? profileFromRow(rows[0]) : null;
-        if (cancelled) return;
-        setRow(profileRow);
-        if (!profileRow) return;
+        profileRow = rows[0] ? profileFromRow(rows[0]) : null;
+      } catch (e) {
+        if (!cancelled) setErr(true);
+        if (!cancelled) setLoading(false);
+        return;
+      }
 
+      if (cancelled) return;
+      setRow(profileRow);
+      if (!profileRow) {
+        setLoading(false);
+        return;
+      }
+
+      try {
         // Ommaviy profilga kirilgandagina shu muallifning yengil metadata qatorlarini yuklaymiz.
         const [courseRows, testRows] = await Promise.all([
           sbSelectAuthorContent('courses', profileRow.id, true),
@@ -830,11 +841,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
         ]);
         if (!cancelled) setAuthorContent({ userId: profileRow.id, courses: courseRows, tests: testRows });
       } catch (e) {
-        if (!cancelled) {
-          // Profil topilgan bo'lsa, material so'rovi xatosi uni "topilmadi" deb ko'rsatmasin.
-          if (!row) setErr(true);
-          else setContentError(true);
-        }
+        if (!cancelled) setContentError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
