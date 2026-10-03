@@ -810,6 +810,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState(null);
   const [ending, setEnding] = useState(false);
+  const [finishError, setFinishError] = useState('');
   const finishingRef = useRef(false);
   const test = tests.find((t) => t.id === room.testId);
 
@@ -826,6 +827,22 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.testId, test, test?.questions, ensureTestContent]);
+
+  useEffect(() => {
+    if (room.mode === 'sync' || room.status !== 'active') return undefined;
+    let cancelled = false;
+    async function refreshLiveStatus() {
+      try {
+        const [freshRoom, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (cancelled) return;
+        if (freshRoom) setRoom(freshRoom);
+        setParticipants(list);
+      } catch (e) { /* Realtime yoki keyingi polling urinishida yangilanadi */ }
+    }
+    const timer = setInterval(refreshLiveStatus, 2000);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.id, room.mode, room.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -867,13 +884,18 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   async function finishRoom() {
     if (room.status !== 'active' || finishingRef.current) return;
     finishingRef.current = true;
+    setFinishError('');
     setEnding(true);
     try {
       const [updated] = await sbUpdate('live_rooms', room.id, { status: 'finished' });
       if (updated) setRoom(liveRoomFromRow(updated));
-      else finishingRef.current = false;
+      else {
+        finishingRef.current = false;
+        setFinishError('Testni yakunlab boʻlmadi. Qayta urinib koʻring.');
+      }
     } catch (e) {
       finishingRef.current = false;
+      setFinishError('Testni yakunlab boʻlmadi. Internetni tekshirib, qayta urinib koʻring.');
     } finally {
       setEnding(false);
     }
@@ -884,7 +906,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
     if (room.mode === 'sync' || room.status !== 'active' || !allParticipantsSubmitted) return;
     finishRoom();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.mode, room.status, room.id, allParticipantsSubmitted]);
+  }, [room.mode, room.status, room.id, allParticipantsSubmitted, participants]);
 
   function copyCode() {
     try {
@@ -938,6 +960,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
             <SolidButton onClick={finishRoom} icon={Check} disabled={ending}>
               {ending ? 'Yakunlanmoqda...' : 'Testni hozir yakunlash'}
             </SolidButton>
+            {finishError && <span role="alert" className="text-sm" style={{ ...fontBody, color: C.red }}>{finishError}</span>}
           </div>
         )}
         <LiveLeaderboardList participants={participants} />
@@ -1302,8 +1325,24 @@ function LiveJoinForm({ initialCode, onJoined, onBack }) {
 function LiveQuizPlayer({ room, test, participant, onDone }) {
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [confirmIncomplete, setConfirmIncomplete] = useState(false);
   const [remaining, setRemaining] = useState(9999);
   const submittingRef = useRef(false);
+
+  const roomStartMs = room.startsAt ? new Date(room.startsAt).getTime() : 0;
+  const participantJoinMs = participant.joinedAt ? new Date(participant.joinedAt).getTime() : 0;
+  const quizStartMs = Math.max(roomStartMs || 0, participantJoinMs || 0);
+  const isQuestionAnswered = (question, answer) => {
+    if (question.type === 'matching') {
+      if (Array.isArray(question.pairs)) return question.pairs.every((pair) => answer?.[pair.id] !== undefined);
+      return answer?.[question.id] !== undefined || typeof answer === 'number';
+    }
+    if (question.type === 'open') return typeof answer === 'string' && answer.trim().length > 0;
+    return answer !== undefined && answer !== null;
+  };
+  const unansweredNumbers = test.questions
+    .map((question, index) => isQuestionAnswered(question, answers[question.id]) ? null : index + 1)
+    .filter((number) => number !== null);
 
   async function submit(currentAnswers) {
     if (submittingRef.current) return;
@@ -1325,8 +1364,8 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
         submit(answers);
         return;
       }
-      if (!room.startsAt) return;
-      const end = new Date(room.startsAt).getTime() + room.durationSeconds * 1000;
+      if (!quizStartMs) return;
+      const end = quizStartMs + room.durationSeconds * 1000;
       const left = Math.max(0, Math.round((end - Date.now()) / 1000));
       setRemaining(left);
       if (left === 0) submit(answers);
@@ -1335,7 +1374,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answers, room.status]);
+  }, [answers, room.status, quizStartMs, room.durationSeconds]);
 
   function select(qid, idx) {
     if (submitted) return;
@@ -1463,7 +1502,30 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
         ))}
       </div>
       <div className="mt-8">
-        <SolidButton onClick={() => submit(answers)} icon={Check} disabled={submitted}>{submitted ? 'Yuborildi' : 'Yakunlash'}</SolidButton>
+        {unansweredNumbers.length > 0 && (
+          <div className="mb-3 px-4 py-3 rounded-2xl text-sm" style={{ ...fontBody, color: C.red, background: C.dangerTint, border: `1px solid ${C.red}` }}>
+            {unansweredNumbers.length} ta savol javobsiz: {unansweredNumbers.join(', ')}.
+          </div>
+        )}
+        <SolidButton
+          onClick={() => unansweredNumbers.length > 0 ? setConfirmIncomplete(true) : submit(answers)}
+          icon={Check}
+          disabled={submitted}
+        >
+          {submitted ? 'Yuborildi' : unansweredNumbers.length ? 'Javoblarni tekshirib yakunlash' : 'Testni yakunlash'}
+        </SolidButton>
+        {confirmIncomplete && (
+          <div role="alertdialog" aria-modal="true" aria-labelledby="incomplete-submit-title" className="mt-4 p-4 rounded-2xl" style={{ background: C.surface, border: `1px solid ${C.red}` }}>
+            <div id="incomplete-submit-title" className="font-semibold mb-1" style={{ ...fontBody, color: C.ink }}>Javobsiz savollar bor</div>
+            <p className="text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>
+              {unansweredNumbers.length} ta savolga javob belgilanmagan ({unansweredNumbers.join(', ')}). Baribir testni yakunlaysizmi?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <GhostButton onClick={() => setConfirmIncomplete(false)} icon={ArrowLeft}>Davom etish</GhostButton>
+              <SolidButton onClick={() => { setConfirmIncomplete(false); submit(answers); }} icon={Check}>Ha, yakunlash</SolidButton>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
