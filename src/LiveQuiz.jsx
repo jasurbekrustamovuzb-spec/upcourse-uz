@@ -809,6 +809,8 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState(null);
+  const [ending, setEnding] = useState(false);
+  const finishingRef = useRef(false);
   const test = tests.find((t) => t.id === room.testId);
 
   useEffect(() => {
@@ -862,6 +864,28 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
     }
   }
 
+  async function finishRoom() {
+    if (room.status !== 'active' || finishingRef.current) return;
+    finishingRef.current = true;
+    setEnding(true);
+    try {
+      const [updated] = await sbUpdate('live_rooms', room.id, { status: 'finished' });
+      if (updated) setRoom(liveRoomFromRow(updated));
+      else finishingRef.current = false;
+    } catch (e) {
+      finishingRef.current = false;
+    } finally {
+      setEnding(false);
+    }
+  }
+
+  const allParticipantsSubmitted = participants.length > 0 && participants.every((p) => !!p.submittedAt);
+  useEffect(() => {
+    if (room.mode === 'sync' || room.status !== 'active' || !allParticipantsSubmitted) return;
+    finishRoom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.mode, room.status, room.id, allParticipantsSubmitted]);
+
   function copyCode() {
     try {
       navigator.clipboard.writeText(room.code);
@@ -906,6 +930,16 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
       <div>
         <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
         <SectionHeading eyebrow={room.status === 'active' ? 'Test davom etmoqda' : 'Test tugadi'} title="Jonli reyting" />
+        {room.status === 'active' && room.mode !== 'sync' && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <span className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+              Topshirganlar: {participants.filter((p) => p.submittedAt).length}/{participants.length}
+            </span>
+            <SolidButton onClick={finishRoom} icon={Check} disabled={ending}>
+              {ending ? 'Yakunlanmoqda...' : 'Testni hozir yakunlash'}
+            </SolidButton>
+          </div>
+        )}
         <LiveLeaderboardList participants={participants} />
       </div>
     );
@@ -1269,18 +1303,28 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [remaining, setRemaining] = useState(9999);
+  const submittingRef = useRef(false);
 
   async function submit(currentAnswers) {
-    if (submitted) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitted(true);
     const score = test.questions.reduce((s, q) => s + getQuestionScore(q, currentAnswers[q.id]), 0);
     try {
       await sbUpdate('live_participants', participant.id, { score, total: getQuestionCount(test.questions), submitted_at: new Date().toISOString() });
-    } catch (e) { /* natija topshirilmasa ham foydalanuvchi natijalar ekraniga o'tadi */ }
+      const latestParticipants = await sbSelectParticipants(room.id);
+      if (latestParticipants.length > 0 && latestParticipants.every((p) => !!p.submittedAt)) {
+        await sbUpdate('live_rooms', room.id, { status: 'finished' });
+      }
+    } catch (e) { /* tarmoq uzilsa, xona egasining kuzatuvi natijani baribir yakunlaydi */ }
   }
 
   useEffect(() => {
     function tick() {
+      if (room.status === 'finished') {
+        submit(answers);
+        return;
+      }
       if (!room.startsAt) return;
       const end = new Date(room.startsAt).getTime() + room.durationSeconds * 1000;
       const left = Math.max(0, Math.round((end - Date.now()) / 1000));
@@ -1291,7 +1335,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [answers]);
+  }, [answers, room.status]);
 
   function select(qid, idx) {
     if (submitted) return;
