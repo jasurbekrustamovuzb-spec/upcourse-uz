@@ -1434,13 +1434,15 @@ function CollectionsView({ session, onBack }) {
     let cancelled = false;
     (async () => {
       try {
-        const [catRows, ownedRows] = await Promise.all([
-          sbSelect('collectibles'),
+        const [ownedResult, catalogResult] = await Promise.allSettled([
           sbSelect('user_collectibles', `user_id=eq.${session.user.id}`, 'collected_at'),
+          sbSelect('collectibles'),
         ]);
         if (cancelled) return;
-        setCatalog(catRows.map(collectibleFromRow));
-        setOwned(ownedRows.map(userCollectibleFromRow));
+        if (ownedResult.status === 'rejected') throw ownedResult.reason;
+        // Katalog vaqtincha javob bermasa ham, foydalanuvchining saqlangan sovg'alarini yashirmaymiz.
+        setOwned(ownedResult.value.map(userCollectibleFromRow));
+        setCatalog(catalogResult.status === 'fulfilled' ? catalogResult.value.map(collectibleFromRow) : []);
         setState('ready');
       } catch (e) {
         if (!cancelled) setState('error');
@@ -4296,7 +4298,29 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   const [prefillCategory, setPrefillCategory] = useState('');
   const [testFormMode, setTestFormMode] = useState(null);
   const myBadge = useAuthorBadge(session?.user?.id);
+  const [ownContent, setOwnContent] = useState({ userId: null, courses: [], tests: [], loading: false, error: false });
   const { pushNav } = useContext(NavContext);
+
+  // Muallif kontentini faqat profil ochilganda so'raymiz; bosh sahifadagi tez yuklanishga ta'sir qilmaydi.
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) {
+      setOwnContent({ userId: null, courses: [], tests: [], loading: false, error: false });
+      return undefined;
+    }
+    let cancelled = false;
+    setOwnContent((previous) => ({ ...previous, userId, loading: true, error: false }));
+    Promise.all([
+      sbSelectAuthorContent('courses', userId),
+      sbSelectAuthorContent('tests', userId),
+    ]).then(([ownCourses, ownTests]) => {
+      if (!cancelled) setOwnContent({ userId, courses: ownCourses, tests: ownTests, loading: false, error: false });
+    }).catch((error) => {
+      console.error('Muallif materiallarini profil uchun yuklab bo‘lmadi:', error);
+      if (!cancelled) setOwnContent((previous) => ({ ...previous, userId, loading: false, error: true }));
+    });
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
   useEffect(() => {
@@ -4361,8 +4385,16 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   }
 
 
-  const myCourses = courses.filter((c) => c.authorId === session.user.id);
-  const myTests = tests.filter((t) => t.authorId === session.user.id);
+  const loadedOwnCourses = ownContent.userId === session.user.id ? ownContent.courses : [];
+  const loadedOwnTests = ownContent.userId === session.user.id ? ownContent.tests : [];
+  const myCourses = Array.from(new Map([
+    ...loadedOwnCourses.map((item) => [item.id, item]),
+    ...courses.filter((item) => item.authorId === session.user.id).map((item) => [item.id, item]),
+  ]).values());
+  const myTests = Array.from(new Map([
+    ...loadedOwnTests.map((item) => [item.id, item]),
+    ...tests.filter((item) => item.authorId === session.user.id).map((item) => [item.id, item]),
+  ]).values());
 
   if (subTab === 'kurslar') {
     return (
