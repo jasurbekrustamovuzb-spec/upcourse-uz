@@ -558,7 +558,9 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
             const correctText = currentQuestion.type === 'open'
               ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
               : currentQuestion.type === 'matching'
-                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                ? currentQuestion.pairs
+                  ? currentQuestion.pairs.map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                  : currentQuestion.options?.[currentQuestion.correct] ?? ''
                 : currentQuestion.options?.[currentQuestion.correct] ?? '';
             const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
             const myResult = myAnswers[currentQuestion.id];
@@ -1154,23 +1156,31 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
             const correctText = currentQuestion.type === 'open'
               ? (currentQuestion.answers && currentQuestion.answers[0]) || ''
               : currentQuestion.type === 'matching'
-                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                ? currentQuestion.pairs
+                  ? currentQuestion.pairs.map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
+                  : currentQuestion.options?.[currentQuestion.correct] ?? ''
                 : currentQuestion.options?.[currentQuestion.correct] ?? '';
+            const rawAnswer = myAnswer?.answer;
+            const myAnswerText = currentQuestion.type === 'open'
+              ? (typeof rawAnswer === 'string' && rawAnswer.trim() ? rawAnswer : 'Javob berilmadi')
+              : currentQuestion.type === 'matching'
+                ? currentQuestion.pairs
+                  ? currentQuestion.pairs.map((pair, index) => `${index + 1}${rawAnswer?.[pair.id] === undefined ? '—' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[rawAnswer[pair.id]]}`).join(', ')
+                  : currentQuestion.options?.[rawAnswer] ?? 'Javob berilmadi'
+                : currentQuestion.options?.[rawAnswer] ?? 'Javob berilmadi';
             return (
               <div
-                className="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-[15px]"
-                style={{ ...fontBody, background: wasCorrect || hasMatchingCredit ? C.successTint : C.dangerTint, border: `1px solid ${wasCorrect || hasMatchingCredit ? C.accent : C.red}`, color: C.ink }}
+                className="px-4 py-3.5 rounded-2xl text-[15px]"
+                style={{ ...fontBody, background: wasCorrect ? C.successTint : C.dangerTint, border: `1px solid ${wasCorrect ? C.accent : C.red}`, color: C.ink }}
               >
-                {wasCorrect || hasMatchingCredit ? <Check size={18} style={{ color: C.accent, flexShrink: 0 }} /> : <X size={18} style={{ color: C.red, flexShrink: 0 }} />}
-                <div className="min-w-0">
-                  <div style={{ fontWeight: 600 }}>{wasCorrect ? "Toʻgʻri javob!" : 'Xato javob'}</div>
-                  {!wasCorrect && correctText !== '' && (
-                    <div className="text-sm mt-0.5" style={{ color: C.inkSoft }}>Toʻgʻri javob: {correctText}</div>
-                  )}
-                  {myAnswer?.points > 0 && (
-                    <div className="text-sm mt-0.5" style={{ ...fontMono, color: C.inkSoft }}>+{myAnswer.points} ball</div>
-                  )}
+                <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: wasCorrect ? C.accent : C.red }}>
+                  {wasCorrect ? <Check size={18} /> : <X size={18} />} {wasCorrect ? 'Toʻgʻri javob!' : hasMatchingCredit ? 'Qisman toʻgʻri' : 'Xato javob'}
                 </div>
+                <div className="text-sm"><span style={{ color: C.inkSoft }}>Sizning javobingiz: </span>{myAnswerText}</div>
+                <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span><strong>{correctText || 'Javob kiritilmagan'}</strong></div>
+                {myAnswer?.points > 0 && (
+                  <div className="text-sm mt-2" style={{ ...fontMono, color: C.inkSoft }}>+{myAnswer.points} ball</div>
+                )}
               </div>
             );
           })()}
