@@ -4326,9 +4326,14 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
   );
 }
 
-function ProfileRewardsPanel({ onOpenStore }) {
+function ProfileRewardsPanel() {
   const [coins, setCoins] = useState(null);
   const [code, setCode] = useState('');
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
+  const [store, setStore] = useState(null);
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [storeBusy, setStoreBusy] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [messageIsError, setMessageIsError] = useState(false);
@@ -4368,6 +4373,47 @@ function ProfileRewardsPanel({ onOpenStore }) {
     setMessage(`Promo kod qabul qilindi: +${Number(data?.earned) || 0} coin.`);
   }
 
+  async function openStore() {
+    setStoreOpen(true);
+    setStoreLoading(true);
+    setMessage('');
+    const { data, error } = await supabase.rpc('daily_arena_store_catalog');
+    if (error) {
+      setStore(null);
+      setMessage('Coin do‘konini yuklab bo‘lmadi. Qayta urinib ko‘ring.');
+      setMessageIsError(true);
+    } else {
+      const catalog = data || { coins: 0, items: [] };
+      setStore(catalog);
+      setCoins(Number(catalog.coins) || 0);
+    }
+    setStoreLoading(false);
+  }
+
+  async function purchase(item) {
+    if (storeBusy) return;
+    setStoreBusy(item.id);
+    setMessage('');
+    setMessageIsError(false);
+    const { error } = await supabase.rpc('daily_arena_store_purchase', { p_collectible_id: item.id });
+    if (error) {
+      setMessage(error.message?.includes('NOT_ENOUGH_COINS')
+        ? 'Coin yetarli emas. Kunlik Arenada mashqlarni bajaring.'
+        : 'Xarid amalga oshmadi. Qayta urinib ko‘ring.');
+      setMessageIsError(true);
+      setStoreBusy('');
+      return;
+    }
+    const { data, error: catalogError } = await supabase.rpc('daily_arena_store_catalog');
+    if (!catalogError) {
+      const catalog = data || { coins: 0, items: [] };
+      setStore(catalog);
+      setCoins(Number(catalog.coins) || 0);
+    }
+    setMessage('Nishon kolleksiyangizga qo‘shildi.');
+    setStoreBusy('');
+  }
+
   return (
     <section className="mb-8 rounded-sm p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -4378,21 +4424,53 @@ function ProfileRewardsPanel({ onOpenStore }) {
             <div className="font-medium" style={{ ...fontDisplay, color: C.ink }}>Coin hamyoni <span className="ml-1" style={{ ...fontMono, color: C.cover }}>{coins === null ? '…' : `${coins} coin`}</span></div>
           </div>
         </div>
-        <button type="button" onClick={onOpenStore} className="inline-flex items-center justify-center gap-2 rounded-sm px-3 py-2 text-sm" style={{ ...fontBody, color: C.white, background: C.cover }}>
+        <button type="button" onClick={openStore} className="inline-flex items-center justify-center gap-2 rounded-sm px-3 py-2 text-sm" style={{ ...fontBody, color: C.white, background: C.cover }}>
           <ShoppingBag size={15} /> Coin do‘koni
         </button>
       </div>
-      <form onSubmit={redeem} className="mt-4 flex flex-col sm:flex-row gap-2">
-        <label className="sr-only" htmlFor="profile-promo-code">Promo kod</label>
-        <input id="profile-promo-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} autoCapitalize="characters" placeholder="Promo kodni kiriting" className="min-w-0 flex-1 rounded-sm px-3 py-2.5 text-sm outline-none" style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} />
-        <button type="submit" disabled={busy || !code.trim()} className="inline-flex items-center justify-center gap-1.5 rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <Tag size={15} />} Kodni ishlatish
+      <div className="mt-3">
+        <button type="button" onClick={() => setPromoOpen((open) => !open)} aria-expanded={promoOpen} aria-controls="profile-promo-panel" className="inline-flex items-center gap-2 rounded-sm px-2.5 py-2 text-sm" style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}`, background: C.paper }}>
+          <Tag size={15} style={{ color: C.gold }} /> Promo kod
+          <ChevronRight size={15} className="transition-transform" style={{ transform: promoOpen ? 'rotate(90deg)' : 'none', color: C.gold }} />
         </button>
-      </form>
-      {message && <p role="status" className="mt-2 text-xs" style={{ ...fontBody, color: messageIsError ? C.red : C.accent }}>{message}</p>}
+        {promoOpen && <div id="profile-promo-panel" className="mt-2 rounded-sm p-3" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
+          <form onSubmit={redeem} className="flex flex-col sm:flex-row gap-2">
+            <label className="sr-only" htmlFor="profile-promo-code">Promo kod</label>
+            <input id="profile-promo-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} autoCapitalize="characters" placeholder="Promo kodni kiriting" className="min-w-0 flex-1 rounded-sm px-3 py-2.5 text-sm outline-none" style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }} />
+            <button type="submit" disabled={busy || !code.trim()} className="inline-flex items-center justify-center gap-1.5 rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>
+              {busy ? <Loader2 size={15} className="animate-spin" /> : <Tag size={15} />} Kodni ishlatish
+            </button>
+          </form>
+          {message && <p role={messageIsError ? 'alert' : 'status'} className="mt-2 text-xs" style={{ ...fontBody, color: messageIsError ? C.red : C.accent }}>{message}</p>}
+        </div>}
+      </div>
+      {message && !promoOpen && <p role={messageIsError ? 'alert' : 'status'} className="mt-2 text-xs" style={{ ...fontBody, color: messageIsError ? C.red : C.accent }}>{message}</p>}
+
+      {storeOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="profile-store-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setStoreOpen(false); }} style={{ background: 'rgba(12,25,18,.62)' }}>
+        <div className="w-full max-w-xl max-h-[90vh] overflow-auto rounded-2xl p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div><div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Profil mukofotlari</div><h2 id="profile-store-title" className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>Coin do‘koni</h2></div>
+            <button type="button" onClick={() => setStoreOpen(false)} aria-label="Do‘konni yopish" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: C.paper }}><X size={17} /></button>
+          </div>
+          <div className="flex items-center gap-2 p-3 rounded-xl mb-3" style={{ background: C.paper }}><Coins size={18} style={{ color: C.gold }} /><span className="text-sm" style={{ ...fontBody, color: C.ink }}>Balansingiz</span><b className="ml-auto" style={{ ...fontMono, color: C.cover }}>{coins ?? 0} coin</b></div>
+          <p className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Coinlaringizni esdalik nishonlariga almashtiring. Yangi coinlarni Kunlik Arenadagi mashqlardan to‘plang.</p>
+          {storeLoading ? <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin" style={{ color: C.gold }} /></div> : <>
+            {message && <p role={messageIsError ? 'alert' : 'status'} className="text-xs mb-3" style={{ ...fontBody, color: messageIsError ? C.red : C.accent }}>{message}</p>}
+            <div className="space-y-2">
+              {(store?.items || []).map((item) => <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
+                <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ color: C.gold, background: C.goldSoft + '77' }}><Medal size={20} /></span>
+                <div className="min-w-0 flex-1"><b className="block text-sm" style={{ ...fontBody, color: C.ink }}>{item.title}</b><span className="block text-xs truncate" style={{ ...fontBody, color: C.inkSoft }}>{item.subtitle || 'Kolleksiyaga qo‘shiladigan esdalik nishoni'}</span></div>
+                {item.owned ? <span className="text-xs" style={{ ...fontBody, color: C.accent }}>Olingan</span> : <button type="button" disabled={Boolean(storeBusy) || coins === null || coins < item.price} onClick={() => purchase(item)} className="px-3 py-2 rounded-lg text-xs disabled:opacity-45" style={{ ...fontBody, color: C.white, background: C.cover }}>{storeBusy === item.id ? <Loader2 size={14} className="inline animate-spin" /> : `${item.price} coin`}</button>}
+              </div>)}
+              {store && !store.items?.length && <p className="text-sm py-5 text-center" style={{ ...fontBody, color: C.inkSoft }}>Do‘kon nishonlari hozircha mavjud emas.</p>}
+            </div>
+          </>}
+        </div>
+      </div>}
     </section>
   );
 }
+
 
 function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
   const [subTab, setSubTab] = useState(null);
@@ -4632,7 +4710,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         </div>
       </div>
 
-      <ProfileRewardsPanel onOpenStore={onOpenArena} />
+      <ProfileRewardsPanel />
 
       <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
       <div className="grid sm:grid-cols-2 gap-4">
