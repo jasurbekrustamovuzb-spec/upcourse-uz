@@ -3266,11 +3266,11 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
         </div>
       ) : (
         <>
-          <div className="space-y-6 max-w-2xl">
+          <div className="space-y-4 max-w-2xl">
             {questions.map((q, qi) => {
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
-                <div key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }}>
+                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-3 sm:p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
                   {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
                     <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
                   </div>}
@@ -3304,7 +3304,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                       )}
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       {q.options.map((opt, oi) => {
                         const isSelected = answers[q.id] === oi;
                         let bg = C.surface, border = C.rule;
@@ -3331,7 +3331,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                       })}
                     </div>
                   )}
-                </div>
+                </article>
               );
             })}
           </div>
@@ -3610,7 +3610,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
               {matchedTests.length > 0 && (
                 <div>
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid sm:grid-cols-2 gap-3">
                     {matchedTests.map((t) => (
                       <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
                         <div className="min-w-0">
@@ -3672,7 +3672,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
       ) : inCategory.length === 0 ? (
         <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-x-4 gap-y-5">
+        <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((t, i) => (
             <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
               <div className="flex items-start min-w-0">
