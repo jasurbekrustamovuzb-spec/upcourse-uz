@@ -5,7 +5,6 @@ import { supabase } from './supabaseClient';
 
 export default function PublicCollections({ userId }) {
   const [state, setState] = useState('loading');
-  const [catalog, setCatalog] = useState([]);
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -13,15 +12,10 @@ export default function PublicCollections({ userId }) {
     let cancelled = false;
     (async () => {
       try {
-        const [catalogResult, ownedResult] = await Promise.all([
-          supabase.from('collectibles').select('id,title,subtitle'),
-          supabase.from('user_collectibles').select('id,collectible_id,equipped,collected_at').eq('user_id', userId).order('collected_at', { ascending: false }).limit(100),
-        ]);
-        if (catalogResult.error) throw catalogResult.error;
-        if (ownedResult.error) throw ownedResult.error;
+        const { data, error } = await supabase.rpc('public_profile_collectibles', { p_user_id: userId });
+        if (error) throw error;
         if (cancelled) return;
-        setCatalog(catalogResult.data || []);
-        setItems(ownedResult.data || []);
+        setItems(Array.isArray(data) ? data : []);
         setState('ready');
       } catch {
         if (!cancelled) setState('error');
@@ -41,15 +35,14 @@ export default function PublicCollections({ userId }) {
       {featured && <span className="rounded-full px-2.5 py-1 text-[10px]" style={{ ...fontMono, background: 'rgba(255,255,255,.12)', color: C.white }}>Profil nishoni</span>}
     </div>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {items.map((item) => {
-        const meta = catalog.find((entry) => entry.id === item.collectible_id);
-        return <article key={item.id} className="relative flex min-h-36 flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl px-3 py-4 text-center" style={{ background: C.surface, border: `1px solid ${item.equipped ? C.gold : C.rule}`, boxShadow: item.equipped ? `0 5px 18px ${C.gold}22` : 'none' }}>
+      {items.map((item) => (
+        <article key={item.id} className="relative flex min-h-36 flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl px-3 py-4 text-center" style={{ background: C.surface, border: `1px solid ${item.equipped ? C.gold : C.rule}`, boxShadow: item.equipped ? `0 5px 18px ${C.gold}22` : 'none' }}>
           {item.equipped && <span className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px]" style={{ ...fontMono, background: C.goldSoft, color: C.cover }}>TAQILGAN</span>}
           <CollectibleThumb collectibleId={item.collectible_id} size={48} />
-          <div className="text-[13px] font-medium leading-tight" style={{ ...fontBody, color: C.ink }}>{meta?.title || 'Esdalik nishoni'}</div>
-          {meta?.subtitle && <div className="line-clamp-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>{meta.subtitle}</div>}
-        </article>;
-      })}
+          <div className="text-[13px] font-medium leading-tight" style={{ ...fontBody, color: C.ink }}>{item.title || 'Esdalik nishoni'}</div>
+          {item.subtitle && <div className="line-clamp-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>{item.subtitle}</div>}
+        </article>
+      ))}
     </div>
   </section>;
 }
