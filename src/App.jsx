@@ -21,6 +21,7 @@ const ArenaProfileBadgeView = lazy(() => import('./DailyArena.jsx').then((module
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
 const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
 const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
+const CourseLinkedTestsView = lazy(() => import('./CourseLinkedTests.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -2130,7 +2131,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2238,6 +2239,15 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         ) : (
           <CourseBody content={active.content} videoUrl={active.videoUrl} />
         )}
+        <Suspense fallback={<div className="mt-7 py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Testlar yuklanmoqda…</div>}>
+          <CourseLinkedTestsView
+            courseId={active.id}
+            courseAuthorId={active.authorId}
+            userId={session?.user?.id}
+            isAdmin={isAdmin}
+            onOpenTest={onOpenTest}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -5716,7 +5726,7 @@ export default function App() {
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
