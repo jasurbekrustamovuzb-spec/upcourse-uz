@@ -3266,11 +3266,11 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
         </div>
       ) : (
         <>
-          <div className="space-y-6 max-w-2xl">
+          <div className="space-y-4 max-w-2xl">
             {questions.map((q, qi) => {
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
-                <div key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }}>
+                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-3 sm:p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
                   {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
                     <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
                   </div>}
@@ -3304,7 +3304,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                       )}
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       {q.options.map((opt, oi) => {
                         const isSelected = answers[q.id] === oi;
                         let bg = C.surface, border = C.rule;
@@ -3331,7 +3331,7 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
                       })}
                     </div>
                   )}
-                </div>
+                </article>
               );
             })}
           </div>
