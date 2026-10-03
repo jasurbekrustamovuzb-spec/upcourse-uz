@@ -3610,7 +3610,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
               {matchedTests.length > 0 && (
                 <div>
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
-                  <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="grid sm:grid-cols-2 gap-4">
                     {matchedTests.map((t) => (
                       <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
                         <div className="min-w-0">
@@ -3672,7 +3672,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
       ) : inCategory.length === 0 ? (
         <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
       ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-2 gap-x-4 gap-y-5">
           {inCategory.map((t, i) => (
             <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
               <div className="flex items-start min-w-0">
