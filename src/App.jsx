@@ -30,13 +30,7 @@ const CourseLinkedTestsView = lazy(() => import('./CourseLinkedTests.jsx'));
 /*  sahifa render qilinishini kutib turmaydi, "Yuklanmoqda" jarayonini */
 /*  tezlashtiradi.                                                     */
 /* ------------------------------------------------------------------ */
-if (typeof document !== 'undefined' && !document.getElementById('upcourse-fonts')) {
-  const fontLink = document.createElement('link');
-  fontLink.id = 'upcourse-fonts';
-  fontLink.rel = 'stylesheet';
-  fontLink.href = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap";
-  document.head.appendChild(fontLink);
-}
+// Tizim shriftlari ishlatiladi — tashqi shrift so‘rovi va yuklanishdagi kutish yo‘q.
 
 /* ------------------------------------------------------------------ */
 /*  Design tokens — "ledger book" system                              */
@@ -112,9 +106,9 @@ const DARK_PALETTE = {
 
 export const C = { ...LIGHT_PALETTE };
 
-export const fontDisplay = { fontFamily: "'Fraunces', Georgia, serif" };
-export const fontBody = { fontFamily: "'Inter', system-ui, sans-serif" };
-export const fontMono = { fontFamily: "'IBM Plex Mono', ui-monospace, monospace" };
+export const fontDisplay = { fontFamily: "Georgia, 'Times New Roman', serif" };
+export const fontBody = { fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" };
+export const fontMono = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" };
 
 /* ------------------------------------------------------------------ */
 /*  Seed content — shown the first time the shared ledger is empty    */
