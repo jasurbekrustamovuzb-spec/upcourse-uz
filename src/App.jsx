@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useContext, lazy, Suspense } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
-  ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
+  ChevronRight, ArrowLeft, Trash2, Award, Loader2,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
   Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap
@@ -5788,8 +5788,8 @@ export default function App() {
           style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}
         >
           <div className="flex items-center gap-2 px-2 mb-8">
-            <GraduationCap size={20} style={{ color: C.gold }} />
-            <span className="text-[15px]" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
+            <svg width="22" height="22" viewBox="0 0 48 48" role="img" aria-label="UpCourse Uz"><path d="M5 17.5c6-3.2 12.1-2.8 19 1.1v17c-6.9-4-13-4.3-19-1.1zM43 17.5c-6-3.2-12.1-2.8-19 1.1v17c6.9-4 13-4.3 19-1.1z" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinejoin="round"/><path d="M9 22c4-.9 7.7-.2 11 1.5M9 27c4-.9 7.7-.2 11 1.5M28 29l6-6 4 2 6-10m-7 0h7v7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <span className="text-[15px]" style={{ ...fontDisplay, color: C.goldSoft, fontWeight: 700 }}>UpCourse Uz</span>
           </div>
           <button type="button" onClick={() => setGlobalSearchOpen(true)} className="nav-btn mb-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px] focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: 'rgba(251,250,243,0.8)', border: `1px solid ${C.coverLine}`, outlineColor: C.gold }}>
             <Search size={16} />
@@ -5903,8 +5903,8 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between">
           {tab === 'kurslar' ? (
             <div className="flex items-center gap-2 min-w-0">
-              <GraduationCap size={22} style={{ color: C.gold, flexShrink: 0 }} />
-              <span className="text-lg truncate" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
+              <svg width="24" height="24" viewBox="0 0 48 48" role="img" aria-label="UpCourse Uz" style={{ color: C.gold, flexShrink: 0 }}><path d="M5 17.5c6-3.2 12.1-2.8 19 1.1v17c-6.9-4-13-4.3-19-1.1zM43 17.5c-6-3.2-12.1-2.8-19 1.1v17c6.9-4 13-4.3 19-1.1z" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinejoin="round"/><path d="M9 22c4-.9 7.7-.2 11 1.5M9 27c4-.9 7.7-.2 11 1.5M28 29l6-6 4 2 6-10m-7 0h7v7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <span className="text-lg truncate" style={{ ...fontDisplay, color: C.goldSoft, fontWeight: 700 }}>UpCourse Uz</span>
             </div>
           ) : (
             (() => {
