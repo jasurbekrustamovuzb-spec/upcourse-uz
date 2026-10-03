@@ -803,19 +803,38 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState(null);
   const [err, setErr] = useState(false);
-  const [section, setSection] = useState('kurslar'); // kurslar | testlar — kelajakda yana tab qo'shsa bo'ladi
+  const [section, setSection] = useState('kurslar'); // kurslar | testlar | kolleksiyalar
+  const [authorContent, setAuthorContent] = useState({ userId: null, courses: [], tests: [] });
+  const [contentError, setContentError] = useState(false);
   const badge = useAuthorBadge(row?.id);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setErr(false);
+    setContentError(false);
+    setRow(null);
+    setAuthorContent({ userId: null, courses: [], tests: [] });
     (async () => {
       try {
         const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
-        if (!cancelled) setRow(rows[0] ? profileFromRow(rows[0]) : null);
+        const profileRow = rows[0] ? profileFromRow(rows[0]) : null;
+        if (cancelled) return;
+        setRow(profileRow);
+        if (!profileRow) return;
+
+        // Ommaviy profilga kirilgandagina shu muallifning yengil metadata qatorlarini yuklaymiz.
+        const [courseRows, testRows] = await Promise.all([
+          sbSelectAuthorContent('courses', profileRow.id, true),
+          sbSelectAuthorContent('tests', profileRow.id, true),
+        ]);
+        if (!cancelled) setAuthorContent({ userId: profileRow.id, courses: courseRows, tests: testRows });
       } catch (e) {
-        if (!cancelled) setErr(true);
+        if (!cancelled) {
+          // Profil topilgan bo'lsa, material so'rovi xatosi uni "topilmadi" deb ko'rsatmasin.
+          if (!row) setErr(true);
+          else setContentError(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -854,8 +873,16 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
   }
 
   const fullName = `${row.firstName} ${row.lastName}`.trim();
-  const myCourses = courses.filter((c) => c.authorId === row.id && c.status === 'approved');
-  const myTests = tests.filter((t) => t.authorId === row.id && t.status === 'approved');
+  const loadedCourses = authorContent.userId === row.id ? authorContent.courses : [];
+  const loadedTests = authorContent.userId === row.id ? authorContent.tests : [];
+  const myCourses = Array.from(new Map([
+    ...loadedCourses.map((item) => [item.id, item]),
+    ...courses.filter((item) => item.authorId === row.id && item.status === 'approved').map((item) => [item.id, item]),
+  ]).values());
+  const myTests = Array.from(new Map([
+    ...loadedTests.map((item) => [item.id, item]),
+    ...tests.filter((item) => item.authorId === row.id && item.status === 'approved').map((item) => [item.id, item]),
+  ]).values());
   const items = section === 'kurslar' ? myCourses : section === 'testlar' ? myTests : [];
 
   /* Instagram uslubidagi kvadrat "plitka" — kurs/test kartochkasi.
@@ -958,6 +985,10 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
         <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 size={18} className="animate-spin" style={{ color: C.gold }} /></div>}>
           <PublicCollectionsView userId={row.id} />
         </Suspense>
+      ) : contentError && items.length === 0 ? (
+        <div className="py-10 text-center text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          Materiallarni yuklab boʻlmadi. Sahifani yangilab qayta urinib koʻring.
+        </div>
       ) : items.length === 0 ? (
         <div className="py-10 text-center">
           <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
