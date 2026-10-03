@@ -50,7 +50,7 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
         .from('tests')
         .select('id,title,description,question_count')
         .eq('status', 'approved')
-        .ilike('title', \`%\${safeLike(query.trim().slice(0, 80))}%\`)
+        .ilike('title', `%${safeLike(query.trim().slice(0, 80))}%`)
         .order('created_at', { ascending: false })
         .limit(8)
         .abortSignal(controller.signal);
@@ -96,7 +96,7 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
     setSavingId('');
   }
 
-  const panelStyle = { background: C.surface, border: \`1px solid \${C.rule}\` };
+  const panelStyle = { background: C.surface, border: `1px solid ${C.rule}` };
   return (
     <section className="mt-7" aria-labelledby="course-related-tests">
       <div className="flex items-center justify-between gap-3 mb-3">
@@ -119,7 +119,7 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button type="button" onClick={() => onOpenTest(test.id)} className="rounded-full px-3 py-1.5 text-xs font-medium" style={{ ...fontBody, color: C.white, background: C.cover }}>Testni ishlash</button>
-                {canManage && <button type="button" onClick={() => removeLink(test.id)} disabled={Boolean(savingId)} aria-label={\`"\${test.title}" testini ajratish\`} title="Ajratish" className="rounded-full p-2 disabled:opacity-50" style={{ color: C.red, background: C.dangerTint }}>{savingId === test.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}</button>}
+                {canManage && <button type="button" onClick={() => removeLink(test.id)} disabled={Boolean(savingId)} aria-label={`"${test.title}" testini ajratish`} title="Ajratish" className="rounded-full p-2 disabled:opacity-50" style={{ color: C.red, background: C.dangerTint }}>{savingId === test.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}</button>}
               </div>
             </article>)}
           </div>
@@ -133,7 +133,7 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
             <button type="button" onClick={() => setModalOpen(false)} aria-label="Yopish" className="rounded-lg p-2" style={{ color: C.inkSoft }}><X size={18} /></button>
           </header>
           <div className="p-4">
-            <label className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ border: \`1px solid \${C.rule}\`, background: C.paper }}>
+            <label className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ border: `1px solid ${C.rule}`, background: C.paper }}>
               <Search size={16} style={{ color: C.inkSoft }} />
               <input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={80} placeholder="Test nomini yozing…" className="min-w-0 flex-1 bg-transparent text-sm outline-none" style={{ ...fontBody, color: C.ink }} />
               {searching && <Loader2 size={15} className="animate-spin" style={{ color: C.gold }} />}
@@ -144,7 +144,7 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
                   <div className="min-w-0"><div className="truncate text-sm font-medium" style={{ ...fontBody, color: C.ink }}>{test.title}</div><div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{Number(test.question_count || 0)} ta savol</div></div>
                   <button type="button" onClick={() => addLink(test)} disabled={Boolean(savingId) || linkedIds.has(test.id)} className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium disabled:opacity-50" style={{ ...fontBody, color: C.cover, background: C.goldSoft }}>{savingId === test.id ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />}{linkedIds.has(test.id) ? 'Bog‘langan' : 'Bog‘lash'}</button>
                 </li>)}</ul>}
-            <button type="button" onClick={() => setModalOpen(false)} className="mt-3 rounded-full px-3 py-2 text-xs" style={{ ...fontBody, color: C.inkSoft, border: \`1px solid \${C.rule}\` }}>Yopish</button>
+            <button type="button" onClick={() => setModalOpen(false)} className="mt-3 rounded-full px-3 py-2 text-xs" style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}>Yopish</button>
           </div>
         </div>
       </div>}
