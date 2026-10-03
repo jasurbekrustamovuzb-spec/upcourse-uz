@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Check, CheckCircle2, ChevronRight, Loader2, Medal, RefreshCw, Trophy, UserRound, XCircle } from 'lucide-react';
 import { C, fontBody, fontDisplay, fontMono } from './App';
-import { supabase } from './supabaseClient';
+import { signInWithGoogle, supabase } from './supabaseClient';
 
 const DIVISIONS = [
   { id: 'bronze', name: 'Bronza', color: '#9A6642', range: '0–999 ball' },
@@ -144,6 +144,11 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
     if (feedback?.completed) { setStage(6); setFeedback(null); return; }
     setStage(feedback?.next_stage || stage + 1);
     setFeedback(null); setChoice(''); setTextAnswer(''); setPairs([]);
+  }
+
+  async function signIn() {
+    const { error: signInError } = await signInWithGoogle();
+    if (signInError) setError('Google orqali kirishda xatolik yuz berdi.');
   }
 
   const resolved = Boolean(feedback?.stage_complete);
