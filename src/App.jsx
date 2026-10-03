@@ -4327,6 +4327,7 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
 }
 
 function ProfileRewardsPanel() {
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const [coins, setCoins] = useState(null);
   const [code, setCode] = useState('');
   const [promoOpen, setPromoOpen] = useState(false);
@@ -4415,7 +4416,13 @@ function ProfileRewardsPanel() {
   }
 
   return (
-    <section className="mb-8 rounded-sm p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+    <section className="mb-4">
+      <button type="button" onClick={() => setRewardsOpen((open) => !open)} aria-expanded={rewardsOpen} aria-controls="profile-rewards-panel" aria-label="Coin va promo imkoniyatlari" className="inline-flex items-center gap-2 rounded-full px-3 py-2" style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
+        <Coins size={16} />
+        <span className="text-xs font-medium" style={fontMono}>{coins === null ? '…' : coins}</span>
+        <ChevronRight size={14} className="transition-transform" style={{ transform: rewardsOpen ? 'rotate(90deg)' : 'none' }} />
+      </button>
+      {rewardsOpen && <div id="profile-rewards-panel" className="mt-2 rounded-sm p-3 sm:p-4" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: C.goldSoft, color: C.cover }}><Coins size={20} /></span>
@@ -4466,6 +4473,7 @@ function ProfileRewardsPanel() {
             </div>
           </>}
         </div>
+      </div>}
       </div>}
     </section>
   );
