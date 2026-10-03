@@ -561,12 +561,22 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
                 ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
                 : currentQuestion.options?.[currentQuestion.correct] ?? '';
             const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
+            const myResult = myAnswers[currentQuestion.id];
+            const rawAnswer = myResult?.answer;
+            const myAnswerText = currentQuestion.type === 'open'
+              ? (typeof rawAnswer === 'string' && rawAnswer.trim() ? rawAnswer : 'Javob berilmadi')
+              : currentQuestion.type === 'matching'
+                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${rawAnswer?.[pair.id] === undefined ? '—' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[rawAnswer[pair.id]]}`).join(', ')
+                : currentQuestion.options?.[rawAnswer] ?? 'Javob berilmadi';
+            const isCorrect = !!myResult?.correct;
             return (
-              <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.successTint, border: `1px solid ${C.accent}`, color: C.ink }}>
-                <div className="flex items-center gap-2" style={{ fontWeight: 600 }}>
-                  <Check size={18} style={{ color: C.accent }} /> Toʻgʻri javob: {correctText}
+              <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: isCorrect ? C.successTint : C.dangerTint, border: `1px solid ${isCorrect ? C.accent : C.red}`, color: C.ink }}>
+                <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: isCorrect ? C.accent : C.red }}>
+                  {isCorrect ? <Check size={18} /> : <X size={18} />} {isCorrect ? 'Toʻgʻri javob berdingiz' : 'Bu safar notoʻgʻri'}
                 </div>
-                <div className="text-sm mt-1" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{participants.length} ishtirokchi toʻgʻri topdi</div>
+                <div className="text-sm"><span style={{ color: C.inkSoft }}>Sizning javobingiz: </span>{myAnswerText}</div>
+                <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span><strong>{correctText || 'Javob kiritilmagan'}</strong></div>
+                <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{participants.length} ishtirokchi toʻgʻri topdi</div>
               </div>
             );
           })()}
@@ -1257,7 +1267,6 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     try {
       await sbUpdate('live_participants', participant.id, { score, total: getQuestionCount(test.questions), submitted_at: new Date().toISOString() });
     } catch (e) { /* natija topshirilmasa ham foydalanuvchi natijalar ekraniga o'tadi */ }
-    onDone();
   }
 
   useEffect(() => {
@@ -1296,6 +1305,54 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
   const ss = String(remaining % 60).padStart(2, '0');
+
+  if (submitted) {
+    const score = test.questions.reduce((sum, q) => sum + getQuestionScore(q, answers[q.id]), 0);
+    const total = getQuestionCount(test.questions);
+    return (
+      <div>
+        <SectionHeading eyebrow="Natijalar" title={`${score} / ${total} ball`} />
+        <div className="space-y-4 max-w-2xl mt-5">
+          {test.questions.map((q, qi) => {
+            const userAnswer = answers[q.id];
+            const points = getQuestionScore(q, userAnswer);
+            const count = getQuestionCount([q]);
+            const correct = points === count;
+            let chosenText = 'Javob berilmadi';
+            let correctText = '';
+            if (q.type === 'open') {
+              chosenText = typeof userAnswer === 'string' && userAnswer.trim() ? userAnswer : 'Javob berilmadi';
+              correctText = (q.answers || []).join(' yoki ');
+            } else if (q.type === 'matching') {
+              const pairs = q.pairs || [{ id: q.id, correct: q.correct }];
+              const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+              if (!q.pairs) {
+                chosenText = q.options?.[userAnswer] ?? 'Javob berilmadi';
+                correctText = q.options?.[q.correct] ?? '';
+              } else {
+                chosenText = pairs.map((pair, i) => `${i + 1}. ${userAnswer?.[pair.id] === undefined ? '—' : letters[userAnswer[pair.id]]}`).join(' · ');
+                correctText = pairs.map((pair, i) => `${i + 1}. ${letters[pair.correct]}`).join(' · ');
+              }
+            } else {
+              chosenText = q.options?.[userAnswer] ?? 'Javob berilmadi';
+              correctText = q.options?.[q.correct] ?? '';
+            }
+            return (
+              <article key={q.id} className="p-4 rounded-2xl" style={{ background: correct ? C.successTint : C.dangerTint, border: `1px solid ${correct ? C.accent : C.red}` }}>
+                <div className="text-[15px] mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>{qi + 1}. {q.text || 'Moslashtirish savoli'}</div>
+                <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                  <div><div style={{ ...fontBody, color: C.inkSoft }}>Sizning javobingiz</div><div className="mt-1 break-words" style={{ ...fontBody, color: C.ink }}>{chosenText}</div></div>
+                  <div><div style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javob</div><div className="mt-1 break-words" style={{ ...fontBody, color: C.accent, fontWeight: 600 }}>{correctText || 'Javob kiritilmagan'}</div></div>
+                </div>
+                <div className="mt-3 text-xs" style={{ ...fontMono, color: correct ? C.accent : C.red }}>{correct ? 'Toʻgʻri' : 'Notoʻgʻri'} · {points}/{count} ball</div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="mt-6"><SolidButton onClick={onDone} icon={Trophy}>Reytingni koʻrish</SolidButton></div>
+      </div>
+    );
+  }
 
   return (
     <div>
