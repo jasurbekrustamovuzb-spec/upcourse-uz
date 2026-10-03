@@ -4718,8 +4718,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         </div>
       </div>
 
-      <ProfileRewardsPanel />
-
       <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
       <div className="grid sm:grid-cols-2 gap-4">
         <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
@@ -4752,6 +4750,10 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
+      </div>
+
+      <div className="mt-5">
+        <ProfileRewardsPanel />
       </div>
 
       <div className="mt-8 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>
