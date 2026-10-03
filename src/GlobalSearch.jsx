@@ -3,7 +3,7 @@ import { ArrowUpRight, BookOpen, Command, Loader2, Search, UserRound, X } from '
 import { C, fontBody, fontDisplay, fontMono } from './App';
 import { supabase } from './supabaseClient';
 
-const escapeLike = (value) => value.replace(/[\\%_,()]/g, '\\$&');
+const escapeLike = (value) => value.replace(/[\\%_,()"]/g, '\\$&');
 
 function ResultGroup({ title, icon: Icon, rows, onChoose, getLabel, getMeta }) {
   if (!rows.length) return null;
@@ -49,11 +49,13 @@ export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categ
     const timer = window.setTimeout(async () => {
       const pattern = `%${escapeLike(term)}%`;
       const usernameTerm = term.replace(/^@+/, '');
-      const profilePattern = usernameTerm ? `%${escapeLike(usernameTerm)}%` : pattern;
+      const profilePattern = `%${escapeLike(usernameTerm || term)}%`;
       const queries = [
         supabase.from('courses').select('id,title,category_id,summary').eq('status', 'approved').ilike('title', pattern).order('created_at', { ascending: false }).limit(6).abortSignal(controller.signal),
         supabase.from('tests').select('id,title,category_id,description').eq('status', 'approved').ilike('title', pattern).order('created_at', { ascending: false }).limit(6).abortSignal(controller.signal),
-        supabase.from('profiles').select('id,username,first_name,last_name').not('username', 'is', null).ilike('username', profilePattern).limit(5).abortSignal(controller.signal),
+        supabase.from('profiles').select('id,username,first_name,last_name').not('username', 'is', null)
+          .or(`username.ilike.${profilePattern},first_name.ilike.${pattern},last_name.ilike.${pattern}`)
+          .limit(8).abortSignal(controller.signal),
       ];
       const settled = await Promise.allSettled(queries);
       if (cancelled) return;
@@ -80,7 +82,7 @@ export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categ
         {error && <p role="status" className="px-3 py-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{error}</p>}
         <ResultGroup title="Kurslar va mavzular" icon={BookOpen} rows={results.courses} onChoose={(row) => onOpenItem('course', row.id)} getLabel={(row) => row.title} getMeta={(row) => categoryNames.get(row.category_id) || row.summary || 'Kurs'} />
         <ResultGroup title="Testlar" icon={BookOpen} rows={results.tests} onChoose={(row) => onOpenItem('test', row.id)} getLabel={(row) => row.title} getMeta={(row) => categoryNames.get(row.category_id) || row.description || 'Test'} />
-        <ResultGroup title="Foydalanuvchilar" icon={UserRound} rows={results.people} onChoose={(row) => { onOpenProfile(row.username); onClose(); }} getLabel={(row) => `@${row.username}`} getMeta={(row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Profil'} />
+        <ResultGroup title="Foydalanuvchilar" icon={UserRound} rows={results.people} onChoose={(row) => { onOpenProfile(row.username); onClose(); }} getLabel={(row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || `@${row.username}`} getMeta={(row) => row.username ? `@${row.username}` : 'Profil'} />
         {term.length >= 2 && !loading && !hasResults && <div className="px-3 py-7 text-center"><p className="text-sm font-medium" style={{ ...fontDisplay, color: C.ink }}>Natija topilmadi</p><p className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Boshqa soʻz yoki qisqaroq soʻrovni sinab koʻring</p></div>}
       </div>
       <div className="flex items-center justify-between border-t px-4 py-2 text-[10px]" style={{ ...fontMono, color: C.inkSoft, borderColor: C.rule }}><span>UpCourse · qidiruv</span><span>Esc · yopish</span></div>
