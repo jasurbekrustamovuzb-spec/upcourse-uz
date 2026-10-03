@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2, GraduationCap,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap
+  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap
 } from 'lucide-react';
 import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
 
@@ -4326,7 +4326,75 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
   );
 }
 
-function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile }) {
+function ProfileRewardsPanel({ onOpenStore }) {
+  const [coins, setCoins] = useState(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [messageIsError, setMessageIsError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.rpc('daily_arena_wallet').then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        setCoins(null);
+        setMessage('Coin hamyonini yuklab boʻlmadi.');
+        setMessageIsError(true);
+        return;
+      }
+      setCoins(Number(data?.coins) || 0);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function redeem(event) {
+    event.preventDefault();
+    if (!code.trim() || busy) return;
+    setBusy(true);
+    setMessage('');
+    setMessageIsError(false);
+    const { data, error } = await supabase.rpc('daily_arena_redeem_promo', { p_code: code });
+    setBusy(false);
+    if (error) {
+      setMessage(error.message?.includes('PROMO_USED')
+        ? 'Bu promo kod hisobingizda avval ishlatilgan.'
+        : 'Kod yaroqsiz, muddati tugagan yoki ishlatish limiti toʻlgan.');
+      setMessageIsError(true);
+      return;
+    }
+    setCoins(Number(data?.coins) || 0);
+    setCode('');
+    setMessage(`Promo kod qabul qilindi: +${Number(data?.earned) || 0} coin.`);
+  }
+
+  return (
+    <section className="mb-8 rounded-sm p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: C.goldSoft, color: C.cover }}><Coins size={20} /></span>
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Mukofotlar</div>
+            <div className="font-medium" style={{ ...fontDisplay, color: C.ink }}>Coin hamyoni <span className="ml-1" style={{ ...fontMono, color: C.cover }}>{coins === null ? '…' : `${coins} coin`}</span></div>
+          </div>
+        </div>
+        <button type="button" onClick={onOpenStore} className="inline-flex items-center justify-center gap-2 rounded-sm px-3 py-2 text-sm" style={{ ...fontBody, color: C.white, background: C.cover }}>
+          <ShoppingBag size={15} /> Coin do‘koni
+        </button>
+      </div>
+      <form onSubmit={redeem} className="mt-4 flex flex-col sm:flex-row gap-2">
+        <label className="sr-only" htmlFor="profile-promo-code">Promo kod</label>
+        <input id="profile-promo-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} autoCapitalize="characters" placeholder="Promo kodni kiriting" className="min-w-0 flex-1 rounded-sm px-3 py-2.5 text-sm outline-none" style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} />
+        <button type="submit" disabled={busy || !code.trim()} className="inline-flex items-center justify-center gap-1.5 rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>
+          {busy ? <Loader2 size={15} className="animate-spin" /> : <Tag size={15} />} Kodni ishlatish
+        </button>
+      </form>
+      {message && <p role="status" className="mt-2 text-xs" style={{ ...fontBody, color: messageIsError ? C.red : C.accent }}>{message}</p>}
+    </section>
+  );
+}
+
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -4563,6 +4631,8 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
           </div>
         </div>
       </div>
+
+      <ProfileRewardsPanel onOpenStore={onOpenArena} />
 
       <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
       <div className="grid sm:grid-cols-2 gap-4">
@@ -5875,6 +5945,7 @@ export default function App() {
                   onGoToAbout={() => goTo('about')}
                   onOpenAdmin={() => goTo('admin')}
                   onOpenProfile={openSearchProfile}
+                  onOpenArena={() => goTo('arena')}
                 />
               )}
               {!viewingUsername && tab === 'admin' && isAdmin && (
