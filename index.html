@@ -96,6 +96,32 @@
       }
       .ucs-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
       .ucs-brand span { color: #FBFAF3; font-weight: 700; font-size: 18px; white-space: nowrap; }
+      .ucs-brand .ucs-mark,
+      .ucs-aside-brand .ucs-mark {
+        display: inline-grid;
+        place-items: center;
+        position: relative;
+        flex: 0 0 auto;
+        border: 2px solid #E4CC9C;
+        border-radius: 8px 8px 10px 10px;
+        color: #E4CC9C;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-weight: 700;
+        line-height: 1;
+        padding-bottom: 2px;
+      }
+      .ucs-brand .ucs-mark { width: 26px; height: 26px; font-size: 18px; }
+      .ucs-aside-brand .ucs-mark { width: 24px; height: 24px; font-size: 16px; }
+      .ucs-mark::after {
+        content: "";
+        position: absolute;
+        left: 25%;
+        right: 25%;
+        bottom: 5px;
+        height: 1px;
+        border-radius: 2px;
+        background: currentColor;
+      }
       .ucs-theme-btn {
         width: 32px; height: 32px; border-radius: 999px;
         border: 1px solid rgba(184,134,59,0.35);
@@ -192,7 +218,7 @@
       <div id="upcourse-splash">
         <header class="ucs-header">
           <div class="ucs-brand">
-            <svg width="22" height="22" viewBox="0 0 48 48" fill="none" stroke="#D4AC6E" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17.5c6-3.2 12.1-2.8 19 1.1v17c-6.9-4-13-4.3-19-1.1zM43 17.5c-6-3.2-12.1-2.8-19 1.1v17c6.9-4 13-4.3 19-1.1z"/><path d="M9 22c4-.9 7.7-.2 11 1.5M9 27c4-.9 7.7-.2 11 1.5M28 29l6-6 4 2 6-10m-7 0h7v7"/></svg>
+            <span class="ucs-mark" aria-hidden="true">U</span>
             <span>UpCourse Uz</span>
           </div>
           <div class="ucs-theme-btn">
@@ -203,7 +229,7 @@
         <div class="ucs-body">
           <aside class="ucs-aside">
             <div class="ucs-aside-brand">
-              <svg width="20" height="20" viewBox="0 0 48 48" fill="none" stroke="#D4AC6E" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17.5c6-3.2 12.1-2.8 19 1.1v17c-6.9-4-13-4.3-19-1.1zM43 17.5c-6-3.2-12.1-2.8-19 1.1v17c6.9-4 13-4.3 19-1.1z"/><path d="M9 22c4-.9 7.7-.2 11 1.5M9 27c4-.9 7.7-.2 11 1.5M28 29l6-6 4 2 6-10m-7 0h7v7"/></svg>
+              <span class="ucs-mark" aria-hidden="true">U</span>
               <span>UpCourse Uz</span>
             </div>
             <div class="ucs-aside-item active">
