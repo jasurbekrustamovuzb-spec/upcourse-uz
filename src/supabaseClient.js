@@ -21,6 +21,16 @@ export function signInWithGoogle() {
   });
 }
 
+export function switchGoogleAccount() {
+  return supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin,
+      queryParams: { prompt: 'select_account' },
+    },
+  });
+}
+
 export function signOut() {
   return supabase.auth.signOut();
 }

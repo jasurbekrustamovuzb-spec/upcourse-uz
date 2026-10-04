@@ -6,7 +6,7 @@ import {
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
   Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap
 } from 'lucide-react';
-import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
+import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut } from './supabaseClient';
 
 /* ------------------------------------------------------------------ */
 /*  Admin panel faqat "Admin panel" boʻlimiga kirilganda yuklanadi     */
@@ -4262,13 +4262,14 @@ function ProfileSetupForm({ defaultFirstName, defaultLastName, defaultBio, defau
   );
 }
 
-function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClose }) {
+function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onSwitchAccount, onClose }) {
   const [firstName, setFirstName] = useState(profile.firstName || '');
   const [lastName, setLastName] = useState(profile.lastName || '');
   const [username, setUsername] = useState(profile.username || '');
   const [bio, setBio] = useState(profile.bio || '');
   const [bannerKey, setBannerKey] = useState(profile.bannerKey || 'green');
   const [busy, setBusy] = useState(false);
+  const [switchingAccount, setSwitchingAccount] = useState(false);
   const [formError, setFormError] = useState(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
@@ -4284,6 +4285,22 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
     setBusy(false);
     if (res && res.ok === false) setFormError(res.error);
     else onClose();
+  }
+
+  async function switchAccount() {
+    if (switchingAccount) return;
+    setSwitchingAccount(true);
+    setFormError(null);
+    try {
+      const { error } = await onSwitchAccount();
+      if (error) {
+        setFormError('Google akkaunt tanlash oynasini ochib boʻlmadi. Qayta urinib koʻring.');
+        setSwitchingAccount(false);
+      }
+    } catch {
+      setFormError('Google akkaunt tanlash oynasini ochib boʻlmadi. Qayta urinib koʻring.');
+      setSwitchingAccount(false);
+    }
   }
 
   return (
@@ -4322,6 +4339,18 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
         </SolidButton>
 
         <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+          <button
+            type="button"
+            onClick={switchAccount}
+            disabled={switchingAccount}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm disabled:opacity-60"
+            style={{ ...fontBody, color: C.ink, border: `1px solid ${C.gold}`, background: C.surface }}
+          >
+            <LogIn size={14} /> {switchingAccount ? 'Google ochilmoqda...' : 'Akkauntni almashtirish'}
+          </button>
+          <p className="text-[11px] mt-1.5 mb-4 text-center" style={{ ...fontBody, color: C.inkSoft }}>
+            Boshqa Google akkauntini tanlang.
+          </p>
           {!confirmSignOut ? (
             <button
               onClick={() => setConfirmSignOut(true)}
@@ -4709,6 +4738,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
               currentUserId={session.user.id}
               onSave={onSaveProfile}
               onSignOut={onSignOut}
+              onSwitchAccount={switchGoogleAccount}
               onClose={() => setSettingsOpen(false)}
             />
           )}
