@@ -106,6 +106,43 @@ const DARK_PALETTE = {
 
 export const C = { ...LIGHT_PALETTE };
 
+function BrandMark({ size = 28 }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: size,
+        height: size,
+        flexShrink: 0,
+        display: 'inline-grid',
+        placeItems: 'center',
+        position: 'relative',
+        border: `2px solid ${C.goldSoft}`,
+        borderRadius: `${Math.round(size * 0.28)}px ${Math.round(size * 0.28)}px ${Math.round(size * 0.34)}px ${Math.round(size * 0.34)}px`,
+        color: C.goldSoft,
+        fontFamily: "Georgia, 'Times New Roman', serif",
+        fontSize: Math.round(size * 0.68),
+        fontWeight: 700,
+        lineHeight: 1,
+        paddingBottom: Math.round(size * 0.09),
+      }}
+    >
+      U
+      <span
+        style={{
+          position: 'absolute',
+          bottom: Math.max(3, Math.round(size * 0.15)),
+          left: '25%',
+          right: '25%',
+          height: 1.5,
+          borderRadius: 2,
+          background: C.goldSoft,
+        }}
+      />
+    </span>
+  );
+}
+
 export const fontDisplay = { fontFamily: "Georgia, 'Times New Roman', serif" };
 export const fontBody = { fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" };
 export const fontMono = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" };
@@ -5782,8 +5819,8 @@ export default function App() {
           style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}
         >
           <div className="flex items-center gap-2 px-2 mb-8">
-            <svg width="22" height="22" viewBox="0 0 48 48" role="img" aria-label="UpCourse Uz"><path d="M5 17.5c6-3.2 12.1-2.8 19 1.1v17c-6.9-4-13-4.3-19-1.1zM43 17.5c-6-3.2-12.1-2.8-19 1.1v17c6.9-4 13-4.3 19-1.1z" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinejoin="round"/><path d="M9 22c4-.9 7.7-.2 11 1.5M9 27c4-.9 7.7-.2 11 1.5M28 29l6-6 4 2 6-10m-7 0h7v7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            <span className="text-[15px]" style={{ ...fontDisplay, color: C.goldSoft, fontWeight: 700 }}>UpCourse Uz</span>
+            <BrandMark size={26} />
+            <span className="text-[15px]" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
           </div>
           <button type="button" onClick={() => setGlobalSearchOpen(true)} className="nav-btn mb-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px] focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: 'rgba(251,250,243,0.8)', border: `1px solid ${C.coverLine}`, outlineColor: C.gold }}>
             <Search size={16} />
@@ -5897,8 +5934,8 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between">
           {tab === 'kurslar' ? (
             <div className="flex items-center gap-2 min-w-0">
-              <svg width="24" height="24" viewBox="0 0 48 48" role="img" aria-label="UpCourse Uz" style={{ color: C.gold, flexShrink: 0 }}><path d="M5 17.5c6-3.2 12.1-2.8 19 1.1v17c-6.9-4-13-4.3-19-1.1zM43 17.5c-6-3.2-12.1-2.8-19 1.1v17c6.9-4 13-4.3 19-1.1z" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinejoin="round"/><path d="M9 22c4-.9 7.7-.2 11 1.5M9 27c4-.9 7.7-.2 11 1.5M28 29l6-6 4 2 6-10m-7 0h7v7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              <span className="text-lg truncate" style={{ ...fontDisplay, color: C.goldSoft, fontWeight: 700 }}>UpCourse Uz</span>
+              <BrandMark size={28} />
+              <span className="text-lg truncate" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
             </div>
           ) : (
             (() => {
