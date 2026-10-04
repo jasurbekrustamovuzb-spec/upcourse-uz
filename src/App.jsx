@@ -5052,13 +5052,24 @@ export default function App() {
   const contentOwnerRef = useRef(null);
   const activeUserIdRef = useRef(null);
 
-  useEffect(() => {
-    _goToPublicProfile = (username) => setViewingUsername(username);
-    return () => { _goToPublicProfile = null; };
-  }, []);
-
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
+
+  function openPublicProfile(username, returnTab = tab) {
+    if (!username) return;
+    const previousUsername = viewingUsername;
+    setTab('kurslar');
+    setViewingUsername(username);
+    nav.pushNav(() => {
+      setViewingUsername(previousUsername);
+      setTab(returnTab);
+    });
+  }
+
+  useEffect(() => {
+    _goToPublicProfile = (username) => openPublicProfile(username, 'kurslar');
+    return () => { _goToPublicProfile = null; };
+  }, [nav]);
 
   /* Saqlangan pozitsiya "admin panel" bo'lib, lekin profil yuklangach
      bu foydalanuvchi admin emasligi ma'lum bo'lsa — bo'sh ekranda
@@ -5759,7 +5770,7 @@ export default function App() {
         return;
       }
       setActionError(null);
-      setViewingUsername(data.username);
+      openPublicProfile(data.username);
     } catch (e) {
       setActionError('Profilni ochib boʻlmadi. Qayta urinib koʻring.');
     }
@@ -5784,8 +5795,7 @@ export default function App() {
   }
 
   function openSearchProfile(username) {
-    goTo('kurslar');
-    setViewingUsername(username);
+    openPublicProfile(username, 'kurslar');
   }
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -6061,7 +6071,7 @@ export default function App() {
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
               {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
               {viewingUsername && (
-                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
+                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
@@ -6181,3 +6191,4 @@ export default function App() {
     </NavContext.Provider>
   );
 }
+
