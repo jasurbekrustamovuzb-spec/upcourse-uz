@@ -5408,7 +5408,10 @@ export default function App() {
       if (rows[0]) {
           const loadedCourse = courseFromRow(rows[0]);
           setCourses((prev) => prev.some((course) => course.id === id)
-            ? prev.map((course) => (course.id === id ? loadedCourse : course))
+            ? prev.map((course) => (course.id === id ? {
+              ...loadedCourse,
+              ...(course.pendingEdit ? { pendingEdit: course.pendingEdit, pendingEditUpdatedAt: course.pendingEditUpdatedAt } : {}),
+            } : course))
             : [...prev, loadedCourse]);
       }
     } catch (e) {
