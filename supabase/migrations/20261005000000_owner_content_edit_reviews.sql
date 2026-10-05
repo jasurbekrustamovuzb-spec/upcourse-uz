@@ -33,7 +33,7 @@ create table if not exists public.test_revisions (
 );
 
 -- Repair either table if an earlier partial attempt created its key as uuid.
-do $
+do $$
 begin
   if exists (
     select 1 from information_schema.columns
@@ -58,7 +58,7 @@ begin
       foreign key (test_id) references public.tests(id) on delete cascade;
   end if;
 end;
-$;
+$$;
 
 create index if not exists course_revisions_owner_idx on public.course_revisions(owner_id);
 create index if not exists test_revisions_owner_idx on public.test_revisions(owner_id);
