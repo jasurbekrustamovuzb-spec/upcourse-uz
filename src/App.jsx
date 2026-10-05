@@ -388,6 +388,43 @@ const sbSelect = (table, filter, orderColumn = 'created_at', options = {}) => sb
 
 /* Profil ochilgandagina muallifning yengil roʻyxatini yuklaydi.
    Bosh sahifa soʻrovlari va katta content/questions ustunlariga taʼsir qilmaydi. */
+async function sbSelectContentRevisions(kind, ownerId) {
+  if (!ownerId || !['courses', 'tests'].includes(kind)) return [];
+  const table = kind === 'courses' ? 'course_revisions' : 'test_revisions';
+  try {
+    return await sbRequest(table + '?select=' + (kind === 'courses' ? 'course_id,draft,updated_at' : 'test_id,draft,updated_at') + '&owner_id=eq.' + encodeURIComponent(ownerId));
+  } catch (error) {
+    if (/\b404\b|PGRST205|42P01/i.test(String(error?.message || error))) return [];
+    throw error;
+  }
+}
+async function sbSelectAllContentRevisions(kind, options = {}) {
+  const table = kind === 'courses' ? 'course_revisions' : 'test_revisions';
+  const cols = kind === 'courses' ? 'course_id,draft,updated_at,owner_id' : 'test_id,draft,updated_at,owner_id';
+  try { return await sbRequest(table + '?select=' + cols, options); }
+  catch (error) {
+    if (/\b404\b|PGRST205|42P01/i.test(String(error?.message || error))) return [];
+    throw error;
+  }
+}
+async function sbUpsertContentRevision(kind, id, ownerId, data) {
+  const course = kind === 'courses';
+  const table = course ? 'course_revisions' : 'test_revisions';
+  const key = course ? 'course_id' : 'test_id';
+  const draft = course
+    ? { category_id: data.categoryId || null, title: data.title, summary: data.summary || '', content: data.content || '', video_url: data.videoUrl || null }
+    : { category_id: data.categoryId || null, title: data.title, description: data.description || '', questions: data.questions || [] };
+  await sbRequest(table + '?on_conflict=' + key, {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify({ [key]: id, owner_id: ownerId, draft, updated_at: new Date().toISOString() }),
+  });
+}
+async function sbDeleteContentRevision(kind, id) {
+  const key = kind === 'courses' ? 'course_id' : 'test_id';
+  const table = kind === 'courses' ? 'course_revisions' : 'test_revisions';
+  await sbRequest(table + '?' + key + '=eq.' + encodeURIComponent(id), { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+}
 export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false, authorProfile = null) {
   if (!authorId || !['courses', 'tests'].includes(kind)) return [];
   const columns = kind === 'courses'
@@ -409,13 +446,27 @@ export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false
     : '(author_id.eq.' + authorId + ')';
   const params = new URLSearchParams({ select: columns, or: ownerFilter, order: 'created_at.asc' });
   if (approvedOnly) params.set('status', 'eq.approved');
-  const rows = await sbRequest(kind + '?' + params.toString());
+  const [rows, revisionRows] = await Promise.all([
+    sbRequest(kind + '?' + params.toString()),
+    approvedOnly ? Promise.resolve([]) : sbSelectContentRevisions(kind, authorId),
+  ]);
+  const revisionKey = kind === 'courses' ? 'course_id' : 'test_id';
+  const revisions = new Map(revisionRows.map((revision) => [String(revision[revisionKey]), revision]));
   const ownedRows = rows.filter((row) => {
     if (String(row.author_id || '') === String(authorId)) return true;
     if (row.author_id || (approvedOnly && row.status !== 'approved')) return false;
     return normalizedAuthorNames.has(String(row.author || '').trim().toLocaleLowerCase());
   });
-  return ownedRows.map(kind === 'courses' ? courseFromRow : testFromRow);
+  return ownedRows.map((row) => {
+    const item = (kind === 'courses' ? courseFromRow : testFromRow)(row);
+    const revision = revisions.get(String(row.id));
+    if (!revision || row.status !== 'approved') return item;
+    const draft = revision.draft || {};
+    const pendingEdit = kind === 'courses'
+      ? { categoryId: draft.category_id || item.categoryId, title: draft.title ?? item.title, summary: draft.summary ?? item.summary, content: draft.content ?? item.content, videoUrl: draft.video_url ?? item.videoUrl }
+      : { categoryId: draft.category_id || item.categoryId, title: draft.title ?? item.title, description: draft.description ?? item.description, questions: draft.questions ?? item.questions };
+    return { ...item, pendingEdit, pendingEditUpdatedAt: revision.updated_at };
+  });
 }
 
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
@@ -933,12 +984,12 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
   const loadedCourses = authorContent.userId === row.id ? authorContent.courses : [];
   const loadedTests = authorContent.userId === row.id ? authorContent.tests : [];
   const myCourses = Array.from(new Map([
-    ...loadedCourses.map((item) => [item.id, item]),
     ...courses.filter((item) => item.authorId === row.id && item.status === 'approved').map((item) => [item.id, item]),
+    ...loadedCourses.map((item) => [item.id, item]),
   ]).values());
   const myTests = Array.from(new Map([
-    ...loadedTests.map((item) => [item.id, item]),
     ...tests.filter((item) => item.authorId === row.id && item.status === 'approved').map((item) => [item.id, item]),
+    ...loadedTests.map((item) => [item.id, item]),
   ]).values());
   const items = section === 'kurslar' ? myCourses : section === 'testlar' ? myTests : [];
 
@@ -2011,7 +2062,7 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin }) {
+function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId }) {
   const [renaming, setRenaming] = useState(null);
 
   return (
@@ -2038,10 +2089,10 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
                   </div>
                 </div>
                 <div className="flex items-center flex-shrink-0 gap-1">
-                  {isAdmin && (
+                  {(isAdmin || cat.authorId === userId) && (
                     <ItemMenu actions={[
                       { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
-                      { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) },
+                      ...(isAdmin ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) }] : []),
                     ]} />
                   )}
                   <ChevronRight size={16} style={{ color: C.gold }} />
@@ -2294,7 +2345,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
           </div>
         ) : (
-          <EditCourseForm course={editing} onSave={(data) => updateCourse(editing.id, data, editing.title)} onDone={back} />
+          <EditCourseForm course={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateCourse(editing.id, data, editing.title, editing)} onDone={back} />
         )}
       </div>
     );
@@ -2313,6 +2364,16 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         {active.status === 'pending' && (
           <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
             <Clock3 size={13} /> Tekshirilmoqda — hozircha faqat sizga koʻrinadi
+          </div>
+        )}
+        {mode === 'admin' && active.pendingRevision && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Clock3 size={13} /> Muallif tahriri — tasdiqlansa saytdagi amaldagi nusxa yangilanadi
+          </div>
+        )}
+        {isMine && active.pendingEdit && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Clock3 size={13} /> Tahrir tasdiq kutilmoqda — ommaviy nusxa hozircha o‘zgarishsiz
           </div>
         )}
         {active.status === 'private' && (
@@ -2442,6 +2503,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             deleteCategory={deleteCategory}
             onGoToCommunity={() => onGoToCommunity('kurslar')}
             isAdmin={isAdmin}
+            userId={session?.user?.id}
           />
         )}
       </div>
@@ -3617,7 +3679,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
             <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
           </div>
         ) : (
-          <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
+          <EditTestForm test={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateTest(editing.id, data, editing.title, editing)} onDone={back} />
         )}
       </div>
     );
@@ -3762,6 +3824,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
             deleteCategory={deleteCategory}
             onGoToCommunity={() => onGoToCommunity('testlar')}
             isAdmin={isAdmin}
+            userId={session?.user?.id}
           />
         )}
       </div>
@@ -3835,9 +3898,10 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, updateCourse, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
+export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, updateCourse, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [editId, setEditId] = useState(null);
+  const [renaming, setRenaming] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   const goOpen = (id) => { if (ensureCourseContent) ensureCourseContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
@@ -3868,7 +3932,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
             <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
           </div>
         ) : (
-          <EditCourseForm course={editing} onSave={(data) => updateCourse(editing.id, data, editing.title)} onDone={back} />
+          <EditCourseForm course={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateCourse(editing.id, data, editing.title, editing)} onDone={back} />
         )}
       </div>
     );
@@ -3887,6 +3951,16 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
         {active.status === 'pending' && (
           <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
             <Clock3 size={13} /> Tekshirilmoqda
+          </div>
+        )}
+        {mode === 'admin' && active.pendingRevision && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Clock3 size={13} /> Muallif tahriri — tasdiqlansa saytdagi amaldagi nusxa yangilanadi
+          </div>
+        )}
+        {isMine && active.pendingEdit && (
+          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
+            <Clock3 size={13} /> Tahrir tasdiq kutilmoqda — ommaviy nusxa hozircha o‘zgarishsiz
           </div>
         )}
         {active.status === 'private' && (
@@ -3938,11 +4012,27 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
                       <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div>
                     </div>
                   </div>
-                  <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {isMine && cat.authorId === ownerId && renameCategory && (
+                      <ItemMenu actions={[{ label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) }]} />
+                    )}
+                    <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                  </div>
                 </div>
               );
             })}
           </div>
+        )}
+
+        {renaming && (
+          <RenameCategoryModal
+            category={renaming}
+            onCancel={() => setRenaming(null)}
+            onSave={async (newName) => {
+              const ok = await renameCategory(renaming.id, renaming.name, newName);
+              if (ok) setRenaming(null);
+            }}
+          />
         )}
 
         {formOpen ? (
@@ -4010,9 +4100,10 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
   );
 }
 
-export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, updateTest, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
+export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, updateTest, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [editId, setEditId] = useState(null);
+  const [renaming, setRenaming] = useState(null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   const goOpen = (id) => { if (ensureTestContent) ensureTestContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
@@ -4043,7 +4134,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
             <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
           </div>
         ) : (
-          <EditTestForm test={editing} onSave={(data) => updateTest(editing.id, data, editing.title)} onDone={back} />
+          <EditTestForm test={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateTest(editing.id, data, editing.title, editing)} onDone={back} />
         )}
       </div>
     );
@@ -4091,11 +4182,27 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
                       <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div>
                     </div>
                   </div>
-                  <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {isMine && cat.authorId === ownerId && renameCategory && (
+                      <ItemMenu actions={[{ label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) }]} />
+                    )}
+                    <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                  </div>
                 </div>
               );
             })}
           </div>
+        )}
+
+        {renaming && (
+          <RenameCategoryModal
+            category={renaming}
+            onCancel={() => setRenaming(null)}
+            onSave={async (newName) => {
+              const ok = await renameCategory(renaming.id, renaming.name, newName);
+              if (ok) setRenaming(null);
+            }}
+          />
         )}
 
         {formOpen ? (
@@ -4587,7 +4694,7 @@ function ProfileRewardsPanel() {
 }
 
 
-function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, submitTest, approveTest, deleteTest, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
+function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -4620,6 +4727,26 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     });
     return () => { cancelled = true; };
   }, [session?.user?.id, profile?.username, profile?.firstName, profile?.lastName]);
+  const saveOwnCourseEdit = async (id, data, title, sourceItem) => {
+    const saved = await updateCourse(id, data, title, sourceItem);
+    if (saved) setOwnContent((previous) => ({
+      ...previous,
+      courses: previous.courses.map((item) => item.id !== id ? item : item.status === 'approved'
+        ? { ...item, pendingEdit: data, pendingEditUpdatedAt: new Date().toISOString() }
+        : { ...item, ...data }),
+    }));
+    return saved;
+  };
+  const saveOwnTestEdit = async (id, data, title, sourceItem) => {
+    const saved = await updateTest(id, data, title, sourceItem);
+    if (saved) setOwnContent((previous) => ({
+      ...previous,
+      tests: previous.tests.map((item) => item.id !== id ? item : item.status === 'approved'
+        ? { ...item, pendingEdit: data, pendingEditUpdatedAt: new Date().toISOString() }
+        : { ...item, ...data }),
+    }));
+    return saved;
+  };
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
   useEffect(() => {
@@ -4707,6 +4834,9 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         submitCourse={submitCourse}
         approveCourse={null}
         deleteCourse={deleteCourse}
+        updateCourse={saveOwnCourseEdit}
+        renameCategory={renameCategory}
+        ownerId={session.user.id}
         formOpen={courseFormOpen}
         onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }}
         onCloseForm={() => setCourseFormOpen(false)}
@@ -4727,6 +4857,9 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
         submitTest={submitTest}
         approveTest={null}
         deleteTest={deleteTest}
+        updateTest={saveOwnTestEdit}
+        renameCategory={renameCategory}
+        ownerId={session.user.id}
         formOpen={testFormOpen}
         onOpenForm={() => { setPrefillCategory(''); setTestFormMode(null); setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }}
         onCloseForm={() => setTestFormOpen(false)}
@@ -5275,7 +5408,10 @@ export default function App() {
       if (rows[0]) {
           const loadedCourse = courseFromRow(rows[0]);
           setCourses((prev) => prev.some((course) => course.id === id)
-            ? prev.map((course) => (course.id === id ? loadedCourse : course))
+            ? prev.map((course) => (course.id === id ? {
+              ...loadedCourse,
+              ...(course.pendingEdit ? { pendingEdit: course.pendingEdit, pendingEditUpdatedAt: course.pendingEditUpdatedAt } : {}),
+            } : course))
             : [...prev, loadedCourse]);
       }
     } catch (e) {
@@ -5341,8 +5477,11 @@ export default function App() {
         const vis = visibilityFilter(userId, isAdmin);
         const visQ = vis ? '&' + vis : '';
         const columns = 'id,category_id,title,description,author,author_id,status,created_at,question_count';
-        const rows = await Promise.race([
-          sbRequest('tests?select=' + columns + '&order=created_at.asc' + visQ, { signal: controller.signal }),
+        const [rows, testRevisionRows] = await Promise.race([
+          Promise.all([
+            sbRequest('tests?select=' + columns + '&order=created_at.asc' + visQ, { signal: controller.signal }),
+            isAdmin ? sbSelectAllContentRevisions('tests', { signal: controller.signal }) : Promise.resolve([]),
+          ]),
           new Promise((_, reject) => {
             timeoutId = setTimeout(() => {
               controller.abort();
@@ -5351,14 +5490,24 @@ export default function App() {
           }),
         ]);
         if (loadState.generation !== generation) return;
+        const testRevisionsById = new Map(testRevisionRows.map((revision) => [String(revision.test_id), revision]));
         setTests((previous) => {
           const previousById = new Map(previous.map((test) => [test.id, test]));
           return rows.map((row) => {
             const next = testFromRow(row);
             const cached = previousById.get(next.id);
+            const revision = testRevisionsById.get(String(next.id));
+            const draft = revision?.draft;
+            const pendingEdit = revision && next.status === 'approved' ? {
+              categoryId: draft?.category_id || next.categoryId,
+              title: draft?.title ?? next.title,
+              description: draft?.description ?? next.description,
+              questions: draft?.questions ?? cached?.questions ?? next.questions ?? [],
+            } : undefined;
+            const merged = { ...next, ...(pendingEdit ? { pendingEdit, pendingEditUpdatedAt: revision.updated_at } : {}) };
             return cached?.questions !== undefined
-              ? { ...next, questions: cached.questions, questionCount: cached.questionCount ?? next.questionCount }
-              : next;
+              ? { ...merged, questions: cached.questions, questionCount: cached.questionCount ?? merged.questionCount }
+              : merged;
           });
         });
         loadState.loadedKey = cacheKey;
@@ -5401,11 +5550,13 @@ export default function App() {
       let initialDataTimeoutId;
       let catRows;
       let courseRows;
+      let courseRevisionRows = [];
       try {
-        [catRows, courseRows] = await Promise.race([
+        [catRows, courseRows, courseRevisionRows] = await Promise.race([
           Promise.all([
             sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal }),
             sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal }),
+            isAdmin ? sbSelectAllContentRevisions('courses', { signal: initialDataController.signal }) : Promise.resolve([]),
           ]),
           new Promise((_, reject) => {
             initialDataTimeoutId = setTimeout(() => {
@@ -5424,14 +5575,25 @@ export default function App() {
       if (requestUserId && activeUserIdRef.current !== requestUserId) return false;
 
       setCategories(catRows.map(categoryFromRow));
+      const courseRevisionsById = new Map(courseRevisionRows.map((revision) => [String(revision.course_id), revision]));
       setCourses((previous) => {
         const previousById = new Map(previous.map((course) => [course.id, course]));
         return courseRows.map((row) => {
           const next = courseFromRow(row);
           const cached = previousById.get(next.id);
+          const revision = courseRevisionsById.get(String(next.id));
+          const draft = revision?.draft;
+          const pendingEdit = revision && next.status === 'approved' ? {
+            categoryId: draft?.category_id || next.categoryId,
+            title: draft?.title ?? next.title,
+            summary: draft?.summary ?? next.summary,
+            content: draft?.content ?? cached?.content ?? next.content ?? '',
+            videoUrl: draft?.video_url ?? next.videoUrl,
+          } : undefined;
+          const merged = { ...next, ...(pendingEdit ? { pendingEdit, pendingEditUpdatedAt: revision.updated_at } : {}) };
           return cached?.content !== undefined
-            ? { ...next, content: cached.content, videoUrl: cached.videoUrl || next.videoUrl }
-            : next;
+            ? { ...merged, content: cached.content, videoUrl: cached.videoUrl || merged.videoUrl }
+            : merged;
         });
       });
       succeeded = true;
@@ -5591,7 +5753,9 @@ export default function App() {
   }
   async function renameCategory(id, oldName, newName) {
     if (!newName.trim() || newName.trim() === oldName) return false;
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
+    const category = categories.find((item) => item.id === id);
+    const mine = category?.authorId === session?.user?.id;
+    if (!isAdmin && !mine) { setActionError('Faqat o‘zingiz yaratgan sohani o‘zgartirishingiz mumkin.'); return false; }
     try {
       await sbUpdate('categories', id, { name: newName.trim() });
       setCategories(categories.map((c) => (c.id === id ? { ...c, name: newName.trim() } : c)));
@@ -5665,13 +5829,30 @@ export default function App() {
   async function approveCourse(id, title) {
     if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
-      await sbUpdate('courses', id, { status: 'approved' });
-      setCourses(courses.map((c) => (c.id === id ? { ...c, status: 'approved' } : c)));
-      const course = courses.find((c) => c.id === id);
-      const cat = course && categories.find((c) => c.id === course.categoryId && c.status === 'pending');
+      const current = courses.find((item) => item.id === id);
+      if (current?.pendingEdit && current.status === 'approved') {
+        const draft = current.pendingEdit;
+        await sbUpdate('courses', id, {
+          category_id: draft.categoryId || null,
+          title: draft.title,
+          summary: draft.summary || '',
+          content: draft.content || '',
+          video_url: draft.videoUrl || null,
+          status: 'approved',
+        });
+        await sbDeleteContentRevision('courses', id);
+        setCourses((previous) => previous.map((item) => item.id === id
+          ? { ...item, ...draft, status: 'approved', pendingEdit: undefined, pendingEditUpdatedAt: undefined }
+          : item));
+      } else {
+        await sbUpdate('courses', id, { status: 'approved' });
+        setCourses((previous) => previous.map((item) => (item.id === id ? { ...item, status: 'approved' } : item)));
+      }
+      const course = courses.find((item) => item.id === id);
+      const cat = course && categories.find((item) => item.id === (course.pendingEdit?.categoryId || course.categoryId) && item.status === 'pending');
       if (cat) {
         await sbUpdate('categories', cat.id, { status: 'approved' });
-        setCategories((prev) => prev.map((c) => (c.id === cat.id ? { ...c, status: 'approved' } : c)));
+        setCategories((previous) => previous.map((item) => (item.id === cat.id ? { ...item, status: 'approved' } : item)));
       }
       setActionError(null);
       return true;
@@ -5680,15 +5861,37 @@ export default function App() {
       return false;
     }
   }
-  async function updateCourse(id, data, title) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
+  async function updateCourse(id, data, title, sourceItem = null) {
+    const current = courses.find((item) => item.id === id) || sourceItem;
+    const mine = current?.authorId === session?.user?.id;
+    if (!isAdmin && !mine) { setActionError('Faqat o‘zingiz yaratgan mavzuni tahrirlashingiz mumkin.'); return false; }
     try {
-      await sbUpdate('courses', id, courseToRow({ id, status: 'approved', ...data }));
-      setCourses(courses.map((c) => (c.id === id ? { ...c, ...data } : c)));
+      if (isAdmin) {
+        await sbUpdate('courses', id, courseToRow({ ...current, ...data, id, status: 'approved' }));
+        if (current?.pendingEdit) await sbDeleteContentRevision('courses', id);
+        setCourses((previous) => previous.map((item) => item.id === id
+          ? { ...item, ...data, status: 'approved', pendingEdit: undefined, pendingEditUpdatedAt: undefined }
+          : item));
+      } else if (current.status === 'approved') {
+        await sbUpsertContentRevision('courses', id, session.user.id, data);
+        setCourses((previous) => previous.map((item) => item.id === id
+          ? { ...item, pendingEdit: data, pendingEditUpdatedAt: new Date().toISOString() }
+          : item));
+      } else {
+        await sbUpdate('courses', id, {
+          category_id: data.categoryId || null,
+          title: data.title,
+          summary: data.summary || '',
+          content: data.content || '',
+          video_url: data.videoUrl || null,
+        });
+        setCourses((previous) => previous.map((item) => item.id === id ? { ...item, ...data } : item));
+      }
       setActionError(null);
       return true;
     } catch (e) {
-      setActionError('Tahrirlashda xatolik yuz berdi.');
+      console.error('Mavzuni tahrirlashda xatolik:', e);
+      setActionError('Tahrirlashni saqlab bo‘lmadi. Internetni tekshirib qayta urinib ko‘ring.');
       return false;
     }
   }
@@ -5732,13 +5935,29 @@ export default function App() {
   async function approveTest(id, title) {
     if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
     try {
-      await sbUpdate('tests', id, { status: 'approved' });
-      setTests(tests.map((t) => (t.id === id ? { ...t, status: 'approved' } : t)));
-      const test = tests.find((t) => t.id === id);
-      const cat = test && categories.find((c) => c.id === test.categoryId && c.status === 'pending');
+      const current = tests.find((item) => item.id === id);
+      if (current?.pendingEdit && current.status === 'approved') {
+        const draft = current.pendingEdit;
+        await sbUpdate('tests', id, {
+          category_id: draft.categoryId || null,
+          title: draft.title,
+          description: draft.description || '',
+          questions: draft.questions || [],
+          status: 'approved',
+        });
+        await sbDeleteContentRevision('tests', id);
+        setTests((previous) => previous.map((item) => item.id === id
+          ? { ...item, ...draft, status: 'approved', questionCount: getQuestionCount(draft.questions), pendingEdit: undefined, pendingEditUpdatedAt: undefined }
+          : item));
+      } else {
+        await sbUpdate('tests', id, { status: 'approved' });
+        setTests((previous) => previous.map((item) => (item.id === id ? { ...item, status: 'approved' } : item)));
+      }
+      const test = tests.find((item) => item.id === id);
+      const cat = test && categories.find((item) => item.id === (test.pendingEdit?.categoryId || test.categoryId) && item.status === 'pending');
       if (cat) {
         await sbUpdate('categories', cat.id, { status: 'approved' });
-        setCategories((prev) => prev.map((c) => (c.id === cat.id ? { ...c, status: 'approved' } : c)));
+        setCategories((previous) => previous.map((item) => (item.id === cat.id ? { ...item, status: 'approved' } : item)));
       }
       setActionError(null);
       return true;
@@ -5747,15 +5966,36 @@ export default function App() {
       return false;
     }
   }
-  async function updateTest(id, data, title) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
+  async function updateTest(id, data, title, sourceItem = null) {
+    const current = tests.find((item) => item.id === id) || sourceItem;
+    const mine = current?.authorId === session?.user?.id;
+    if (!isAdmin && !mine) { setActionError('Faqat o‘zingiz yaratgan testni tahrirlashingiz mumkin.'); return false; }
     try {
-      await sbUpdate('tests', id, testToRow({ id, status: 'approved', ...data }));
-      setTests(tests.map((t) => (t.id === id ? { ...t, ...data } : t)));
+      if (isAdmin) {
+        await sbUpdate('tests', id, testToRow({ ...current, ...data, id, status: 'approved' }));
+        if (current?.pendingEdit) await sbDeleteContentRevision('tests', id);
+        setTests((previous) => previous.map((item) => item.id === id
+          ? { ...item, ...data, status: 'approved', pendingEdit: undefined, pendingEditUpdatedAt: undefined }
+          : item));
+      } else if (current.status === 'approved') {
+        await sbUpsertContentRevision('tests', id, session.user.id, data);
+        setTests((previous) => previous.map((item) => item.id === id
+          ? { ...item, pendingEdit: data, pendingEditUpdatedAt: new Date().toISOString() }
+          : item));
+      } else {
+        await sbUpdate('tests', id, {
+          category_id: data.categoryId || null,
+          title: data.title,
+          description: data.description || '',
+          questions: data.questions || [],
+        });
+        setTests((previous) => previous.map((item) => item.id === id ? { ...item, ...data, questionCount: getQuestionCount(data.questions) } : item));
+      }
       setActionError(null);
       return true;
     } catch (e) {
-      setActionError('Tahrirlashda xatolik yuz berdi.');
+      console.error('Testni tahrirlashda xatolik:', e);
+      setActionError('Tahrirlashni saqlab bo‘lmadi. Internetni tekshirib qayta urinib ko‘ring.');
       return false;
     }
   }
@@ -6155,9 +6395,12 @@ export default function App() {
                   submitCourse={submitCourse}
                   approveCourse={approveCourse}
                   deleteCourse={deleteCourse}
+                  updateCourse={updateCourse}
                   submitTest={submitTest}
                   approveTest={approveTest}
                   deleteTest={deleteTest}
+                  updateTest={updateTest}
+                  renameCategory={renameCategory}
                   target={communityTarget}
                   onConsumeTarget={() => setCommunityTarget(null)}
                   isAdmin={isAdmin}
