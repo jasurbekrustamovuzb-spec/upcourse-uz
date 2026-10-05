@@ -393,32 +393,26 @@ export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false
   const columns = kind === 'courses'
     ? 'id,category_id,title,summary,video_url,author,author_id,status,created_at'
     : 'id,category_id,title,description,author,author_id,status,created_at,question_count';
-  // Eski materiallarda author_id bo'sh qolgan bo'lishi mumkin; bunday
-  // tasdiqlangan qatorlarni profil nomi/username'i bilan ham topamiz.
-  // Shaxsiy/pending qatorlar faqat aniq author_id orqali olinadi — bir xil
-  // ismli boshqa foydalanuvchining yopiq materiali profilga chiqib ketmaydi.
+  // Yangi kontent author_id orqali topiladi. Eski author_id'siz qatorlar
+  // faqat shu profilning username/ismi bilan aynan mos tushsa qo'shiladi.
+  // Wildcard qidiruv katta jadvalni skanerlab profilni kutdirmasligi uchun olib tashlandi.
   const authorNames = [
     authorProfile?.username,
-    authorProfile?.username ? `@${authorProfile.username}` : '',
-    `${authorProfile?.firstName || ''} ${authorProfile?.lastName || ''}`.trim(),
+    authorProfile?.username ? '@' + authorProfile.username : '',
+    (authorProfile?.firstName || '') + ' ' + (authorProfile?.lastName || ''),
   ].map((name) => String(name || '').trim()).filter(Boolean);
   const normalizedAuthorNames = new Set(authorNames.map((name) => name.toLocaleLowerCase()));
-  // Eski qatorlardagi author qiymatida ortiqcha bo'shliq bo'lishi mumkin.
-  // Serverda wildcard bilan nomzodlarni olamiz, so'ng clientda trim + exact
-  // taqqoslaymiz; shu yo'l bilan o'xshash username egasining kontenti chiqmaydi.
-  const escapeFilterValue = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-  const legacyFilters = [...new Set(authorNames)].map((name) => `author.ilike.${escapeFilterValue(`*${name.replace(/[\\%_*]/g, '\\$&')}*`)}`);
-  const authorFilters = [`author_id.eq.${authorId}`];
-  if (legacyFilters.length) {
-    if (approvedOnly) authorFilters.push(...legacyFilters);
-    else authorFilters.push(`and(status.eq.approved,or(${legacyFilters.join(',')}))`);
-  }
-  const params = new URLSearchParams({ select: columns, or: `(${authorFilters.join(',')})`, order: 'created_at.asc' });
+  const escapeFilterValue = (value) => '"' + String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"';
+  const legacyFilters = [...new Set(authorNames)].map((name) => 'author.ilike.' + escapeFilterValue(name));
+  const ownerFilter = legacyFilters.length
+    ? '(' + ['author_id.eq.' + authorId, 'and(author_id.is.null,or(' + legacyFilters.join(',') + '))'].join(',') + ')'
+    : '(author_id.eq.' + authorId + ')';
+  const params = new URLSearchParams({ select: columns, or: ownerFilter, order: 'created_at.asc' });
   if (approvedOnly) params.set('status', 'eq.approved');
-  const rows = await sbRequest(`${kind}?${params.toString()}`);
+  const rows = await sbRequest(kind + '?' + params.toString());
   const ownedRows = rows.filter((row) => {
     if (String(row.author_id || '') === String(authorId)) return true;
-    if (approvedOnly && row.status !== 'approved') return false;
+    if (row.author_id || (approvedOnly && row.status !== 'approved')) return false;
     return normalizedAuthorNames.has(String(row.author || '').trim().toLocaleLowerCase());
   });
   return ownedRows.map(kind === 'courses' ? courseFromRow : testFromRow);
@@ -855,6 +849,7 @@ function AuthorLine({ authorId, authorName, className, style }) {
    va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
 function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, session }) {
   const [loading, setLoading] = useState(true);
+  const [contentLoading, setContentLoading] = useState(false);
   const [row, setRow] = useState(null);
   const [err, setErr] = useState(false);
   const [section, setSection] = useState('kurslar'); // kurslar | testlar | kolleksiyalar
@@ -865,6 +860,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setContentLoading(false);
     setErr(false);
     setContentError(false);
     setRow(null);
@@ -872,7 +868,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
     (async () => {
       let profileRow;
       try {
-        const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
+        const rows = await sbSelect('profiles', 'username=eq.' + encodeURIComponent(username));
         profileRow = rows[0] ? profileFromRow(rows[0]) : null;
       } catch (e) {
         if (!cancelled) setErr(true);
@@ -882,13 +878,13 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
 
       if (cancelled) return;
       setRow(profileRow);
-      if (!profileRow) {
-        setLoading(false);
-        return;
-      }
+      setLoading(false);
+      if (!profileRow) return;
 
+      // Profil kartasi kurs/test so'rovlarini kutmay darhol ko'rinadi.
+      // Kontent so'rovlari fon rejimida parallel davom etadi.
+      setContentLoading(true);
       try {
-        // Ommaviy profilga kirilgandagina shu muallifning yengil metadata qatorlarini yuklaymiz.
         const [courseRows, testRows] = await Promise.all([
           sbSelectAuthorContent('courses', profileRow.id, true, profileRow),
           sbSelectAuthorContent('tests', profileRow.id, true, profileRow),
@@ -897,7 +893,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
       } catch (e) {
         if (!cancelled) setContentError(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setContentLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -1001,11 +997,11 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
 
           <div className="flex flex-wrap gap-x-6 gap-y-3 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
             <div>
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myCourses.length}</div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{contentLoading ? '…' : myCourses.length}</div>
               <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mavzular</div>
             </div>
             <div>
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myTests.length}</div>
+              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{contentLoading ? '…' : myTests.length}</div>
               <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
             </div>
             <Suspense fallback={<div className="h-9 w-24 rounded-full animate-pulse" style={{ background: C.paper }} />}>
@@ -1049,6 +1045,10 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
       ) : contentError && items.length === 0 ? (
         <div className="py-10 text-center text-sm" style={{ ...fontBody, color: C.inkSoft }}>
           Materiallarni yuklab boʻlmadi. Sahifani yangilab qayta urinib koʻring.
+        </div>
+      ) : contentLoading && authorContent.userId !== row.id ? (
+        <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+          <Loader2 size={15} className="animate-spin" /> Materiallar yuklanmoqda…
         </div>
       ) : items.length === 0 ? (
         <div className="py-10 text-center">
