@@ -2299,33 +2299,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
-  const firstCourseId = inCategory[0]?.id || null;
-  const firstCourseHasContent = inCategory[0]?.content !== undefined;
   const q = query.trim().toLowerCase();
-
-  /* Soha ochilgach birinchi mavzuni fonda tayyorlaymiz. Bu faqat
-     foydalanuvchi sohani tanlaganidan keyin ishlaydi; bosh sahifaga
-     qo'shimcha yuk tushirmaydi. */
-  useEffect(() => {
-    if (!categoryId || !firstCourseId || firstCourseHasContent || !ensureCourseContent) return undefined;
-    let cancelled = false;
-    let timeoutId;
-    const prefetch = () => {
-      if (!cancelled) ensureCourseContent(firstCourseId);
-    };
-    if (typeof window.requestIdleCallback === 'function') {
-      const idleId = window.requestIdleCallback(prefetch, { timeout: 800 });
-      return () => {
-        cancelled = true;
-        window.cancelIdleCallback?.(idleId);
-      };
-    }
-    timeoutId = window.setTimeout(prefetch, 80);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
-  }, [categoryId, firstCourseId, firstCourseHasContent, ensureCourseContent]);
 
   /* Ulashilgan havola orqali kirilgan bo'lsa (?course=ID), shu kursni
      avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. Statusidan
