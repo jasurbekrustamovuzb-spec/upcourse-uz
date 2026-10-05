@@ -12,6 +12,15 @@
     <link rel="canonical" href="https://www.upcourse.uz/" />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#1F3D2B" />
+    <!-- Saqlangan temani birinchi bo'yoqdan oldin o'rnatib, yorug' rejim chaqnashini oldini oladi. -->
+    <script>
+      try {
+        if (localStorage.getItem('upcourse-theme') === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#20241F');
+        }
+      } catch (e) {}
+    </script>
     <meta name="author" content="UpCourse Uz" />
 
     <!-- ==== Open Graph (Facebook, Telegram, ijtimoiy tarmoqlarda ulashilganda) ==== -->
@@ -211,6 +220,16 @@
         .ucs-cards { grid-template-columns: 1fr 1fr; gap: 16px; }
         .ucs-main { padding-left: 32px; padding-right: 32px; }
       }
+      html[data-theme="dark"],
+      html[data-theme="dark"] body { background: #20241F; color-scheme: dark; }
+      html[data-theme="dark"] #upcourse-splash { background: #20241F; }
+      html[data-theme="dark"] .ucs-search-sk,
+      html[data-theme="dark"] .ucs-card { background: #2A3029; border-color: #485047; }
+      html[data-theme="dark"] .ucs-title-sk,
+      html[data-theme="dark"] .ucs-subtitle-sk,
+      html[data-theme="dark"] .ucs-card-icon,
+      html[data-theme="dark"] .ucs-card-lines div,
+      html[data-theme="dark"] .ucs-card-right span { background: #485047; }
     </style>
   </head>
   <body>
