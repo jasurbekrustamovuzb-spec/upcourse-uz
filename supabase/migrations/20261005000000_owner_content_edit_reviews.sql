@@ -32,6 +32,34 @@ create table if not exists public.test_revisions (
   updated_at timestamptz not null default now()
 );
 
+-- Repair either table if an earlier partial attempt created its key as uuid.
+do $
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'course_revisions'
+      and column_name = 'course_id' and data_type <> 'text'
+  ) then
+    alter table public.course_revisions drop constraint if exists course_revisions_course_id_fkey;
+    alter table public.course_revisions alter column course_id type text using course_id::text;
+    alter table public.course_revisions
+      add constraint course_revisions_course_id_fkey
+      foreign key (course_id) references public.courses(id) on delete cascade;
+  end if;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'test_revisions'
+      and column_name = 'test_id' and data_type <> 'text'
+  ) then
+    alter table public.test_revisions drop constraint if exists test_revisions_test_id_fkey;
+    alter table public.test_revisions alter column test_id type text using test_id::text;
+    alter table public.test_revisions
+      add constraint test_revisions_test_id_fkey
+      foreign key (test_id) references public.tests(id) on delete cascade;
+  end if;
+end;
+$;
+
 create index if not exists course_revisions_owner_idx on public.course_revisions(owner_id);
 create index if not exists test_revisions_owner_idx on public.test_revisions(owner_id);
 
