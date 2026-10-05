@@ -19,14 +19,14 @@ revoke all on function public.is_upcourse_admin() from public;
 grant execute on function public.is_upcourse_admin() to authenticated;
 
 create table if not exists public.course_revisions (
-  course_id uuid primary key references public.courses(id) on delete cascade,
+  course_id text primary key references public.courses(id) on delete cascade,
   owner_id uuid not null references auth.users(id) on delete cascade,
   draft jsonb not null,
   updated_at timestamptz not null default now()
 );
 
 create table if not exists public.test_revisions (
-  test_id uuid primary key references public.tests(id) on delete cascade,
+  test_id text primary key references public.tests(id) on delete cascade,
   owner_id uuid not null references auth.users(id) on delete cascade,
   draft jsonb not null,
   updated_at timestamptz not null default now()
