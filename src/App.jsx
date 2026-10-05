@@ -6,7 +6,7 @@ import {
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
   Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap
 } from 'lucide-react';
-import { supabase, signInWithGoogle, signOut as sbSignOut } from './supabaseClient';
+import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut } from './supabaseClient';
 
 /* ------------------------------------------------------------------ */
 /*  Admin panel faqat "Admin panel" boʻlimiga kirilganda yuklanadi     */
@@ -73,23 +73,23 @@ const LIGHT_PALETTE = {
 
 const DARK_PALETTE = {
   cover: '#1F3D2B',
-  coverDeep: '#0F1B12',
+  coverDeep: '#17271C',
   coverLine: 'rgba(184,134,59,0.35)',
-  paper: '#141815',
-  paperSoft: '#1A1F1B',
-  rule: '#3D453D',
+  paper: '#20241F',
+  paperSoft: '#262B25',
+  rule: '#485047',
   red: '#E08A7D',
   gold: '#D4AC6E',
   goldSoft: '#E4CC9C',
-  ink: '#F0EBDD',
-  inkSoft: '#B7BEB2',
-  white: '#FBFAF3',
-  surface: '#232A22',
-  successTint: 'rgba(94,168,118,0.22)',
-  dangerTint: 'rgba(224,138,125,0.22)',
-  selectedTint: 'rgba(212,172,110,0.18)',
-  dangerBannerTint: 'rgba(224,138,125,0.14)',
-  accent: '#8FCB9E',
+  ink: '#E5E1D7',
+  inkSoft: '#B9BBB2',
+  white: '#F0EDE4',
+  surface: '#2A3029',
+  successTint: 'rgba(94,168,118,0.17)',
+  dangerTint: 'rgba(224,138,125,0.17)',
+  selectedTint: 'rgba(212,172,110,0.13)',
+  dangerBannerTint: 'rgba(224,138,125,0.12)',
+  accent: '#A7C9AA',
   /* Faqat "Jonli test" bo'limi uchun — iliq, quvnoq aksent */
   live: '#E8965A',
   liveSoft: '#F0B888',
@@ -101,7 +101,7 @@ const DARK_PALETTE = {
   math: '#6FA8CC',
   mathSoft: '#9CC5E0',
   mathDeep: '#12222C',
-  mathTint: 'rgba(111,168,204,0.16)',
+  mathTint: 'rgba(111,168,204,0.13)',
 };
 
 export const C = { ...LIGHT_PALETTE };
@@ -388,16 +388,30 @@ const sbSelect = (table, filter, orderColumn = 'created_at', options = {}) => sb
 
 /* Profil ochilgandagina muallifning yengil roʻyxatini yuklaydi.
    Bosh sahifa soʻrovlari va katta content/questions ustunlariga taʼsir qilmaydi. */
-export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false) {
+export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false, authorProfile = null) {
   if (!authorId || !['courses', 'tests'].includes(kind)) return [];
   const columns = kind === 'courses'
     ? 'id,category_id,title,summary,video_url,author,author_id,status,created_at'
     : 'id,category_id,title,description,author,author_id,status,created_at,question_count';
-  const filters = [
-    `author_id=eq.${encodeURIComponent(authorId)}`,
-    ...(approvedOnly ? ['status=eq.approved'] : []),
-  ];
-  const rows = await sbRequest(`${kind}?select=${columns}&${filters.join('&')}&order=created_at.asc`);
+  // Eski materiallarda author_id bo'sh qolgan bo'lishi mumkin; bunday
+  // tasdiqlangan qatorlarni profil nomi/username'i bilan ham topamiz.
+  // Shaxsiy/pending qatorlar faqat aniq author_id orqali olinadi — bir xil
+  // ismli boshqa foydalanuvchining yopiq materiali profilga chiqib ketmaydi.
+  const authorNames = [
+    authorProfile?.username,
+    authorProfile?.username ? `@${authorProfile.username}` : '',
+    `${authorProfile?.firstName || ''} ${authorProfile?.lastName || ''}`.trim(),
+  ].filter(Boolean);
+  const escapeFilterValue = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  const legacyFilters = [...new Set(authorNames)].map((name) => `author.ilike.${escapeFilterValue(name.replace(/[\\%_]/g, '\\$&'))}`);
+  const authorFilters = [`author_id.eq.${authorId}`];
+  if (legacyFilters.length) {
+    if (approvedOnly) authorFilters.push(...legacyFilters);
+    else authorFilters.push(`and(status.eq.approved,or(${legacyFilters.join(',')}))`);
+  }
+  const params = new URLSearchParams({ select: columns, or: `(${authorFilters.join(',')})`, order: 'created_at.asc' });
+  if (approvedOnly) params.set('status', 'eq.approved');
+  const rows = await sbRequest(`${kind}?${params.toString()}`);
   return rows.map(kind === 'courses' ? courseFromRow : testFromRow);
 }
 
@@ -867,8 +881,8 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
       try {
         // Ommaviy profilga kirilgandagina shu muallifning yengil metadata qatorlarini yuklaymiz.
         const [courseRows, testRows] = await Promise.all([
-          sbSelectAuthorContent('courses', profileRow.id, true),
-          sbSelectAuthorContent('tests', profileRow.id, true),
+          sbSelectAuthorContent('courses', profileRow.id, true, profileRow),
+          sbSelectAuthorContent('tests', profileRow.id, true, profileRow),
         ]);
         if (!cancelled) setAuthorContent({ userId: profileRow.id, courses: courseRows, tests: testRows });
       } catch (e) {
@@ -3137,7 +3151,7 @@ function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
-function QuizPlayer({ test, config, onExit, onRestart }) {
+function QuizPlayer({ test, config, onExit, onRestart, onRetry }) {
   const questions = config.questions;
   const [answers, setAnswers] = useState({});
   const [revealed, setRevealed] = useState({});
@@ -3295,8 +3309,9 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
             })}
           </div>
         </section>
-        <div className="flex gap-3">
-          <GhostButton onClick={onRestart} icon={RotateCcw}>Sozlamalarni oʻzgartirish</GhostButton>
+        <div className="flex flex-wrap gap-3">
+          <GhostButton onClick={onRetry} icon={RotateCcw}>Qayta ishlash</GhostButton>
+          <GhostButton onClick={onRestart} icon={Settings}>Sozlamalarni oʻzgartirish</GhostButton>
         </div>
       </div>
     );
@@ -3427,6 +3442,7 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
   const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
   const [lastConfig, setLastConfig] = useState(prefs);
+  const [attemptKey, setAttemptKey] = useState(0);
 
   function handleStart(cfg) {
     const { questions, ...rest } = cfg;
@@ -3438,7 +3454,7 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={() => setAttemptKey((key) => key + 1)} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3448,6 +3464,7 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
 function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
+  const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId));
   const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
@@ -3497,7 +3514,10 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
      bergan javoblar saqlanmaydi, lekin hech bo'lmasa qaysi testda
      ekanini qayta izlashga hojat qolmaydi). */
   useEffect(() => {
-    if (initialOpenId) goTest(initialOpenId);
+    if (initialOpenId) {
+      goTest(initialOpenId);
+      setOpeningInitialTest(false);
+    }
     else if (initialCategoryId) goCategory(initialCategoryId);
     if (initialLiveCode) pushNav(() => setLiveOpen(false));
     else if (initialLiveSession) { setLiveSession(initialLiveSession); setLiveOpen(true); pushNav(() => setLiveOpen(false)); }
@@ -3532,6 +3552,24 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
       );
     }
     return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} />;
+  }
+
+  // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
+  // test metadata/savollari kelguncha foydalanuvchi bevosita ochilish holatini ko'radi.
+  if (openingInitialTest || activeId) {
+    return (
+      <div className="flex flex-col items-start gap-3 py-6" aria-live="polite">
+        <button onClick={back} className="inline-flex items-center gap-1 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button>
+        {testsLoadError ? (
+          <div className="flex flex-wrap items-center gap-3 text-sm" style={{ ...fontBody, color: C.red }}>
+            <span>Testni yuklab bo‘lmadi.</span>
+            <button type="button" onClick={onRetryTests} className="rounded-sm px-3 py-1.5" style={{ color: C.white, background: C.cover }}>Qayta urinish</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm" role="status" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Tanlangan test ochilmoqda…</div>
+        )}
+      </div>
+    );
   }
 
   if (liveOpen) return (
@@ -4262,13 +4300,14 @@ function ProfileSetupForm({ defaultFirstName, defaultLastName, defaultBio, defau
   );
 }
 
-function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClose }) {
+function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onSwitchAccount, onClose }) {
   const [firstName, setFirstName] = useState(profile.firstName || '');
   const [lastName, setLastName] = useState(profile.lastName || '');
   const [username, setUsername] = useState(profile.username || '');
   const [bio, setBio] = useState(profile.bio || '');
   const [bannerKey, setBannerKey] = useState(profile.bannerKey || 'green');
   const [busy, setBusy] = useState(false);
+  const [switchingAccount, setSwitchingAccount] = useState(false);
   const [formError, setFormError] = useState(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
@@ -4284,6 +4323,22 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
     setBusy(false);
     if (res && res.ok === false) setFormError(res.error);
     else onClose();
+  }
+
+  async function switchAccount() {
+    if (switchingAccount) return;
+    setSwitchingAccount(true);
+    setFormError(null);
+    try {
+      const { error } = await onSwitchAccount();
+      if (error) {
+        setFormError('Google akkaunt tanlash oynasini ochib boʻlmadi. Qayta urinib koʻring.');
+        setSwitchingAccount(false);
+      }
+    } catch {
+      setFormError('Google akkaunt tanlash oynasini ochib boʻlmadi. Qayta urinib koʻring.');
+      setSwitchingAccount(false);
+    }
   }
 
   return (
@@ -4322,6 +4377,18 @@ function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onClo
         </SolidButton>
 
         <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
+          <button
+            type="button"
+            onClick={switchAccount}
+            disabled={switchingAccount}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm disabled:opacity-60"
+            style={{ ...fontBody, color: C.ink, border: `1px solid ${C.gold}`, background: C.surface }}
+          >
+            <LogIn size={14} /> {switchingAccount ? 'Google ochilmoqda...' : 'Akkauntni almashtirish'}
+          </button>
+          <p className="text-[11px] mt-1.5 mb-4 text-center" style={{ ...fontBody, color: C.inkSoft }}>
+            Boshqa Google akkauntini tanlang.
+          </p>
           {!confirmSignOut ? (
             <button
               onClick={() => setConfirmSignOut(true)}
@@ -4534,8 +4601,8 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     let cancelled = false;
     setOwnContent((previous) => ({ ...previous, userId, loading: true, error: false }));
     Promise.all([
-      sbSelectAuthorContent('courses', userId),
-      sbSelectAuthorContent('tests', userId),
+      sbSelectAuthorContent('courses', userId, false, profile),
+      sbSelectAuthorContent('tests', userId, false, profile),
     ]).then(([ownCourses, ownTests]) => {
       if (!cancelled) setOwnContent({ userId, courses: ownCourses, tests: ownTests, loading: false, error: false });
     }).catch((error) => {
@@ -4543,7 +4610,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
       if (!cancelled) setOwnContent((previous) => ({ ...previous, userId, loading: false, error: true }));
     });
     return () => { cancelled = true; };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, profile?.username, profile?.firstName, profile?.lastName]);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
   useEffect(() => {
@@ -4709,6 +4776,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
               currentUserId={session.user.id}
               onSave={onSaveProfile}
               onSignOut={onSignOut}
+              onSwitchAccount={switchGoogleAccount}
               onClose={() => setSettingsOpen(false)}
             />
           )}
@@ -5022,13 +5090,24 @@ export default function App() {
   const contentOwnerRef = useRef(null);
   const activeUserIdRef = useRef(null);
 
-  useEffect(() => {
-    _goToPublicProfile = (username) => setViewingUsername(username);
-    return () => { _goToPublicProfile = null; };
-  }, []);
-
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
+
+  function openPublicProfile(username, returnTab = tab) {
+    if (!username) return;
+    const previousUsername = viewingUsername;
+    setTab('kurslar');
+    setViewingUsername(username);
+    nav.pushNav(() => {
+      setViewingUsername(previousUsername);
+      setTab(returnTab);
+    });
+  }
+
+  useEffect(() => {
+    _goToPublicProfile = (username) => openPublicProfile(username, 'kurslar');
+    return () => { _goToPublicProfile = null; };
+  }, [nav]);
 
   /* Saqlangan pozitsiya "admin panel" bo'lib, lekin profil yuklangach
      bu foydalanuvchi admin emasligi ma'lum bo'lsa — bo'sh ekranda
@@ -5183,11 +5262,12 @@ export default function App() {
      yoki tahrirlash uchun kerak bo'lganda alohida so'raladi. */
   const ensureCourseContent = useCallback(async (id) => {
     try {
-      const rows = await sbRequest(`courses?select=content,video_url&id=eq.${encodeURIComponent(id)}`);
+        const rows = await sbRequest(`courses?select=id,category_id,title,summary,content,video_url,author,author_id,status,created_at&id=eq.${encodeURIComponent(id)}`);
       if (rows[0]) {
-        setCourses((prev) => prev.map((c) => (c.id === id && c.content === undefined
-          ? { ...c, content: rows[0].content, videoUrl: rows[0].video_url || c.videoUrl || '' }
-          : c)));
+          const loadedCourse = courseFromRow(rows[0]);
+          setCourses((prev) => prev.some((course) => course.id === id)
+            ? prev.map((course) => (course.id === id ? loadedCourse : course))
+            : [...prev, loadedCourse]);
       }
     } catch (e) {
       // Jim tarzda o'tkazib yuborish — mavzu ochilganda "Yuklanmoqda..." holatida qoladi,
@@ -5335,7 +5415,16 @@ export default function App() {
       if (requestUserId && activeUserIdRef.current !== requestUserId) return false;
 
       setCategories(catRows.map(categoryFromRow));
-      setCourses(courseRows.map(courseFromRow));
+      setCourses((previous) => {
+        const previousById = new Map(previous.map((course) => [course.id, course]));
+        return courseRows.map((row) => {
+          const next = courseFromRow(row);
+          const cached = previousById.get(next.id);
+          return cached?.content !== undefined
+            ? { ...next, content: cached.content, videoUrl: cached.videoUrl || next.videoUrl }
+            : next;
+        });
+      });
       succeeded = true;
     } catch (e) {
       // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
@@ -5365,789 +5454,4 @@ export default function App() {
       })
       .catch((e) => {
         console.error('Yangiliklarni yuklab bo‘lmadi:', e);
-      })
-      .finally(() => { state.promise = null; setNewsLoading(false); });
-    return state.promise;
-  }, []);
-
-  // Oddiy foydalanuvchining tasdiqlanmagan/shaxsiy materiallari kerak
-  // bo‘lganda (Profil ochilganda) olinadi. Ommaviy qatorlar qayta
-  // yuklanmaydi; shu bilan login ortidan keladigan katta takroriy so‘rov
-  // kichik, muallifga tegishli so‘rovlarga aylanadi.
-  const loadOwnPrivateContent = useCallback(async (userId) => {
-    if (!userId) return;
-    const state = ownContentLoadRef.current;
-    if (state.loadedFor === userId) return;
-    if (state.promise) return state.promise;
-    const generation = state.generation;
-    state.promise = Promise.all([
-      sbSelect('categories', `author_id=eq.${encodeURIComponent(userId)}&status=neq.approved`),
-      sbRequest(`courses?select=id,category_id,title,summary,video_url,author,author_id,status,created_at&author_id=eq.${encodeURIComponent(userId)}&status=neq.approved`),
-    ]).then(([categoryRows, courseRows]) => {
-      if (ownContentLoadRef.current.generation !== generation || activeUserIdRef.current !== userId) return;
-      setCategories((previous) => {
-        const byId = new Map(previous
-          .filter((item) => item.status === 'approved' || item.authorId === userId)
-          .map((item) => [item.id, item]));
-        categoryRows.map(categoryFromRow).forEach((item) => byId.set(item.id, item));
-        return [...byId.values()];
-      });
-      setCourses((previous) => {
-        const byId = new Map(previous
-          .filter((item) => item.status === 'approved' || item.authorId === userId)
-          .map((item) => [item.id, item]));
-        courseRows.map(courseFromRow).forEach((item) => byId.set(item.id, item));
-        return [...byId.values()];
-      });
-      state.loadedFor = userId;
-    }).catch((e) => {
-      console.error('Shaxsiy materiallarni yuklab bo‘lmadi:', e);
-    }).finally(() => { state.promise = null; });
-    return state.promise;
-  }, []);
-
-  /* 1) Kontentni (kurslar/testlar/kategoriyalar) DARHOL, kirish holatini
-     kutmasdan so'raymiz — sahifa ochilgan zahoti, bir marta. Bu payt
-     session/isAdmin hali aniqlanmagan bo'lishi mumkin, lekin bu muammo
-     emas: visibilityFilter bo'sh/false qiymatlar bilan chaqirilganda
-     avtomatik "faqat ommaviy (approved) kontent" so'raydi — bu
-     aksariyat (login qilmagan yoki oddiy) foydalanuvchi uchun to'g'ri
-     va yetarli. Shu tufayli LCP (birinchi mazmunli chizilish) endi
-     autentifikatsiya zanjirini kutib turmaydi. */
-  useEffect(() => {
-    if (initialFetchRef.current) return;
-    initialFetchRef.current = true;
-    loadAppData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* Testlar ro‘yxati faqat uni ishlatadigan bo‘limlar ochilganda olinadi. */
-  useEffect(() => {
-    const testsNeeded = tab === 'testlar' || tab === 'profil' || (tab === 'admin' && isAdmin);
-    if (!testsNeeded || authLoading) return;
-    loadTests();
-  }, [tab, viewingUsername, authLoading, isAdmin, loadTests]);
-
-  useEffect(() => {
-    if (authLoading || loading) return;
-    if (tab === 'yangiliklar' || (tab === 'admin' && isAdmin)) loadNews();
-    if (tab === 'profil' && session?.user?.id) loadOwnPrivateContent(session.user.id);
-    // Adminning barcha materiallari faqat Admin paneli ochilganda kerak.
-    if (tab === 'admin' && isAdmin && !adminContentLoadedRef.current) {
-      adminContentLoadedRef.current = true;
-      loadAppData(true).then((loaded) => {
-        if (!loaded) adminContentLoadedRef.current = false;
-      });
-    }
-  }, [tab, authLoading, loading, isAdmin, session?.user?.id, loadNews, loadOwnPrivateContent, loadAppData]);
-
-  /* Ulashilgan havola orqali kirilganda (?course=ID yoki ?test=ID),
-     lekin o'sha narsa "xususiy" bo'lgani uchun oddiy ro'yxatga
-     yuklanmagan bo'lsa — shu bitta elementni alohida, ID boʻyicha soʻrab
-     olamiz. Faqat "xususiy" yoki "tasdiqlangan" holatdagilar shu yoʻl
-     bilan koʻrsatiladi — hali tasdiqlanmagan (pending) begona kontent
-     bu orqali chetlab oʻtilmaydi. Faqat havola bilan kirganda ishga
-     tushadi — umumiy yuklanish tezligiga taʼsir qilmaydi. */
-  useEffect(() => {
-    if (loading || authLoading || !initialDeepLink) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        if (initialDeepLink.type === 'course') {
-          const rows = await sbSelect('courses', `id=eq.${initialDeepLink.value}`);
-          const row = rows[0];
-          if (!cancelled && row && (row.status === 'private' || row.status === 'approved')) {
-            setCourses((prev) => (prev.some((c) => c.id === row.id) ? prev : [...prev, courseFromRow(row)]));
-          }
-        } else if (initialDeepLink.type === 'test') {
-          const rows = await sbSelect('tests', `id=eq.${initialDeepLink.value}`);
-          const row = rows[0];
-          if (!cancelled && row && (row.status === 'private' || row.status === 'approved')) {
-            setTests((prev) => (prev.some((t) => t.id === row.id) ? prev : [...prev, testFromRow(row)]));
-          }
-        }
-      } catch (e) {
-        // Havola noto'g'ri yoki narsa o'chirilgan bo'lishi mumkin — jim o'tkaziladi.
       }
-    })();
-    return () => { cancelled = true; };
-  }, [loading, authLoading, initialDeepLink]);
-
-  async function addCategory(data) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    const row = { id: uid(), name: data.name, authorId: session?.user?.id };
-    try {
-      await sbInsert('categories', categoryToRow(row));
-      setCategories([...categories, row]);
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Sohani saqlashda xatolik yuz berdi. Internetni va Supabase sozlamalarini tekshiring.');
-      return false;
-    }
-  }
-  async function renameCategory(id, oldName, newName) {
-    if (!newName.trim() || newName.trim() === oldName) return false;
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      await sbUpdate('categories', id, { name: newName.trim() });
-      setCategories(categories.map((c) => (c.id === id ? { ...c, name: newName.trim() } : c)));
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Soha nomini oʻzgartirishda xatolik yuz berdi.');
-      return false;
-    }
-  }
-  async function deleteCategory(id, name) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      // Shu sohaga tegishli barcha mavzu va testlarni ham bazadan o'chiramiz —
-      // aks holda ular "egasiz" (orphan) qatorlar sifatida bazada qolib,
-      // hajmni bekorga band qilib turaveradi.
-      const relatedCourses = courses.filter((c) => c.categoryId === id);
-      const relatedTestRows = await sbRequest('tests?select=id&category_id=eq.' + encodeURIComponent(id));
-      await Promise.all([
-        ...relatedCourses.map((c) => sbDelete('courses', c.id)),
-        ...relatedTestRows.map((test) => sbDelete('tests', test.id)),
-      ]);
-      await sbDelete('categories', id);
-      setCategories(categories.filter((c) => c.id !== id));
-      setCourses(courses.filter((c) => c.categoryId !== id));
-      setTests(tests.filter((t) => t.categoryId !== id));
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Sohani oʻchirishda xatolik yuz berdi.');
-      return false;
-    }
-  }
-
-  /* Kurs/test qoʻshilganda erkin "soha nomi"ni mavjud sohaga bogʻlaydi
-     yoki (topilmasa) admin tekshiruvi kutilayotgan yangi soha yaratadi. */
-  async function resolveCategoryId(name, authorId, authorName) {
-    const trimmed = (name || '').trim();
-    if (!trimmed) return null;
-    const existing = categories.find((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase());
-    if (existing) return existing.id;
-    const row = { id: uid(), name: trimmed, author: authorName || '', authorId, status: 'pending' };
-    await sbInsert('categories', categoryToRow(row));
-    setCategories((prev) => [...prev, row]);
-    return row.id;
-  }
-
-  async function submitCourse(data) {
-    if (!session) { setActionError('Mavzu qoʻshish uchun avval Google orqali kiring.'); return null; }
-    const authorName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : '';
-    let categoryId = data.categoryId;
-    if (!categoryId && data.categoryName) {
-      try {
-        categoryId = await resolveCategoryId(data.categoryName, session.user.id, authorName);
-      } catch (e) {
-        setActionError('Sohani yaratishda xatolik yuz berdi.');
-        return null;
-      }
-    }
-    const row = { id: uid(), categoryId, title: data.title, summary: data.summary, content: data.content, videoUrl: data.videoUrl || '', author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
-    try {
-      await sbInsert('courses', courseToRow(row));
-      setCourses((previous) => [row, ...previous.filter((item) => item.id !== row.id)]);
-      setActionError(null);
-      return row.id;
-    } catch (e) {
-      setActionError('Mavzuni saqlashda xatolik yuz berdi.');
-      return null;
-    }
-  }
-  async function approveCourse(id, title) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      await sbUpdate('courses', id, { status: 'approved' });
-      setCourses(courses.map((c) => (c.id === id ? { ...c, status: 'approved' } : c)));
-      const course = courses.find((c) => c.id === id);
-      const cat = course && categories.find((c) => c.id === course.categoryId && c.status === 'pending');
-      if (cat) {
-        await sbUpdate('categories', cat.id, { status: 'approved' });
-        setCategories((prev) => prev.map((c) => (c.id === cat.id ? { ...c, status: 'approved' } : c)));
-      }
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Tasdiqlashda xatolik yuz berdi.');
-      return false;
-    }
-  }
-  async function updateCourse(id, data, title) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      await sbUpdate('courses', id, courseToRow({ id, status: 'approved', ...data }));
-      setCourses(courses.map((c) => (c.id === id ? { ...c, ...data } : c)));
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Tahrirlashda xatolik yuz berdi.');
-      return false;
-    }
-  }
-  async function deleteCourse(id, title) {
-    const mine = courses.find((c) => c.id === id)?.authorId === session?.user?.id;
-    if (!isAdmin && !mine) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      await sbDelete('courses', id);
-      setCourses(courses.filter((c) => c.id !== id));
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Mavzuni oʻchirishda xatolik yuz berdi.');
-      return false;
-    }
-  }
-
-  async function submitTest(data) {
-    if (!session) { setActionError('Test qoʻshish uchun avval Google orqali kiring.'); return null; }
-    const authorName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : '';
-    let categoryId = data.categoryId;
-    if (!categoryId && data.categoryName) {
-      try {
-        categoryId = await resolveCategoryId(data.categoryName, session.user.id, authorName);
-      } catch (e) {
-        setActionError('Sohani yaratishda xatolik yuz berdi.');
-        return null;
-      }
-    }
-    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, questionCount: getQuestionCount(data.questions), author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
-    try {
-      await sbInsert('tests', testToRow(row));
-      setTests((previous) => [row, ...previous.filter((item) => item.id !== row.id)]);
-      setActionError(null);
-      return row.id;
-    } catch (e) {
-      setActionError('Testni saqlashda xatolik yuz berdi.');
-      return null;
-    }
-  }
-  async function approveTest(id, title) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      await sbUpdate('tests', id, { status: 'approved' });
-      setTests(tests.map((t) => (t.id === id ? { ...t, status: 'approved' } : t)));
-      const test = tests.find((t) => t.id === id);
-      const cat = test && categories.find((c) => c.id === test.categoryId && c.status === 'pending');
-      if (cat) {
-        await sbUpdate('categories', cat.id, { status: 'approved' });
-        setCategories((prev) => prev.map((c) => (c.id === cat.id ? { ...c, status: 'approved' } : c)));
-      }
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Tasdiqlashda xatolik yuz berdi.');
-      return false;
-    }
-  }
-  async function updateTest(id, data, title) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      await sbUpdate('tests', id, testToRow({ id, status: 'approved', ...data }));
-      setTests(tests.map((t) => (t.id === id ? { ...t, ...data } : t)));
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Tahrirlashda xatolik yuz berdi.');
-      return false;
-    }
-  }
-  async function deleteTest(id, title) {
-    const target = tests.find((t) => t.id === id);
-    const mine = target?.authorId === session?.user?.id;
-    if (!isAdmin && !mine) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      await sbDelete('tests', id);
-      setTests(tests.filter((t) => t.id !== id));
-      setActionError(null);
-      // Testga tegishli savol rasmlarini ombordan ham tozalaymiz (fon rejimida,
-      // natijasini kutmasdan — foydalanuvchi ekranida darhol o'chgandek ko'rinsin).
-      const imageUrls = (target?.questions || []).map((q) => q.imageUrl).filter(Boolean);
-      imageUrls.forEach((url) => { sbDeleteImage(url); });
-      return true;
-    } catch (e) {
-      setActionError('Testni oʻchirishda xatolik yuz berdi.');
-      return false;
-    }
-  }
-
-  async function addNews(data) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    const row = { ...data, id: uid() };
-    try {
-      await sbInsert('news', newsToRow(row));
-      setNews([row, ...news]);
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Yangilikni saqlashda xatolik yuz berdi.');
-      return false;
-    }
-  }
-  async function deleteNews(id, title) {
-    if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
-    try {
-      await sbDelete('news', id);
-      setNews(news.filter((n) => n.id !== id));
-      setActionError(null);
-      return true;
-    } catch (e) {
-      setActionError('Yangilikni oʻchirishda xatolik yuz berdi.');
-      return false;
-    }
-  }
-
-  function goTo(id) {
-    const prevTab = tab;
-    setViewingUsername(null);
-    setTab(id);
-    try {
-      const url = new URL(window.location.href);
-      if (url.searchParams.has('section')) {
-        url.searchParams.set('section', id);
-        window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-      }
-    } catch (e) { /* URL holatini yangilab bo‘lmasa, oddiy navigatsiya davom etadi */ }
-    if (id !== prevTab) nav.pushNav(() => setTab(prevTab));
-  }
-
-  async function openArenaProfile(userId) {
-    if (!userId) return;
-    try {
-      const { data, error: profileError } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', userId)
-        .maybeSingle();
-      if (profileError) throw profileError;
-      if (!data?.username) {
-        setActionError('Bu ishtirokchining profili hali toʻliq sozlanmagan.');
-        return;
-      }
-      setActionError(null);
-      setViewingUsername(data.username);
-    } catch (e) {
-      setActionError('Profilni ochib boʻlmadi. Qayta urinib koʻring.');
-    }
-  }
-
-  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
-  useEffect(() => {
-    function handleSearchShortcut(event) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setGlobalSearchOpen(true);
-      }
-    }
-    document.addEventListener('keydown', handleSearchShortcut);
-    return () => document.removeEventListener('keydown', handleSearchShortcut);
-  }, []);
-
-  function openSearchItem(kind, id) {
-    setGlobalSearchOpen(false);
-    setOpenRequest({ type: kind, id });
-    goTo(kind === 'course' ? 'kurslar' : 'testlar');
-  }
-
-  function openSearchProfile(username) {
-    goTo('kurslar');
-    setViewingUsername(username);
-  }
-
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const createMenuDeskRef = useRef(null);
-  useEffect(() => {
-    if (!createMenuOpen) return;
-    function handler(e) {
-      const insideDesk = createMenuDeskRef.current && createMenuDeskRef.current.contains(e.target);
-      if (!insideDesk) setCreateMenuOpen(false);
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [createMenuOpen]);
-
-  function pickCreate(kind) {
-    setCreateMenuOpen(false);
-    goToCommunity(kind);
-  }
-
-  return (
-    <NavContext.Provider value={nav}>
-    <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
-      <style>{`
-        * { box-sizing: border-box; }
-        button:focus-visible, input:focus-visible, textarea:focus-visible { outline-offset: 2px; }
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-
-        /* Bo'lim almashganda yumshoq, sezilar-sezilmas animatsiya (faqat CSS,
-           tarmoq so'roviga aloqasi yo'q, tezlikka ta'sir qilmaydi) */
-        @keyframes appFadeSlide {
-          from { opacity: 0; transform: translateY(6px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .app-fade-slide { animation: appFadeSlide 220ms ease; }
-        @media (prefers-reduced-motion: reduce) {
-          .app-fade-slide { animation: none; }
-        }
-
-        /* Jonli test — taymer oxirgi soniyalarda sekin "nafas olish" effekti
-           (diqqat tortish uchun, konfetti emas) */
-        @keyframes livePulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.55; }
-        }
-        .live-pulse { animation: livePulse 1s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) {
-          .live-pulse { animation: none; }
-        }
-
-        /* Navigatsiya tugmalari — faol holat va bosilish silliq o'tishi */
-        .nav-btn {
-          transition: background-color 200ms ease, color 200ms ease, transform 150ms ease;
-        }
-        .nav-btn:active { transform: scale(0.94); }
-      `}</style>
-
-      {/* Desktop yon navigatsiya paneli — mobil ekranlarda yashirin */}
-      {!readingActive && (
-        <aside
-          className="hidden md:flex md:flex-col md:w-56 md:shrink-0 md:sticky md:top-0 md:h-screen px-4 py-6"
-          style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}
-        >
-          <div className="flex items-center gap-2 px-2 mb-8">
-            <BrandMark size={26} />
-            <span className="text-[15px]" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
-          </div>
-          <button type="button" onClick={() => setGlobalSearchOpen(true)} className="nav-btn mb-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px] focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: 'rgba(251,250,243,0.8)', border: `1px solid ${C.coverLine}`, outlineColor: C.gold }}>
-            <Search size={16} />
-            <span className="flex-1">Qidirish</span>
-            <kbd className="text-[10px] opacity-70">Ctrl K</kbd>
-          </button>
-          <div className="flex flex-col gap-1">
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const activeTab = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => goTo(t.id)}
-                  className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] focus-visible:outline focus-visible:outline-2"
-                  style={{
-                    ...fontBody,
-                    color: activeTab ? C.cover : 'rgba(251,250,243,0.8)',
-                    background: activeTab ? C.gold : 'transparent',
-                    outlineColor: C.gold,
-                    fontWeight: activeTab ? 600 : 400,
-                  }}
-                >
-                  <Icon size={16} />
-                  {t.label}
-                </button>
-              );
-            })}
-            <div className="relative" ref={createMenuDeskRef}>
-              <button
-                onClick={() => setCreateMenuOpen((v) => !v)}
-                className="nav-btn flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl text-[14px] focus-visible:outline focus-visible:outline-2 w-full"
-                style={{ ...fontBody, color: C.cover, background: C.goldSoft, outlineColor: C.gold, fontWeight: 600 }}
-              >
-                <Plus size={16} />
-                Yaratish
-              </button>
-              {createMenuOpen && (
-                <div
-                  className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-xl overflow-hidden"
-                  style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 8px 20px rgba(0,0,0,0.18)' }}
-                >
-                  <button
-                    onClick={() => pickCreate('kurslar')}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] text-left transition-colors"
-                    style={{ ...fontBody, color: C.ink }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = C.paperSoft)}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <BookOpen size={15} style={{ color: C.gold }} /> Mavzu yaratish
-                  </button>
-                  <button
-                    onClick={() => pickCreate('testlar')}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[14px] text-left transition-colors"
-                    style={{ ...fontBody, color: C.ink, borderTop: `1px solid ${C.rule}` }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = C.paperSoft)}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <ListChecks size={15} style={{ color: C.gold }} /> Test yaratish
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex-1" />
-          <div className="flex flex-col gap-1 pt-3" style={{ borderTop: `1px solid ${C.coverLine}` }}>
-            {isAdmin && (
-              <button
-                onClick={() => goTo('admin')}
-                className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px]"
-                style={{
-                  ...fontBody,
-                  color: tab === 'admin' ? C.cover : 'rgba(251,250,243,0.8)',
-                  background: tab === 'admin' ? C.gold : 'transparent',
-                  fontWeight: tab === 'admin' ? 600 : 400,
-                }}
-              >
-                <ShieldCheck size={16} />
-                Admin panel
-              </button>
-            )}
-            <button
-              onClick={() => goTo('about')}
-              className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px]"
-              style={{
-                ...fontBody,
-                color: tab === 'about' ? C.cover : 'rgba(251,250,243,0.8)',
-                background: tab === 'about' ? C.gold : 'transparent',
-                fontWeight: tab === 'about' ? 600 : 400,
-              }}
-            >
-              <Info size={16} />
-              Biz haqimizda
-            </button>
-            <button
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-              className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px]"
-              style={{ ...fontBody, color: 'rgba(251,250,243,0.8)' }}
-            >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-              {theme === 'dark' ? 'Kunduzgi rejim' : 'Tungi rejim'}
-            </button>
-          </div>
-        </aside>
-      )}
-
-      <div className="flex-1 min-w-0 pb-24 md:pb-0 min-h-screen flex flex-col">
-
-      {/* Ixcham top-bar (Instagram/Telegram uslubida) — bosh sahifada brend, boshqa bo'limlarda o'sha bo'lim nomi */}
-      <header className="sticky top-0 z-30 md:hidden" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
-        <div className="max-w-5xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between">
-          {tab === 'kurslar' ? (
-            <div className="flex items-center gap-2 min-w-0">
-              <BrandMark size={28} />
-              <span className="text-lg truncate" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
-            </div>
-          ) : (
-            (() => {
-              const meta = getTabMeta(tab);
-              const Icon = meta.icon;
-              return (
-                <div className="flex items-center gap-2 min-w-0">
-                  <Icon size={18} style={{ color: C.gold, flexShrink: 0 }} />
-                  <span className="text-base truncate" style={{ ...fontDisplay, color: C.white, fontWeight: 600 }}>{meta.label}</span>
-                </div>
-              );
-            })()
-          )}
-          <button type="button" onClick={() => setGlobalSearchOpen(true)} aria-label="Kurslar, testlar va profillarni qidirish" className="ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ color: C.goldSoft, border: `1px solid ${C.coverLine}` }}>
-            <Search size={18} />
-          </button>
-          {!readingActive && (
-            <button
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-              aria-label={theme === 'dark' ? 'Kunduzgi rejimga oʻtish' : 'Tungi rejimga oʻtish'}
-              className="md:hidden w-8 h-8 flex items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 flex-shrink-0"
-              style={{ border: `1px solid ${C.coverLine}`, color: C.goldSoft, outlineColor: C.gold }}
-            >
-              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Content */}
-      <main className={tab === 'arena' ? "flex-1 w-full px-2 sm:px-4 pt-3 pb-6" : "flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full"}>
-        {(loading && !skipMainLoadingGate && tab !== 'kurslar') ? (
-          <div aria-busy="true" aria-label="Yuklanmoqda">
-            {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
-            <div className="mb-6">
-              <div className="h-3 rounded-sm animate-pulse mb-2" style={{ background: C.rule, width: '80px', opacity: 0.55 }} />
-              <div className="h-7 rounded-sm animate-pulse" style={{ background: C.rule, width: '150px', opacity: 0.45 }} />
-            </div>
-
-            {/* Qidiruv maydoni oʻrnidagi skelet */}
-            <div
-              className="h-[50px] rounded-sm animate-pulse mb-5 flex items-center px-3.5"
-              style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-            >
-              <Search size={18} style={{ color: C.rule }} />
-            </div>
-
-            {/* Kartochkalar oʻrnidagi skelet — haqiqiy soha/mavzu kartochkasi bilan bir xil shakl */}
-            <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm animate-pulse"
-                  style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                >
-                  <div className="flex items-start min-w-0 flex-1">
-                    <div className="flex-shrink-0 w-9 h-6 rounded-sm mr-3" style={{ background: C.rule, opacity: 0.45 }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="h-4 rounded-sm" style={{ background: C.rule, width: `${58 + (i % 3) * 12}%`, opacity: 0.6 }} />
-                      <div className="h-3 rounded-sm mt-2.5" style={{ background: C.rule, width: '42%', opacity: 0.45 }} />
-                      <div className="h-3 rounded-sm mt-1.5" style={{ background: C.rule, width: '60%', opacity: 0.35 }} />
-                    </div>
-                  </div>
-                  <div className="flex items-center flex-shrink-0 gap-2">
-                    <div className="w-4 h-4 rounded-sm" style={{ background: C.rule, opacity: 0.35 }} />
-                    <div className="w-3.5 h-3.5 rounded-sm" style={{ background: C.rule, opacity: 0.35 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (error && !skipMainLoadingGate) ? (
-          <div className="flex flex-col items-center gap-3 py-20 text-center">
-            <span className="text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>{error}</span>
-            <button
-              onClick={() => loadAppData()}
-              className="w-11 h-11 rounded-full flex items-center justify-center transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2"
-              style={{ background: C.cover, color: C.white, outlineColor: C.gold }}
-              aria-label="Qayta urinib ko'rish"
-              title="Qayta urinib ko'rish"
-            >
-              <RotateCcw size={18} />
-            </button>
-          </div>
-        ) : (
-          <>
-            {actionError && (
-              <div className="flex items-center justify-between gap-3 p-3 mb-4 rounded-sm text-[15px]" style={{ ...fontBody, background: C.dangerBannerTint, border: `1px solid ${C.red}`, color: C.red }}>
-                <span>{actionError}</span>
-                <button onClick={() => setActionError(null)}><X size={15} /></button>
-              </div>
-            )}
-            <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
-              {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
-              {viewingUsername && (
-                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={() => setViewingUsername(null)} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
-              )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
-              {!viewingUsername && tab === 'arena' && (
-                <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
-                  <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
-                </Suspense>
-              )}
-              {!viewingUsername && tab === 'profil' && (
-                <ProfileView
-                  session={session}
-                  profile={profile}
-                  authLoading={authLoading}
-                  onSaveProfile={saveProfile}
-                  onSignOut={handleSignOut}
-                  courses={courses}
-                  tests={tests}
-                  categories={categories}
-                  submitCourse={submitCourse}
-                  approveCourse={approveCourse}
-                  deleteCourse={deleteCourse}
-                  submitTest={submitTest}
-                  approveTest={approveTest}
-                  deleteTest={deleteTest}
-                  target={communityTarget}
-                  onConsumeTarget={() => setCommunityTarget(null)}
-                  isAdmin={isAdmin}
-                  ensureCourseContent={ensureCourseContent}
-                  ensureTestContent={ensureTestContent}
-                  onGoToAbout={() => goTo('about')}
-                  onOpenAdmin={() => goTo('admin')}
-                  onOpenProfile={openSearchProfile}
-                  onOpenArena={() => goTo('arena')}
-                />
-              )}
-              {!viewingUsername && tab === 'admin' && isAdmin && (
-                <Suspense fallback={
-                  <div className="flex items-center justify-center py-20">
-                    <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-                  </div>
-                }>
-                  <AdminPanelView
-                    courses={courses}
-                    tests={tests}
-                    categories={categories}
-                    news={news}
-                    submitCourse={submitCourse}
-                    approveCourse={approveCourse}
-                    deleteCourse={deleteCourse}
-                    updateCourse={updateCourse}
-                    submitTest={submitTest}
-                    approveTest={approveTest}
-                    deleteTest={deleteTest}
-                    updateTest={updateTest}
-                    renameCategory={renameCategory}
-                    deleteCategory={deleteCategory}
-                    addNews={addNews}
-                    deleteNews={deleteNews}
-                    ensureCourseContent={ensureCourseContent}
-                    ensureTestContent={ensureTestContent}
-                    initialSubTab={initialDeepLink ? null : (initialPosition.admin?.subTab || null)}
-                  />
-                </Suspense>
-              )}
-              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} />}
-              {!viewingUsername && tab === 'about' && <AboutView />}
-            </PaperPanel>
-          </>
-        )}
-      </main>
-
-      </div>
-
-      {/* Mobil pastki navigatsiya paneli: beshta bo‘lim teng kenglikda */}
-      {!readingActive && (
-        <nav
-          className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center px-1.5 pb-[max(6px,env(safe-area-inset-bottom))] pt-2"
-          style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})`, boxShadow: '0 -6px 20px rgba(15,61,46,0.25)' }}
-          aria-label="Asosiy navigatsiya"
-        >
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            const activeTab = tab === t.id;
-            const label = t.id === 'arena' ? 'Arena' : t.label;
-            return (
-              <button
-                key={t.id}
-                onClick={() => goTo(t.id)}
-                aria-current={activeTab ? 'page' : undefined}
-                className="nav-btn flex flex-1 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1.5 rounded-2xl focus-visible:outline focus-visible:outline-2"
-                style={{
-                  color: activeTab ? C.cover : 'rgba(251,250,243,0.72)',
-                  background: activeTab ? C.gold : 'transparent',
-                  outlineColor: C.gold,
-                }}
-              >
-                <Icon size={19} strokeWidth={activeTab ? 2.3 : 1.8} />
-                <span className="text-[10px] leading-tight whitespace-nowrap" style={{ ...fontBody, fontWeight: activeTab ? 600 : 400 }}>{label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      )}
-
-      {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
-        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} />
-      </Suspense>}
-
-      {giftOpen && (
-        <GiftModal
-          session={session}
-          onRequireLogin={() => { setGiftOpen(false); setTab('profil'); }}
-          onClose={() => setGiftOpen(false)}
-        />
-      )}
-    </div>
-    </NavContext.Provider>
-  );
-}
