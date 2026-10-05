@@ -401,9 +401,13 @@ export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false
     authorProfile?.username,
     authorProfile?.username ? `@${authorProfile.username}` : '',
     `${authorProfile?.firstName || ''} ${authorProfile?.lastName || ''}`.trim(),
-  ].filter(Boolean);
+  ].map((name) => String(name || '').trim()).filter(Boolean);
+  const normalizedAuthorNames = new Set(authorNames.map((name) => name.toLocaleLowerCase()));
+  // Eski qatorlardagi author qiymatida ortiqcha bo'shliq bo'lishi mumkin.
+  // Serverda wildcard bilan nomzodlarni olamiz, so'ng clientda trim + exact
+  // taqqoslaymiz; shu yo'l bilan o'xshash username egasining kontenti chiqmaydi.
   const escapeFilterValue = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-  const legacyFilters = [...new Set(authorNames)].map((name) => `author.ilike.${escapeFilterValue(name.replace(/[\\%_]/g, '\\$&'))}`);
+  const legacyFilters = [...new Set(authorNames)].map((name) => `author.ilike.${escapeFilterValue(`*${name.replace(/[\\%_*]/g, '\\$&')}*`)}`);
   const authorFilters = [`author_id.eq.${authorId}`];
   if (legacyFilters.length) {
     if (approvedOnly) authorFilters.push(...legacyFilters);
@@ -412,7 +416,12 @@ export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false
   const params = new URLSearchParams({ select: columns, or: `(${authorFilters.join(',')})`, order: 'created_at.asc' });
   if (approvedOnly) params.set('status', 'eq.approved');
   const rows = await sbRequest(`${kind}?${params.toString()}`);
-  return rows.map(kind === 'courses' ? courseFromRow : testFromRow);
+  const ownedRows = rows.filter((row) => {
+    if (String(row.author_id || '') === String(authorId)) return true;
+    if (approvedOnly && row.status !== 'approved') return false;
+    return normalizedAuthorNames.has(String(row.author || '').trim().toLocaleLowerCase());
+  });
+  return ownedRows.map(kind === 'courses' ? courseFromRow : testFromRow);
 }
 
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
