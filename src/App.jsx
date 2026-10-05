@@ -2299,7 +2299,33 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
+  const firstCourseId = inCategory[0]?.id || null;
+  const firstCourseHasContent = inCategory[0]?.content !== undefined;
   const q = query.trim().toLowerCase();
+
+  /* Soha ochilgach birinchi mavzuni fonda tayyorlaymiz. Bu faqat
+     foydalanuvchi sohani tanlaganidan keyin ishlaydi; bosh sahifaga
+     qo'shimcha yuk tushirmaydi. */
+  useEffect(() => {
+    if (!categoryId || !firstCourseId || firstCourseHasContent || !ensureCourseContent) return undefined;
+    let cancelled = false;
+    let timeoutId;
+    const prefetch = () => {
+      if (!cancelled) ensureCourseContent(firstCourseId);
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(prefetch, { timeout: 800 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(idleId);
+      };
+    }
+    timeoutId = window.setTimeout(prefetch, 80);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [categoryId, firstCourseId, firstCourseHasContent, ensureCourseContent]);
 
   /* Ulashilgan havola orqali kirilgan bo'lsa (?course=ID), shu kursni
      avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. Statusidan
@@ -2530,6 +2556,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
               key={c.id}
               className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
               style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+              onPointerEnter={() => { if (c.content === undefined) ensureCourseContent?.(c.id); }}
               onClick={() => goCourse(c.id)}
             >
               <div className="flex items-start min-w-0">
@@ -5191,6 +5218,8 @@ export default function App() {
   const [tab, setTab] = useState(initialTab);
   const [categories, setCategories] = useState([]);
   const [courses, setCourses] = useState([]);
+  const courseContentRequestsRef = useRef(new Map());
+  const courseContentCacheRef = useRef(new Map());
   const [tests, setTests] = useState([]);
   const [testsLoading, setTestsLoading] = useState(false);
   const [testsLoadError, setTestsLoadError] = useState(null);
@@ -5404,21 +5433,34 @@ export default function App() {
      Dars matni (content) og'ir bo'lgani uchun faqat shu mavzu ochilganda
      yoki tahrirlash uchun kerak bo'lganda alohida so'raladi. */
   const ensureCourseContent = useCallback(async (id) => {
+    const cached = courseContentCacheRef.current.get(id);
+    if (cached) return cached;
+    const pending = courseContentRequestsRef.current.get(id);
+    if (pending) return pending;
+    const request = (async () => {
     try {
         const rows = await sbRequest(`courses?select=id,category_id,title,summary,content,video_url,author,author_id,status,created_at&id=eq.${encodeURIComponent(id)}`);
       if (rows[0]) {
           const loadedCourse = courseFromRow(rows[0]);
+          courseContentCacheRef.current.set(id, loadedCourse);
           setCourses((prev) => prev.some((course) => course.id === id)
             ? prev.map((course) => (course.id === id ? {
               ...loadedCourse,
               ...(course.pendingEdit ? { pendingEdit: course.pendingEdit, pendingEditUpdatedAt: course.pendingEditUpdatedAt } : {}),
             } : course))
             : [...prev, loadedCourse]);
+          return loadedCourse;
       }
     } catch (e) {
       // Jim tarzda o'tkazib yuborish — mavzu ochilganda "Yuklanmoqda..." holatida qoladi,
       // foydalanuvchi qayta urinib ko'rishi mumkin.
+    } finally {
+      courseContentRequestsRef.current.delete(id);
     }
+    return null;
+    })();
+    courseContentRequestsRef.current.set(id, request);
+    return request;
   }, []);
 
   /* Testlar ro'yxati boshida faqat sarlavha/soha/muallif kabi yengil
@@ -6497,4 +6539,5 @@ export default function App() {
     </NavContext.Provider>
   );
 }
+
 
