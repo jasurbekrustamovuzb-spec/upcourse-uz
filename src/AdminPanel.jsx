@@ -207,8 +207,14 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
     writePosition({ admin: { subTab } });
   }, [subTab]);
 
-  const pendingCourses = courses.filter((c) => c.status === 'pending');
-  const pendingTests = tests.filter((t) => t.status === 'pending');
+  const pendingCourses = courses.flatMap((course) => {
+    if (course.pendingEdit && course.status === 'approved') return [{ ...course, ...course.pendingEdit, pendingEdit: course.pendingEdit, pendingRevision: true, status: 'pending' }];
+    return course.status === 'pending' ? [course] : [];
+  });
+  const pendingTests = tests.flatMap((test) => {
+    if (test.pendingEdit && test.status === 'approved') return [{ ...test, ...test.pendingEdit, pendingEdit: test.pendingEdit, pendingRevision: true, status: 'pending' }];
+    return test.status === 'pending' ? [test] : [];
+  });
   const privateCourses = courses.filter((c) => c.status === 'private');
   const privateTests = tests.filter((t) => t.status === 'private');
 
