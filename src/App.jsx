@@ -73,23 +73,23 @@ const LIGHT_PALETTE = {
 
 const DARK_PALETTE = {
   cover: '#1F3D2B',
-  coverDeep: '#0F1B12',
+  coverDeep: '#17271C',
   coverLine: 'rgba(184,134,59,0.35)',
-  paper: '#141815',
-  paperSoft: '#1A1F1B',
-  rule: '#3D453D',
+  paper: '#20241F',
+  paperSoft: '#262B25',
+  rule: '#485047',
   red: '#E08A7D',
   gold: '#D4AC6E',
   goldSoft: '#E4CC9C',
-  ink: '#F0EBDD',
-  inkSoft: '#B7BEB2',
-  white: '#FBFAF3',
-  surface: '#232A22',
-  successTint: 'rgba(94,168,118,0.22)',
-  dangerTint: 'rgba(224,138,125,0.22)',
-  selectedTint: 'rgba(212,172,110,0.18)',
-  dangerBannerTint: 'rgba(224,138,125,0.14)',
-  accent: '#8FCB9E',
+  ink: '#E5E1D7',
+  inkSoft: '#B9BBB2',
+  white: '#F0EDE4',
+  surface: '#2A3029',
+  successTint: 'rgba(94,168,118,0.17)',
+  dangerTint: 'rgba(224,138,125,0.17)',
+  selectedTint: 'rgba(212,172,110,0.13)',
+  dangerBannerTint: 'rgba(224,138,125,0.12)',
+  accent: '#A7C9AA',
   /* Faqat "Jonli test" bo'limi uchun — iliq, quvnoq aksent */
   live: '#E8965A',
   liveSoft: '#F0B888',
@@ -101,7 +101,7 @@ const DARK_PALETTE = {
   math: '#6FA8CC',
   mathSoft: '#9CC5E0',
   mathDeep: '#12222C',
-  mathTint: 'rgba(111,168,204,0.16)',
+  mathTint: 'rgba(111,168,204,0.13)',
 };
 
 export const C = { ...LIGHT_PALETTE };
@@ -388,17 +388,40 @@ const sbSelect = (table, filter, orderColumn = 'created_at', options = {}) => sb
 
 /* Profil ochilgandagina muallifning yengil roʻyxatini yuklaydi.
    Bosh sahifa soʻrovlari va katta content/questions ustunlariga taʼsir qilmaydi. */
-export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false) {
+export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false, authorProfile = null) {
   if (!authorId || !['courses', 'tests'].includes(kind)) return [];
   const columns = kind === 'courses'
     ? 'id,category_id,title,summary,video_url,author,author_id,status,created_at'
     : 'id,category_id,title,description,author,author_id,status,created_at,question_count';
-  const filters = [
-    `author_id=eq.${encodeURIComponent(authorId)}`,
-    ...(approvedOnly ? ['status=eq.approved'] : []),
-  ];
-  const rows = await sbRequest(`${kind}?select=${columns}&${filters.join('&')}&order=created_at.asc`);
-  return rows.map(kind === 'courses' ? courseFromRow : testFromRow);
+  // Eski materiallarda author_id bo'sh qolgan bo'lishi mumkin; bunday
+  // tasdiqlangan qatorlarni profil nomi/username'i bilan ham topamiz.
+  // Shaxsiy/pending qatorlar faqat aniq author_id orqali olinadi — bir xil
+  // ismli boshqa foydalanuvchining yopiq materiali profilga chiqib ketmaydi.
+  const authorNames = [
+    authorProfile?.username,
+    authorProfile?.username ? `@${authorProfile.username}` : '',
+    `${authorProfile?.firstName || ''} ${authorProfile?.lastName || ''}`.trim(),
+  ].map((name) => String(name || '').trim()).filter(Boolean);
+  const normalizedAuthorNames = new Set(authorNames.map((name) => name.toLocaleLowerCase()));
+  // Eski qatorlardagi author qiymatida ortiqcha bo'shliq bo'lishi mumkin.
+  // Serverda wildcard bilan nomzodlarni olamiz, so'ng clientda trim + exact
+  // taqqoslaymiz; shu yo'l bilan o'xshash username egasining kontenti chiqmaydi.
+  const escapeFilterValue = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  const legacyFilters = [...new Set(authorNames)].map((name) => `author.ilike.${escapeFilterValue(`*${name.replace(/[\\%_*]/g, '\\$&')}*`)}`);
+  const authorFilters = [`author_id.eq.${authorId}`];
+  if (legacyFilters.length) {
+    if (approvedOnly) authorFilters.push(...legacyFilters);
+    else authorFilters.push(`and(status.eq.approved,or(${legacyFilters.join(',')}))`);
+  }
+  const params = new URLSearchParams({ select: columns, or: `(${authorFilters.join(',')})`, order: 'created_at.asc' });
+  if (approvedOnly) params.set('status', 'eq.approved');
+  const rows = await sbRequest(`${kind}?${params.toString()}`);
+  const ownedRows = rows.filter((row) => {
+    if (String(row.author_id || '') === String(authorId)) return true;
+    if (approvedOnly && row.status !== 'approved') return false;
+    return normalizedAuthorNames.has(String(row.author || '').trim().toLocaleLowerCase());
+  });
+  return ownedRows.map(kind === 'courses' ? courseFromRow : testFromRow);
 }
 
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
@@ -867,8 +890,8 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
       try {
         // Ommaviy profilga kirilgandagina shu muallifning yengil metadata qatorlarini yuklaymiz.
         const [courseRows, testRows] = await Promise.all([
-          sbSelectAuthorContent('courses', profileRow.id, true),
-          sbSelectAuthorContent('tests', profileRow.id, true),
+          sbSelectAuthorContent('courses', profileRow.id, true, profileRow),
+          sbSelectAuthorContent('tests', profileRow.id, true, profileRow),
         ]);
         if (!cancelled) setAuthorContent({ userId: profileRow.id, courses: courseRows, tests: testRows });
       } catch (e) {
@@ -3137,7 +3160,7 @@ function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
-function QuizPlayer({ test, config, onExit, onRestart }) {
+function QuizPlayer({ test, config, onExit, onRestart, onRetry }) {
   const questions = config.questions;
   const [answers, setAnswers] = useState({});
   const [revealed, setRevealed] = useState({});
@@ -3295,8 +3318,9 @@ function QuizPlayer({ test, config, onExit, onRestart }) {
             })}
           </div>
         </section>
-        <div className="flex gap-3">
-          <GhostButton onClick={onRestart} icon={RotateCcw}>Sozlamalarni oʻzgartirish</GhostButton>
+        <div className="flex flex-wrap gap-3">
+          <GhostButton onClick={onRetry} icon={RotateCcw}>Qayta ishlash</GhostButton>
+          <GhostButton onClick={onRestart} icon={Settings}>Sozlamalarni oʻzgartirish</GhostButton>
         </div>
       </div>
     );
@@ -3427,6 +3451,7 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
   const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
   const [lastConfig, setLastConfig] = useState(prefs);
+  const [attemptKey, setAttemptKey] = useState(0);
 
   function handleStart(cfg) {
     const { questions, ...rest } = cfg;
@@ -3438,7 +3463,7 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={() => setAttemptKey((key) => key + 1)} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3448,6 +3473,7 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
 function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
+  const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId));
   const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
@@ -3497,7 +3523,10 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
      bergan javoblar saqlanmaydi, lekin hech bo'lmasa qaysi testda
      ekanini qayta izlashga hojat qolmaydi). */
   useEffect(() => {
-    if (initialOpenId) goTest(initialOpenId);
+    if (initialOpenId) {
+      goTest(initialOpenId);
+      setOpeningInitialTest(false);
+    }
     else if (initialCategoryId) goCategory(initialCategoryId);
     if (initialLiveCode) pushNav(() => setLiveOpen(false));
     else if (initialLiveSession) { setLiveSession(initialLiveSession); setLiveOpen(true); pushNav(() => setLiveOpen(false)); }
@@ -3532,6 +3561,24 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
       );
     }
     return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} />;
+  }
+
+  // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
+  // test metadata/savollari kelguncha foydalanuvchi bevosita ochilish holatini ko'radi.
+  if (openingInitialTest || activeId) {
+    return (
+      <div className="flex flex-col items-start gap-3 py-6" aria-live="polite">
+        <button onClick={back} className="inline-flex items-center gap-1 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button>
+        {testsLoadError ? (
+          <div className="flex flex-wrap items-center gap-3 text-sm" style={{ ...fontBody, color: C.red }}>
+            <span>Testni yuklab bo‘lmadi.</span>
+            <button type="button" onClick={onRetryTests} className="rounded-sm px-3 py-1.5" style={{ color: C.white, background: C.cover }}>Qayta urinish</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm" role="status" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Tanlangan test ochilmoqda…</div>
+        )}
+      </div>
+    );
   }
 
   if (liveOpen) return (
@@ -4563,8 +4610,8 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     let cancelled = false;
     setOwnContent((previous) => ({ ...previous, userId, loading: true, error: false }));
     Promise.all([
-      sbSelectAuthorContent('courses', userId),
-      sbSelectAuthorContent('tests', userId),
+      sbSelectAuthorContent('courses', userId, false, profile),
+      sbSelectAuthorContent('tests', userId, false, profile),
     ]).then(([ownCourses, ownTests]) => {
       if (!cancelled) setOwnContent({ userId, courses: ownCourses, tests: ownTests, loading: false, error: false });
     }).catch((error) => {
@@ -4572,7 +4619,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
       if (!cancelled) setOwnContent((previous) => ({ ...previous, userId, loading: false, error: true }));
     });
     return () => { cancelled = true; };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, profile?.username, profile?.firstName, profile?.lastName]);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
   useEffect(() => {
@@ -5224,11 +5271,12 @@ export default function App() {
      yoki tahrirlash uchun kerak bo'lganda alohida so'raladi. */
   const ensureCourseContent = useCallback(async (id) => {
     try {
-      const rows = await sbRequest(`courses?select=content,video_url&id=eq.${encodeURIComponent(id)}`);
+        const rows = await sbRequest(`courses?select=id,category_id,title,summary,content,video_url,author,author_id,status,created_at&id=eq.${encodeURIComponent(id)}`);
       if (rows[0]) {
-        setCourses((prev) => prev.map((c) => (c.id === id && c.content === undefined
-          ? { ...c, content: rows[0].content, videoUrl: rows[0].video_url || c.videoUrl || '' }
-          : c)));
+          const loadedCourse = courseFromRow(rows[0]);
+          setCourses((prev) => prev.some((course) => course.id === id)
+            ? prev.map((course) => (course.id === id ? loadedCourse : course))
+            : [...prev, loadedCourse]);
       }
     } catch (e) {
       // Jim tarzda o'tkazib yuborish — mavzu ochilganda "Yuklanmoqda..." holatida qoladi,
@@ -5376,7 +5424,16 @@ export default function App() {
       if (requestUserId && activeUserIdRef.current !== requestUserId) return false;
 
       setCategories(catRows.map(categoryFromRow));
-      setCourses(courseRows.map(courseFromRow));
+      setCourses((previous) => {
+        const previousById = new Map(previous.map((course) => [course.id, course]));
+        return courseRows.map((row) => {
+          const next = courseFromRow(row);
+          const cached = previousById.get(next.id);
+          return cached?.content !== undefined
+            ? { ...next, content: cached.content, videoUrl: cached.videoUrl || next.videoUrl }
+            : next;
+        });
+      });
       succeeded = true;
     } catch (e) {
       // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
@@ -5437,7 +5494,12 @@ export default function App() {
         const byId = new Map(previous
           .filter((item) => item.status === 'approved' || item.authorId === userId)
           .map((item) => [item.id, item]));
-        courseRows.map(courseFromRow).forEach((item) => byId.set(item.id, item));
+        courseRows.map(courseFromRow).forEach((item) => {
+          const cached = byId.get(item.id);
+          byId.set(item.id, cached?.content !== undefined
+            ? { ...item, content: cached.content, videoUrl: cached.videoUrl || item.videoUrl }
+            : item);
+        });
         return [...byId.values()];
       });
       state.loadedFor = userId;
