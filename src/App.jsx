@@ -2295,6 +2295,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
      bo'lmasa ham) ochiladi (ensureCourseContent ID bo'yicha to'g'ridan-
      to'g'ri yuklab, courses ro'yxatiga qo'shib qo'yadi). */
   const active = courses.find((c) => c.id === openId);
+  const isMine = active?.authorId === myId;
   const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((c) => c.categoryId === categoryId);
@@ -2366,7 +2367,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             <Clock3 size={13} /> Tekshirilmoqda — hozircha faqat sizga koʻrinadi
           </div>
         )}
-        {mode === 'admin' && active.pendingRevision && (
+        {isAdmin && active.pendingRevision && (
           <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
             <Clock3 size={13} /> Muallif tahriri — tasdiqlansa saytdagi amaldagi nusxa yangilanadi
           </div>
