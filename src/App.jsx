@@ -338,9 +338,14 @@ async function getAccessToken() {
 }
 
 async function sbRequest(path, options = {}) {
+  // Public first-paint requests do not need a user session. Avoid waiting
+  // for Supabase Auth to restore/refresh a token before loading approved
+  // catalog data; all user-owned/private requests keep the normal auth path.
+  const { useAnonKey = false, ...fetchOptions } = options;
+
   function doFetch(token) {
     return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-      ...options,
+      ...fetchOptions,
       headers: {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${token}`,
@@ -350,7 +355,7 @@ async function sbRequest(path, options = {}) {
     });
   }
 
-  const token = (await getAccessToken()) || SUPABASE_ANON_KEY;
+  const token = useAnonKey ? SUPABASE_ANON_KEY : (await getAccessToken()) || SUPABASE_ANON_KEY;
   let res = await doFetch(token);
 
   /* Nozik holat: sahifa endigina ochilganda, keshlangan token hali
@@ -5547,6 +5552,10 @@ export default function App() {
       const vis = visibilityFilter(myId, isAdmin);
       const visQ = vis ? `&${vis}` : '';
       const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
+      // On first visit there is no signed-in user yet, so this request only
+      // asks for approved public rows. Use the anon key immediately instead
+      // of waiting for auth storage/session initialization.
+      const useAnonKey = !myId && !isAdmin;
       const initialDataController = new AbortController();
       let initialDataTimeoutId;
       let catRows;
@@ -5555,8 +5564,8 @@ export default function App() {
       try {
         [catRows, courseRows, courseRevisionRows] = await Promise.race([
           Promise.all([
-            sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal }),
-            sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal }),
+            sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal, useAnonKey }),
+            sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal, useAnonKey }),
             isAdmin ? sbSelectAllContentRevisions('courses', { signal: initialDataController.signal }) : Promise.resolve([]),
           ]),
           new Promise((_, reject) => {
