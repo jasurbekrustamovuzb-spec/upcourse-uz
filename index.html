@@ -357,12 +357,12 @@
       // Mehmonlar uchun ommaviy katalog so‘rovlarini React bundle yuklanayotganda parallel boshlaymiz.
       (function () {
         try {
-          if (location.hash.includes('access_token=') ||
+          if (location.pathname !== '/' || location.search || location.hash ||
               localStorage.getItem('sb-cuubcnnzjlmvcbgnctvb-auth-token')) return;
         } catch (e) { return; }
 
         var base = 'https://cuubcnnzjlmvcbgnctvb.supabase.co/rest/v1/';
-        var anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dWJjbnnzamxtdmNiZ25jdHZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4NjkzMTAsImV4cCI6MjEwMjQ0NTMxMH0.x-b1KKEtjh928Ae2LXoyYPNK5Ov1rE5tv8nUJk-4Kn0';
+        var anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dWJjbm56amxtdmNiZ25jdHZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4NjkzMTAsImV4cCI6MjEwMjQ0NTMxMH0.x-b1KKEtjh928Ae2LXoyYPNK5Ov1rE5tv8nUJk-4Kn0';
         var controller = new AbortController();
         var timeout = setTimeout(function () { controller.abort(); }, 12000);
         var headers = {
