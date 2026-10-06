@@ -353,6 +353,37 @@
         setTimeout(removeSplash, 10000);
       })();
     </script>
+    <script>
+      // Mehmonlar uchun ommaviy katalog so‘rovlarini React bundle yuklanayotganda parallel boshlaymiz.
+      (function () {
+        try {
+          if (location.hash.includes('access_token=') ||
+              localStorage.getItem('sb-cuubcnnzjlmvcbgnctvb-auth-token')) return;
+        } catch (e) { return; }
+
+        var base = 'https://cuubcnnzjlmvcbgnctvb.supabase.co/rest/v1/';
+        var anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dWJjbnnzamxtdmNiZ25jdHZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4NjkzMTAsImV4cCI6MjEwMjQ0NTMxMH0.x-b1KKEtjh928Ae2LXoyYPNK5Ov1rE5tv8nUJk-4Kn0';
+        var controller = new AbortController();
+        var timeout = setTimeout(function () { controller.abort(); }, 12000);
+        var headers = {
+          apikey: anonKey,
+          Authorization: 'Bearer ' + anonKey,
+          'Content-Type': 'application/json'
+        };
+        window.__upcourseInitialCatalogPromise = Promise.all([
+          fetch(base + 'categories?select=*&order=created_at.asc&status=eq.approved', {
+            headers: headers, signal: controller.signal
+          }),
+          fetch(base + 'courses?select=id,category_id,title,summary,video_url,author,author_id,status,created_at&order=created_at.asc&status=eq.approved', {
+            headers: headers, signal: controller.signal
+          })
+        ]).then(function (responses) {
+          if (!responses[0].ok || !responses[1].ok) return null;
+          return Promise.all([responses[0].json(), responses[1].json()])
+            .then(function (rows) { return { categoryRows: rows[0], courseRows: rows[1] }; });
+        }).catch(function () { return null; }).finally(function () { clearTimeout(timeout); });
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
