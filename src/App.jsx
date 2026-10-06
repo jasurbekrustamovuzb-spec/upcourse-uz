@@ -5564,8 +5564,12 @@ export default function App() {
       try {
         [catRows, courseRows, courseRevisionRows] = await Promise.race([
           Promise.all([
-            sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal, useAnonKey }),
-            sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal, useAnonKey }),
+            !myId && !isAdmin && window.__upcourseInitialCatalogPromise
+              ? window.__upcourseInitialCatalogPromise.then((catalog) => catalog?.categoryRows || sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal, useAnonKey }))
+              : sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal, useAnonKey }),
+            !myId && !isAdmin && window.__upcourseInitialCatalogPromise
+              ? window.__upcourseInitialCatalogPromise.then((catalog) => catalog?.courseRows || sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal, useAnonKey }))
+              : sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal, useAnonKey }),
             isAdmin ? sbSelectAllContentRevisions('courses', { signal: initialDataController.signal }) : Promise.resolve([]),
           ]),
           new Promise((_, reject) => {
