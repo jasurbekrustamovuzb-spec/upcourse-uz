@@ -394,6 +394,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
       />
     );
   }
+  if (subTab === 'arena-materiallar') return <AdminArenaContentView onBack={() => setSubTab(null)} />;
   if (subTab === 'promo-kodlar') return <AdminPromoView onBack={() => setSubTab(null)} />;
   if (subTab === 'sohalar') {
     return <AdminCategoriesView categories={categories} courses={courses} tests={tests} renameCategory={renameCategory} deleteCategory={deleteCategory} onBack={() => setSubTab(null)} />;
@@ -465,6 +466,16 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
             <div>
               <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Yangiliklar</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{news.length} ta eʼlon</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('arena-materiallar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Clock3 size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Arena materiallari</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Kunlik mashqlarni boshqarish</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
