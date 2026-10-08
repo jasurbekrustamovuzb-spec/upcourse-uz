@@ -117,6 +117,193 @@ function AdminNewsView({ news, addNews, deleteNews, onBack }) {
 }
 
 
+const ARENA_IMPORT_TEMPLATE = String.raw`# UpCourse Kunlik Arena shabloni
+# Sana bo‘sh qolsa, admin oynasida tanlangan sana ishlatiladi.
+# Reyting qiymatlari: pattern, logic, word, visual, matching, calculation, fact, cipher, attention.
+
+Sana:
+Sarlavha: Bugungi aqliy chaqiriq — tahrirlanadigan namuna
+Izoh: Besh bosqichli namuna. Nashrdan oldin matn va javoblarni tekshiring.
+Reyting: logic
+
+[BOSQICH 1]
+Shakl: choice
+Savol: Ketma-ketlikni davom ettiring: 3, 6, 9, 12, ?
+Variantlar:
+A) 13
+B) 15
+C) 18
+D) 21
+Javob: B
+Izoh: Har safar 3 qo‘shiladi, shuning uchun keyingi son 15.
+
+[BOSQICH 2]
+Shakl: visual
+Savol: Jadvaldagi qonuniyatni toping. ? o‘rniga qaysi belgi keladi?
+Kataklar:
+● | ▲ | ■
+▲ | ■ | ●
+■ | ● | ?
+Variantlar:
+A) ▲
+B) ●
+C) ■
+D) ◆
+Javob: A
+Izoh: Har qatorda belgilar bir o‘rin chapga siljiydi. ? o‘rniga ▲ keladi.
+
+[BOSQICH 3]
+Shakl: match
+Savol: Iqtisodiy tushunchalarni ta’riflari bilan moslang.
+Chap:
+- Talab
+- Taklif
+- Narx
+O‘ng:
+- Sotuvchilar sotishga tayyor bo‘lgan miqdor
+- Tovar qiymatining puldagi ifodasi
+- Xaridorlar sotib olishga tayyor bo‘lgan miqdor
+Moslik: 3, 1, 2
+Izoh: Talab xaridorlar istagan miqdor; taklif sotuvchilar taklif qiladigan miqdor; narx qiymatning puldagi ifodasidir.
+
+[BOSQICH 4]
+Shakl: text
+Savol: Bir sonni 3 ga ko‘paytirib, 4 qo‘shilganda 25 chiqdi. Bu qaysi son?
+Javob: 7
+Izoh: 25 dan 4 ni ayiramiz: 21. 21 ni 3 ga bo‘lsak, 7 chiqadi.
+
+[BOSQICH 5]
+Shakl: visual
+Savol: Har qatorda belgilar soni bittadan ortadi. ? o‘rniga qaysi katak keladi?
+Kataklar:
+● | ●● | ●●●
+▲ | ▲▲ | ▲▲▲
+■ | ■■ | ?
+Variantlar:
+A) ■■■
+B) ■■
+C) ■
+D) ■■■■
+Javob: A
+Izoh: Har bir qatorda bir xil belgi bittadan qo‘shiladi. Oxirgi katakda uchta ■ bo‘ladi.
+`;
+
+const ARENA_MODE_IDS = ['pattern', 'logic', 'word', 'visual', 'matching', 'calculation', 'fact', 'cipher', 'attention'];
+
+function normalizeArenaImportKey(value) {
+  return value.toLocaleLowerCase().replace(/[ʻʼ’'"`]/g, '').replace(/[\s_-]+/g, '');
+}
+
+function parseArenaImport(text, fallbackMode) {
+  const header = {};
+  const stages = new Map();
+  let stage = null;
+  let blockKey = '';
+  const known = new Set(['sana', 'sarlavha', 'izoh', 'reyting', 'reytingkategoriyasi', 'shakl', 'tur', 'savol', 'kataklar', 'naqsh', 'variantlar', 'javob', 'chap', 'ong', 'moslik']);
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  lines.forEach((rawLine, lineIndex) => {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) return;
+    const marker = line.match(/^\[\s*(?:bosqich\s*)?([1-5])(?:\s*-\s*bosqich)?\s*\]$/i);
+    if (marker) {
+      const number = Number(marker[1]);
+      if (stages.has(number)) throw new Error((lineIndex + 1) + '-qatorda bosqich takrorlangan.');
+      stage = { number, fields: {} };
+      stages.set(number, stage);
+      blockKey = '';
+      return;
+    }
+    const field = rawLine.match(/^\s*([^:]+):\s*(.*)$/);
+    if (field) {
+      const key = normalizeArenaImportKey(field[1]);
+      if (!known.has(key)) {
+        if (stage && blockKey && Array.isArray(stage.fields[blockKey])) {
+          stage.fields[blockKey].push(line.replace(/^[-•]\s*/, ''));
+          return;
+        }
+        throw new Error((lineIndex + 1) + '-qatordagi "' + field[1].trim() + '" maydoni tanilmadi.');
+      }
+      const value = field[2].trim();
+      if (stage) {
+        stage.fields[key] = value ? value : [];
+        blockKey = value ? '' : key;
+      } else {
+        header[key] = value;
+        blockKey = '';
+      }
+      return;
+    }
+    if (stage && blockKey && Array.isArray(stage.fields[blockKey])) {
+      stage.fields[blockKey].push(line.replace(/^[-•]\s*/, ''));
+      return;
+    }
+    throw new Error((lineIndex + 1) + '-qatorda matn maydon nomidan keyin kelishi kerak.');
+  });
+  if (stages.size !== 5 || [1, 2, 3, 4, 5].some((number) => !stages.has(number))) {
+    throw new Error('Faylda [BOSQICH 1] dan [BOSQICH 5] gacha bo‘lgan besh bosqich bo‘lishi kerak.');
+  }
+  const get = (fields, key) => {
+    const value = fields[key];
+    return Array.isArray(value) ? value.join('\n').trim() : String(value || '').trim();
+  };
+  const list = (fields, key) => {
+    const value = fields[key];
+    const values = Array.isArray(value) ? value : String(value || '').split(',');
+    return values.map((item) => String(item).trim()).filter(Boolean);
+  };
+  const rounds = [1, 2, 3, 4, 5].map((number) => {
+    const fields = stages.get(number).fields;
+    const rawKind = get(fields, 'shakl') || get(fields, 'tur');
+    const kindAliases = { variantli: 'choice', tanlov: 'choice', vizual: 'visual', moslik: 'match', juftlik: 'match', yozma: 'text' };
+    const kind = kindAliases[normalizeArenaImportKey(rawKind)] || rawKind.toLowerCase();
+    const prompt = get(fields, 'savol');
+    const explanation = get(fields, 'izoh');
+    if (!['choice', 'visual', 'match', 'text'].includes(kind)) throw new Error(number + '-bosqich: Shakl choice, visual, match yoki text bo‘lishi kerak.');
+    if (!prompt) throw new Error(number + '-bosqichda Savol maydoni bo‘sh.');
+    const round = { prompt, kind, explanation, options: ['', '', '', ''], visual: ['', '', ''], visualLayoutType: 'grid', visualGridText: '', left: ['', ''], right: ['', ''], answer: '' };
+    if (kind === 'choice' || kind === 'visual') {
+      const importedOptions = list(fields, 'variantlar').map((item) => item.replace(/^[A-D][).]\s*/i, '').trim());
+      const answer = get(fields, 'javob').toUpperCase();
+      if (importedOptions.length < 2 || importedOptions.length > 4 || importedOptions.some((item) => !item) || !/^[A-D]$/.test(answer) || !importedOptions[answer.charCodeAt(0) - 65]) {
+        throw new Error(number + '-bosqich: 2–4 ta A)–D) varianti va mavjud variantga tegishli Javob harfi kerak.');
+      }
+      round.options = [...importedOptions, ...Array(4 - importedOptions.length).fill('')];
+      round.answer = answer;
+    }
+    if (kind === 'visual') {
+      const rows = list(fields, 'kataklar').length ? list(fields, 'kataklar') : list(fields, 'naqsh');
+      const grid = rows.map((row) => row.split('|').map((cell) => cell.trim()));
+      const width = grid[0]?.length || 0;
+      if (grid.length < 2 || grid.length > 3 || width < 2 || width > 3 || grid.some((row) => row.length !== width || row.some((cell) => !cell)) || grid.flat().filter((cell) => cell === '?').length !== 1) {
+        throw new Error(number + '-bosqich: Kataklar 2×2 yoki 3×3 bo‘lsin va ichida bitta ? bo‘lsin.');
+      }
+      if (!explanation) throw new Error(number + '-bosqich: naqsh qoidasini Izoh maydonida yozing.');
+      round.visualGridText = grid.map((row) => row.join(' | ')).join('\n');
+    }
+    if (kind === 'match') {
+      round.left = list(fields, 'chap');
+      round.right = list(fields, 'ong');
+      const mapping = get(fields, 'moslik').replace(/[\s,;|]/g, '');
+      const digits = mapping.split('');
+      if (round.left.length < 2 || round.left.length !== round.right.length || round.left.some((item) => !item) || digits.length !== round.left.length || new Set(digits).size !== digits.length || digits.some((digit) => !/^[1-9]$/.test(digit) || Number(digit) > round.right.length)) {
+        throw new Error(number + '-bosqich: Chap va O‘ng ro‘yxatlar teng uzunlikda bo‘lsin; Moslikda har bir javob raqamini bir martadan kiriting.');
+      }
+      if (!explanation) throw new Error(number + '-bosqich: juftliklar sababini Izoh maydonida yozing.');
+      round.answer = digits.join('');
+    }
+    if (kind === 'text') {
+      round.answer = get(fields, 'javob');
+      if (!round.answer) throw new Error(number + '-bosqichda to‘g‘ri Javob maydoni bo‘sh.');
+    }
+    return round;
+  });
+  const mode = get(header, 'reyting') || get(header, 'reytingkategoriyasi') || fallbackMode;
+  if (!ARENA_MODE_IDS.includes(mode)) throw new Error('Reyting qiymati tanilmadi. Quyidagilardan birini ishlating: ' + ARENA_MODE_IDS.join(', ') + '.');
+  const date = get(header, 'sana');
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Sana YYYY-MM-DD ko‘rinishida bo‘lishi kerak.');
+  return { mode, date, title: get(header, 'sarlavha'), subtitle: get(header, 'izoh'), rounds };
+}
+
 const arenaRoundTemplates = {
   visual: [
     {
@@ -186,6 +373,40 @@ function AdminArenaContentView({ onBack }) {
     setError(false);
     setNotice('Namuna yuklandi. Savol, javob va izohni ehtiyojingizga moslab tahrirlang.');
   }
+  async function importArenaFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') {
+      setError(true); setNotice('Faqat .txt formatidagi Arena shablonini yuklang.'); return;
+    }
+    try {
+      const imported = parseArenaImport(await file.text(), mode);
+      const hasContent = rounds.some((round) => round.prompt.trim() || round.answer.trim() || round.explanation.trim()
+        || round.options.some(Boolean) || round.visualGridText.trim() || round.visual.some(Boolean)
+        || round.left.some(Boolean) || round.right.some(Boolean));
+      if (hasContent && !window.confirm('Fayldagi besh bosqich joriy formadagi ma’lumotlarni almashtiradi. Davom etasizmi?')) return;
+      setDate(imported.date || date);
+      setTitle(imported.title || title);
+      setSubtitle(imported.subtitle || '');
+      setMode(imported.mode);
+      setRounds(imported.rounds.map((round) => ({ ...blankRound(), ...round })));
+      setShowPreview(true);
+      setError(false);
+      setNotice('Fayldan 5 bosqich yuklandi. Ma’lumotlarni tahrirlang va nashrdan oldin preview’da tekshiring.');
+    } catch (importError) {
+      setError(true);
+      setNotice(importError.message || 'TXT fayl o‘qilmadi. Shablonni tekshirib qayta yuklang.');
+    }
+  }
+  function downloadArenaTemplate() {
+    const url = URL.createObjectURL(new Blob([String.fromCharCode(0xFEFF), ARENA_IMPORT_TEMPLATE], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'UpCourse-Arena-shablon.txt';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   function updateRound(index, key, value) {
     setRounds((old) => old.map((round, i) => i === index ? { ...round, [key]: value } : round));
   }
@@ -249,6 +470,14 @@ function AdminArenaContentView({ onBack }) {
     <SectionHeading eyebrow="Kunlik Arena" title="Arena materiallari" />
     <p className="text-sm mb-5 max-w-3xl" style={{ ...fontBody, color: C.inkSoft }}>Har bir sana uchun besh bosqich tuzing. Qoralama foydalanuvchilarga ko‘rinmaydi; nashr qilinganda shu sanadagi avtomatik topshiriq o‘rnini oladi. Oldingi natijalar o‘zgarmaydi.</p>
     <form onSubmit={(event) => save(event, false)} className="max-w-4xl space-y-4">
+      <div className="rounded-sm p-3 sm:p-4 space-y-3" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div><h3 className="font-medium text-sm" style={{ ...fontBody, color: C.ink }}>Besh bosqichni TXT fayldan yuklash</h3><p className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Faylni yuklang — savollar, kataklar, javoblar va izohlar formaga ajratib joylanadi. Hech narsa avtomatik nashr qilinmaydi.</p></div>
+          <button type="button" onClick={downloadArenaTemplate} className="rounded-sm px-3 py-2 text-xs" style={{ ...fontBody, color: C.ink, background: C.goldSoft, border: '1px solid ' + C.coverLine }}>TXT shablonni yuklab olish</button>
+        </div>
+        <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Tahrirlangan .txt faylni tanlang<input type="file" accept=".txt,text/plain" onChange={importArenaFile} className="mt-1.5 block w-full rounded-sm px-3 py-2 text-sm file:mr-3 file:rounded-sm file:border-0 file:px-3 file:py-1.5" style={inputStyle} /></label>
+        <details className="text-xs" style={{ ...fontBody, color: C.inkSoft }}><summary className="cursor-pointer">TXT fayl qanday tuziladi?</summary><div className="mt-2 space-y-1.5 leading-relaxed"><p>Shablonni yuklab oling va oddiy matn muharririda oching. Har bir bosqichda Shakl, Savol va Javob/Izoh maydonlarini tahrirlang.</p><p>Vizual kataklar har qatorda yoziladi, kataklar orasiga | qo‘yiladi. Variantlar A) dan boshlanadi. Moslikda Chap va O‘ng ro‘yxatlarini kiriting; “Moslik”dagi raqamlar chap ro‘yxat tartibida mos o‘ng javobni bildiradi (masalan, 3, 1, 2).</p><p>Reyting: pattern, logic, word, visual, matching, calculation, fact, cipher yoki attention. TXT ichidagi besh tur: choice, visual, match, text. Importdan keyin hamma maydonlar tahrirlanadi.</p></div></details>
+      </div>
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Sana<input type="date" value={date} onChange={(event) => setDate(event.target.value)} required className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Reyting kategoriyasi<select value={mode} onChange={(event) => setMode(event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}>{modes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label>
