@@ -75,7 +75,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
   const [period, setPeriod] = useState('day');
   const [division, setDivision] = useState('');
   const [boardMode, setBoardMode] = useState('all');
-  const [boardOpen, setBoardOpen] = useState(true);
+  const [boardOpen, setBoardOpen] = useState(false);
   const [board, setBoard] = useState(null);
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardError, setBoardError] = useState('');
@@ -136,7 +136,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
     setSending(false);
     if (rpcError) { setError('Javobni tekshirib boʻlmadi. Internetni tekshirib qayta yuboring.'); return; }
     setFeedback(data);
-    if (data.correct) { setChoice(''); setTextAnswer(''); setPairs([]); }
+    setChoice(''); setTextAnswer(''); setPairs([]);
     setChallenge((old) => old ? { ...old, progress: { ...old.progress, score: data.score, stage: data.next_stage, completed: data.completed } } : old);
   }
 
@@ -222,13 +222,10 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
                 </div>
                 <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap mb-3" style={{ ...fontBody }}>{round.prompt}</p>
                 {round.kind === 'visual' && <div className="flex flex-wrap gap-2 mb-4">{round.visual.map((symbol, i) => <span key={symbol + i} className="w-11 h-11 rounded-xl flex items-center justify-center text-xl" style={{ color: C.cover, background: C.paper, border: '1px solid ' + C.rule }}>{symbol}</span>)}<span className="w-11 h-11 rounded-xl flex items-center justify-center text-lg" style={{ ...fontMono, color: C.gold, background: C.paper, border: '1px dashed ' + C.gold }}>?</span></div>}
-                {round.kind === 'match' && <div className="space-y-2 mb-4">{round.left.map((left, i) => <label key={left} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 items-center"><span className="min-w-0 rounded-lg p-2.5 text-xs sm:text-sm" style={{ ...fontBody, background: C.paper }}>{left}</span><select aria-label={left + ' uchun mos javob'} value={pairs[i] || ''} disabled={resolved || !session?.user?.id} onChange={(event) => { setFeedback(null); setPairs((old) => round.left.map((_, n) => n === i ? event.target.value : (old[n] || ''))); }} className="min-w-0 p-2.5 rounded-lg text-xs sm:text-sm" style={{ ...fontBody, background: C.paper, border: '1px solid ' + C.rule }}><option value="">Mosini tanlang</option>{round.right.map((right, j) => <option key={right} value={j + 1} disabled={pairs.some((value, n) => n !== i && value === String(j + 1))}>{right}</option>)}</select></label>)}</div>}
-                {round.kind === 'text' ? <input aria-label="Javobingiz" autoComplete="off" value={textAnswer} onChange={(event) => { setFeedback(null); setTextAnswer(event.target.value); }} disabled={resolved || !session?.user?.id} onKeyDown={(event) => { if (event.key === 'Enter') submit(); }} placeholder="Javobni yozing..." className="w-full p-3 rounded-xl text-base mb-3" style={{ ...fontBody, background: C.paper, border: '1px solid ' + C.rule }} /> : round.kind !== 'match' && <div className={round.kind === 'visual' ? 'grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3' : 'grid sm:grid-cols-2 gap-2 mb-3'}>{(round.options || []).map((label, i) => { const key = String.fromCharCode(65 + i); return <Choice key={key} value={{ key, label }} visual={round.kind === 'visual'} selected={choice === key} onClick={() => { setFeedback(null); setChoice(key); }} />; })}</div>}
+                {round.kind === 'match' && <div className="space-y-2 mb-4">{round.left.map((left, i) => <label key={left} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 items-center"><span className="min-w-0 rounded-lg p-2.5 text-xs sm:text-sm" style={{ ...fontBody, background: C.paper }}>{left}</span><select aria-label={left + ' uchun mos javob'} value={pairs[i] || ''} disabled={resolved || !session?.user?.id} onChange={(event) => setPairs((old) => old.map((value, n) => n === i ? event.target.value : value))} className="min-w-0 p-2.5 rounded-lg text-xs sm:text-sm" style={{ ...fontBody, background: C.paper, border: '1px solid ' + C.rule }}><option value="">Mosini tanlang</option>{round.right.map((right, j) => <option key={right} value={j + 1} disabled={pairs.some((value, n) => n !== i && value === String(j + 1))}>{right}</option>)}</select></label>)}</div>}
+                {round.kind === 'text' ? <input aria-label="Javobingiz" autoComplete="off" value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={resolved || !session?.user?.id} onKeyDown={(event) => { if (event.key === 'Enter') submit(); }} placeholder="Javobni yozing..." className="w-full p-3 rounded-xl text-base mb-3" style={{ ...fontBody, background: C.paper, border: '1px solid ' + C.rule }} /> : round.kind !== 'match' && <div className={round.kind === 'visual' ? 'grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3' : 'grid sm:grid-cols-2 gap-2 mb-3'}>{(round.options || []).map((label, i) => { const key = String.fromCharCode(65 + i); return <Choice key={key} value={{ key, label }} visual={round.kind === 'visual'} selected={choice === key} onClick={() => setChoice(key)} />; })}</div>}
                 {!session?.user?.id && <Notice>Mashqni koʻring, natijangiz saqlanishi uchun Google hisobingiz bilan kiring. <button type="button" onClick={signIn} className="underline ml-1">Kirish</button></Notice>}
                 {error && challenge && <p role="alert" className="text-sm my-2" style={{ ...fontBody, color: C.red }}>{error}</p>}
-                {feedback && feedback.correct === false && !resolved && <div role="alert" className="p-3 rounded-xl mb-3" style={{ background: C.dangerTint, border: '1px solid ' + C.red }}>
-                  <div className="flex items-start gap-2"><XCircle size={18} style={{ color: C.red }} /><div className="text-sm" style={{ ...fontBody }}><b>Xato. Qayta urinib ko‘ring.</b><div className="mt-1 text-xs" style={{ color: C.inkSoft }}>{feedback.attempts_left > 0 ? feedback.attempts_left + ' ta urinish qoldi.' : 'Urinishlar tugadi.'}</div></div></div>
-                </div>}
                 {resolved && <div role="status" className="p-3 rounded-xl mb-3" style={{ background: feedback.correct ? C.successTint : C.dangerTint, border: '1px solid ' + (feedback.correct ? C.accent : C.red) }}>
                   <div className="flex items-start gap-2">{feedback.correct ? <CheckCircle2 size={18} style={{ color: C.accent }} /> : <XCircle size={18} style={{ color: C.red }} />}<div className="text-sm" style={{ ...fontBody }}>
                     <b>{feedback.correct ? 'Toʻgʻri! +' + (feedback.points_awarded || 0) + ' ball.' : feedback.attempts_left ? 'Yana ' + feedback.attempts_left + ' urinish bor.' : 'Urinishlar tugadi.'}</b>
@@ -244,11 +241,16 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
       </section>
 
       <aside className="rounded-2xl p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div>
-            <div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Siz va boshqalar</div>
-            <h2 className="text-lg font-semibold" style={{ ...fontDisplay }}>Reyting</h2>
-          </div>
+        <button type="button" onClick={() => setBoardOpen((open) => !open)} aria-expanded={boardOpen} aria-controls="arena-leaderboard-content" className="w-full flex items-center justify-between gap-3 text-left">
+          <span>
+            <span className="block text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Siz va boshqalar</span>
+            <span className="block text-lg font-semibold" style={{ ...fontDisplay }}>Reyting</span>
+            <span className="block text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>{boardOpen ? 'Natijalar va ligalar' : 'Top natijalar va ligalarni koʻrish'}</span>
+          </span>
+          <ChevronRight size={18} aria-hidden="true" style={{ color: C.gold, transform: boardOpen ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }} />
+        </button>
+        {boardOpen && <div id="arena-leaderboard-content" className="mt-3">
+        <div className="flex justify-end mb-2">
           <button type="button" onClick={loadBoard} aria-label="Reytingni yangilash" title="Yangilash" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: C.cover, background: C.goldSoft }}><RefreshCw size={15} /></button>
         </div>
         <div className="flex gap-1.5 mb-2" aria-label="Reyting davri">
@@ -297,7 +299,9 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
           <div className="grid grid-cols-2 gap-1.5">{DIVISIONS.map((item) => <span key={item.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg" style={{ color: item.color, background: item.color + '12' }}><Medal size={12} />{item.name}<span className="ml-auto text-[9px]" style={{ ...fontMono }}>{item.range}</span></span>)}</div>
           <p className="mt-2 leading-relaxed">Koʻproq qatnashib ball toʻplang va ligalarda yuqorilang. Oylik reyting har yangi oyda yangilanadi, olgan nishonlaringiz profilingizda qoladi.</p>
         </div>}
+        </div>}
       </aside>
     </div>
   </div>;
 }
+
