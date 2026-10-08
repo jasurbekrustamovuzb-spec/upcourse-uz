@@ -75,7 +75,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
   const [period, setPeriod] = useState('day');
   const [division, setDivision] = useState('');
   const [boardMode, setBoardMode] = useState('all');
-  const [boardOpen, setBoardOpen] = useState(true);
+  const [boardOpen, setBoardOpen] = useState(false);
   const [board, setBoard] = useState(null);
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardError, setBoardError] = useState('');
@@ -244,13 +244,18 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
       </section>
 
       <aside className="rounded-2xl p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <div>
-            <div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Siz va boshqalar</div>
-            <h2 className="text-lg font-semibold" style={{ ...fontDisplay }}>Reyting</h2>
+        <button type="button" onClick={() => setBoardOpen((open) => !open)} aria-expanded={boardOpen} className="w-full flex items-center justify-between gap-3 text-left">
+          <span>
+            <span className="block text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Siz va boshqalar</span>
+            <span className="block text-lg font-semibold" style={{ ...fontDisplay }}>Reyting</span>
+            <span className="block text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>{boardOpen ? "Natijalar va ligalar" : "Top natijalar va ligalarni koʻrish"}</span>
+          </span>
+          <ChevronRight size={18} aria-hidden="true" style={{ color: C.gold, transform: boardOpen ? "rotate(90deg)" : "none", transition: "transform 120ms ease" }} />
+        </button>
+        {boardOpen && <div className="mt-3">
+          <div className="flex justify-end mb-2">
+            <button type="button" onClick={loadBoard} aria-label="Reytingni yangilash" title="Yangilash" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: C.cover, background: C.goldSoft }}><RefreshCw size={15} /></button>
           </div>
-          <button type="button" onClick={loadBoard} aria-label="Reytingni yangilash" title="Yangilash" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: C.cover, background: C.goldSoft }}><RefreshCw size={15} /></button>
-        </div>
         <div className="flex gap-1.5 mb-2" aria-label="Reyting davri">
           {[['day','Kunlik'],['month','Oylik']].map(([item,label]) => <button type="button" key={item} onClick={() => { setPeriod(item); setBoardOpen(true); setShowTopTen(false); }} aria-pressed={period === item} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium" style={{ ...fontBody, color: period === item ? C.white : C.inkSoft, background: period === item ? C.cover : C.paper, border: '1px solid ' + (period === item ? C.cover : C.rule) }}>{label}</button>)}
         </div>
@@ -296,6 +301,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
         {showDivisionInfo && <div className="p-3 rounded-xl text-xs" style={{ ...fontBody, color: C.inkSoft, background: C.paper }}>
           <div className="grid grid-cols-2 gap-1.5">{DIVISIONS.map((item) => <span key={item.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg" style={{ color: item.color, background: item.color + '12' }}><Medal size={12} />{item.name}<span className="ml-auto text-[9px]" style={{ ...fontMono }}>{item.range}</span></span>)}</div>
           <p className="mt-2 leading-relaxed">Koʻproq qatnashib ball toʻplang va ligalarda yuqorilang. Oylik reyting har yangi oyda yangilanadi, olgan nishonlaringiz profilingizda qoladi.</p>
+        </div>}
         </div>}
       </aside>
     </div>
