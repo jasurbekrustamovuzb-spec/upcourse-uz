@@ -191,7 +191,7 @@ Izoh: Har bir qatorda bir xil belgi bittadan qo‘shiladi. Oxirgi katakda uchta 
 const ARENA_MODE_IDS = ['pattern', 'logic', 'word', 'visual', 'matching', 'calculation', 'fact', 'cipher', 'attention'];
 
 function normalizeArenaImportKey(value) {
-  return value.toLocaleLowerCase().replace(/[ʻʼ’'"`]/g, '').replace(/[\s_-]+/g, '');
+  return value.toLocaleLowerCase().replace(/[ʻʼ‘’'"\`]/g, '').replace(/[\s_-]+/g, '');
 }
 
 function parseArenaImport(text, fallbackMode) {
