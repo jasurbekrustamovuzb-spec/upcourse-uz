@@ -117,9 +117,32 @@ function AdminNewsView({ news, addNews, deleteNews, onBack }) {
 }
 
 
+const arenaRoundTemplates = {
+  visual: [
+    {
+      id: 'rotation', label: 'Belgi aylanishi (3×3)',
+      round: { kind: 'visual', prompt: 'Jadvaldagi qonuniyatni toping. ? o‘rniga qaysi belgi keladi?', visualLayoutType: 'grid', visualGridText: '● | ▲ | ■\n▲ | ■ | ●\n■ | ● | ?', options: ['▲', '●', '■', '◆'], answer: 'A', explanation: 'Har qatorda belgilar bir o‘rin chapga siljiydi. Uchinchi qatorda davom ettirsak, ? o‘rniga ▲ keladi.' },
+    },
+    {
+      id: 'count', label: 'Har qatorda belgilar soni ortadi (3×3)',
+      round: { kind: 'visual', prompt: 'Har qatorda belgilar soni qanday o‘zgarayotganini toping. ? o‘rniga qaysi katak keladi?', visualLayoutType: 'grid', visualGridText: '● | ●● | ●●●\n▲ | ▲▲ | ▲▲▲\n■ | ■■ | ?', options: ['■■■', '■■', '■', '■■■■'], answer: 'A', explanation: 'Har bir qatorda bir xil belgi bittadan qo‘shilib boradi. Uchinchi qatorning oxirida uchta ■ bo‘lishi kerak.' },
+    },
+  ],
+  match: [
+    {
+      id: 'definition', label: 'Tushuncha–ta’rif',
+      round: { kind: 'match', prompt: 'Iqtisodiy tushunchalarni ularning ta’riflari bilan moslang.', left: ['Talab', 'Taklif', 'Narx'], right: ['Sotuvchilar sotishga tayyor bo‘lgan miqdor', 'Tovar qiymatining puldagi ifodasi', 'Xaridorlar sotib olishga tayyor bo‘lgan miqdor'], answer: '312', explanation: 'Talab xaridorlar istagan miqdor; taklif sotuvchilar taklif qiladigan miqdor; narx esa qiymatning puldagi ifodasidir.' },
+    },
+    {
+      id: 'cause-effect', label: 'Sabab–natija',
+      round: { kind: 'match', prompt: 'Har bir sababni unga mos natija bilan bog‘lang.', left: ['Suv 0°C dan past haroratgacha soviydi', 'O‘simlikka yorug‘lik yetishmaydi', 'Muntazam mashq qilinadi'], right: ['Ko‘nikma mustahkamlanadi', 'Suv muzlaydi', 'Fotosintez susayadi'], answer: '231', explanation: 'Sovigan suv muzlaydi; yorug‘lik yetishmasa fotosintez susayadi; muntazam mashq ko‘nikmani mustahkamlaydi.' },
+    },
+  ],
+};
+
 function AdminArenaContentView({ onBack }) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
-  const blankRound = () => ({ prompt: '', kind: 'choice', options: ['', '', '', ''], visual: ['', '', ''], left: ['', ''], right: ['', ''], answer: '', explanation: '' });
+  const blankRound = () => ({ prompt: '', kind: 'choice', options: ['', '', '', ''], visualLayoutType: 'grid', visualGridText: '', visual: ['', '', ''], left: ['', ''], right: ['', ''], answer: '', explanation: '' });
   const [items, setItems] = useState([]);
   const [date, setDate] = useState(today);
   const [title, setTitle] = useState('Bugungi aqliy chaqiriq');
@@ -130,7 +153,21 @@ function AdminArenaContentView({ onBack }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const modes = [['pattern','Naqsh laboratoriyasi'],['logic','Deduksiya xonasi'],['word','Harflar aralashmasi'],['visual','Vizual signal'],['matching','Moslik sinovi'],['calculation','Tez hisob'],['fact','Faktlar maydoni'],['cipher','Raqamli shifr'],['attention','Diqqat sinovi']];
+  const stageLabels = ['Isinish', 'Diqqat', 'Tafakkur', 'Murakkab', 'Usta'];
+  const stagePoints = [30, 60, 110, 200, 360];
+  const modeDescriptions = {
+    pattern: 'Ketma-ketlikdagi qonuniyatni aniqlash.',
+    logic: 'Mantiqiy xulosa yoki qoidani topish.',
+    word: 'Soʻzlar va harflar bilan ishlash.',
+    visual: 'Katakli naqshdagi takrorlanish qoidasini topish.',
+    matching: 'Ikki roʻyxatdagi aniq mantiqiy aloqaga ega juftlarni aniqlash.',
+    calculation: 'Hisoblash va sonli javoblar.',
+    fact: 'Aniq bilim yoki faktga oid savollar.',
+    cipher: 'Shifrni yechish yoki kodni topish.',
+    attention: 'Diqqat bilan kuzatib, farqlarni sezish.',
+  };
   async function loadItems() {
     setLoading(true);
     const result = await supabase.rpc('daily_arena_admin_list_content');
@@ -139,12 +176,22 @@ function AdminArenaContentView({ onBack }) {
     setLoading(false);
   }
   useEffect(() => { loadItems(); }, []);
+  function applyRoundTemplate(index, template) {
+    const current = rounds[index];
+    const hasContent = current.prompt.trim() || current.answer.trim() || current.explanation.trim()
+      || current.options.some(Boolean) || current.visualGridText.trim() || current.visual.some(Boolean)
+      || current.left.some(Boolean) || current.right.some(Boolean);
+    if (hasContent && !window.confirm('Bu namuna bosqichdagi mavjud maydonlarni almashtiradi. Davom etasizmi?')) return;
+    setRounds((old) => old.map((round, i) => i === index ? { ...round, ...template.round } : round));
+    setError(false);
+    setNotice('Namuna yuklandi. Savol, javob va izohni ehtiyojingizga moslab tahrirlang.');
+  }
   function updateRound(index, key, value) {
     setRounds((old) => old.map((round, i) => i === index ? { ...round, [key]: value } : round));
   }
   function editItem(item) {
     setDate(item.challenge_date); setTitle(item.title); setSubtitle(item.subtitle || ''); setMode(item.mode);
-    setRounds((item.rounds || []).map((round, index) => ({ ...blankRound(), ...round, options: round.options || ['', '', '', ''], visual: round.visual || ['', '', ''], left: round.left || ['', ''], right: round.right || ['', ''], answer: (item.answer_key || [])[index] || '' })));
+    setRounds((item.rounds || []).map((round, index) => ({ ...blankRound(), ...round, visualLayoutType: round.visual_grid ? 'grid' : 'sequence', visualGridText: (round.visual_grid || []).map((row) => row.join(' | ')).join('\n'), options: round.options || ['', '', '', ''], visual: round.visual || ['', '', ''], left: round.left || ['', ''], right: round.right || ['', ''], answer: (item.answer_key || [])[index] || '' })));
     setError(false); setNotice('Material tahrirlash uchun ochildi.');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -157,19 +204,34 @@ function AdminArenaContentView({ onBack }) {
       if (!round.prompt.trim() || !round.answer.trim()) { setError(true); setNotice((i + 1) + '-bosqichda savol va to‘g‘ri javobni kiriting.'); return; }
       const value = { kind: round.kind, prompt: round.prompt.trim(), explanation: round.explanation.trim() };
       if (round.kind === 'choice' || round.kind === 'visual') {
-        value.options = round.options.map((item) => item.trim()).filter(Boolean);
-        const answerIndex = round.answer.trim().toUpperCase().charCodeAt(0) - 65;
-        if (value.options.length < 2 || answerIndex < 0 || answerIndex >= value.options.length) { setError(true); setNotice((i + 1) + '-bosqichda variantlarni va to‘g‘ri javob harfini (A–F) tekshiring.'); return; }
+        value.options = round.options.map((item) => item.trim());
+        while (value.options.length && !value.options[value.options.length - 1]) value.options.pop();
+        const answerLetter = round.answer.trim().toUpperCase();
+        const answerIndex = answerLetter.charCodeAt(0) - 65;
+        if (value.options.length < 2 || value.options.some((item) => !item) || !/^[A-D]$/.test(answerLetter) || answerIndex < 0 || answerIndex >= value.options.length) { setError(true); setNotice((i + 1) + '-bosqichda variantlarni va to‘g‘ri javob harfini (A–D) tekshiring.'); return; }
         if (round.kind === 'visual') {
-          value.visual = round.visual.map((item) => item.trim()).filter(Boolean);
-          if (value.visual.length < 2) { setError(true); setNotice((i + 1) + '-bosqich uchun kamida 2 ta belgi kiriting.'); return; }
+          if (!round.explanation.trim()) { setError(true); setNotice((i + 1) + '-bosqichda naqsh qoidasini izohlang.'); return; }
+          if (round.visualLayoutType === 'grid') {
+            const rows = round.visualGridText.split(/\r?\n/).map((row) => row.split('|').map((cell) => cell.trim())).filter((row) => row.some(Boolean));
+            const width = rows[0]?.length || 0;
+            const missingCells = rows.flat().filter((cell) => cell === '?').length;
+            if (rows.length < 2 || rows.length > 3 || width < 2 || width > 3 || rows.some((row) => row.length !== width || row.some((cell) => !cell)) || missingCells !== 1) { setError(true); setNotice((i + 1) + '-bosqich uchun 2×2 yoki 3×3 katakli, bitta ? joyi bor to‘liq naqsh kiriting.'); return; }
+            value.visual_grid = rows;
+          } else {
+            value.visual = round.visual.map((item) => item.trim());
+            while (value.visual.length && !value.visual[value.visual.length - 1]) value.visual.pop();
+            if (value.visual.length < 2 || value.visual.some((item) => !item)) { setError(true); setNotice((i + 1) + '-bosqich uchun kamida 2 ta belgi kiriting.'); return; }
+          }
         }
       }
       if (round.kind === 'match') {
-        value.left = round.left.map((item) => item.trim()).filter(Boolean); value.right = round.right.map((item) => item.trim()).filter(Boolean);
+        if (!round.explanation.trim()) { setError(true); setNotice((i + 1) + '-bosqichda juftliklar orasidagi mantiqiy aloqani izohlang.'); return; }
+        value.left = round.left.map((item) => item.trim()); value.right = round.right.map((item) => item.trim());
+        while (value.left.length && !value.left[value.left.length - 1]) value.left.pop();
+        while (value.right.length && !value.right[value.right.length - 1]) value.right.pop();
         const chars = round.answer.trim().split('');
-        const validDigits = chars.length === value.left.length && chars.every((digit) => Number(digit) >= 1 && Number(digit) <= value.left.length);
-        if (value.left.length < 2 || value.left.length !== value.right.length || !validDigits) { setError(true); setNotice((i + 1) + '-bosqichda juftlarni va moslik raqamlarini tekshiring.'); return; }
+        const validDigits = chars.length === value.left.length && new Set(chars).size === value.left.length && chars.every((digit) => Number(digit) >= 1 && Number(digit) <= value.left.length);
+        if (value.left.length < 2 || value.left.length !== value.right.length || value.left.some((item) => !item) || value.right.some((item) => !item) || !validDigits) { setError(true); setNotice((i + 1) + '-bosqichda juftlarni va takrorlanmaydigan moslik raqamlarini tekshiring.'); return; }
       }
       builtRounds.push(value);
       answers.push(round.kind === 'choice' || round.kind === 'visual' ? round.answer.trim().toUpperCase() : round.answer.trim());
@@ -189,20 +251,38 @@ function AdminArenaContentView({ onBack }) {
     <form onSubmit={(event) => save(event, false)} className="max-w-4xl space-y-4">
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Sana<input type="date" value={date} onChange={(event) => setDate(event.target.value)} required className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
-        <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mashq turi<select value={mode} onChange={(event) => setMode(event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}>{modes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+        <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Reyting kategoriyasi<select value={mode} onChange={(event) => setMode(event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}>{modes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Sarlavha<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} required className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Izoh<input value={subtitle} onChange={(event) => setSubtitle(event.target.value)} maxLength={240} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
       </div>
+      <p className="text-xs -mt-2" style={{ ...fontBody, color: C.inkSoft }}>{modeDescriptions[mode]} Bu kategoriya reytingni belgilaydi; o‘yinchiga ko‘rinadigan mashq turini har bosqichda alohida tanlang.</p>
       {rounds.map((round, index) => <section key={index} className="rounded-sm p-4 space-y-3" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
-        <h3 className="font-medium" style={{ ...fontBody, color: C.ink }}>Bosqich {index + 1}</h3>
+        <div><h3 className="font-medium" style={{ ...fontBody, color: C.ink }}>Bosqich {index + 1} · {stageLabels[index]}</h3><p className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>Toʻgʻri javob uchun +{stagePoints[index]} ball</p></div>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Savol<input value={round.prompt} onChange={(event) => updateRound(index, 'prompt', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder="Topshiriq matni" /></label>
-        <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>Javob shakli<select value={round.kind} onChange={(event) => updateRound(index, 'kind', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}><option value="choice">Variantli savol</option><option value="visual">Vizual belgilar + variantlar</option><option value="text">Yozma javob</option><option value="match">Juftliklarni moslash</option></select></label>
-        {round.kind === 'visual' && <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Ketma-ketlik belgilari (vergul bilan)<input value={round.visual.join(', ')} onChange={(event) => updateRound(index, 'visual', event.target.value.split(','))} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder="●, ▲, ●, ?" /></label>}
+        <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>Javob shakli<select value={round.kind} onChange={(event) => updateRound(index, 'kind', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}><option value="choice">Variantli savol</option><option value="visual">Katakli naqsh + variantlar</option><option value="text">Yozma javob</option><option value="match">Juftliklarni moslash</option></select></label><p className="text-xs -mt-2" style={{ ...fontBody, color: C.inkSoft }}>{round.kind === 'visual' ? 'O‘yinchi katakli naqshni ko‘radi, qoida asosida yetishmayotgan belgini topadi va variantlardan javob tanlaydi.' : round.kind === 'match' ? 'O‘yinchi chapdagi har bir bandga o‘ng ro‘yxatdan mos javobni tanlaydi.' : round.kind === 'text' ? 'O‘yinchi javobni o‘zi yozadi.' : 'O‘yinchi javob variantlaridan birini tanlaydi.'}</p>
+        {round.kind === 'visual' && <div className="space-y-2"><label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>Tayyor vizual namuna<select value="" onChange={(event) => { const template = arenaRoundTemplates.visual.find((item) => item.id === event.target.value); if (template) applyRoundTemplate(index, template); }} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle}><option value="">Namuna tanlang…</option>{arenaRoundTemplates.visual.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><span className="block mt-1">Namuna barcha shu bosqich maydonlarini to‘ldiradi; keyin uni tahrirlashingiz mumkin.</span></label><label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>Naqsh ko‘rinishi<select value={round.visualLayoutType || 'grid'} onChange={(event) => updateRound(index, 'visualLayoutType', event.target.value)} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle}><option value="grid">Katakli mantiqiy naqsh</option><option value="sequence">Eski ketma-ketlik</option></select></label>{round.visualLayoutType === 'sequence' ? <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Ketma-ketlik belgilari (vergul bilan)<input value={round.visual.join(', ')} onChange={(event) => updateRound(index, 'visual', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} placeholder="●, ▲, ●" /></label> : <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Kataklar (har qatorni yangi satrda, kataklarni | bilan ajrating)<textarea value={round.visualGridText} onChange={(event) => updateRound(index, 'visualGridText', event.target.value)} rows={3} className="mt-1 w-full rounded-sm px-3 py-2 text-sm font-mono" style={inputStyle} placeholder={'● | ▲ | ■\n▲ | ■ | ●\n■ | ● | ?'} /><span className="block mt-1">2×2 yoki 3×3 naqsh tuzing, bitta katakka ? qo‘ying va izohda qoidani tushuntiring. Har qator bir xil sondagi kataklardan iborat bo‘lsin.</span><details className="mt-2 rounded-sm p-3 text-xs" style={{ background: C.paper, border: '1px solid ' + C.rule }}><summary className="cursor-pointer font-medium" style={{ ...fontBody, color: C.ink }}>Namuna: qoida va javobni qanday tuzaman?</summary><pre className="mt-2 font-mono whitespace-pre-wrap" style={{ color: C.ink }}>● | ▲ | ■{'\n'}▲ | ■ | ●{'\n'}■ | ● | ?</pre><p className="mt-2" style={{ ...fontBody, color: C.inkSoft }}>Qoida: har qatorda belgilar bir o‘rin chapga siljiydi. Demak, ? o‘rniga ▲ keladi. Variantlardan biriga ▲ yozib, to‘g‘ri variantni pastdagi ro‘yxatdan tanlang.</p></details></label>}</div>}
         {(round.kind === 'choice' || round.kind === 'visual') && <div className="grid sm:grid-cols-2 gap-2">{round.options.map((option, optionIndex) => <label key={optionIndex} className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Variant {String.fromCharCode(65 + optionIndex)}<input value={option} onChange={(event) => updateRound(index, 'options', round.options.map((old, i) => i === optionIndex ? event.target.value : old))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label>)}</div>}
-        {round.kind === 'match' && <div className="grid sm:grid-cols-2 gap-2"><label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Chap juftlar (vergul bilan)<input value={round.left.join(', ')} onChange={(event) => updateRound(index, 'left', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label><label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘ng javoblar (vergul bilan)<input value={round.right.join(', ')} onChange={(event) => updateRound(index, 'right', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label><p className="sm:col-span-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Chap juftliklar tartibida mos javob raqamlarini yozing, masalan 21.</p></div>}
-        <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>{round.kind === 'choice' || round.kind === 'visual' ? 'To‘g‘ri variant harfi (A–F)' : round.kind === 'match' ? 'Moslik raqamlari' : 'To‘g‘ri javob'}<input value={round.answer} onChange={(event) => updateRound(index, 'answer', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
-        <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Izoh<input value={round.explanation} onChange={(event) => updateRound(index, 'explanation', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder="Javob nima uchun to‘g‘ri?" /></label>
+        {round.kind === 'match' && <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>Tayyor moslik namunasi<select value="" onChange={(event) => { const template = arenaRoundTemplates.match.find((item) => item.id === event.target.value); if (template) applyRoundTemplate(index, template); }} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle}><option value="">Namuna tanlang…</option>{arenaRoundTemplates.match.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select><span className="block mt-1">Namuna savol, juftlar, javob kaliti va izohni to‘ldiradi; barchasini o‘zgartirish mumkin.</span></label>}{round.kind === 'match' && <div className="grid sm:grid-cols-2 gap-2"><label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Chap juftlar (vergul bilan)<input value={round.left.join(', ')} onChange={(event) => updateRound(index, 'left', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label><label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘ng javoblar (vergul bilan)<input value={round.right.join(', ')} onChange={(event) => updateRound(index, 'right', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label><p className="sm:col-span-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Ro‘yxatlardagi juftlar aniq qoida yoki munosabat bilan bog‘lansin (masalan, tushuncha–ta’rif, so‘z–sinonim, sabab–natija). Chap juftliklar tartibida mos javob raqamlarini yozing, masalan 21; izohda nima uchun mosligini tushuntiring.</p></div>}
+{round.kind === 'choice' || round.kind === 'visual' ? <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>Qaysi variant to‘g‘ri?<select value={round.answer.toUpperCase()} onChange={(event) => updateRound(index, 'answer', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}><option value="">To‘g‘ri variantni tanlang</option>{round.options.map((option, optionIndex) => <option key={optionIndex} value={String.fromCharCode(65 + optionIndex)}>Variant {String.fromCharCode(65 + optionIndex)}{option.trim() ? ' — ' + option.trim() : ''}</option>)}</select><span className="block mt-1">Javob harfini qo‘lda yozmang; ro‘yxatdan to‘g‘ri variantni tanlang.</span></label> : round.kind === 'match' ? <div className="space-y-2"><p className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Har bir chapdagi element uchun mos o‘ng javobni tanlang. Tizim javob kalitini o‘zi tuzadi.</p>{round.left.map((left, leftIndex) => { const selected = round.answer[leftIndex] || ''; return <label key={leftIndex} className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 items-center text-xs" style={{ ...fontBody, color: C.inkSoft }}><span>{left.trim() || 'Chapdagi ' + (leftIndex + 1) + '-element'}</span><select value={selected} onChange={(event) => { const next = round.left.map((_, i) => (round.answer[i] || '')); next[leftIndex] = event.target.value; updateRound(index, 'answer', next.join('')); }} className="w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}><option value="">Mos javobni tanlang</option>{round.right.map((right, rightIndex) => <option key={rightIndex} value={String(rightIndex + 1)} disabled={round.answer.split('').some((value, i) => i !== leftIndex && value === String(rightIndex + 1))}>{right.trim() || 'O‘ngdagi ' + (rightIndex + 1) + '-javob'}</option>)}</select></label>})}</div> : <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>To‘g‘ri javob matni<input value={round.answer} onChange={(event) => updateRound(index, 'answer', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder="Masalan: 42" /></label>}
+        <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>{round.kind === 'visual' ? 'Naqsh qoidasi va yechim izohi' : round.kind === 'match' ? 'Juftliklar orasidagi mantiqiy aloqa' : 'Izoh'}<input value={round.explanation} onChange={(event) => updateRound(index, 'explanation', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder={round.kind === 'visual' ? 'Masalan: har qatorda belgilar bir katak chapga siljiydi.' : round.kind === 'match' ? 'Masalan: chapdagi so‘zlar o‘ngdagi sinonimlari bilan mos.' : 'Javob nima uchun to‘g‘ri?'} /></label>
       </section>)}
+      <button type="button" onClick={() => setShowPreview((old) => !old)} className="rounded-sm px-4 py-2.5 text-sm" style={{ ...fontBody, color: C.ink, border: '1px solid ' + C.rule }}>{showPreview ? 'Ko‘rinishni yopish' : 'Foydalanuvchi ko‘rinishini ko‘rish'}</button>
+      {showPreview && <section className="rounded-sm p-4 sm:p-5 space-y-3" style={{ background: C.paper, border: '1px solid ' + C.coverLine }}>
+        <div><p className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Oldindan ko‘rish</p><h3 className="text-lg font-semibold mt-1" style={{ ...fontDisplay, color: C.ink }}>{title || 'Bugungi aqliy chaqiriq'}</h3>{subtitle && <p className="text-sm mt-1" style={{ ...fontBody, color: C.inkSoft }}>{subtitle}</p>}</div>
+        {rounds.map((round, index) => {
+          const grid = (round.visualGridText || '').split(/\r?\n/).map((row) => row.split('|').map((cell) => cell.trim())).filter((row) => row.some(Boolean));
+          const columns = round.visualLayoutType === 'grid' ? (grid[0]?.length || 3) : 0;
+          return <article key={index} className="rounded-sm p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
+            <p className="text-[10px] uppercase tracking-widest mb-1" style={{ ...fontMono, color: C.gold }}>Bosqich {index + 1} · {stageLabels[index]} · {stagePoints[index]} ball</p>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap mb-3" style={{ ...fontBody, color: C.ink }}>{round.prompt || 'Savol matni shu yerda ko‘rinadi.'}</p>
+            {round.kind === 'visual' && (round.visualLayoutType === 'grid' ? <div className="grid gap-2 mb-3 max-w-md mx-auto" style={{ gridTemplateColumns: 'repeat(' + Math.min(Math.max(columns, 2), 3) + ', minmax(0, 1fr))' }}>{grid.flat().map((cell, i) => <div key={i} className="aspect-square rounded-lg flex items-center justify-center text-xl sm:text-2xl" style={{ ...fontBody, color: cell === '?' ? C.gold : C.cover, background: C.paper, border: cell === '?' ? '1px dashed ' + C.gold : '1px solid ' + C.rule }}>{cell || '·'}</div>)}</div> : <div className="flex flex-wrap gap-2 mb-3">{round.visual.filter(Boolean).map((symbol, i) => <span key={i} className="w-11 h-11 rounded-xl flex items-center justify-center text-xl" style={{ color: C.cover, background: C.paper, border: '1px solid ' + C.rule }}>{symbol}</span>)}<span className="w-11 h-11 rounded-xl flex items-center justify-center text-lg" style={{ ...fontMono, color: C.gold, background: C.paper, border: '1px dashed ' + C.gold }}>?</span></div>)}
+            {round.kind === 'match' ? <div className="space-y-2 mb-3">{round.left.filter(Boolean).map((left, i) => <div key={i} className="grid grid-cols-2 gap-2 items-center"><span className="rounded-lg p-2.5 text-xs sm:text-sm" style={{ ...fontBody, color: C.ink, background: C.paper }}>{left}</span><select disabled className="min-w-0 p-2.5 rounded-lg text-xs sm:text-sm" style={{ ...fontBody, color: C.inkSoft, background: C.paper, border: '1px solid ' + C.rule }}><option>Mosini tanlang</option>{round.right.filter(Boolean).map((right, j) => <option key={j}>{right}</option>)}</select></div>)}</div>
+              : round.kind === 'text' ? <div className="rounded-lg p-3 mb-3 text-sm" style={{ ...fontBody, color: C.inkSoft, background: C.paper, border: '1px solid ' + C.rule }}>Javob yozish maydoni</div>
+                : <div className={round.kind === 'visual' ? 'grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3' : 'grid sm:grid-cols-2 gap-2 mb-3'}>{round.options.filter(Boolean).map((option, i) => <div key={i} className="rounded-lg p-3 text-sm" style={{ ...fontBody, color: C.ink, background: C.paper, border: '1px solid ' + C.rule }}><span className="mr-2" style={{ ...fontMono, color: C.gold }}>{String.fromCharCode(65 + i)}.</span>{option || 'Variant'}</div>)}</div>}
+            <p className="text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>Javob tekshirilgach, yechim izohi ko‘rsatiladi.</p>
+          </article>;
+        })}
+      </section>}
       <div className="flex flex-wrap gap-2"><button type="submit" disabled={busy} className="rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.ink, background: C.goldSoft, border: '1px solid ' + C.coverLine }}>{busy ? 'Saqlanmoqda…' : 'Qoralama saqlash'}</button><button type="button" disabled={busy} onClick={(event) => save(event, true)} className="rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>{busy ? 'Saqlanmoqda…' : 'Saqlash va nashr qilish'}</button><button type="button" onClick={() => { setDate(today); setTitle('Bugungi aqliy chaqiriq'); setSubtitle(''); setMode('visual'); setRounds(Array.from({ length: 5 }, blankRound)); setNotice(''); }} className="rounded-sm px-4 py-2.5 text-sm" style={{ ...fontBody, color: C.inkSoft, border: '1px solid ' + C.rule }}>Yangi material</button></div>
     </form>
     {notice && <p role={error ? 'alert' : 'status'} className="mt-3 text-sm" style={{ ...fontBody, color: error ? C.red : C.accent }}>{notice}</p>}
