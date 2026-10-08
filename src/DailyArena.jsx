@@ -75,7 +75,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
   const [period, setPeriod] = useState('day');
   const [division, setDivision] = useState('');
   const [boardMode, setBoardMode] = useState('all');
-  const [boardOpen, setBoardOpen] = useState(true);
+  const [boardOpen, setBoardOpen] = useState(false);
   const [board, setBoard] = useState(null);
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardError, setBoardError] = useState('');
@@ -160,10 +160,15 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
       <button type="button" onClick={onExit} className="inline-flex items-center gap-1.5 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
         <ArrowLeft size={16} /> Orqaga
       </button>
-      <span className="text-[10px] uppercase tracking-[.14em]" style={{ ...fontMono, color: C.gold }}>Kunlik arena</span>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-[.14em]" style={{ ...fontMono, color: C.gold }}>Kunlik arena</span>
+        <button type="button" onClick={() => setBoardOpen((open) => !open)} aria-label={boardOpen ? 'Reytingni yopish' : 'Reytingni ochish'} aria-expanded={boardOpen} title={boardOpen ? 'Reytingni yopish' : 'Reytingni ochish'} className="w-9 h-9 inline-flex items-center justify-center rounded-xl" style={{ color: boardOpen ? C.white : C.cover, background: boardOpen ? C.cover : C.goldSoft, border: '1px solid ' + (boardOpen ? C.cover : C.coverLine) }}>
+          <Trophy size={16} />
+        </button>
+      </div>
     </div>
 
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-3 lg:gap-4 items-start">
+    <div className="space-y-3">
       <section className="min-w-0">
         <div className="rounded-2xl p-4 sm:p-5 mb-3" style={{ color: C.white, background: 'linear-gradient(135deg, ' + C.coverDeep + ', ' + C.cover + ')', border: '1px solid ' + C.coverLine }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -243,7 +248,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
         {error && challenge && !resolved && <p role="alert" className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{error}</p>}
       </section>
 
-      <aside className="rounded-2xl p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
+      {boardOpen && <aside className="rounded-2xl p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div>
             <div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Siz va boshqalar</div>
@@ -297,7 +302,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
           <div className="grid grid-cols-2 gap-1.5">{DIVISIONS.map((item) => <span key={item.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg" style={{ color: item.color, background: item.color + '12' }}><Medal size={12} />{item.name}<span className="ml-auto text-[9px]" style={{ ...fontMono }}>{item.range}</span></span>)}</div>
           <p className="mt-2 leading-relaxed">Koʻproq qatnashib ball toʻplang va ligalarda yuqorilang. Oylik reyting har yangi oyda yangilanadi, olgan nishonlaringiz profilingizda qoladi.</p>
         </div>}
-      </aside>
+      </aside>}
     </div>
   </div>;
 }
