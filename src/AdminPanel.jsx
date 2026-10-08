@@ -172,8 +172,9 @@ function AdminArenaContentView({ onBack }) {
       if (round.kind === 'choice' || round.kind === 'visual') {
         value.options = round.options.map((item) => item.trim());
         while (value.options.length && !value.options[value.options.length - 1]) value.options.pop();
-        const answerIndex = round.answer.trim().toUpperCase().charCodeAt(0) - 65;
-        if (value.options.length < 2 || value.options.some((item) => !item) || answerIndex < 0 || answerIndex >= value.options.length) { setError(true); setNotice((i + 1) + '-bosqichda variantlarni va to‘g‘ri javob harfini (A–D) tekshiring.'); return; }
+        const answerLetter = round.answer.trim().toUpperCase();
+        const answerIndex = answerLetter.charCodeAt(0) - 65;
+        if (value.options.length < 2 || value.options.some((item) => !item) || !/^[A-D]$/.test(answerLetter) || answerIndex < 0 || answerIndex >= value.options.length) { setError(true); setNotice((i + 1) + '-bosqichda variantlarni va to‘g‘ri javob harfini (A–D) tekshiring.'); return; }
         if (round.kind === 'visual') {
           value.visual = round.visual.map((item) => item.trim());
           while (value.visual.length && !value.visual[value.visual.length - 1]) value.visual.pop();
