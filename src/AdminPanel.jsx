@@ -131,6 +131,19 @@ function AdminArenaContentView({ onBack }) {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState(false);
   const modes = [['pattern','Naqsh laboratoriyasi'],['logic','Deduksiya xonasi'],['word','Harflar aralashmasi'],['visual','Vizual signal'],['matching','Moslik sinovi'],['calculation','Tez hisob'],['fact','Faktlar maydoni'],['cipher','Raqamli shifr'],['attention','Diqqat sinovi']];
+  const stageLabels = ['Isinish', 'Diqqat', 'Tafakkur', 'Murakkab', 'Usta'];
+  const stagePoints = [30, 60, 110, 200, 360];
+  const modeDescriptions = {
+    pattern: 'Ketma-ketlikdagi qonuniyatni aniqlash.',
+    logic: 'Mantiqiy xulosa yoki qoidani topish.',
+    word: 'Soʻzlar va harflar bilan ishlash.',
+    visual: 'Belgilar ketma-ketligi yoki vizual farqni topish.',
+    matching: 'Ikki roʻyxatdagi mos juftlarni aniqlash.',
+    calculation: 'Hisoblash va sonli javoblar.',
+    fact: 'Aniq bilim yoki faktga oid savollar.',
+    cipher: 'Shifrni yechish yoki kodni topish.',
+    attention: 'Diqqat bilan kuzatib, farqlarni sezish.',
+  };
   async function loadItems() {
     setLoading(true);
     const result = await supabase.rpc('daily_arena_admin_list_content');
@@ -157,19 +170,23 @@ function AdminArenaContentView({ onBack }) {
       if (!round.prompt.trim() || !round.answer.trim()) { setError(true); setNotice((i + 1) + '-bosqichda savol va to‘g‘ri javobni kiriting.'); return; }
       const value = { kind: round.kind, prompt: round.prompt.trim(), explanation: round.explanation.trim() };
       if (round.kind === 'choice' || round.kind === 'visual') {
-        value.options = round.options.map((item) => item.trim()).filter(Boolean);
+        value.options = round.options.map((item) => item.trim());
+        while (value.options.length && !value.options[value.options.length - 1]) value.options.pop();
         const answerIndex = round.answer.trim().toUpperCase().charCodeAt(0) - 65;
-        if (value.options.length < 2 || answerIndex < 0 || answerIndex >= value.options.length) { setError(true); setNotice((i + 1) + '-bosqichda variantlarni va to‘g‘ri javob harfini (A–F) tekshiring.'); return; }
+        if (value.options.length < 2 || value.options.some((item) => !item) || answerIndex < 0 || answerIndex >= value.options.length) { setError(true); setNotice((i + 1) + '-bosqichda variantlarni va to‘g‘ri javob harfini (A–D) tekshiring.'); return; }
         if (round.kind === 'visual') {
-          value.visual = round.visual.map((item) => item.trim()).filter(Boolean);
-          if (value.visual.length < 2) { setError(true); setNotice((i + 1) + '-bosqich uchun kamida 2 ta belgi kiriting.'); return; }
+          value.visual = round.visual.map((item) => item.trim());
+          while (value.visual.length && !value.visual[value.visual.length - 1]) value.visual.pop();
+          if (value.visual.length < 2 || value.visual.some((item) => !item)) { setError(true); setNotice((i + 1) + '-bosqich uchun kamida 2 ta belgi kiriting.'); return; }
         }
       }
       if (round.kind === 'match') {
-        value.left = round.left.map((item) => item.trim()).filter(Boolean); value.right = round.right.map((item) => item.trim()).filter(Boolean);
+        value.left = round.left.map((item) => item.trim()); value.right = round.right.map((item) => item.trim());
+        while (value.left.length && !value.left[value.left.length - 1]) value.left.pop();
+        while (value.right.length && !value.right[value.right.length - 1]) value.right.pop();
         const chars = round.answer.trim().split('');
-        const validDigits = chars.length === value.left.length && chars.every((digit) => Number(digit) >= 1 && Number(digit) <= value.left.length);
-        if (value.left.length < 2 || value.left.length !== value.right.length || !validDigits) { setError(true); setNotice((i + 1) + '-bosqichda juftlarni va moslik raqamlarini tekshiring.'); return; }
+        const validDigits = chars.length === value.left.length && new Set(chars).size === value.left.length && chars.every((digit) => Number(digit) >= 1 && Number(digit) <= value.left.length);
+        if (value.left.length < 2 || value.left.length !== value.right.length || value.left.some((item) => !item) || value.right.some((item) => !item) || !validDigits) { setError(true); setNotice((i + 1) + '-bosqichda juftlarni va takrorlanmaydigan moslik raqamlarini tekshiring.'); return; }
       }
       builtRounds.push(value);
       answers.push(round.kind === 'choice' || round.kind === 'visual' ? round.answer.trim().toUpperCase() : round.answer.trim());
@@ -189,18 +206,19 @@ function AdminArenaContentView({ onBack }) {
     <form onSubmit={(event) => save(event, false)} className="max-w-4xl space-y-4">
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Sana<input type="date" value={date} onChange={(event) => setDate(event.target.value)} required className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
-        <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mashq turi<select value={mode} onChange={(event) => setMode(event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}>{modes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+        <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Reytingdagi mashq turi<select value={mode} onChange={(event) => setMode(event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}>{modes.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select></label>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Sarlavha<input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} required className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Izoh<input value={subtitle} onChange={(event) => setSubtitle(event.target.value)} maxLength={240} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
       </div>
+      <p className="text-xs -mt-2" style={{ ...fontBody, color: C.inkSoft }}>{modeDescriptions[mode]} Bu tanlov reyting turini belgilaydi; har bosqichdagi javob shaklini alohida tanlang.</p>
       {rounds.map((round, index) => <section key={index} className="rounded-sm p-4 space-y-3" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
-        <h3 className="font-medium" style={{ ...fontBody, color: C.ink }}>Bosqich {index + 1}</h3>
+        <div><h3 className="font-medium" style={{ ...fontBody, color: C.ink }}>Bosqich {index + 1} · {stageLabels[index]}</h3><p className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>Toʻgʻri javob uchun +{stagePoints[index]} ball</p></div>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Savol<input value={round.prompt} onChange={(event) => updateRound(index, 'prompt', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder="Topshiriq matni" /></label>
         <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>Javob shakli<select value={round.kind} onChange={(event) => updateRound(index, 'kind', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle}><option value="choice">Variantli savol</option><option value="visual">Vizual belgilar + variantlar</option><option value="text">Yozma javob</option><option value="match">Juftliklarni moslash</option></select></label>
-        {round.kind === 'visual' && <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Ketma-ketlik belgilari (vergul bilan)<input value={round.visual.join(', ')} onChange={(event) => updateRound(index, 'visual', event.target.value.split(','))} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder="●, ▲, ●, ?" /></label>}
+        {round.kind === 'visual' && <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Ketma-ketlik belgilari (vergul bilan; ? belgisi avtomatik qoʻshiladi)<input value={round.visual.join(', ')} onChange={(event) => updateRound(index, 'visual', event.target.value.split(','))} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder="●, ▲, ●" /></label>}
         {(round.kind === 'choice' || round.kind === 'visual') && <div className="grid sm:grid-cols-2 gap-2">{round.options.map((option, optionIndex) => <label key={optionIndex} className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Variant {String.fromCharCode(65 + optionIndex)}<input value={option} onChange={(event) => updateRound(index, 'options', round.options.map((old, i) => i === optionIndex ? event.target.value : old))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label>)}</div>}
-        {round.kind === 'match' && <div className="grid sm:grid-cols-2 gap-2"><label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Chap juftlar (vergul bilan)<input value={round.left.join(', ')} onChange={(event) => updateRound(index, 'left', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label><label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘ng javoblar (vergul bilan)<input value={round.right.join(', ')} onChange={(event) => updateRound(index, 'right', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label><p className="sm:col-span-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Chap juftliklar tartibida mos javob raqamlarini yozing, masalan 21.</p></div>}
-        <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>{round.kind === 'choice' || round.kind === 'visual' ? 'To‘g‘ri variant harfi (A–F)' : round.kind === 'match' ? 'Moslik raqamlari' : 'To‘g‘ri javob'}<input value={round.answer} onChange={(event) => updateRound(index, 'answer', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
+        {round.kind === 'match' && <div className="grid sm:grid-cols-2 gap-2"><label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Chap juftlar (vergul bilan)<input value={round.left.join(', ')} onChange={(event) => updateRound(index, 'left', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label><label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘ng javoblar (vergul bilan)<input value={round.right.join(', ')} onChange={(event) => updateRound(index, 'right', event.target.value.split(','))} className="mt-1 w-full rounded-sm px-3 py-2 text-sm" style={inputStyle} /></label><p className="sm:col-span-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Chap juftliklar tartibida mos javob raqamlarini yozing, masalan 21. Har bir javob raqami faqat bir marta ishlatiladi.</p></div>}
+        <label className="block text-xs sm:max-w-xs" style={{ ...fontBody, color: C.inkSoft }}>{round.kind === 'choice' || round.kind === 'visual' ? 'To‘g‘ri variant harfi (A–D)' : round.kind === 'match' ? 'Moslik raqamlari' : 'To‘g‘ri javob'}<input value={round.answer} onChange={(event) => updateRound(index, 'answer', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} /></label>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Izoh<input value={round.explanation} onChange={(event) => updateRound(index, 'explanation', event.target.value)} className="mt-1.5 w-full rounded-sm px-3 py-2.5 text-sm" style={inputStyle} placeholder="Javob nima uchun to‘g‘ri?" /></label>
       </section>)}
       <div className="flex flex-wrap gap-2"><button type="submit" disabled={busy} className="rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.ink, background: C.goldSoft, border: '1px solid ' + C.coverLine }}>{busy ? 'Saqlanmoqda…' : 'Qoralama saqlash'}</button><button type="button" disabled={busy} onClick={(event) => save(event, true)} className="rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>{busy ? 'Saqlanmoqda…' : 'Saqlash va nashr qilish'}</button><button type="button" onClick={() => { setDate(today); setTitle('Bugungi aqliy chaqiriq'); setSubtitle(''); setMode('visual'); setRounds(Array.from({ length: 5 }, blankRound)); setNotice(''); }} className="rounded-sm px-4 py-2.5 text-sm" style={{ ...fontBody, color: C.inkSoft, border: '1px solid ' + C.rule }}>Yangi material</button></div>
