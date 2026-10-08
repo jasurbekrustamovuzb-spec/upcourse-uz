@@ -363,6 +363,7 @@ function AdminArenaContentView({ onBack }) {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [pendingImport, setPendingImport] = useState(null);
   const modes = [['pattern','Naqsh laboratoriyasi'],['logic','Deduksiya xonasi'],['word','Harflar aralashmasi'],['visual','Vizual signal'],['matching','Moslik sinovi'],['calculation','Tez hisob'],['fact','Faktlar maydoni'],['cipher','Raqamli shifr'],['attention','Diqqat sinovi']];
   const stageLabels = ['Isinish', 'Diqqat', 'Tafakkur', 'Murakkab', 'Usta'];
   const stagePoints = [30, 60, 110, 200, 360];
@@ -395,6 +396,17 @@ function AdminArenaContentView({ onBack }) {
     setError(false);
     setNotice('Namuna yuklandi. Savol, javob va izohni ehtiyojingizga moslab tahrirlang.');
   }
+  function applyImportedArena(imported) {
+    setDate(imported.date || date);
+    setTitle(imported.title || title);
+    setSubtitle(imported.subtitle || '');
+    setMode(imported.mode);
+    setRounds(imported.rounds.map((round) => ({ ...blankRound(), ...round })));
+    setPendingImport(null);
+    setShowPreview(true);
+    setError(false);
+    setNotice('Fayldan 5 bosqich yuklandi. Ma’lumotlarni tahrirlang va nashrdan oldin preview’da tekshiring.');
+  }
   async function importArenaFile(event) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -407,15 +419,13 @@ function AdminArenaContentView({ onBack }) {
       const hasContent = rounds.some((round) => round.prompt.trim() || round.answer.trim() || round.explanation.trim()
         || round.options.some(Boolean) || round.visualGridText.trim() || round.visual.some(Boolean)
         || round.left.some(Boolean) || round.right.some(Boolean));
-      if (hasContent && !window.confirm('Fayldagi besh bosqich joriy formadagi ma’lumotlarni almashtiradi. Davom etasizmi?')) return;
-      setDate(imported.date || date);
-      setTitle(imported.title || title);
-      setSubtitle(imported.subtitle || '');
-      setMode(imported.mode);
-      setRounds(imported.rounds.map((round) => ({ ...blankRound(), ...round })));
-      setShowPreview(true);
-      setError(false);
-      setNotice('Fayldan 5 bosqich yuklandi. Ma’lumotlarni tahrirlang va nashrdan oldin preview’da tekshiring.');
+      if (hasContent) {
+        setPendingImport(imported);
+        setError(false);
+        setNotice('Forma to‘ldirilgan. Fayldagi ma’lumotlarni qo‘llash yoki bekor qilishni tanlang.');
+        return;
+      }
+      applyImportedArena(imported);
     } catch (importError) {
       setError(true);
       setNotice(importError.message || 'TXT fayl o‘qilmadi. Shablonni tekshirib qayta yuklang.');
@@ -498,6 +508,13 @@ function AdminArenaContentView({ onBack }) {
           <button type="button" onClick={downloadArenaTemplate} className="rounded-sm px-3 py-2 text-xs" style={{ ...fontBody, color: C.ink, background: C.goldSoft, border: '1px solid ' + C.coverLine }}>TXT shablonni yuklab olish</button>
         </div>
         <label className="block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Tahrirlangan .txt faylni tanlang<input type="file" accept=".txt,text/plain" onChange={importArenaFile} className="mt-1.5 block w-full rounded-sm px-3 py-2 text-sm file:mr-3 file:rounded-sm file:border-0 file:px-3 file:py-1.5" style={inputStyle} /></label>
+        {pendingImport && <div role="alert" className="rounded-sm p-3 space-y-2" style={{ background: C.goldSoft, border: '1px solid ' + C.coverLine }}>
+          <p className="text-sm" style={{ ...fontBody, color: C.ink }}>Fayl formadagi joriy ma’lumotlarni almashtiradi. Davom etasizmi?</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => applyImportedArena(pendingImport)} className="rounded-sm px-3 py-2 text-sm" style={{ ...fontBody, color: C.white, background: C.cover }}>Fayldagi ma’lumotni yuklash</button>
+            <button type="button" onClick={() => { setPendingImport(null); setNotice('Joriy forma saqlandi.'); }} className="rounded-sm px-3 py-2 text-sm" style={{ ...fontBody, color: C.ink, border: '1px solid ' + C.rule }}>Bekor qilish</button>
+          </div>
+        </div>}
         <details className="text-xs" style={{ ...fontBody, color: C.inkSoft }}><summary className="cursor-pointer">TXT fayl qanday tuziladi?</summary><div className="mt-2 space-y-1.5 leading-relaxed"><p>Shablonni yuklab oling va oddiy matn muharririda oching. Har bir bosqichda Shakl, Savol va Javob/Izoh maydonlarini tahrirlang.</p><p>Vizual kataklar har qatorda yoziladi, kataklar orasiga | qo‘yiladi. Variantlar A) dan boshlanadi. Moslikda Chap va O‘ng ro‘yxatlarini kiriting; “Moslik”dagi raqamlar chap ro‘yxat tartibida mos o‘ng javobni bildiradi (masalan, 3, 1, 2).</p><p>Reyting: pattern, logic, word, visual, matching, calculation, fact, cipher yoki attention. TXT ichidagi besh tur: choice, visual, match, text. Importdan keyin hamma maydonlar tahrirlanadi.</p></div></details>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
