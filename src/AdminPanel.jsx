@@ -199,26 +199,29 @@ function parseArenaImport(text, fallbackMode) {
   const stages = new Map();
   let stage = null;
   let blockKey = '';
+  let implicitStageNumber = 0;
   const known = new Set(['sana', 'sarlavha', 'izoh', 'reyting', 'reytingkategoriyasi', 'shakl', 'tur', 'savol', 'kataklar', 'naqsh', 'variantlar', 'javob', 'chap', 'ong', 'moslik']);
-  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  const lines = text.replace(/^\\uFEFF/, '').split(/\\r?\\n/);
   lines.forEach((rawLine, lineIndex) => {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) return;
-    const marker = line.match(/^\[\s*(?:bosqich\s*)?([1-5])(?:\s*-\s*bosqich)?\s*\]$/i);
+    const marker = line.match(/^\\[\\s*(?:bosqich\\s*)?([1-5])?(?:\\s*-\\s*bosqich)?\\s*\\]$/i);
     if (marker) {
-      const number = Number(marker[1]);
+      const number = marker[1] ? Number(marker[1]) : ++implicitStageNumber;
+      implicitStageNumber = Math.max(implicitStageNumber, number);
+      if (number > 5) throw new Error('TXT faylda beshtadan ortiq bosqich bor.');
       if (stages.has(number)) throw new Error((lineIndex + 1) + '-qatorda bosqich takrorlangan.');
       stage = { number, fields: {} };
       stages.set(number, stage);
       blockKey = '';
       return;
     }
-    const field = rawLine.match(/^\s*([^:]+):\s*(.*)$/);
+    const field = rawLine.match(/^\\s*([^:=]+)\\s*[:=]\\s*(.*)$/);
     if (field) {
       const key = normalizeArenaImportKey(field[1]);
       if (!known.has(key)) {
         if (stage && blockKey && Array.isArray(stage.fields[blockKey])) {
-          stage.fields[blockKey].push(line.replace(/^[-•]\s*/, ''));
+          stage.fields[blockKey].push(line.replace(/^[-•]\\s*/, ''));
           return;
         }
         throw new Error((lineIndex + 1) + '-qatordagi "' + field[1].trim() + '" maydoni tanilmadi.');
@@ -234,59 +237,77 @@ function parseArenaImport(text, fallbackMode) {
       return;
     }
     if (stage && blockKey && Array.isArray(stage.fields[blockKey])) {
-      stage.fields[blockKey].push(line.replace(/^[-•]\s*/, ''));
+      stage.fields[blockKey].push(line.replace(/^[-•]\\s*/, ''));
       return;
     }
     throw new Error((lineIndex + 1) + '-qatorda matn maydon nomidan keyin kelishi kerak.');
   });
   if (stages.size !== 5 || [1, 2, 3, 4, 5].some((number) => !stages.has(number))) {
-    throw new Error('Faylda [BOSQICH 1] dan [BOSQICH 5] gacha bo‘lgan besh bosqich bo‘lishi kerak.');
+    throw new Error('Faylda beshta [BOSQICH] bo‘lishi kerak.');
   }
   const get = (fields, key) => {
     const value = fields[key];
-    return Array.isArray(value) ? value.join('\n').trim() : String(value || '').trim();
+    return Array.isArray(value) ? value.join('\\n').trim() : String(value || '').trim();
   };
   const list = (fields, key) => {
     const value = fields[key];
-    const values = Array.isArray(value) ? value : String(value || '').split(',');
-    return values.map((item) => String(item).trim()).filter(Boolean);
+    const values = Array.isArray(value)
+      ? value.flatMap((item) => String(item).split(/[|,]/))
+      : String(value || '').split(/[|,]/);
+    return values.map((item) => String(item).trim().replace(/^[-•]\\s*/, '')).filter(Boolean);
   };
   const rounds = [1, 2, 3, 4, 5].map((number) => {
     const fields = stages.get(number).fields;
     const rawKind = get(fields, 'shakl') || get(fields, 'tur');
-    const kindAliases = { variantli: 'choice', tanlov: 'choice', vizual: 'visual', moslik: 'match', juftlik: 'match', yozma: 'text' };
+    const kindAliases = { variantli: 'choice', tanlov: 'choice', tanlash: 'choice', vizual: 'visual', moslik: 'match', juftlik: 'match', yozma: 'text', matn: 'text' };
     const kind = kindAliases[normalizeArenaImportKey(rawKind)] || rawKind.toLowerCase();
     const prompt = get(fields, 'savol');
     const explanation = get(fields, 'izoh');
-    if (!['choice', 'visual', 'match', 'text'].includes(kind)) throw new Error(number + '-bosqich: Shakl choice, visual, match yoki text bo‘lishi kerak.');
+    if (!['choice', 'visual', 'match', 'text'].includes(kind)) throw new Error(number + '-bosqich: turi choice, visual, match yoki text bo‘lishi kerak.');
     if (!prompt) throw new Error(number + '-bosqichda Savol maydoni bo‘sh.');
     const round = { prompt, kind, explanation, options: ['', '', '', ''], visual: ['', '', ''], visualLayoutType: 'grid', visualGridText: '', left: ['', ''], right: ['', ''], answer: '' };
     if (kind === 'choice' || kind === 'visual') {
-      const importedOptions = list(fields, 'variantlar').map((item) => item.replace(/^[A-D][).]\s*/i, '').trim());
-      const answer = get(fields, 'javob').toUpperCase();
-      if (importedOptions.length < 2 || importedOptions.length > 4 || importedOptions.some((item) => !item) || !/^[A-D]$/.test(answer) || !importedOptions[answer.charCodeAt(0) - 65]) {
-        throw new Error(number + '-bosqich: 2–4 ta A)–D) varianti va mavjud variantga tegishli Javob harfi kerak.');
+      const importedOptions = list(fields, 'variantlar').map((item) => item.replace(/^[A-D][).]\\s*/i, '').trim());
+      const rawAnswer = get(fields, 'javob').trim();
+      const answerLetter = rawAnswer.toUpperCase();
+      const answerIndex = /^[A-D]$/.test(answerLetter)
+        ? answerLetter.charCodeAt(0) - 65
+        : importedOptions.findIndex((option) => option.toLocaleLowerCase() === rawAnswer.toLocaleLowerCase());
+      if (importedOptions.length < 2 || importedOptions.length > 4 || importedOptions.some((item) => !item) || answerIndex < 0 || !importedOptions[answerIndex]) {
+        throw new Error(number + '-bosqich: 2–4 ta variant va ulardan biriga mos Javob kiriting (masalan A yoki variant matni).');
       }
       round.options = [...importedOptions, ...Array(4 - importedOptions.length).fill('')];
-      round.answer = answer;
+      round.answer = String.fromCharCode(65 + answerIndex);
     }
     if (kind === 'visual') {
-      const rows = list(fields, 'kataklar').length ? list(fields, 'kataklar') : list(fields, 'naqsh');
-      const grid = rows.map((row) => row.split('|').map((cell) => cell.trim()));
+      const rawRows = list(fields, 'kataklar').length ? list(fields, 'kataklar') : list(fields, 'naqsh');
+      let grid = rawRows.map((row) => row.split('|').map((cell) => cell.trim()));
+      if (grid.length === 1 && grid[0].length > 3 && grid[0].length <= 9 && grid[0].length % 3 === 0) {
+        grid = Array.from({ length: grid[0].length / 3 }, (_, i) => grid[0].slice(i * 3, i * 3 + 3));
+      }
       const width = grid[0]?.length || 0;
       if (grid.length < 2 || grid.length > 3 || width < 2 || width > 3 || grid.some((row) => row.length !== width || row.some((cell) => !cell)) || grid.flat().filter((cell) => cell === '?').length !== 1) {
         throw new Error(number + '-bosqich: Kataklar 2×2 yoki 3×3 bo‘lsin va ichida bitta ? bo‘lsin.');
       }
       if (!explanation) throw new Error(number + '-bosqich: naqsh qoidasini Izoh maydonida yozing.');
-      round.visualGridText = grid.map((row) => row.join(' | ')).join('\n');
+      round.visualGridText = grid.map((row) => row.join(' | ')).join('\\n');
     }
     if (kind === 'match') {
       round.left = list(fields, 'chap');
       round.right = list(fields, 'ong');
-      const mapping = get(fields, 'moslik').replace(/[\s,;|]/g, '');
-      const digits = mapping.split('');
+      const rawMapping = get(fields, 'moslik').trim();
+      let digits;
+      if (/^\\d+$/.test(rawMapping)) digits = rawMapping.split('');
+      else {
+        const pairs = rawMapping.split(/[|,;]/).map((pair) => pair.trim()).filter(Boolean);
+        digits = pairs.map((pair, index) => {
+          const match = pair.match(/^(\\d+)\\s*[-= >]\\s*(\\d+)$/);
+          return match ? match[2] : String(index + 1);
+        });
+        if (pairs.some((pair) => !/^(\\d+)\\s*[-= >]\\s*\\d+$/.test(pair))) digits = [];
+      }
       if (round.left.length < 2 || round.left.length !== round.right.length || round.left.some((item) => !item) || digits.length !== round.left.length || new Set(digits).size !== digits.length || digits.some((digit) => !/^[1-9]$/.test(digit) || Number(digit) > round.right.length)) {
-        throw new Error(number + '-bosqich: Chap va O‘ng ro‘yxatlar teng uzunlikda bo‘lsin; Moslikda har bir javob raqamini bir martadan kiriting.');
+        throw new Error(number + '-bosqich: Chap va O‘ng ro‘yxatlar teng bo‘lsin; Moslikda 1-1|2-2 ko‘rinishida kiriting.');
       }
       if (!explanation) throw new Error(number + '-bosqich: juftliklar sababini Izoh maydonida yozing.');
       round.answer = digits.join('');
@@ -297,10 +318,12 @@ function parseArenaImport(text, fallbackMode) {
     }
     return round;
   });
-  const mode = get(header, 'reyting') || get(header, 'reytingkategoriyasi') || fallbackMode;
+  const rawMode = get(header, 'reyting') || get(header, 'reytingkategoriyasi') || fallbackMode;
+  const modeAliases = { bilim: 'fact', mantiq: 'logic' };
+  const mode = modeAliases[normalizeArenaImportKey(rawMode)] || rawMode;
   if (!ARENA_MODE_IDS.includes(mode)) throw new Error('Reyting qiymati tanilmadi. Quyidagilardan birini ishlating: ' + ARENA_MODE_IDS.join(', ') + '.');
   const date = get(header, 'sana');
-  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Sana YYYY-MM-DD ko‘rinishida bo‘lishi kerak.');
+  if (date && !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) throw new Error('Sana YYYY-MM-DD ko‘rinishida bo‘lishi kerak.');
   return { mode, date, title: get(header, 'sarlavha'), subtitle: get(header, 'izoh'), rounds };
 }
 
