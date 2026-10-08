@@ -296,7 +296,7 @@ function parseArenaImport(text, fallbackMode) {
       round.right = list(fields, 'ong');
       const rawMapping = get(fields, 'moslik').trim();
       let digits;
-      if (/^\d+$/.test(rawMapping)) digits = rawMapping.split('');
+      if (/^\s*\d+(?:\s*[,|]\s*\d+)*\s*$/.test(rawMapping)) digits = rawMapping.split(/[,|]/).map((digit) => digit.trim());
       else {
         const pairs = rawMapping.split(/[|,;]/).map((pair) => pair.trim()).filter(Boolean);
         digits = pairs.map((pair, index) => {
