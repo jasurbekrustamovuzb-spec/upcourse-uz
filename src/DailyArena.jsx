@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, CheckCircle2, ChevronRight, Loader2, Medal, RefreshCw, Trophy, UserRound, XCircle } from 'lucide-react';
 import { C, fontBody, fontDisplay, fontMono } from './App';
 import { signInWithGoogle, supabase } from './supabaseClient';
@@ -75,7 +75,8 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
   const [period, setPeriod] = useState('day');
   const [division, setDivision] = useState('');
   const [boardMode, setBoardMode] = useState('all');
-  const [boardOpen, setBoardOpen] = useState(true);
+  const [boardOpen, setBoardOpen] = useState(false);
+  const boardRef = useRef(null);
   const [board, setBoard] = useState(null);
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardError, setBoardError] = useState('');
@@ -113,6 +114,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
 
   useEffect(() => {
     if (!boardOpen) return undefined;
+    boardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const refresh = () => { if (document.visibilityState === 'visible') loadBoard(); };
     refresh();
     const timer = window.setInterval(refresh, 15000);
@@ -160,10 +162,15 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
       <button type="button" onClick={onExit} className="inline-flex items-center gap-1.5 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
         <ArrowLeft size={16} /> Orqaga
       </button>
-      <span className="text-[10px] uppercase tracking-[.14em]" style={{ ...fontMono, color: C.gold }}>Kunlik arena</span>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-[.14em]" style={{ ...fontMono, color: C.gold }}>Kunlik arena</span>
+        <button type="button" onClick={() => { if (boardOpen) boardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); else setBoardOpen(true); }} aria-label="Reytingga o‘tish" aria-expanded={boardOpen} title="Reytingga o‘tish" className="inline-flex items-center justify-center gap-2 px-3 h-9 rounded-xl text-xs font-semibold" style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: '1px solid ' + C.coverLine }}>
+          <Trophy size={16} /> <span>Reyting</span>
+        </button>
+      </div>
     </div>
 
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-3 lg:gap-4 items-start">
+    <div className="space-y-3">
       <section className="min-w-0">
         <div className="rounded-2xl p-4 sm:p-5 mb-3" style={{ color: C.white, background: 'linear-gradient(135deg, ' + C.coverDeep + ', ' + C.cover + ')', border: '1px solid ' + C.coverLine }}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -243,13 +250,13 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
         {error && challenge && !resolved && <p role="alert" className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{error}</p>}
       </section>
 
-      <aside className="rounded-2xl p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
+      {boardOpen && <aside ref={boardRef} id="arena-leaderboard" className="scroll-mt-4 rounded-2xl p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div>
             <div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Siz va boshqalar</div>
             <h2 className="text-lg font-semibold" style={{ ...fontDisplay }}>Reyting</h2>
           </div>
-          <button type="button" onClick={loadBoard} aria-label="Reytingni yangilash" title="Yangilash" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: C.cover, background: C.goldSoft }}><RefreshCw size={15} /></button>
+          <div className="flex items-center gap-2"><button type="button" onClick={() => setBoardOpen(false)} className="px-2.5 h-9 rounded-lg text-xs" style={{ ...fontBody, color: C.inkSoft, background: C.paper, border: '1px solid ' + C.rule }}>Yopish</button><button type="button" onClick={loadBoard} aria-label="Reytingni yangilash" title="Yangilash" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: C.cover, background: C.goldSoft }}><RefreshCw size={15} /></button></div>
         </div>
         <div className="flex gap-1.5 mb-2" aria-label="Reyting davri">
           {[['day','Kunlik'],['month','Oylik']].map(([item,label]) => <button type="button" key={item} onClick={() => { setPeriod(item); setBoardOpen(true); setShowTopTen(false); }} aria-pressed={period === item} className="flex-1 px-3 py-2 rounded-lg text-xs font-medium" style={{ ...fontBody, color: period === item ? C.white : C.inkSoft, background: period === item ? C.cover : C.paper, border: '1px solid ' + (period === item ? C.cover : C.rule) }}>{label}</button>)}
@@ -297,7 +304,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
           <div className="grid grid-cols-2 gap-1.5">{DIVISIONS.map((item) => <span key={item.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg" style={{ color: item.color, background: item.color + '12' }}><Medal size={12} />{item.name}<span className="ml-auto text-[9px]" style={{ ...fontMono }}>{item.range}</span></span>)}</div>
           <p className="mt-2 leading-relaxed">Koʻproq qatnashib ball toʻplang va ligalarda yuqorilang. Oylik reyting har yangi oyda yangilanadi, olgan nishonlaringiz profilingizda qoladi.</p>
         </div>}
-      </aside>
+      </aside>}
     </div>
   </div>;
 }
