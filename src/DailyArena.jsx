@@ -244,15 +244,15 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
       </section>
 
       <aside className="rounded-2xl p-3 sm:p-4" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
-        <button type="button" onClick={() => setBoardOpen((open) => !open)} aria-expanded={boardOpen} aria-controls="arena-leaderboard-content" className="w-full flex items-center justify-between gap-3 text-left">
+        <button type="button" onClick={() => setBoardOpen((open) => !open)} aria-expanded={boardOpen} className="w-full flex items-center justify-between gap-3 text-left">
           <span>
             <span className="block text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Siz va boshqalar</span>
             <span className="block text-lg font-semibold" style={{ ...fontDisplay }}>Reyting</span>
-            <span className="block text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>{boardOpen ? 'Natijalar va ligalar' : 'Top natijalar va ligalarni koʻrish'}</span>
+            <span className="block text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>{boardOpen ? "Natijalar va ligalar" : "Top natijalar va ligalarni koʻrish"}</span>
           </span>
-          <ChevronRight size={18} aria-hidden="true" style={{ color: C.gold, transform: boardOpen ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }} />
+          <ChevronRight size={18} aria-hidden="true" style={{ color: C.gold, transform: boardOpen ? "rotate(90deg)" : "none", transition: "transform 120ms ease" }} />
         </button>
-        {boardOpen && <div id="arena-leaderboard-content" className="mt-3">
+        {boardOpen && <div className="mt-3">
           <div className="flex justify-end mb-2">
             <button type="button" onClick={loadBoard} aria-label="Reytingni yangilash" title="Yangilash" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: C.cover, background: C.goldSoft }}><RefreshCw size={15} /></button>
           </div>
