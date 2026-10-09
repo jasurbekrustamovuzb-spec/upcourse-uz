@@ -3306,11 +3306,6 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
     if (q.type === 'matching') return Array.isArray(q.pairs) ? q.pairs.every((pair) => a?.[pair.id] !== undefined) : a !== undefined;
     return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
   });
-  const answeredCount = questions.filter((q) => {
-    const a = answers[q.id];
-    if (q.type === 'matching') return Array.isArray(q.pairs) ? q.pairs.every((pair) => a?.[pair.id] !== undefined) : a !== undefined;
-    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
-  }).length;
 
   /* "Keyingi savolga avtomatik oʻtish" yoqilgan boʻlsa — foydalanuvchi
      javob belgilagach, qoʻlda pastga qorishtirmasdan, ekranni keyingi
@@ -3350,12 +3345,12 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
         }
 
         const rect = el.getBoundingClientRect();
-        const containerRect = isPageScroll ? null : container.getBoundingClientRect();
         const startTop = container.scrollTop;
-        const targetCenter = isPageScroll ? window.innerHeight / 2 : containerRect.top + container.clientHeight / 2;
-        const targetTop = startTop + rect.top + rect.height / 2 - targetCenter;
+        const targetTop = isPageScroll
+          ? startTop + rect.top + rect.height / 2 - window.innerHeight / 2
+          : startTop + rect.top - container.getBoundingClientRect().top + rect.height / 2 - container.clientHeight / 2;
         const startTime = performance.now();
-        const duration = Math.min(1050, 850 + Math.abs(targetTop - startTop) * 0.1);
+        const duration = 560;
         const animate = (now) => {
           const progress = Math.min(1, (now - startTime) / duration);
           const eased = progress < 0.5
@@ -3366,7 +3361,7 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
           else autoScrollFrameRef.current = null;
         };
         autoScrollFrameRef.current = requestAnimationFrame(animate);
-      }, 340);
+      }, 280);
     }
   }
 
@@ -3387,10 +3382,8 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
     else nextMatching[pairId] = optionIndex;
     const next = { ...answers, [qid]: nextMatching };
     setAnswers(next);
-    const question = questions.find((q) => q.id === qid);
-    const matchingComplete = (question?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined);
-    if (matchingComplete) scrollToNextUnanswered(qid, next);
-    if (config.immediate && matchingComplete) {
+    scrollToNextUnanswered(qid, next);
+    if (config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
       setRevealed((revealedAnswers) => ({ ...revealedAnswers, [qid]: true }));
     }
   }
@@ -3402,10 +3395,7 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
 
   function confirmOpenAnswer(qid) {
     if (finished || paused) return;
-    setAnswers((a) => {
-      if (typeof a[qid] === 'string' && a[qid].trim()) scrollToNextUnanswered(qid, a);
-      return a;
-    });
+    setAnswers((a) => { scrollToNextUnanswered(qid, a); return a; });
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
@@ -3549,18 +3539,6 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
       <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
       {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
 
-      {!paused && (
-        <div className="mb-5 max-w-2xl rounded-2xl px-4 py-3.5" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 5px 16px rgba(31, 61, 43, .04)' }}>
-          <div className="mb-2 flex items-center justify-between gap-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
-            <span>Test jarayoni</span>
-            <span style={{ ...fontMono, color: C.gold }}>{answeredCount}/{questions.length}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full" style={{ background: C.selectedTint }}>
-            <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${questions.length ? (answeredCount / questions.length) * 100 : 0}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.goldSoft})` }} />
-          </div>
-        </div>
-      )}
-
       {paused ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <Pause size={26} style={{ color: C.gold }} className="mb-3" />
@@ -3573,13 +3551,10 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
             {questions.map((q, qi) => {
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
-                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-4 sm:p-5 rounded-2xl transition-colors duration-200" style={{ background: C.paperSoft, border: `1px solid ${C.rule}`, boxShadow: '0 10px 28px rgba(31, 61, 43, .075)' }}>
-                  {q.type !== 'matching' && (
-                    <div className="mb-4">
-                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide" style={{ ...fontMono, color: C.gold, background: C.selectedTint, border: `1px solid ${C.coverLine}` }}>SAVOL {String(qi + 1).padStart(2, '0')}</span>
-                      <div className="mt-2 text-base leading-relaxed" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{q.text}</div>
-                    </div>
-                  )}
+                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-3 sm:p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+                  {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+                    <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
+                  </div>}
                   {q.imageUrl && (
                     <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
                   )}
@@ -3595,7 +3570,7 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
                         disabled={showResult}
                         placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
-                        className="w-full px-4 py-3 rounded-xl text-[15px] outline-none"
+                        className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
                         style={{
                           ...fontBody, color: C.ink,
                           background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
@@ -3613,34 +3588,25 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
                     <div className="space-y-2.5">
                       {q.options.map((opt, oi) => {
                         const isSelected = answers[q.id] === oi;
-                        const isCorrectOption = oi === q.correct;
-                        let bg = C.surface;
-                        let border = C.rule;
-                        let markerBackground = C.selectedTint;
-                        let markerColor = C.gold;
-                        let shadow = '0 2px 8px rgba(31, 61, 43, .035)';
-                        if (showResult && isCorrectOption) {
-                          bg = C.successTint; border = C.accent; markerBackground = C.successTint; markerColor = C.accent;
-                        } else if (showResult && isSelected) {
-                          bg = C.dangerTint; border = C.red; markerBackground = C.dangerTint; markerColor = C.red;
-                        } else if (!showResult && isSelected) {
-                          bg = C.selectedTint; border = C.gold; markerBackground = C.gold; markerColor = C.cover; shadow = '0 6px 16px rgba(184, 134, 59, .16)';
+                        let bg = C.surface, border = C.rule;
+                        if (showResult) {
+                          if (oi === q.correct) { bg = C.successTint; border = C.accent; }
+                          else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
+                        } else if (isSelected) {
+                          border = C.gold; bg = C.selectedTint;
                         }
                         return (
                           <button
                             key={oi}
-                            type="button"
-                            aria-pressed={isSelected}
                             onClick={() => select(q.id, oi)}
                             disabled={showResult}
-                            className="group w-full text-left flex items-center gap-3.5 px-3.5 sm:px-4 py-3.5 rounded-2xl text-[15px] transition-all duration-200 focus-visible:outline focus-visible:outline-2 enabled:hover:-translate-y-0.5 enabled:hover:shadow-md"
-                            style={{ ...fontBody, background: bg, border: `1.5px solid ${border}`, color: C.ink, outlineColor: C.gold, boxShadow: shadow }}
+                            className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+                            style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
                           >
-                            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors" style={{ ...fontMono, background: markerBackground, color: markerColor, border: `1px solid ${isSelected && !showResult ? C.gold : 'transparent'}` }}>{String.fromCharCode(65 + oi)}</span>
-                            <span className="flex-1 leading-relaxed">{opt}</span>
-                            {!showResult && isSelected && <CheckCircle2 size={18} className="ml-auto flex-shrink-0" style={{ color: C.gold }} />}
-                            {showResult && isCorrectOption && <Check size={17} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
-                            {showResult && isSelected && !isCorrectOption && <X size={17} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
+                            <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                            <span>{opt}</span>
+                            {showResult && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
+                            {showResult && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
                           </button>
                         );
                       })}
