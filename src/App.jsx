@@ -1584,15 +1584,15 @@ function GiftBanner({ onOpen }) {
   return (
     <button
       onClick={onOpen}
-      className="w-full flex items-center gap-4 p-4 sm:p-5 mb-5 rounded-xl text-left transition-transform hover:-translate-y-0.5"
+      className="w-full flex items-center gap-3 px-3 py-2.5 mb-3 rounded-lg text-left transition-colors hover:brightness-[0.98]"
       style={{ background: 'linear-gradient(115deg, rgba(233, 230, 237, .82) 0%, rgba(231, 235, 240, .82) 100%)', border: '1px solid rgba(210, 205, 215, .85)', boxShadow: '0 6px 18px rgba(67, 54, 111, 0.06)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
     >
-      <MiniLearningBadge size={48} />
+      <MiniLearningBadge size={34} />
       <div className="min-w-0 flex-1">
-        <div className="text-[15px]" style={{ ...fontBody, color: '#342B55', fontWeight: 700 }}>Yangi nishon: Bilimga qadam</div>
-        <div className="mt-1 text-[12px] sm:text-[13px]" style={{ ...fontBody, color: '#625A78' }}>Testni 70% yoki undan yuqori natija bilan yakunlang</div>
+        <div className="text-[14px] leading-tight" style={{ ...fontBody, color: '#342B55', fontWeight: 700 }}>Yangi nishon: Bilimga qadam</div>
+        <div className="mt-0.5 text-[11px] leading-tight" style={{ ...fontBody, color: '#625A78' }}>Testni 70% yoki undan yuqori natija bilan yakunlang</div>
       </div>
-      <span className="inline-flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold" style={{ color: '#44366F', background: 'rgba(255,255,255,.48)', border: '1px solid #D2CDD7' }}>Ko‘rish <ChevronRight size={14} /></span>
+      <span className="inline-flex items-center gap-0.5 rounded-full px-2 py-1.5 text-[11px] font-semibold shrink-0" style={{ color: '#44366F', background: 'rgba(255,255,255,.48)', border: '1px solid #D2CDD7' }}>Ko‘rish <ChevronRight size={14} /></span>
     </button>
   );
 }
@@ -3287,13 +3287,10 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
   const [seconds, setSeconds] = useState(0);
   const [paused, setPaused] = useState(false);
   const questionRefs = useRef({});
-  const autoScrollFrameRef = useRef(null);
+  const resultSummaryRef = useRef(null);
   const autoScrollTimerRef = useRef(null);
 
-  useEffect(() => () => {
-    clearTimeout(autoScrollTimerRef.current);
-    if (autoScrollFrameRef.current !== null) cancelAnimationFrame(autoScrollFrameRef.current);
-  }, []);
+  useEffect(() => () => clearTimeout(autoScrollTimerRef.current), []);
 
   useEffect(() => {
     if (finished || paused) return;
@@ -3301,15 +3298,23 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
     return () => clearInterval(t);
   }, [finished, paused]);
 
+  useEffect(() => {
+    if (!finished || !resultSummaryRef.current) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      resultSummaryRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [finished]);
+
   const allAnswered = questions.every((q) => {
     const a = answers[q.id];
     if (q.type === 'matching') return Array.isArray(q.pairs) ? q.pairs.every((pair) => a?.[pair.id] !== undefined) : a !== undefined;
     return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
   });
 
-  /* "Keyingi savolga avtomatik oʻtish" yoqilgan boʻlsa — foydalanuvchi
-     javob belgilagach, qoʻlda pastga qorishtirmasdan, ekranni keyingi
-     javob berilmagan savol markazga kelguncha silliq skroll qilamiz. */
+  /* Keyingi javobsiz savolga brauzerning native scroll animatsiyasi bilan oʻtamiz.
+     Bu har kadrda JavaScript hisoblashni talab qilmaydi va sekin qurilmalarda yengilroq. */
   function scrollToNextUnanswered(fromQid, latestAnswers) {
     if (!config.autoScroll) return;
     const fromIndex = questions.findIndex((q) => q.id === fromQid);
@@ -3318,51 +3323,15 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
       if (q.type === 'matching') return Array.isArray(q.pairs) ? !q.pairs.every((pair) => a?.[pair.id] !== undefined) : a === undefined;
       return q.type === 'open' ? !(typeof a === 'string' && a.trim().length > 0) : a === undefined;
     });
-    if (next) {
-      const el = questionRefs.current[next.id];
-      if (!el) return;
+    if (!next) return;
+    const el = questionRefs.current[next.id];
+    if (!el) return;
 
-      clearTimeout(autoScrollTimerRef.current);
-      if (autoScrollFrameRef.current !== null) cancelAnimationFrame(autoScrollFrameRef.current);
-      autoScrollTimerRef.current = setTimeout(() => {
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (prefersReducedMotion) {
-          el.scrollIntoView({ behavior: 'auto', block: 'center' });
-          return;
-        }
-
-        let scrollContainer = el.parentElement;
-        while (scrollContainer && scrollContainer !== document.body) {
-          const overflowY = window.getComputedStyle(scrollContainer).overflowY;
-          if (/(auto|scroll|overlay)/.test(overflowY) && scrollContainer.scrollHeight > scrollContainer.clientHeight + 1) break;
-          scrollContainer = scrollContainer.parentElement;
-        }
-        const isPageScroll = !scrollContainer || scrollContainer === document.body;
-        const container = isPageScroll ? document.scrollingElement : scrollContainer;
-        if (!container) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          return;
-        }
-
-        const rect = el.getBoundingClientRect();
-        const startTop = container.scrollTop;
-        const targetTop = isPageScroll
-          ? startTop + rect.top + rect.height / 2 - window.innerHeight / 2
-          : startTop + rect.top - container.getBoundingClientRect().top + rect.height / 2 - container.clientHeight / 2;
-        const startTime = performance.now();
-        const duration = 560;
-        const animate = (now) => {
-          const progress = Math.min(1, (now - startTime) / duration);
-          const eased = progress < 0.5
-            ? 4 * progress * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-          container.scrollTop = startTop + (targetTop - startTop) * eased;
-          if (progress < 1) autoScrollFrameRef.current = requestAnimationFrame(animate);
-          else autoScrollFrameRef.current = null;
-        };
-        autoScrollFrameRef.current = requestAnimationFrame(animate);
-      }, 280);
-    }
+    clearTimeout(autoScrollTimerRef.current);
+    autoScrollTimerRef.current = setTimeout(() => {
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'center' });
+    }, 160);
   }
 
   function select(qid, idx) {
@@ -3399,15 +3368,17 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
-  async function submit() {
+  function submit() {
     const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, answers[question.id]), 0);
     const totalCount = getQuestionCount(questions);
     const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
     setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
     setFinished(true);
     if (percent >= 70 && onTestComplete) {
-      const shouldNotify = await onTestComplete(percent);
-      if (shouldNotify) setShowBadgeNotice(true);
+      Promise.resolve()
+        .then(() => onTestComplete(percent))
+        .then((shouldNotify) => { if (shouldNotify) setShowBadgeNotice(true); })
+        .catch(() => {});
     }
   }
 
@@ -3425,7 +3396,7 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
         >
           <ArrowLeft size={15} /> Barcha testlar
         </button>
-        <h3 className="text-2xl sm:text-3xl mb-5" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title} — yakunlandi</h3>
+        <h3 ref={resultSummaryRef} className="text-2xl sm:text-3xl mb-5" style={{ ...fontDisplay, color: C.ink, fontWeight: 600, scrollMarginTop: '5rem' }}>{test.title} — yakunlandi</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mb-8">
           <div className="p-4 rounded-sm text-center" style={{ background: C.cover }}>
             <div className="text-2xl" style={{ ...fontMono, color: C.gold, fontWeight: 700 }}>{percent}%</div>
@@ -3841,31 +3812,31 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
           </div>
           <ChevronRight size={16} style={{ color: C.live, flexShrink: 0, marginLeft: 'auto' }} />
         </button>
-        <div className="grid grid-cols-1 gap-2 mb-2">
+        <div className="grid grid-cols-2 gap-1.5 mb-3">
           <button
             onClick={goTxtImport}
-            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
           >
             <FileText size={13} /> TXT fayldan
           </button>
           <button
             onClick={goMatchingTest}
-            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
           >
             <ListChecks size={14} /> Matching test yaratish
           </button>
           <button
             onClick={goTeamBattle}
-            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.coverLine}`, outlineColor: C.gold, fontWeight: 600 }}
           >
             <Users size={14} /> Jamoaviy jang
           </button>
           <button
             onClick={goMathTest}
-            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-full text-[13px] focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
           >
             <Calculator size={13} /> Matematik test
