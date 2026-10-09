@@ -5317,7 +5317,7 @@ export default function App() {
   const nav = useNavStack();
 
   async function handleTestCompletion(percent) {
-    if (percent < 70 || learningBadgeEligible) return false;
+    if (percent < 70) return false;
     if (session?.user?.id) {
       try {
         const existing = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${GIFT_ID}`, 'collected_at');
