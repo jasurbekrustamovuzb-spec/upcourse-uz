@@ -708,7 +708,7 @@ const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastNa
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: false, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: true, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
@@ -1585,7 +1585,7 @@ function GiftBanner({ onOpen }) {
     <button
       onClick={onOpen}
       className="w-full flex items-center gap-4 p-4 sm:p-5 mb-5 rounded-xl text-left transition-transform hover:-translate-y-0.5"
-      style={{ background: 'linear-gradient(115deg, #E9E6ED 0%, #E7EBF0 100%)', border: '1px solid #D2CDD7', boxShadow: '0 6px 18px rgba(67, 54, 111, 0.06)' }}
+      style={{ background: 'linear-gradient(115deg, rgba(233, 230, 237, .82) 0%, rgba(231, 235, 240, .82) 100%)', border: '1px solid rgba(210, 205, 215, .85)', boxShadow: '0 6px 18px rgba(67, 54, 111, 0.06)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
     >
       <MiniLearningBadge size={48} />
       <div className="min-w-0 flex-1">
