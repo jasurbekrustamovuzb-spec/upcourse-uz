@@ -338,14 +338,9 @@ async function getAccessToken() {
 }
 
 async function sbRequest(path, options = {}) {
-  // Public first-paint requests do not need a user session. Avoid waiting
-  // for Supabase Auth to restore/refresh a token before loading approved
-  // catalog data; all user-owned/private requests keep the normal auth path.
-  const { useAnonKey = false, ...fetchOptions } = options;
-
   function doFetch(token) {
     return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-      ...fetchOptions,
+      ...options,
       headers: {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${token}`,
@@ -355,7 +350,7 @@ async function sbRequest(path, options = {}) {
     });
   }
 
-  const token = useAnonKey ? SUPABASE_ANON_KEY : (await getAccessToken()) || SUPABASE_ANON_KEY;
+  const token = (await getAccessToken()) || SUPABASE_ANON_KEY;
   let res = await doFetch(token);
 
   /* Nozik holat: sahifa endigina ochilganda, keshlangan token hali
@@ -713,7 +708,7 @@ const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastNa
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: false, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: true, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
@@ -1384,13 +1379,40 @@ function MiniExplorerBadge({ size = 18, title }) {
   );
 }
 
+/* Yangi yutuq nishoni: binafsha-kumush rangli kitob belgisi.
+   Sof SVG bo'lgani uchun tashqi rasm yoki qo'shimcha yuklanish yo'q. */
+function LearningStepBadge({ size = 168 }) {
+  return (
+    <div className="inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox="0 0 200 200" role="img" aria-label="Bilimga qadam nishoni" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="100" cy="100" r="94" fill="#E7E0FA" />
+        <circle cx="100" cy="100" r="80" fill="#F8F6FF" stroke="#9A86D4" strokeWidth="3" />
+        <circle cx="100" cy="100" r="70" fill="none" stroke="#C7BCE7" strokeWidth="1.5" />
+        <path d="M100 77c-14-9-29-10-43-5v44c14-5 29-4 43 5m0-44c14-9 29-10 43-5v44c-14-5-29-4-43 5m0-44v44" fill="none" stroke="#65539A" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="m100 46 4 8 9 1-6.5 6 1.7 9-8.2-4.5-8.2 4.5 1.7-9-6.5-6 9-1z" fill="#B8863B" />
+        <text x="100" y="148" textAnchor="middle" fontSize="12" letterSpacing="2" fill="#65539A" fontFamily="'IBM Plex Mono', monospace">BILIMGA QADAM</text>
+      </svg>
+    </div>
+  );
+}
+
+function MiniLearningBadge({ size = 18 }) {
+  return (
+    <span className="inline-flex flex-shrink-0 items-center justify-center rounded-full" title="Bilimga qadam nishoni" style={{ width: size, height: size, background: '#E7E0FA', border: '1px solid #9A86D4', color: '#65539A' }}>
+      <BookOpen size={Math.round(size * 0.56)} strokeWidth={2.2} />
+    </span>
+  );
+}
+
 /* Faol nishon — vaqti-vaqti bilan almashishi mumkin. Eski nishonlar
    (masalan Mustaqillik-35) shu ro'yxatdan olib tashlanmaydi — faqat
    yangisi ustiga qo'shiladi, shu tufayli avval olganlar hech narsa
    yo'qotmaydi. GIFT_ID — hozir taklif qilinayotgan (banner orqali
    reklama qilinadigan) nishon. */
 const INDEPENDENCE_ID = 'mustaqillik-35';
-const GIFT_ID = 'kashfiyotchi-1';
+const LEGACY_EXPLORER_ID = 'kashfiyotchi-1';
+const GIFT_ID = 'bilimga-qadam-1';
+const LEARNING_BADGE_ELIGIBLE_KEY = 'upcourse_bilimga-qadam-eligible';
 
 /* Har bir nishon turi uchun katta (modal ichidagi) ko'rinish + matnlar. */
 const GIFT_CONTENT = {
@@ -1401,14 +1423,20 @@ const GIFT_CONTENT = {
     offer: "Mustaqil O'zbekistonimizning 35 yilligi sharafiga — barcha foydalanuvchilarimizga chin qalbdan tabriklar va shu esdalik nishoni!",
   },
   [GIFT_ID]: {
+    Badge: LearningStepBadge,
+    title: "Bilimga qadam",
+    subtitle: "Testdagi natijangiz bilan qo‘lga kiriting",
+    offer: "Istalgan testni kamida 70% natija bilan yakunlang. Nishon profilingiz kolleksiyasiga qo‘shiladi.",
+  },
+  [LEGACY_EXPLORER_ID]: {
     Badge: ExplorerBadge,
     title: "Kashfiyotchi nishoni",
-    subtitle: "Intiluvchan, izlanuvchan har bir foydalanuvchi uchun",
-    offer: "Yangi mavzu ochish, test yechish, bilim izlashda davom etish — bularning barchasi sizni haqiqiy Kashfiyotchiga aylantiradi. Nishonni oling va kolleksiyangizga qoʻshing!",
+    subtitle: "Avvalgi nishon — kolleksiyada saqlanadi",
+    offer: "Bu nishon endi bosh sahifada taklif qilinmaydi. Avval olgan foydalanuvchilarning kolleksiyasida va coin do‘konida saqlanadi.",
   },
 };
 
-function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }) {
+function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange, eligible = false, onAccept, onStartTest }) {
   const targetId = collectibleId || GIFT_ID;
   const meta = GIFT_CONTENT[targetId] || GIFT_CONTENT[GIFT_ID];
   const [phase, setPhase] = useState('loading'); // loading | offer | owned | busy | error
@@ -1418,7 +1446,7 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!session) { setPhase('offer'); return; }
+      if (!session) { setPhase(targetId === GIFT_ID && eligible ? 'earned' : 'offer'); return; }
       try {
         const rows = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${targetId}`, 'collected_at');
         if (cancelled) return;
@@ -1428,10 +1456,10 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
           setEquipped(uc.equipped);
           setPhase('owned');
         } else {
-          setPhase('offer');
+          setPhase(targetId === GIFT_ID && eligible ? 'earned' : 'offer');
         }
       } catch (e) {
-        if (!cancelled) setPhase('offer');
+        if (!cancelled) setPhase(targetId === GIFT_ID && eligible ? 'earned' : 'offer');
       }
     })();
     return () => { cancelled = true; };
@@ -1441,6 +1469,14 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
     if (!session) { onRequireLogin(); return; }
     setPhase('busy');
     try {
+      if (targetId === GIFT_ID && onAccept) {
+        const created = await onAccept();
+        if (created?.id) setRowId(created.id);
+        setEquipped(!!created?.equipped);
+        setPhase('owned');
+        if (onChange) onChange(!!created?.equipped);
+        return;
+      }
       const [created] = await sbInsert('user_collectibles', { user_id: session.user.id, collectible_id: targetId, equipped: true });
       setRowId(created.id);
       setEquipped(true);
@@ -1494,7 +1530,19 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange }
               <p className="text-[14px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
                 {meta.offer}
               </p>
-              <SolidButton onClick={accept} icon={Award}>Qabul qilish</SolidButton>
+              {targetId === GIFT_ID
+                ? <SolidButton onClick={onStartTest} icon={BookOpen}>Testni ishlash</SolidButton>
+                : <SolidButton onClick={accept} icon={Award}>Qabul qilish</SolidButton>}
+            </>
+          )}
+
+          {phase === 'earned' && (
+            <>
+              <div className="mb-4 rounded-lg px-4 py-3 text-left" style={{ background: '#F1EDFF', border: '1px solid #D8CCFF' }}>
+                <div className="text-sm font-semibold" style={{ ...fontBody, color: '#44366F' }}>Olish sharti bajarildi</div>
+                <div className="mt-1 text-xs" style={{ ...fontBody, color: '#625A78' }}>Istalgan testdan kamida 70% natija</div>
+              </div>
+              <SolidButton onClick={accept} icon={Award}>Nishonni qabul qilish</SolidButton>
             </>
           )}
 
@@ -1536,15 +1584,15 @@ function GiftBanner({ onOpen }) {
   return (
     <button
       onClick={onOpen}
-      className="w-full flex items-center gap-3 p-3.5 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5"
-      style={{ background: `linear-gradient(120deg, ${C.cover}, ${C.coverDeep})`, border: `1px solid ${C.coverLine}` }}
+      className="w-full flex items-center gap-4 p-4 sm:p-5 mb-5 rounded-xl text-left transition-transform hover:-translate-y-0.5"
+      style={{ background: 'linear-gradient(115deg, rgba(233, 230, 237, .82) 0%, rgba(231, 235, 240, .82) 100%)', border: '1px solid rgba(210, 205, 215, .85)', boxShadow: '0 6px 18px rgba(67, 54, 111, 0.06)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
     >
-      <MiniExplorerBadge size={34} />
+      <MiniLearningBadge size={48} />
       <div className="min-w-0 flex-1">
-        <div className="text-[14px] truncate" style={{ ...fontBody, color: C.white, fontWeight: 600 }}>🧭 Kashfiyotchi nishonini oching</div>
-        <div className="text-[12px] truncate" style={{ ...fontBody, color: 'rgba(251,250,243,0.7)' }}>Bilim yoʻlida izlanuvchilar uchun — sizni kutmoqda</div>
+        <div className="text-[15px]" style={{ ...fontBody, color: '#342B55', fontWeight: 700 }}>Yangi nishon: Bilimga qadam</div>
+        <div className="mt-1 text-[12px] sm:text-[13px]" style={{ ...fontBody, color: '#625A78' }}>Testni 70% yoki undan yuqori natija bilan yakunlang</div>
       </div>
-      <ChevronRight size={18} style={{ color: C.gold, flexShrink: 0 }} />
+      <span className="inline-flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold" style={{ color: '#44366F', background: 'rgba(255,255,255,.48)', border: '1px solid #D2CDD7' }}>Ko‘rish <ChevronRight size={14} /></span>
     </button>
   );
 }
@@ -1556,7 +1604,8 @@ function GiftBanner({ onOpen }) {
 export function CollectibleThumb({ collectibleId, size = 40, inline }) {
   let content;
   if (collectibleId === INDEPENDENCE_ID) content = <MiniIndependenceBadge size={size} />;
-  else if (collectibleId === GIFT_ID) content = <MiniExplorerBadge size={size} />;
+  else if (collectibleId === LEGACY_EXPLORER_ID) content = <MiniExplorerBadge size={size} />;
+  else if (collectibleId === GIFT_ID) content = <MiniLearningBadge size={size} />;
   else {
     content = (
       <span className="inline-flex items-center justify-center rounded-full flex-shrink-0" style={{ width: size, height: size, background: C.goldSoft }}>
@@ -2281,7 +2330,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, badgeBanner }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2416,6 +2465,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
+        {badgeBanner}
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
         <button
           type="button"
@@ -3228,14 +3278,22 @@ function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
-function QuizPlayer({ test, config, onExit, onRestart, onRetry }) {
+function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const questions = config.questions;
   const [answers, setAnswers] = useState({});
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
+  const [showBadgeNotice, setShowBadgeNotice] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [paused, setPaused] = useState(false);
   const questionRefs = useRef({});
+  const autoScrollFrameRef = useRef(null);
+  const autoScrollTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    clearTimeout(autoScrollTimerRef.current);
+    if (autoScrollFrameRef.current !== null) cancelAnimationFrame(autoScrollFrameRef.current);
+  }, []);
 
   useEffect(() => {
     if (finished || paused) return;
@@ -3262,7 +3320,48 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry }) {
     });
     if (next) {
       const el = questionRefs.current[next.id];
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 220);
+      if (!el) return;
+
+      clearTimeout(autoScrollTimerRef.current);
+      if (autoScrollFrameRef.current !== null) cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollTimerRef.current = setTimeout(() => {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) {
+          el.scrollIntoView({ behavior: 'auto', block: 'center' });
+          return;
+        }
+
+        let scrollContainer = el.parentElement;
+        while (scrollContainer && scrollContainer !== document.body) {
+          const overflowY = window.getComputedStyle(scrollContainer).overflowY;
+          if (/(auto|scroll|overlay)/.test(overflowY) && scrollContainer.scrollHeight > scrollContainer.clientHeight + 1) break;
+          scrollContainer = scrollContainer.parentElement;
+        }
+        const isPageScroll = !scrollContainer || scrollContainer === document.body;
+        const container = isPageScroll ? document.scrollingElement : scrollContainer;
+        if (!container) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+
+        const rect = el.getBoundingClientRect();
+        const startTop = container.scrollTop;
+        const targetTop = isPageScroll
+          ? startTop + rect.top + rect.height / 2 - window.innerHeight / 2
+          : startTop + rect.top - container.getBoundingClientRect().top + rect.height / 2 - container.clientHeight / 2;
+        const startTime = performance.now();
+        const duration = 560;
+        const animate = (now) => {
+          const progress = Math.min(1, (now - startTime) / duration);
+          const eased = progress < 0.5
+            ? 4 * progress * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+          container.scrollTop = startTop + (targetTop - startTop) * eased;
+          if (progress < 1) autoScrollFrameRef.current = requestAnimationFrame(animate);
+          else autoScrollFrameRef.current = null;
+        };
+        autoScrollFrameRef.current = requestAnimationFrame(animate);
+      }, 280);
     }
   }
 
@@ -3300,9 +3399,16 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry }) {
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
-  function submit() {
+  async function submit() {
+    const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, answers[question.id]), 0);
+    const totalCount = getQuestionCount(questions);
+    const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
     setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
     setFinished(true);
+    if (percent >= 70 && onTestComplete) {
+      const shouldNotify = await onTestComplete(percent);
+      if (shouldNotify) setShowBadgeNotice(true);
+    }
   }
 
   if (finished) {
@@ -3338,6 +3444,18 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry }) {
             <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Sarflangan vaqt</div>
           </div>
         </div>
+        {showBadgeNotice && (
+          <div role="status" className="mb-6 flex max-w-2xl flex-wrap items-center gap-3 rounded-xl px-3 py-3 sm:px-4" style={{ background: 'rgba(232, 229, 238, .78)', border: '1px solid #D2CDD7', backdropFilter: 'blur(8px)', boxShadow: '0 4px 14px rgba(45, 40, 58, .07)' }}>
+            <MiniLearningBadge size={34} />
+            <div className="min-w-[150px] flex-1">
+              <div className="text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Tabriklaymiz, shart bajarildi!</div>
+              <div className="mt-0.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}>“Bilimga qadam” nishonini kolleksiyaga qo‘shing.</div>
+            </div>
+            <button type="button" disabled={badgeClaimBusy} onClick={async () => { try { await onBadgeClaim?.(); setShowBadgeNotice(false); } catch {} }} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-60" style={{ background: '#65539A', color: '#fff' }}>{badgeClaimBusy ? '...' : session ? 'Qabul qilish' : 'Kirish va olish'}</button>
+            <button type="button" aria-label="Yopish" onClick={() => setShowBadgeNotice(false)} className="rounded-md px-2 py-1 text-xs" style={{ color: C.inkSoft }}>Yopish</button>
+            {badgeClaimError && <div className="w-full text-xs" style={{ ...fontBody, color: C.red }}>{badgeClaimError}</div>}
+          </div>
+        )}
         <section className="max-w-2xl mb-8">
           <h4 className="text-lg mb-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Javoblar tahlili</h4>
           <div className="space-y-3">
@@ -3515,7 +3633,7 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry }) {
    umuman ko'rsatilmaydi. onSavePrefs berilgan bo'lsa (foydalanuvchi
    tizimga kirgan bo'lsa) — sozlamalar o'zgartirilganda akkauntga
    saqlanadi; berilmasa (akkaunti yo'q), hech qayerga saqlanmaydi. */
-function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
+function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
   const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
   const [lastConfig, setLastConfig] = useState(prefs);
@@ -3531,14 +3649,14 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs }) {
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={() => setAttemptKey((key) => key + 1)} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={() => setAttemptKey((key) => key + 1)} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Jonli test rejimi — endi ./LiveQuiz.jsx faylida (lazy-load)        */
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent }) {
+function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId));
@@ -3628,7 +3746,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         </div>
       );
     }
-    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} />;
+    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
 
   // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
@@ -5231,6 +5349,11 @@ export default function App() {
     setViewingUsername(null);
   };
   const [giftOpen, setGiftOpen] = useState(false);
+  const [learningBadgeEligible, setLearningBadgeEligible] = useState(() => {
+    try { return localStorage.getItem(LEARNING_BADGE_ELIGIBLE_KEY) === 'true'; } catch { return false; }
+  });
+  const [learningBadgeBusy, setLearningBadgeBusy] = useState(false);
+  const [learningBadgeError, setLearningBadgeError] = useState('');
   /* Bosh sahifa kontenti kirish holatini kutmasdan yuklanadi. */
   const initialFetchRef = useRef(false);
   const ownContentLoadRef = useRef({ loadedFor: null, promise: null, generation: 0 });
@@ -5240,6 +5363,50 @@ export default function App() {
 
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
+
+  async function handleTestCompletion(percent) {
+    if (percent < 70) return false;
+    if (session?.user?.id) {
+      try {
+        const existing = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${GIFT_ID}`, 'collected_at');
+        if (existing.length) {
+          try { localStorage.removeItem(LEARNING_BADGE_ELIGIBLE_KEY); } catch {}
+          setLearningBadgeEligible(false);
+          return false;
+        }
+      } catch { /* Nishon tekshiruvi xatosi test natijasini to‘xtatmaydi. */ }
+    }
+    try { localStorage.setItem(LEARNING_BADGE_ELIGIBLE_KEY, 'true'); } catch {}
+    setLearningBadgeEligible(true);
+    return true;
+  }
+
+  async function claimLearningBadge() {
+    if (!session?.user?.id) {
+      setGiftOpen(false);
+      setTab('profil');
+      return null;
+    }
+    setLearningBadgeBusy(true);
+    setLearningBadgeError('');
+    try {
+      const existing = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${GIFT_ID}`, 'collected_at');
+      const created = existing[0] || (await sbInsert('user_collectibles', { user_id: session.user.id, collectible_id: GIFT_ID, equipped: true }))[0];
+      if (!created) throw new Error('Nishon saqlanmadi');
+      if (!existing.length) {
+        setAuthorBadgeCache(session.user.id, GIFT_ID);
+        unequipOtherCollectibles(session.user.id, GIFT_ID);
+      }
+      try { localStorage.removeItem(LEARNING_BADGE_ELIGIBLE_KEY); } catch {}
+      setLearningBadgeEligible(false);
+      return created;
+    } catch (error) {
+      setLearningBadgeError('Nishonni saqlab bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.');
+      throw error;
+    } finally {
+      setLearningBadgeBusy(false);
+    }
+  }
 
   function openPublicProfile(username, returnTab = tab) {
     if (!username) return;
@@ -5552,10 +5719,6 @@ export default function App() {
       const vis = visibilityFilter(myId, isAdmin);
       const visQ = vis ? `&${vis}` : '';
       const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
-      // On first visit there is no signed-in user yet, so this request only
-      // asks for approved public rows. Use the anon key immediately instead
-      // of waiting for auth storage/session initialization.
-      const useAnonKey = !myId && !isAdmin;
       const initialDataController = new AbortController();
       let initialDataTimeoutId;
       let catRows;
@@ -5564,12 +5727,8 @@ export default function App() {
       try {
         [catRows, courseRows, courseRevisionRows] = await Promise.race([
           Promise.all([
-            !myId && !isAdmin && window.__upcourseInitialCatalogPromise
-              ? window.__upcourseInitialCatalogPromise.then((catalog) => catalog?.categoryRows || sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal, useAnonKey }))
-              : sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal, useAnonKey }),
-            !myId && !isAdmin && window.__upcourseInitialCatalogPromise
-              ? window.__upcourseInitialCatalogPromise.then((catalog) => catalog?.courseRows || sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal, useAnonKey }))
-              : sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal, useAnonKey }),
+            sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal }),
+            sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal }),
             isAdmin ? sbSelectAllContentRevisions('courses', { signal: initialDataController.signal }) : Promise.resolve([]),
           ]),
           new Promise((_, reject) => {
@@ -6385,12 +6544,11 @@ export default function App() {
               </div>
             )}
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
-              {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => setGiftOpen(true)} />}
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} badgeBanner={<GiftBanner onOpen={() => { setLearningBadgeError(''); setGiftOpen(true); }} />} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
@@ -6502,6 +6660,9 @@ export default function App() {
       {giftOpen && (
         <GiftModal
           session={session}
+          eligible={learningBadgeEligible}
+          onAccept={claimLearningBadge}
+          onStartTest={() => { setGiftOpen(false); setTab('testlar'); }}
           onRequireLogin={() => { setGiftOpen(false); setTab('profil'); }}
           onClose={() => setGiftOpen(false)}
         />
