@@ -3306,6 +3306,11 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
     if (q.type === 'matching') return Array.isArray(q.pairs) ? q.pairs.every((pair) => a?.[pair.id] !== undefined) : a !== undefined;
     return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
   });
+  const answeredCount = questions.filter((q) => {
+    const a = answers[q.id];
+    if (q.type === 'matching') return Array.isArray(q.pairs) ? q.pairs.every((pair) => a?.[pair.id] !== undefined) : a !== undefined;
+    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
+  }).length;
 
   /* "Keyingi savolga avtomatik oʻtish" yoqilgan boʻlsa — foydalanuvchi
      javob belgilagach, qoʻlda pastga qorishtirmasdan, ekranni keyingi
@@ -3345,12 +3350,16 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
         }
 
         const rect = el.getBoundingClientRect();
+        const containerRect = isPageScroll ? null : container.getBoundingClientRect();
+        const visibleTop = isPageScroll ? 68 : containerRect.top + 16;
+        const visibleBottom = isPageScroll ? window.innerHeight - 88 : containerRect.bottom - 16;
+        if (rect.top >= visibleTop && rect.bottom <= visibleBottom) return;
+
         const startTop = container.scrollTop;
-        const targetTop = isPageScroll
-          ? startTop + rect.top + rect.height / 2 - window.innerHeight / 2
-          : startTop + rect.top - container.getBoundingClientRect().top + rect.height / 2 - container.clientHeight / 2;
+        const visibleCenter = (visibleTop + visibleBottom) / 2;
+        const targetTop = startTop + rect.top + rect.height / 2 - visibleCenter;
         const startTime = performance.now();
-        const duration = 560;
+        const duration = Math.min(900, 700 + Math.abs(targetTop - startTop) * 0.08);
         const animate = (now) => {
           const progress = Math.min(1, (now - startTime) / duration);
           const eased = progress < 0.5
@@ -3361,7 +3370,7 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
           else autoScrollFrameRef.current = null;
         };
         autoScrollFrameRef.current = requestAnimationFrame(animate);
-      }, 280);
+      }, 320);
     }
   }
 
@@ -3539,6 +3548,18 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
       <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
       {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
 
+      {!paused && (
+        <div className="mb-5 max-w-2xl rounded-2xl px-4 py-3.5" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 5px 16px rgba(31, 61, 43, .04)' }}>
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+            <span>Test jarayoni</span>
+            <span style={{ ...fontMono, color: C.gold }}>{answeredCount}/{questions.length}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full" style={{ background: C.selectedTint }}>
+            <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${questions.length ? (answeredCount / questions.length) * 100 : 0}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.goldSoft})` }} />
+          </div>
+        </div>
+      )}
+
       {paused ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <Pause size={26} style={{ color: C.gold }} className="mb-3" />
@@ -3551,10 +3572,13 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
             {questions.map((q, qi) => {
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
-                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-3 sm:p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-                  {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
-                    <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
-                  </div>}
+                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-4 sm:p-5 rounded-2xl transition-colors duration-200" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 8px 22px rgba(31, 61, 43, .055)' }}>
+                  {q.type !== 'matching' && (
+                    <div className="mb-4">
+                      <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide" style={{ ...fontMono, color: C.gold, background: C.selectedTint, border: `1px solid ${C.coverLine}` }}>SAVOL {String(qi + 1).padStart(2, '0')}</span>
+                      <div className="mt-2 text-base leading-relaxed" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{q.text}</div>
+                    </div>
+                  )}
                   {q.imageUrl && (
                     <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
                   )}
@@ -3600,7 +3624,7 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
                             key={oi}
                             onClick={() => select(q.id, oi)}
                             disabled={showResult}
-                            className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
+                            className="w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] transition-all duration-200 focus-visible:outline focus-visible:outline-2"
                             style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
                           >
                             <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
