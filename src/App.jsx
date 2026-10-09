@@ -1585,14 +1585,14 @@ function GiftBanner({ onOpen }) {
     <button
       onClick={onOpen}
       className="w-full flex items-center gap-4 p-4 sm:p-5 mb-5 rounded-xl text-left transition-transform hover:-translate-y-0.5"
-      style={{ background: 'linear-gradient(115deg, #F1EDFF 0%, #EAF2FF 100%)', border: '1px solid #D9D0F0', boxShadow: '0 8px 24px rgba(67, 54, 111, 0.08)' }}
+      style={{ background: 'linear-gradient(115deg, #E9E6ED 0%, #E7EBF0 100%)', border: '1px solid #D2CDD7', boxShadow: '0 6px 18px rgba(67, 54, 111, 0.06)' }}
     >
       <MiniLearningBadge size={48} />
       <div className="min-w-0 flex-1">
         <div className="text-[15px]" style={{ ...fontBody, color: '#342B55', fontWeight: 700 }}>Yangi nishon: Bilimga qadam</div>
         <div className="mt-1 text-[12px] sm:text-[13px]" style={{ ...fontBody, color: '#625A78' }}>Testni 70% yoki undan yuqori natija bilan yakunlang</div>
       </div>
-      <span className="inline-flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold" style={{ color: '#44366F', background: 'rgba(255,255,255,.72)', border: '1px solid #D9D0F0' }}>Ko‘rish <ChevronRight size={14} /></span>
+      <span className="inline-flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold" style={{ color: '#44366F', background: 'rgba(255,255,255,.48)', border: '1px solid #D2CDD7' }}>Ko‘rish <ChevronRight size={14} /></span>
     </button>
   );
 }
@@ -2330,7 +2330,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, badgeBanner }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2465,6 +2465,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
+        {badgeBanner}
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
         <button
           type="button"
@@ -3277,11 +3278,12 @@ function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
-function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete }) {
+function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const questions = config.questions;
   const [answers, setAnswers] = useState({});
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
+  const [showBadgeNotice, setShowBadgeNotice] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [paused, setPaused] = useState(false);
   const questionRefs = useRef({});
@@ -3349,13 +3351,16 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete }
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
-  function submit() {
+  async function submit() {
     const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, answers[question.id]), 0);
     const totalCount = getQuestionCount(questions);
     const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
-    if (percent >= 70 && onTestComplete) onTestComplete(percent);
     setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
     setFinished(true);
+    if (percent >= 70 && onTestComplete) {
+      const shouldNotify = await onTestComplete(percent);
+      if (shouldNotify) setShowBadgeNotice(true);
+    }
   }
 
   if (finished) {
@@ -3391,6 +3396,18 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete }
             <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Sarflangan vaqt</div>
           </div>
         </div>
+        {showBadgeNotice && (
+          <div role="status" className="mb-6 flex max-w-2xl flex-wrap items-center gap-3 rounded-xl px-3 py-3 sm:px-4" style={{ background: 'rgba(232, 229, 238, .78)', border: '1px solid #D2CDD7', backdropFilter: 'blur(8px)', boxShadow: '0 4px 14px rgba(45, 40, 58, .07)' }}>
+            <MiniLearningBadge size={34} />
+            <div className="min-w-[150px] flex-1">
+              <div className="text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Tabriklaymiz, shart bajarildi!</div>
+              <div className="mt-0.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}>“Bilimga qadam” nishonini kolleksiyaga qo‘shing.</div>
+            </div>
+            <button type="button" disabled={badgeClaimBusy} onClick={() => onBadgeClaim?.().catch(() => {})} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-60" style={{ background: '#65539A', color: '#fff' }}>{badgeClaimBusy ? '...' : session ? 'Qabul qilish' : 'Kirish va olish'}</button>
+            <button type="button" aria-label="Yopish" onClick={() => setShowBadgeNotice(false)} className="rounded-md px-2 py-1 text-xs" style={{ color: C.inkSoft }}>Yopish</button>
+            {badgeClaimError && <div className="w-full text-xs" style={{ ...fontBody, color: C.red }}>{badgeClaimError}</div>}
+          </div>
+        )}
         <section className="max-w-2xl mb-8">
           <h4 className="text-lg mb-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Javoblar tahlili</h4>
           <div className="space-y-3">
@@ -3568,7 +3585,7 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete }
    umuman ko'rsatilmaydi. onSavePrefs berilgan bo'lsa (foydalanuvchi
    tizimga kirgan bo'lsa) — sozlamalar o'zgartirilganda akkauntga
    saqlanadi; berilmasa (akkaunti yo'q), hech qayerga saqlanmaydi. */
-function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs, onTestComplete }) {
+function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
   const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
   const [lastConfig, setLastConfig] = useState(prefs);
@@ -3584,14 +3601,14 @@ function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs, onTes
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={() => setAttemptKey((key) => key + 1)} onTestComplete={onTestComplete} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={() => setAttemptKey((key) => key + 1)} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Jonli test rejimi — endi ./LiveQuiz.jsx faylida (lazy-load)        */
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent, onTestComplete }) {
+function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId));
@@ -3681,7 +3698,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         </div>
       );
     }
-    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} />;
+    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
 
   // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
@@ -5287,8 +5304,6 @@ export default function App() {
   const [learningBadgeEligible, setLearningBadgeEligible] = useState(() => {
     try { return localStorage.getItem(LEARNING_BADGE_ELIGIBLE_KEY) === 'true'; } catch { return false; }
   });
-  const [learningBadgeNotice, setLearningBadgeNotice] = useState(false);
-  const [learningBadgeScore, setLearningBadgeScore] = useState(0);
   const [learningBadgeBusy, setLearningBadgeBusy] = useState(false);
   const [learningBadgeError, setLearningBadgeError] = useState('');
   /* Bosh sahifa kontenti kirish holatini kutmasdan yuklanadi. */
@@ -5302,28 +5317,25 @@ export default function App() {
   const nav = useNavStack();
 
   async function handleTestCompletion(percent) {
-    if (percent < 70) return;
-    setLearningBadgeScore(percent);
-    try { localStorage.setItem(LEARNING_BADGE_ELIGIBLE_KEY, 'true'); } catch {}
-    setLearningBadgeEligible(true);
-    setLearningBadgeNotice(true);
+    if (percent < 70 || learningBadgeEligible) return false;
     if (session?.user?.id) {
       try {
         const existing = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${GIFT_ID}`, 'collected_at');
         if (existing.length) {
           try { localStorage.removeItem(LEARNING_BADGE_ELIGIBLE_KEY); } catch {}
           setLearningBadgeEligible(false);
-          setLearningBadgeNotice(false);
-          return;
+          return false;
         }
-      } catch { /* Natija oynasini tarmoq xatosi bilan to'xtatmaymiz. */ }
+      } catch { /* Nishon tekshiruvi xatosi test natijasini to‘xtatmaydi. */ }
     }
+    try { localStorage.setItem(LEARNING_BADGE_ELIGIBLE_KEY, 'true'); } catch {}
+    setLearningBadgeEligible(true);
+    return true;
   }
 
   async function claimLearningBadge() {
     if (!session?.user?.id) {
       setGiftOpen(false);
-      setLearningBadgeNotice(false);
       setTab('profil');
       return null;
     }
@@ -5339,7 +5351,6 @@ export default function App() {
       }
       try { localStorage.removeItem(LEARNING_BADGE_ELIGIBLE_KEY); } catch {}
       setLearningBadgeEligible(false);
-      setLearningBadgeNotice(false);
       return created;
     } catch (error) {
       setLearningBadgeError('Nishonni saqlab bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.');
@@ -6485,12 +6496,11 @@ export default function App() {
               </div>
             )}
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
-              {!viewingUsername && tab === 'kurslar' && <GiftBanner onOpen={() => { setLearningBadgeError(''); setGiftOpen(true); }} />}
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} badgeBanner={<GiftBanner onOpen={() => { setLearningBadgeError(''); setGiftOpen(true); }} />} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
@@ -6598,21 +6608,6 @@ export default function App() {
       {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
         <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} />
       </Suspense>}
-
-      {learningBadgeNotice && (
-        <div role="status" className="fixed bottom-24 md:bottom-6 left-1/2 z-[60] w-[min(92vw,440px)] -translate-x-1/2 rounded-xl p-4" style={{ background: '#F8F6FF', border: '1px solid #C7BCE7', boxShadow: '0 14px 40px rgba(35, 29, 58, .24)' }}>
-          <div className="flex items-center gap-3">
-            <MiniLearningBadge size={42} />
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-bold" style={{ ...fontBody, color: '#342B55' }}>Tabriklaymiz! {learningBadgeScore}% natija oldingiz.</div>
-              <div className="mt-0.5 text-xs" style={{ ...fontBody, color: '#625A78' }}>“Bilimga qadam” nishonini kolleksiyangizga qo‘shing.</div>
-            </div>
-            <button type="button" disabled={learningBadgeBusy} onClick={() => claimLearningBadge().catch(() => {})} className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-60" style={{ background: '#65539A', color: '#fff' }}>{learningBadgeBusy ? '...' : 'Qabul qilish'}</button>
-            <button type="button" aria-label="Yopish" onClick={() => setLearningBadgeNotice(false)} className="shrink-0 p-1" style={{ color: '#625A78' }}><X size={16} /></button>
-          </div>
-          {learningBadgeError && <div className="mt-2 text-xs" style={{ ...fontBody, color: C.red }}>{learningBadgeError}</div>}
-        </div>
-      )}
 
       {giftOpen && (
         <GiftModal
