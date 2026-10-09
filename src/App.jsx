@@ -3287,6 +3287,13 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
   const [seconds, setSeconds] = useState(0);
   const [paused, setPaused] = useState(false);
   const questionRefs = useRef({});
+  const autoScrollFrameRef = useRef(null);
+  const autoScrollTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    clearTimeout(autoScrollTimerRef.current);
+    if (autoScrollFrameRef.current !== null) cancelAnimationFrame(autoScrollFrameRef.current);
+  }, []);
 
   useEffect(() => {
     if (finished || paused) return;
@@ -3313,7 +3320,48 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
     });
     if (next) {
       const el = questionRefs.current[next.id];
-      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 220);
+      if (!el) return;
+
+      clearTimeout(autoScrollTimerRef.current);
+      if (autoScrollFrameRef.current !== null) cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollTimerRef.current = setTimeout(() => {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) {
+          el.scrollIntoView({ behavior: 'auto', block: 'center' });
+          return;
+        }
+
+        let scrollContainer = el.parentElement;
+        while (scrollContainer && scrollContainer !== document.body) {
+          const overflowY = window.getComputedStyle(scrollContainer).overflowY;
+          if (/(auto|scroll|overlay)/.test(overflowY) && scrollContainer.scrollHeight > scrollContainer.clientHeight + 1) break;
+          scrollContainer = scrollContainer.parentElement;
+        }
+        const isPageScroll = !scrollContainer || scrollContainer === document.body;
+        const container = isPageScroll ? document.scrollingElement : scrollContainer;
+        if (!container) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+
+        const rect = el.getBoundingClientRect();
+        const startTop = container.scrollTop;
+        const targetTop = isPageScroll
+          ? startTop + rect.top + rect.height / 2 - window.innerHeight / 2
+          : startTop + rect.top - container.getBoundingClientRect().top + rect.height / 2 - container.clientHeight / 2;
+        const startTime = performance.now();
+        const duration = 560;
+        const animate = (now) => {
+          const progress = Math.min(1, (now - startTime) / duration);
+          const eased = progress < 0.5
+            ? 4 * progress * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+          container.scrollTop = startTop + (targetTop - startTop) * eased;
+          if (progress < 1) autoScrollFrameRef.current = requestAnimationFrame(animate);
+          else autoScrollFrameRef.current = null;
+        };
+        autoScrollFrameRef.current = requestAnimationFrame(animate);
+      }, 280);
     }
   }
 
