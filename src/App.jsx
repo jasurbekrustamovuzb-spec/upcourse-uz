@@ -900,7 +900,7 @@ function AuthorLine({ authorId, authorName, className, style }) {
    va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
 function LinkedUsernameText({ text, className, style }) {
   const value = String(text || '');
-  const pattern = /(^|[\\s(])@([a-zA-Z0-9_]{5,20})(?=$|[\\s.,!?;:)])/g;
+  const pattern = /(^|[\s(])@([a-zA-Z0-9_]{5,20})(?=$|[\s.,!?;:)])/g;
   const nodes = [];
   let cursor = 0;
   let match;
