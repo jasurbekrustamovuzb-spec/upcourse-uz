@@ -5743,13 +5743,26 @@ export default function App() {
       let catRows;
       let courseRows;
       let courseRevisionRows = [];
+      const requestCatalog = () => Promise.all([
+        sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal }),
+        sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal }),
+        isAdmin ? sbSelectAllContentRevisions('courses', { signal: initialDataController.signal }) : Promise.resolve([]),
+      ]);
+      const earlyCatalogPromise = !myId && !isAdmin && typeof window !== 'undefined'
+        ? window.__upcourseInitialCatalogPromise
+        : null;
+      const initialCatalogPromise = earlyCatalogPromise
+        ? Promise.resolve(earlyCatalogPromise).then((catalog) => {
+            if (catalog && Array.isArray(catalog.categoryRows) && Array.isArray(catalog.courseRows)) {
+              return [catalog.categoryRows, catalog.courseRows, []];
+            }
+            // Erta so‘rov xato bersa, odatdagi so‘rovlar bilan qayta urinib ko‘ramiz.
+            return requestCatalog();
+          })
+        : requestCatalog();
       try {
         [catRows, courseRows, courseRevisionRows] = await Promise.race([
-          Promise.all([
-            sbSelect('categories', vis, 'created_at', { signal: initialDataController.signal }),
-            sbRequest(`courses?select=${courseListCols}&order=created_at.asc${visQ}`, { signal: initialDataController.signal }),
-            isAdmin ? sbSelectAllContentRevisions('courses', { signal: initialDataController.signal }) : Promise.resolve([]),
-          ]),
+          initialCatalogPromise,
           new Promise((_, reject) => {
             initialDataTimeoutId = setTimeout(() => {
               initialDataController.abort();
