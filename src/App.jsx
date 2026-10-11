@@ -5195,6 +5195,11 @@ function AboutView() {
         <p>Platforma muntazam yangilanib boradi: unga yangi mavzular, testlar va e’lonlar qo‘shiladi.</p>
         
         <p>Savol, taklif yoki hamkorlik bo‘yicha <a href="https://t.me/upcourseuz" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}><strong>UpCourse Uz jamoasi bilan bog‘laning</strong></a>.</p>
+        <div className="pt-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>
+          <a href="/jasurbek-rustamov.html" className="underline underline-offset-2" style={{ color: C.inkSoft }}>
+            Loyiha muallifi: Jasurbek Rustamov
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -6633,14 +6638,6 @@ export default function App() {
           </>
         )}
       </main>
-
-      {!viewingUsername && tab === 'kurslar' && (
-        <div className="px-5 pb-4 text-center text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>
-          <a href="/jasurbek-rustamov.html" className="underline underline-offset-2" style={{ color: C.inkSoft }}>
-            Loyiha muallifi: Jasurbek Rustamov
-          </a>
-        </div>
-      )}
 
       </div>
 
