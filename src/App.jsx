@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useContext, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext, lazy, Suspense } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
@@ -898,6 +898,33 @@ function AuthorLine({ authorId, authorName, className, style }) {
 
 /* Boshqa foydalanuvchining ommaviy profili — ismi, @username'i, bio'si
    va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
+function LinkedUsernameText({ text, className, style }) {
+  const value = String(text || '');
+  const pattern = /(^|[\s(])@([a-zA-Z0-9_]{5,20})(?=$|[\s.,!?;:)])/g;
+  const nodes = [];
+  let cursor = 0;
+  let match;
+  while ((match = pattern.exec(value))) {
+    if (match.index > cursor) nodes.push(value.slice(cursor, match.index));
+    nodes.push(match[1]);
+    const username = match[2];
+    nodes.push(
+      <a key={match.index} href={buildShareUrl({ u: username })}
+        onClick={(event) => {
+          if (!_goToPublicProfile) return;
+          event.preventDefault();
+          _goToPublicProfile(username);
+        }}
+        className="hover:underline focus-visible:outline focus-visible:outline-2 rounded-sm"
+        style={{ color: C.math, outlineColor: C.mathSoft }}
+      >@{username}</a>
+    );
+    cursor = pattern.lastIndex;
+  }
+  if (cursor < value.length) nodes.push(value.slice(cursor));
+  return <p className={className} style={style}>{nodes}</p>;
+}
+
 function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, session }) {
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
@@ -1042,8 +1069,8 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
               <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{row.username}</div>
               <ShareButton url={buildShareUrl({ u: row.username })} title={fullName || row.username} small />
             </div>
-            <Suspense fallback={null}><ArenaProfileBadgeView userId={row.id} /></Suspense>
-            {row.bio && <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{row.bio}</p>}
+            <Suspense fallback={null}><ArenaProfileBadgeView userId={row.id} compact /></Suspense>
+            {row.bio && <LinkedUsernameText text={row.bio} className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }} />}
           </div>
 
           <div className="flex flex-wrap gap-x-6 gap-y-3 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
@@ -5032,9 +5059,9 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
                 <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`.trim()} small />
               </div>
             )}
-            <Suspense fallback={null}><ArenaProfileBadgeView userId={session.user.id} /></Suspense>
+            <Suspense fallback={null}><ArenaProfileBadgeView userId={session.user.id} compact /></Suspense>
             {profile.bio && (
-              <p className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>{profile.bio}</p>
+              <LinkedUsernameText text={profile.bio} className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }} />
             )}
           </div>
 
@@ -5166,7 +5193,13 @@ function AboutView() {
         <p><strong>UpCourse Uz</strong> — o‘z ustida ishlash va rivojlanishni istaganlar uchun yaratilgan ochiq ta’lim platformasi. Maqsadimiz — bilimlarni sodda, tizimli va hammabop shaklda taqdim etish hamda jamiyat va ilm-fan rivojiga hissa qo‘shish.</p>
         <p>Platformadagi kurslar, testlar va yangiliklardan foydalanish uchun ro‘yxatdan o‘tish yoki profil yaratish shart emas.</p>
         <p>Platforma muntazam yangilanib boradi: unga yangi mavzular, testlar va e’lonlar qo‘shiladi.</p>
+        
         <p>Savol, taklif yoki hamkorlik bo‘yicha <a href="https://t.me/upcourseuz" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}><strong>UpCourse Uz jamoasi bilan bog‘laning</strong></a>.</p>
+        <div className="pt-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>
+          <a href="/jasurbek-rustamov.html" className="underline underline-offset-2" style={{ color: C.inkSoft }}>
+            Loyiha muallifi: Jasurbek Rustamov
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -5304,6 +5337,21 @@ export default function App() {
   });
   const [readingActive, setReadingActive] = useState(false);
   const [viewingUsername, setViewingUsername] = useState(null);
+  const activeViewKey = viewingUsername ? 'profile:' + viewingUsername : 'section:' + tab;
+  const activeViewKeyRef = useRef(null);
+  const sectionScrollPositionsRef = useRef({});
+  useLayoutEffect(() => {
+    const previousKey = activeViewKeyRef.current;
+    if (previousKey === null) {
+      activeViewKeyRef.current = activeViewKey;
+      return undefined;
+    }
+    sectionScrollPositionsRef.current[previousKey] = window.scrollY;
+    activeViewKeyRef.current = activeViewKey;
+    const savedTop = sectionScrollPositionsRef.current[activeViewKey] || 0;
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: savedTop, behavior: 'auto' }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeViewKey]);
   /* Boshqa birovning profilida kurs/testni bosganda, o'sha kurs/testni
      ochish uchun — "bir martalik" ko'rsatma. Kurslar/Testlar ekrani
      buni o'zining oddiy initialOpenId'i kabi o'qiydi (deep link bilan
