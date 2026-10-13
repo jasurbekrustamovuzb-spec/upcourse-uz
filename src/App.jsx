@@ -2525,10 +2525,9 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         {(isLoading || featuredCourse) && !isSearching && (
           <button
             type="button"
-            onClick={() => featuredCourse && goCourse(featuredCourse.id)}
-            disabled={isLoading || !featuredCourse}
+            onClick={() => goCourse((featuredCourse || FEATURED_COURSE_FALLBACK).id)}
             aria-label={`Tavsiya etilgan mavzu: ${featuredCourse?.title || FEATURED_COURSE_FALLBACK.title}`}
-            className="w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 disabled:cursor-default"
+            className="w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
             style={{ background: C.surface, color: C.ink, border: `1px solid ${C.rule}`, outlineColor: C.gold, boxShadow: '0 5px 16px rgba(31,61,43,0.08)' }}
           >
             <span className="relative flex h-[68px] w-[76px] sm:h-[76px] sm:w-[88px] flex-shrink-0 items-center justify-center overflow-hidden rounded-md" style={{ background: `linear-gradient(140deg, ${C.cover}, ${C.coverDeep})` }} aria-hidden="true">
@@ -2542,7 +2541,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
               <span className="block mt-0.5 text-sm sm:text-base font-semibold leading-snug line-clamp-2" style={{ ...fontBody, color: C.ink }}>{featuredCourse?.title || FEATURED_COURSE_FALLBACK.title}</span>
             </span>
             <span className="hidden sm:flex items-center gap-1 flex-shrink-0 rounded-full px-3 py-2 text-xs font-medium" style={{ ...fontBody, color: C.cover, background: C.goldSoft }}>
-              {isLoading ? 'Yuklanmoqda' : 'Mavzuni ochish'} <ChevronRight size={14} />
+              Mavzuni ochish <ChevronRight size={14} />
             </span>
             <ChevronRight size={17} className="sm:hidden flex-shrink-0" style={{ color: C.gold }} />
           </button>
