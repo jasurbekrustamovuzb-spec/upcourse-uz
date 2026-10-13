@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Award, Loader2, Sparkles } from 'lucide-react';
+import { Award, Sparkles } from 'lucide-react';
 import { C, CollectibleThumb, fontBody, fontDisplay, fontMono, SectionLoading } from './App';
 import { supabase } from './supabaseClient';
 
