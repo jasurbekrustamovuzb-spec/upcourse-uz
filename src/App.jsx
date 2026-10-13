@@ -2495,6 +2495,17 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
+function PinnedAddButton({ icon: Icon, label, onClick }) {
+  return (
+    <div className="pointer-events-none fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-5">
+      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full px-3.5 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.white, background: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.goldSoft, boxShadow: '0 5px 16px rgba(20,42,27,.24)' }}>
+        <span className="relative inline-flex"><Icon size={16} /><Plus size={9} className="absolute -bottom-1 -right-1 rounded-full" style={{ background: C.cover, color: C.goldSoft }} /></span>
+        {label}
+      </button>
+    </div>
+  );
+}
+
 function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, onRequireAccount, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
@@ -2629,6 +2640,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     return (
       <div>
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
+        <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar')} />
         {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} session={session} onRequireAccount={onRequireAccount} />}
         <div className="flex items-stretch gap-2 mb-5">
           <SearchBox className="flex-1 !mb-0" value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
@@ -2739,6 +2751,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         <ArrowLeft size={15} /> Barcha sohalar
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta mavzu`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
+      <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar', activeCategory ? activeCategory.name : '')} />
       {inCategory.length === 0 ? (
         <EmptyState text="Bu sohada hozircha mavzu qoʻshilmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
       ) : (
@@ -2772,9 +2785,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         </div>
       )}
 
-      <div className="mt-6">
-        <GhostButton onClick={() => onGoToCommunity('kurslar', activeCategory ? activeCategory.name : '')} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
-      </div>
+      
     </div>
   );
 }
@@ -3934,6 +3945,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
       <div>
         <div className="flex items-start justify-between gap-3 mb-1">
           <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
+          <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
         </div>
         <button
           onClick={goLive}
@@ -4083,6 +4095,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         <ArrowLeft size={15} /> Barcha sohalar
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
+      <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} />
       {testsLoading && !tests.length ? (
         <SectionLoading label="Testlar yuklanmoqda…" />
       ) : testsLoadError && !tests.length ? (
@@ -4126,9 +4139,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         </div>
       )}
 
-      <div className="mt-6">
-        <GhostButton onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} icon={Plus}>Yangi test qoʻshish</GhostButton>
-      </div>
+      
     </div>
   );
 }
