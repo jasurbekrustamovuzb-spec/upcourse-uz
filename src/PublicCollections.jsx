@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Award, Loader2, Sparkles } from 'lucide-react';
-import { C, CollectibleThumb, fontBody, fontDisplay, fontMono } from './App';
+import { C, CollectibleThumb, fontBody, fontDisplay, fontMono, SectionLoading } from './App';
 import { supabase } from './supabaseClient';
 
 export default function PublicCollections({ userId }) {
@@ -24,7 +24,7 @@ export default function PublicCollections({ userId }) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  if (state === 'loading') return <div className="flex items-center justify-center py-12"><Loader2 size={19} className="animate-spin" style={{ color: C.gold }} /></div>;
+  if (state === 'loading') return <SectionLoading label="Kolleksiya yuklanmoqda…" compact />;
   if (state === 'error') return <p role="status" className="py-8 text-center text-sm" style={{ ...fontBody, color: C.inkSoft }}>Kolleksiyani yuklab boʻlmadi. Keyinroq qayta urinib koʻring.</p>;
   if (!items.length) return <div className="mx-auto max-w-sm py-10 text-center"><Award size={28} className="mx-auto mb-2" style={{ color: C.gold }} /><p className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Bu profilda hozircha ochiq nishon yoʻq.</p></div>;
 
