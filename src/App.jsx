@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext, useMemo, lazy, Suspense } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
@@ -156,35 +156,35 @@ export const fontDisplay = { fontFamily: "Georgia, 'Times New Roman', serif" };
 export const fontBody = { fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" };
 export const fontMono = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" };
 
-export function SectionLoading({ label = 'Yuklanmoqda…', compact = false }) {
+const SectionLoadingContext = React.createContext(null);
+let sectionLoadingSequence = 0;
+
+function SectionLoadingProvider({ children }) {
+  const [activeId, setActiveId] = useState(null);
+  const queue = useRef([]);
+  const register = useCallback((id) => {
+    if (!queue.current.includes(id)) queue.current.push(id);
+    setActiveId(queue.current[0] || null);
+    return () => {
+      queue.current = queue.current.filter((queuedId) => queuedId !== id);
+      setActiveId(queue.current[0] || null);
+    };
+  }, []);
+  const value = useMemo(() => ({ activeId, register }), [activeId, register]);
+  return <SectionLoadingContext.Provider value={value}>{children}</SectionLoadingContext.Provider>;
+}
+
+export function SectionLoading() {
+  const registry = useContext(SectionLoadingContext);
+  const register = registry?.register;
+  const id = useRef(null);
+  if (id.current === null) id.current = ++sectionLoadingSequence;
+  useEffect(() => register?.(id.current), [register]);
+  if (registry && registry.activeId !== id.current) return null;
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={`flex w-full flex-col items-center justify-center text-center ${compact ? 'min-h-[112px] py-5' : 'min-h-[156px] py-8'}`}
-      style={{ ...fontBody, color: C.inkSoft }}
-    >
-      <span
-        className={`relative mb-3 grid place-items-center rounded-full ${compact ? 'h-11 w-11' : 'h-12 w-12'}`}
-        style={{ background: C.goldSoft + '44', border: `1px solid ${C.coverLine}` }}
-        aria-hidden="true"
-      >
-        <span
-          className="motion-safe:animate-spin absolute inset-[3px] rounded-full"
-          style={{ border: '2px solid transparent', borderTopColor: C.gold, borderRightColor: C.gold }}
-        />
-        <BookOpen size={compact ? 17 : 19} strokeWidth={1.8} style={{ color: C.cover }} />
-      </span>
-      <span className="text-sm font-medium" style={{ color: C.ink }}>{label}</span>
-      <span className="mt-2 flex items-center gap-1" aria-hidden="true">
-        {[0, 1, 2].map((dot) => (
-          <span
-            key={dot}
-            className="motion-safe:animate-pulse h-1.5 w-1.5 rounded-full"
-            style={{ background: dot === 1 ? C.gold : C.rule, animationDelay: `${dot * 140}ms` }}
-          />
-        ))}
-      </span>
+    <div role="status" aria-live="polite" aria-label="Yuklanmoqda" className="flex min-h-[72px] w-full items-center justify-center gap-2 py-5" style={{ ...fontBody, color: C.inkSoft }}>
+      <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+      <span className="text-[13px]">Yuklanmoqda</span>
     </div>
   );
 }
@@ -6416,6 +6416,7 @@ export default function App() {
   }
 
   return (
+    <SectionLoadingProvider>
     <NavContext.Provider value={nav}>
     <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
       <style>{`
@@ -6807,6 +6808,7 @@ export default function App() {
       )}
     </div>
     </NavContext.Provider>
+    </SectionLoadingProvider>
   );
 }
 
