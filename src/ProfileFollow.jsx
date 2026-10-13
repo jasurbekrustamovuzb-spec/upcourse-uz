@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, UserCheck, UserPlus, Users, X } from 'lucide-react';
-import { C, fontBody, fontMono } from './App';
+import { C, fontBody, fontMono, SectionLoading } from './App';
 import { signInWithGoogle, supabase } from './supabaseClient';
 
 export default function ProfileFollow({ userId, session, onOpenProfile }) {
@@ -96,7 +96,7 @@ export default function ProfileFollow({ userId, session, onOpenProfile }) {
           <button type="button" onClick={() => setListType('')} aria-label="Roʻyxatni yopish" className="rounded-lg p-1.5" style={{ color: C.inkSoft }}><X size={17} /></button>
         </header>
         <div className="max-h-[55vh] overflow-y-auto p-2">
-          {listLoading ? <div className="flex justify-center p-7"><Loader2 size={20} className="animate-spin" style={{ color: C.gold }} /></div>
+          {listLoading ? <SectionLoading label="Roʻyxat yuklanmoqda…" compact />
             : listRows.length ? listRows.map((person) => <button key={person.id} type="button" onClick={() => { setListType(''); if (person.username) onOpenProfile?.(person.username); }} disabled={!person.username} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-black/5 disabled:opacity-50" style={{ ...fontBody, color: C.ink }}>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs" style={{ color: C.white, background: C.cover }}>{(person.first_name || person.username || '?').slice(0, 1).toUpperCase()}</span>
               <span className="min-w-0"><span className="block truncate text-sm font-medium">{`${person.first_name || ''} ${person.last_name || ''}`.trim() || `@${person.username}`}</span><span className="block truncate text-xs" style={{ color: C.inkSoft }}>@{person.username || 'foydalanuvchi'}</span></span>
