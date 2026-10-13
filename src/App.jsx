@@ -1833,10 +1833,23 @@ function SearchBox({ value, onChange, placeholder, className = '' }) {
   );
 }
 
-function CourseRecommendationCarousel({ items, categories, onOpen }) {
+function CourseRecommendationCarousel({ items, categories, onOpen, session, onRequireAccount }) {
   const [index, setIndex] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [preferredId, setPreferredId] = useState(null);
   const touchStartX = useRef(null);
   const count = items.length;
+  const userId = session?.user?.id || null;
+  useEffect(() => {
+    if (!userId) { setPreferredId(null); return; }
+    try { setPreferredId(window.localStorage.getItem(`upcourse_recommendation:${userId}`)); }
+    catch { setPreferredId(null); }
+  }, [userId]);
+  useEffect(() => {
+    if (!preferredId) return;
+    const savedIndex = items.findIndex((entry) => entry.id === preferredId);
+    if (savedIndex >= 0) setIndex(savedIndex);
+  }, [items, preferredId]);
   useEffect(() => {
     if (count < 2) return undefined;
     const timer = window.setInterval(() => setIndex((current) => (current + 1) % count), 6500);
@@ -1847,7 +1860,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen }) {
   const category = categories.find((entry) => entry.id === item.categoryId)?.name || item.category || 'Tavsiya etilgan mavzu';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="mb-4 overflow-hidden rounded-lg" style={{ background: `linear-gradient(112deg, ${C.coverDeep}, #284F61 68%, #376B70)`, border: `1px solid ${C.coverLine}`, boxShadow: '0 5px 18px rgba(24,45,36,.12)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 rounded-lg" style={{ background: `linear-gradient(112deg, ${C.coverDeep}, #284F61 68%, #376B70)`, border: `1px solid ${C.coverLine}`, boxShadow: '0 5px 18px rgba(24,45,36,.12)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
@@ -1857,6 +1870,25 @@ function CourseRecommendationCarousel({ items, categories, onOpen }) {
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiyani o‘zgartirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: C.white, background: 'rgba(255,255,255,.13)', border: '1px solid rgba(255,255,255,.24)', outlineColor: C.goldSoft }} title="Tavsiyani o‘zgartirish"><Pencil size={14} /></button>
+      {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        {userId ? <>
+          <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Tavsiyani tanlang</div>
+          <div className="max-h-56 space-y-1 overflow-y-auto">
+            {items.map((entry, entryIndex) => <button key={entry.id} type="button" onClick={() => {
+              setIndex(entryIndex);
+              setPreferredId(entry.id);
+              try { window.localStorage.setItem(`upcourse_recommendation:${userId}`, entry.id); } catch { /* local storage ixtiyoriy */ }
+              setMenuOpen(false);
+            }} className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs" style={{ ...fontBody, color: entry.id === item.id ? C.cover : C.ink, background: entry.id === item.id ? C.goldSoft + '55' : 'transparent' }}>
+              <span className="min-w-0 truncate">{entry.title}</span>{entry.id === item.id && <Check size={14} className="shrink-0" />}
+            </button>)}
+          </div>
+        </> : <>
+          <div className="text-[13px] font-medium" style={{ ...fontBody, color: C.ink }}>Tavsiyani tanlash uchun akkauntga kiring.</div>
+          <button type="button" onClick={onRequireAccount} className="mt-2 rounded-full px-3 py-1.5 text-xs font-medium" style={{ ...fontBody, color: C.white, background: C.cover }}>Akkauntga kirish</button>
+        </>}
+      </div>}
       <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
         <div className="relative flex w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-md sm:w-[100px]" aria-hidden="true" style={{ background: 'linear-gradient(145deg, #D8B66C, #A77B38)' }}>
           <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} />
@@ -2463,7 +2495,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, onRequireAccount, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2597,7 +2629,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     return (
       <div>
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
-        {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} />}
+        {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} session={session} onRequireAccount={onRequireAccount} />}
         <div className="flex items-stretch gap-2 mb-5">
           <SearchBox className="flex-1 !mb-0" value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
           <button
@@ -6673,7 +6705,7 @@ export default function App() {
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
