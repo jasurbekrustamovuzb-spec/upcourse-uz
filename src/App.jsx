@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext, useMemo, lazy, Suspense } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap
+  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap, Gift, Star, Gem, Crown, Repeat2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut } from './supabaseClient';
 
@@ -17,11 +17,11 @@ const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
 const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
 const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
-const ArenaProfileBadgeView = lazy(() => import('./DailyArena.jsx').then((module) => ({ default: module.ArenaProfileBadge })));
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
 const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
 const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
 const CourseLinkedTestsView = lazy(() => import('./CourseLinkedTests.jsx'));
+const LearningTasksModal = lazy(() => import('./LearningTasks.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -155,6 +155,39 @@ function BrandMark({ size = 28 }) {
 export const fontDisplay = { fontFamily: "Georgia, 'Times New Roman', serif" };
 export const fontBody = { fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" };
 export const fontMono = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" };
+
+const SectionLoadingContext = React.createContext(null);
+let sectionLoadingSequence = 0;
+
+function SectionLoadingProvider({ children }) {
+  const [activeId, setActiveId] = useState(null);
+  const queue = useRef([]);
+  const register = useCallback((id) => {
+    if (!queue.current.includes(id)) queue.current.push(id);
+    setActiveId(queue.current[0] || null);
+    return () => {
+      queue.current = queue.current.filter((queuedId) => queuedId !== id);
+      setActiveId(queue.current[0] || null);
+    };
+  }, []);
+  const value = useMemo(() => ({ activeId, register }), [activeId, register]);
+  return <SectionLoadingContext.Provider value={value}>{children}</SectionLoadingContext.Provider>;
+}
+
+export function SectionLoading() {
+  const registry = useContext(SectionLoadingContext);
+  const register = registry?.register;
+  const id = useRef(null);
+  if (id.current === null) id.current = ++sectionLoadingSequence;
+  useEffect(() => register?.(id.current), [register]);
+  if (registry && registry.activeId !== id.current) return null;
+  return (
+    <div role="status" aria-live="polite" aria-label="Yuklanmoqda" className="flex min-h-[72px] w-full items-center justify-center gap-2 py-5" style={{ ...fontBody, color: C.inkSoft }}>
+      <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+      <span className="text-[13px]">Yuklanmoqda</span>
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  Seed content — shown the first time the shared ledger is empty    */
@@ -1000,9 +1033,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
     return (
       <div>
         {backButton}
-        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
+        <SectionLoading label="Profil ma’lumotlari yuklanmoqda…" compact />
       </div>
     );
   }
@@ -1078,7 +1109,6 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
               <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{row.username}</div>
               <ShareButton url={buildShareUrl({ u: row.username })} title={fullName || row.username} small />
             </div>
-            <Suspense fallback={null}><ArenaProfileBadgeView userId={row.id} compact /></Suspense>
             {row.bio && <LinkedUsernameText text={row.bio} className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }} />}
           </div>
 
@@ -1126,7 +1156,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
       </div>
 
       {section === 'kolleksiyalar' ? (
-        <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 size={18} className="animate-spin" style={{ color: C.gold }} /></div>}>
+        <Suspense fallback={<SectionLoading label="Kolleksiyalar yuklanmoqda…" compact />}>
           <PublicCollectionsView userId={row.id} />
         </Suspense>
       ) : contentError && items.length === 0 ? (
@@ -1134,9 +1164,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
           Materiallarni yuklab boʻlmadi. Sahifani yangilab qayta urinib koʻring.
         </div>
       ) : contentLoading && authorContent.userId !== row.id ? (
-        <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Materiallar yuklanmoqda…
-        </div>
+        <SectionLoading label="Materiallar yuklanmoqda…" compact />
       ) : items.length === 0 ? (
         <div className="py-10 text-center">
           <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
@@ -1443,12 +1471,12 @@ function MiniLearningBadge({ size = 18 }) {
 /* Faol nishon — vaqti-vaqti bilan almashishi mumkin. Eski nishonlar
    (masalan Mustaqillik-35) shu ro'yxatdan olib tashlanmaydi — faqat
    yangisi ustiga qo'shiladi, shu tufayli avval olganlar hech narsa
-   yo'qotmaydi. GIFT_ID — hozir taklif qilinayotgan (banner orqali
-   reklama qilinadigan) nishon. */
+   yo'qotmaydi. GIFT_ID — topshiriq orqali olinadigan nishon. */
 const INDEPENDENCE_ID = 'mustaqillik-35';
 const LEGACY_EXPLORER_ID = 'kashfiyotchi-1';
 const GIFT_ID = 'bilimga-qadam-1';
 const LEARNING_BADGE_ELIGIBLE_KEY = 'upcourse_bilimga-qadam-eligible';
+const learningBadgeOwnedKey = (userId) => `upcourse_bilimga-qadam-owned:${userId}`;
 
 /* Har bir nishon turi uchun katta (modal ichidagi) ko'rinish + matnlar. */
 const GIFT_CONTENT = {
@@ -1616,23 +1644,6 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange, 
   );
 }
 
-function GiftBanner({ onOpen }) {
-  return (
-    <button
-      onClick={onOpen}
-      className="w-full flex items-center gap-3 px-3 py-2.5 mb-3 rounded-lg text-left transition-colors hover:brightness-[0.98]"
-      style={{ background: 'linear-gradient(115deg, rgba(233, 230, 237, .82) 0%, rgba(231, 235, 240, .82) 100%)', border: '1px solid rgba(210, 205, 215, .85)', boxShadow: '0 6px 18px rgba(67, 54, 111, 0.06)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
-    >
-      <MiniLearningBadge size={34} />
-      <div className="min-w-0 flex-1">
-        <div className="text-[14px] leading-tight" style={{ ...fontBody, color: '#342B55', fontWeight: 700 }}>Yangi nishon: Bilimga qadam</div>
-        <div className="mt-0.5 text-[11px] leading-tight" style={{ ...fontBody, color: '#625A78' }}>Testni 70% yoki undan yuqori natija bilan yakunlang</div>
-      </div>
-      <span className="inline-flex items-center gap-0.5 rounded-full px-2 py-1.5 text-[11px] font-semibold shrink-0" style={{ color: '#44366F', background: 'rgba(255,255,255,.48)', border: '1px solid #D2CDD7' }}>Ko‘rish <ChevronRight size={14} /></span>
-    </button>
-  );
-}
-
 /* Ixcham nishon — collectibleId bo'yicha mos vizualni tanlaydi. Yangi
    nishon turi qo'shilganda, shu yerga yangi "else if" qatori qo'shiladi
    — eskilari hech qachon o'chirilmaydi, shuning uchun avval olingan
@@ -1661,21 +1672,25 @@ function CollectionsView({ session, onBack }) {
   const [state, setState] = useState('loading'); // loading | ready | error
   const [catalog, setCatalog] = useState([]);
   const [owned, setOwned] = useState([]);
+  const [ratingBadges, setRatingBadges] = useState([]);
+  const [collectionType, setCollectionType] = useState('gifts');
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [ownedResult, catalogResult] = await Promise.allSettled([
+        const [ownedResult, catalogResult, ratingResult] = await Promise.allSettled([
           sbSelect('user_collectibles', `user_id=eq.${session.user.id}`, 'collected_at'),
           sbSelect('collectibles'),
+          supabase.rpc('daily_arena_get_profile', { target_user_id: session.user.id }),
         ]);
         if (cancelled) return;
         if (ownedResult.status === 'rejected') throw ownedResult.reason;
         // Katalog vaqtincha javob bermasa ham, foydalanuvchining saqlangan sovg'alarini yashirmaymiz.
         setOwned(ownedResult.value.map(userCollectibleFromRow));
         setCatalog(catalogResult.status === 'fulfilled' ? catalogResult.value.map(collectibleFromRow) : []);
+        setRatingBadges(ratingResult.status === 'fulfilled' && !ratingResult.value.error ? (ratingResult.value.data?.badges || []) : []);
         setState('ready');
       } catch (e) {
         if (!cancelled) setState('error');
@@ -1698,6 +1713,13 @@ function CollectionsView({ session, onBack }) {
       </button>
       <SectionHeading eyebrow="Mening hisobim" title="Kolleksiyalar" />
 
+      {state === 'ready' && (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Kolleksiya toifalari">
+          <button role="tab" aria-selected={collectionType === 'gifts'} onClick={() => setCollectionType('gifts')} className="shrink-0 rounded-full px-3.5 py-2 text-xs" style={{ ...fontBody, color: collectionType === 'gifts' ? C.white : C.inkSoft, background: collectionType === 'gifts' ? C.cover : C.paper, border: `1px solid ${collectionType === 'gifts' ? C.cover : C.rule}` }}>Sovg‘a va nishonlar · {owned.length}</button>
+          <button role="tab" aria-selected={collectionType === 'rating'} onClick={() => setCollectionType('rating')} className="shrink-0 rounded-full px-3.5 py-2 text-xs" style={{ ...fontBody, color: collectionType === 'rating' ? C.white : C.inkSoft, background: collectionType === 'rating' ? C.cover : C.paper, border: `1px solid ${collectionType === 'rating' ? C.cover : C.rule}` }}>Reyting nishonlari · {ratingBadges.length}</button>
+        </div>
+      )}
+
       {state === 'loading' && (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={20} className="animate-spin" style={{ color: C.gold }} />
@@ -1709,7 +1731,9 @@ function CollectionsView({ session, onBack }) {
       )}
 
       {state === 'ready' && (
-        owned.length === 0 ? (
+        collectionType === 'rating' ? (
+          <RatingBadgeCollection badges={ratingBadges} />
+        ) : owned.length === 0 ? (
           <EmptyState text="Hozircha kolleksiyangizda hech narsa yoʻq. Nishonlarni yigʻib boring!" />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -1747,15 +1771,42 @@ function CollectionsView({ session, onBack }) {
   );
 }
 
+const RATING_BADGE_STYLE = {
+  debut: { title: 'Birinchi qadam', color: '#9A6642', Icon: Award },
+  bronze: { title: 'Bronza', color: '#9A6642', Icon: Medal },
+  silver: { title: 'Kumush', color: '#718096', Icon: Medal },
+  gold: { title: 'Oltin', color: '#B8863B', Icon: Trophy },
+  platinum: { title: 'Platina', color: '#477C8A', Icon: Star },
+  diamond: { title: 'Olmos', color: '#4776B5', Icon: Gem },
+  legend: { title: 'Afsona', color: '#8D5CBD', Icon: Crown },
+};
+
+export function RatingBadgeCollection({ badges = [] }) {
+  const uniqueBadges = Array.from(new Map(badges.map((badge) => [`${badge.season}-${badge.badge}`, badge])).values());
+  if (!uniqueBadges.length) return <EmptyState text="Hozircha reyting nishonlari yoʻq. Kunlik Arenada qatnashib, birinchisini qoʻlga kiriting!" />;
+  return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    {uniqueBadges.map((badge) => {
+      const meta = RATING_BADGE_STYLE[badge.badge] || RATING_BADGE_STYLE.bronze;
+      const Icon = meta.Icon;
+      const month = badge.season ? new Intl.DateTimeFormat('uz-UZ', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${String(badge.season).slice(0, 10)}T00:00:00Z`)) : '';
+      return <article key={`${badge.season}-${badge.badge}`} className="flex min-h-36 flex-col items-center justify-center gap-2 rounded-lg p-4 text-center" style={{ background: C.surface, border: `1px solid ${meta.color}55` }}>
+        <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}66` }}><Icon size={25} strokeWidth={1.8} /></span>
+        <div className="text-[13px] font-medium" style={{ ...fontBody, color: C.ink }}>{meta.title} ligasi</div>
+        {month && <div className="text-[11px] capitalize" style={{ ...fontMono, color: C.inkSoft }}>{month}</div>}
+      </article>;
+    })}
+  </div>;
+}
+
 function PaperPanel({ children, className }) {
   return (
     <div className={className}>{children}</div>
   );
 }
 
-function SearchBox({ value, onChange, placeholder }) {
+function SearchBox({ value, onChange, placeholder, className = '' }) {
   return (
-    <div className="relative mb-5">
+    <div className={`relative mb-5 min-w-0 ${className}`}>
       <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
       <input
         id="upcourse-search"
@@ -1779,6 +1830,81 @@ function SearchBox({ value, onChange, placeholder }) {
         </button>
       )}
     </div>
+  );
+}
+
+function CourseRecommendationCarousel({ items, categories, onOpen, session, onRequireAccount }) {
+  const [index, setIndex] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [preferredId, setPreferredId] = useState(null);
+  const touchStartX = useRef(null);
+  const count = items.length;
+  const userId = session?.user?.id || null;
+  useEffect(() => {
+    if (!userId) { setPreferredId(null); return; }
+    try { setPreferredId(window.localStorage.getItem(`upcourse_recommendation:${userId}`)); }
+    catch { setPreferredId(null); }
+  }, [userId]);
+  useEffect(() => {
+    if (!preferredId) return;
+    const savedIndex = items.findIndex((entry) => entry.id === preferredId);
+    if (savedIndex >= 0) setIndex(savedIndex);
+  }, [items, preferredId]);
+  useEffect(() => {
+    if (count < 2) return undefined;
+    const timer = window.setInterval(() => setIndex((current) => (current + 1) % count), 6500);
+    return () => window.clearInterval(timer);
+  }, [count]);
+  if (!count) return null;
+  const item = items[index % count];
+  const category = categories.find((entry) => entry.id === item.categoryId)?.name || item.category || 'Tavsiya etilgan mavzu';
+  const move = (direction) => setIndex((current) => (current + direction + count) % count);
+  return (
+    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 rounded-lg" style={{ background: `linear-gradient(112deg, ${C.coverDeep}, #284F61 68%, #376B70)`, border: `1px solid ${C.coverLine}`, boxShadow: '0 5px 18px rgba(24,45,36,.12)' }}
+      onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
+      onTouchEnd={(event) => {
+        if (touchStartX.current == null) return;
+        const delta = event.changedTouches[0]?.clientX - touchStartX.current;
+        if (delta > 42) move(-1); else if (delta < -42) move(1);
+        touchStartX.current = null;
+      }}
+      onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
+    >
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiyani almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: C.white, background: 'rgba(255,255,255,.13)', border: '1px solid rgba(255,255,255,.24)', outlineColor: C.goldSoft }} title="Tavsiyani almashtirish"><Repeat2 size={13} /></button>
+      {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        {userId ? <>
+          <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Tavsiyani tanlang</div>
+          <div className="max-h-56 space-y-1 overflow-y-auto">
+            {items.map((entry, entryIndex) => <button key={entry.id} type="button" onClick={() => {
+              setIndex(entryIndex);
+              setPreferredId(entry.id);
+              try { window.localStorage.setItem(`upcourse_recommendation:${userId}`, entry.id); } catch { /* local storage ixtiyoriy */ }
+              setMenuOpen(false);
+            }} className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs" style={{ ...fontBody, color: entry.id === item.id ? C.cover : C.ink, background: entry.id === item.id ? C.goldSoft + '55' : 'transparent' }}>
+              <span className="min-w-0 truncate">{entry.title}</span>{entry.id === item.id && <Check size={14} className="shrink-0" />}
+            </button>)}
+          </div>
+        </> : <>
+          <div className="text-[13px] font-medium" style={{ ...fontBody, color: C.ink }}>Tavsiyani tanlash uchun akkauntga kiring.</div>
+          <button type="button" onClick={onRequireAccount} className="mt-2 rounded-full px-3 py-1.5 text-xs font-medium" style={{ ...fontBody, color: C.white, background: C.cover }}>Akkauntga kirish</button>
+        </>}
+      </div>}
+      <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
+        <div className="relative flex w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-md sm:w-[100px]" aria-hidden="true" style={{ background: 'linear-gradient(145deg, #D8B66C, #A77B38)' }}>
+          <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: C.coverDeep }} />
+          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: 'rgba(31,61,43,.4)' }} />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] uppercase tracking-[.17em]" style={{ ...fontMono, color: C.goldSoft }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: 'rgba(255,255,255,.65)' }}>{index + 1}/{count}</span>}</div>
+          <div className="truncate text-[11px]" style={{ ...fontBody, color: 'rgba(255,255,255,.7)' }}>{category}</div>
+          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: C.white }}>{item.title}</div>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-medium transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.coverDeep, background: C.goldSoft, outlineColor: C.white }}>Mavzuni ochish <ChevronRight size={13} /></button>
+        </div>
+        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.white, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.08)' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.coverDeep, background: C.goldSoft }}><ChevronRight size={16} /></button></div>}
+      </div>
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{items.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? C.goldSoft : 'rgba(255,255,255,.32)' }} />)}</div>}
+    </section>
   );
 }
 
@@ -2152,7 +2278,7 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId }) {
+function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId }) {
   const [renaming, setRenaming] = useState(null);
 
   return (
@@ -2173,7 +2299,10 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
                 <div className="flex items-start min-w-0">
                   <EntryNumber n={i + 1} />
                   <div className="min-w-0">
-                    <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                      {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
+                    </div>
                     <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
                     <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
                   </div>
@@ -2366,7 +2495,18 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, badgeBanner }) {
+function PinnedAddButton({ icon: Icon, label, onClick }) {
+  return (
+    <div className="pointer-events-none fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-5">
+      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full px-3.5 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.white, background: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.goldSoft, boxShadow: '0 5px 16px rgba(20,42,27,.24)' }}>
+        <span className="relative inline-flex"><Icon size={16} /><Plus size={9} className="absolute -bottom-1 -right-1 rounded-full" style={{ background: C.cover, color: C.goldSoft }} /></span>
+        {label}
+      </button>
+    </div>
+  );
+}
+
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, onRequireAccount, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2379,10 +2519,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = courses.filter((c) => c.status === 'approved');
-  const featuredCourse = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id) || approved[0] || null;
-  const featuredCategory = featuredCourse
-    ? categories.find((category) => category.id === featuredCourse.categoryId)?.name
-    : FEATURED_COURSE_FALLBACK.category;
+  const fallbackRecommendation = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id) || FEATURED_COURSE_FALLBACK;
+  const recommendationItems = [fallbackRecommendation, ...approved.filter((course) => course.id !== fallbackRecommendation.id)].slice(0, 6);
   const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
   /* To'liq courses ro'yxatidan qidiramiz — shu tufayli ulashilgan havola
      orqali kirilgan tekshirilmoqda/xususiy kurs ham (muallifi/admin
@@ -2436,9 +2574,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.content === undefined ? (
-          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <EditCourseForm course={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateCourse(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -2483,13 +2619,11 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           </div>
         </div>
         {active.content === undefined ? (
-          <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <CourseBody content={active.content} videoUrl={active.videoUrl} />
         )}
-        <Suspense fallback={<div className="mt-7 py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Testlar yuklanmoqda…</div>}>
+        <Suspense fallback={<SectionLoading label="Mavzuga tegishli testlar yuklanmoqda…" compact />}>
           <CourseLinkedTestsView
             courseId={active.id}
             courseAuthorId={active.authorId}
@@ -2505,48 +2639,24 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
-        {badgeBanner}
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
-        <button
-          type="button"
-          onClick={onOpenArena}
-          className="w-full flex items-center justify-between gap-4 p-4 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
-          style={{ background: `linear-gradient(110deg, ${C.cover}, ${C.coverDeep})`, color: C.white, border: `1px solid ${C.coverLine}`, outlineColor: C.gold }}
-        >
-          <span className="flex items-center gap-3 min-w-0">
-            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: C.gold, color: C.cover }}><Zap size={19} /></span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold" style={fontBody}>Bugungi Arena</span>
-              <span className="block text-xs mt-1 opacity-80" style={fontBody}>Har kuni yangi mantiqiy chaqiriq · reyting va ligalar</span>
-            </span>
-          </span>
-          <ChevronRight size={18} className="flex-shrink-0" />
-        </button>
-        {(isLoading || featuredCourse) && !isSearching && (
+        <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar')} />
+        {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} session={session} onRequireAccount={onRequireAccount} />}
+        <div className="flex items-stretch gap-2 mb-5">
+          <SearchBox className="flex-1 !mb-0" value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
           <button
             type="button"
-            onClick={() => goCourse((featuredCourse || FEATURED_COURSE_FALLBACK).id)}
-            aria-label={`Tavsiya etilgan mavzu: ${featuredCourse?.title || FEATURED_COURSE_FALLBACK.title}`}
-            className="w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
-            style={{ background: C.surface, color: C.ink, border: `1px solid ${C.rule}`, outlineColor: C.gold, boxShadow: '0 5px 16px rgba(31,61,43,0.08)' }}
+            onClick={onOpenTasks}
+            aria-label={`Topshiriqlar va sovg‘a. ${learningTaskComplete ? '1/1 bajarildi' : '0/1 bajarildi'}`}
+            title="Topshiriqlar va sovg‘a"
+            className="relative flex h-[50px] w-[54px] flex-shrink-0 items-center justify-center rounded-sm focus-visible:outline focus-visible:outline-2"
+            style={{ background: C.goldSoft, color: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.cover, boxShadow: '0 2px 7px rgba(31,61,43,.12)' }}
           >
-            <span className="relative flex h-[68px] w-[76px] sm:h-[76px] sm:w-[88px] flex-shrink-0 items-center justify-center overflow-hidden rounded-md" style={{ background: `linear-gradient(140deg, ${C.cover}, ${C.coverDeep})` }} aria-hidden="true">
-              <span className="absolute -right-3 -top-5 h-16 w-16 rounded-full opacity-20" style={{ background: C.goldSoft }} />
-              <span className="absolute bottom-2 left-2 h-1 w-10 rounded-full opacity-70" style={{ background: C.gold }} />
-              <BookOpen size={30} strokeWidth={1.7} style={{ color: C.goldSoft }} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10px] sm:text-[11px] uppercase tracking-[0.16em] font-semibold" style={{ ...fontMono, color: C.gold }}>Tavsiya etilgan mavzu</span>
-              <span className="block mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{featuredCategory || FEATURED_COURSE_FALLBACK.category}</span>
-              <span className="block mt-0.5 text-sm sm:text-base font-semibold leading-snug line-clamp-2" style={{ ...fontBody, color: C.ink }}>{featuredCourse?.title || FEATURED_COURSE_FALLBACK.title}</span>
-            </span>
-            <span className="hidden sm:flex items-center gap-1 flex-shrink-0 rounded-full px-3 py-2 text-xs font-medium" style={{ ...fontBody, color: C.cover, background: C.goldSoft }}>
-              Mavzuni ochish <ChevronRight size={14} />
-            </span>
-            <ChevronRight size={17} className="sm:hidden flex-shrink-0" style={{ color: C.gold }} />
+            <ListChecks size={23} strokeWidth={2.2} />
+            <span className="absolute -right-1 -top-1 flex h-[19px] min-w-[19px] items-center justify-center rounded-full px-1 text-[8px] font-bold" style={{ ...fontMono, background: C.cover, color: C.goldSoft, border: `1px solid ${C.surface}` }}>{learningTaskComplete ? '1/1' : '0/1'}</span>
+            <Gift size={12} strokeWidth={2.4} className="absolute bottom-[5px] right-[5px] rounded-sm" style={{ color: C.cover, background: C.goldSoft }} />
           </button>
-        )}
-        <SearchBox value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
+        </div>
         {isLoading ? (
           <div aria-busy="true" aria-label="Mavzular yuklanmoqda" className="grid sm:grid-cols-2 gap-3 sm:gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -2624,6 +2734,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             onGoToCommunity={() => onGoToCommunity('kurslar')}
             isAdmin={isAdmin}
             userId={session?.user?.id}
+            featuredCategoryId={null}
           />
         )}
       </div>
@@ -2640,6 +2751,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         <ArrowLeft size={15} /> Barcha sohalar
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta mavzu`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
+      <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar', activeCategory ? activeCategory.name : '')} />
       {inCategory.length === 0 ? (
         <EmptyState text="Bu sohada hozircha mavzu qoʻshilmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
       ) : (
@@ -2673,9 +2785,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         </div>
       )}
 
-      <div className="mt-6">
-        <GhostButton onClick={() => onGoToCommunity('kurslar', activeCategory ? activeCategory.name : '')} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
-      </div>
+      
     </div>
   );
 }
@@ -3090,7 +3200,7 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
 
   if (formMode === 'matching') {
     return (
-      <Suspense fallback={<div className="mt-6 flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Matching test muharriri yuklanmoqda...</div>}>
+      <Suspense fallback={<SectionLoading label="Matching test muharriri yuklanmoqda…" compact />}>
         <MatchingTestForm initialCategoryName={initialCategoryName} onSubmit={onSubmit} onDone={onDone} onView={onView} />
       </Suspense>
     );
@@ -3163,7 +3273,7 @@ function EditTestForm({ test, onSave, onDone }) {
 
   if (test.questions.some((question) => question.type === 'matching')) {
     return (
-      <Suspense fallback={<div className="mt-6 flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Matching test muharriri yuklanmoqda...</div>}>
+      <Suspense fallback={<SectionLoading label="Matching test muharriri yuklanmoqda…" compact />}>
         <MatchingTestForm initialTest={test} onSave={onSave} onDone={onDone} />
       </Suspense>
     );
@@ -3775,11 +3885,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
 
   if (active) {
     if (active.questions === undefined) {
-      return (
-        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
-      );
+      return <SectionLoading label="Test yuklanmoqda…" compact />;
     }
     return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
@@ -3796,28 +3902,20 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
             <button type="button" onClick={onRetryTests} className="rounded-sm px-3 py-1.5" style={{ color: C.white, background: C.cover }}>Qayta urinish</button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-sm" role="status" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Tanlangan test ochilmoqda…</div>
+          <SectionLoading label="Tanlangan test ochilmoqda…" compact />
         )}
       </div>
     );
   }
 
   if (liveOpen) return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-      </div>
-    }>
+    <Suspense fallback={<SectionLoading label="Jonli test yuklanmoqda…" />}>
       <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={back} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
     </Suspense>
   );
 
   if (teamBattleOpen) return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-      </div>
-    }>
+    <Suspense fallback={<SectionLoading label="Jamoaviy test yuklanmoqda…" />}>
       <TeamBattleHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} categories={categories} ensureTestContent={ensureTestContent} onExit={back} />
     </Suspense>
   );
@@ -3834,9 +3932,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.questions === undefined ? (
-          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Test ma’lumotlari yuklanmoqda…" compact />
         ) : (
           <EditTestForm test={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateTest(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -3849,6 +3945,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
       <div>
         <div className="flex items-start justify-between gap-3 mb-1">
           <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
+          <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
         </div>
         <button
           onClick={goLive}
@@ -3908,9 +4005,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
         {testsLoading && !tests.length ? (
-          <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={17} className="animate-spin" /> Testlar yuklanmoqda...
-          </div>
+          <SectionLoading label="Testlar yuklanmoqda…" />
         ) : testsLoadError && !tests.length ? (
           <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
             <span>{testsLoadError}</span>
@@ -4000,10 +4095,9 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         <ArrowLeft size={15} /> Barcha sohalar
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
+      <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} />
       {testsLoading && !tests.length ? (
-        <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={17} className="animate-spin" /> Testlar yuklanmoqda...
-        </div>
+        <SectionLoading label="Testlar yuklanmoqda…" />
       ) : testsLoadError && !tests.length ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
           <span>{testsLoadError}</span>
@@ -4045,9 +4139,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         </div>
       )}
 
-      <div className="mt-6">
-        <GhostButton onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} icon={Plus}>Yangi test qoʻshish</GhostButton>
-      </div>
+      
     </div>
   );
 }
@@ -4087,9 +4179,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.content === undefined ? (
-          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <EditCourseForm course={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateCourse(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -4130,9 +4220,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
         <AuthorLine authorId={active.authorId} authorName={active.author} className="text-xs mb-4" />
         {active.content === undefined ? (
-          <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <CourseBody content={active.content} videoUrl={active.videoUrl} />
         )}
@@ -4289,9 +4377,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.questions === undefined ? (
-          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Test ma’lumotlari yuklanmoqda…" compact />
         ) : (
           <EditTestForm test={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateTest(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -4302,9 +4388,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
   if (active) {
     if (active.questions === undefined) {
       return (
-        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
+        <SectionLoading label="Test yuklanmoqda…" compact />
       );
     }
     return <QuizView test={active} onExit={back} />;
@@ -4928,13 +5012,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-      </div>
-    );
-  }
+  if (authLoading) return <SectionLoading label="Profil yuklanmoqda…" />;
 
   if (!session) {
     return (
@@ -5096,7 +5174,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
                 <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`.trim()} small />
               </div>
             )}
-            <Suspense fallback={null}><ArenaProfileBadgeView userId={session.user.id} compact /></Suspense>
             {profile.bio && (
               <LinkedUsernameText text={profile.bio} className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }} />
             )}
@@ -5198,7 +5275,7 @@ function NewsView({ news, isLoading }) {
       <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklar" />
 
       {isLoading && sorted.length === 0 ? (
-        <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={16} className="animate-spin" /> Yangiliklar yuklanmoqda...</div>
+        <SectionLoading label="Yangiliklar yuklanmoqda…" />
       ) : sorted.length === 0 ? (
         <EmptyState text="Hozircha yangilik yoʻq." />
       ) : (
@@ -5405,9 +5482,18 @@ export default function App() {
     setViewingUsername(null);
   };
   const [giftOpen, setGiftOpen] = useState(false);
+  const [learningTasksOpen, setLearningTasksOpen] = useState(false);
   const [learningBadgeEligible, setLearningBadgeEligible] = useState(() => {
     try { return localStorage.getItem(LEARNING_BADGE_ELIGIBLE_KEY) === 'true'; } catch { return false; }
   });
+  const [learningTaskComplete, setLearningTaskComplete] = useState(() => {
+    try { return localStorage.getItem(LEARNING_BADGE_ELIGIBLE_KEY) === 'true'; } catch { return false; }
+  });
+  useEffect(() => {
+    let owned = false;
+    try { owned = !!session?.user?.id && localStorage.getItem(learningBadgeOwnedKey(session.user.id)) === 'true'; } catch {}
+    setLearningTaskComplete(learningBadgeEligible || owned);
+  }, [session?.user?.id, learningBadgeEligible]);
   const [learningBadgeBusy, setLearningBadgeBusy] = useState(false);
   const [learningBadgeError, setLearningBadgeError] = useState('');
   /* Bosh sahifa kontenti kirish holatini kutmasdan yuklanadi. */
@@ -5419,6 +5505,14 @@ export default function App() {
 
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
+  const markLearningTaskComplete = useCallback((userId) => {
+    setLearningTaskComplete(true);
+    if (userId) { try { localStorage.setItem(learningBadgeOwnedKey(userId), 'true'); } catch {} }
+  }, []);
+  const checkLearningBadgeOwned = useCallback(async (userId) => {
+    const rows = await sbSelect('user_collectibles', `user_id=eq.${userId}&collectible_id=eq.${GIFT_ID}`, 'collected_at');
+    return rows.length > 0;
+  }, []);
 
   async function handleTestCompletion(percent) {
     if (percent < 70) return false;
@@ -5427,13 +5521,16 @@ export default function App() {
         const existing = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${GIFT_ID}`, 'collected_at');
         if (existing.length) {
           try { localStorage.removeItem(LEARNING_BADGE_ELIGIBLE_KEY); } catch {}
+          try { localStorage.setItem(learningBadgeOwnedKey(session.user.id), 'true'); } catch {}
           setLearningBadgeEligible(false);
+          setLearningTaskComplete(true);
           return false;
         }
       } catch { /* Nishon tekshiruvi xatosi test natijasini to‘xtatmaydi. */ }
     }
     try { localStorage.setItem(LEARNING_BADGE_ELIGIBLE_KEY, 'true'); } catch {}
     setLearningBadgeEligible(true);
+    setLearningTaskComplete(true);
     return true;
   }
 
@@ -5454,7 +5551,9 @@ export default function App() {
         unequipOtherCollectibles(session.user.id, GIFT_ID);
       }
       try { localStorage.removeItem(LEARNING_BADGE_ELIGIBLE_KEY); } catch {}
+      try { localStorage.setItem(learningBadgeOwnedKey(session.user.id), 'true'); } catch {}
       setLearningBadgeEligible(false);
+      setLearningTaskComplete(true);
       return created;
     } catch (error) {
       setLearningBadgeError('Nishonni saqlab bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.');
@@ -6360,6 +6459,7 @@ export default function App() {
   }
 
   return (
+    <SectionLoadingProvider>
     <NavContext.Provider value={nav}>
     <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
       <style>{`
@@ -6616,10 +6716,10 @@ export default function App() {
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} badgeBanner={<GiftBanner onOpen={() => { setLearningBadgeError(''); setGiftOpen(true); }} />} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
               {!viewingUsername && tab === 'arena' && (
-                <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
+                <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
                 </Suspense>
               )}
@@ -6654,11 +6754,7 @@ export default function App() {
                 />
               )}
               {!viewingUsername && tab === 'admin' && isAdmin && (
-                <Suspense fallback={
-                  <div className="flex items-center justify-center py-20">
-                    <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-                  </div>
-                }>
+                <Suspense fallback={<SectionLoading label="Admin panel yuklanmoqda…" />}>
                   <AdminPanelView
                     courses={courses}
                     tests={tests}
@@ -6726,6 +6822,23 @@ export default function App() {
         <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} />
       </Suspense>}
 
+      {learningTasksOpen && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,27,18,0.58)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
+          <LearningTasksModal
+            session={session}
+            eligible={learningBadgeEligible}
+            onKnownComplete={markLearningTaskComplete}
+            onCheckOwned={checkLearningBadgeOwned}
+            C={C}
+            fontBody={fontBody}
+            fontDisplay={fontDisplay}
+            fontMono={fontMono}
+            onClose={() => setLearningTasksOpen(false)}
+            onStartTest={() => { setLearningTasksOpen(false); setTab('testlar'); }}
+            onOpenGift={() => { setLearningTasksOpen(false); setLearningBadgeError(''); setGiftOpen(true); }}
+          />
+        </Suspense>
+      )}
       {giftOpen && (
         <GiftModal
           session={session}
@@ -6738,6 +6851,7 @@ export default function App() {
       )}
     </div>
     </NavContext.Provider>
+    </SectionLoadingProvider>
   );
 }
 
