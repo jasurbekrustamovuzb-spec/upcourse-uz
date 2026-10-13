@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap
+  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap, Gift
 } from 'lucide-react';
 import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut } from './supabaseClient';
 
@@ -22,6 +22,7 @@ const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
 const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
 const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
 const CourseLinkedTestsView = lazy(() => import('./CourseLinkedTests.jsx'));
+const LearningTasksModal = lazy(() => import('./LearningTasks.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -1443,12 +1444,12 @@ function MiniLearningBadge({ size = 18 }) {
 /* Faol nishon — vaqti-vaqti bilan almashishi mumkin. Eski nishonlar
    (masalan Mustaqillik-35) shu ro'yxatdan olib tashlanmaydi — faqat
    yangisi ustiga qo'shiladi, shu tufayli avval olganlar hech narsa
-   yo'qotmaydi. GIFT_ID — hozir taklif qilinayotgan (banner orqali
-   reklama qilinadigan) nishon. */
+   yo'qotmaydi. GIFT_ID — topshiriq orqali olinadigan nishon. */
 const INDEPENDENCE_ID = 'mustaqillik-35';
 const LEGACY_EXPLORER_ID = 'kashfiyotchi-1';
 const GIFT_ID = 'bilimga-qadam-1';
 const LEARNING_BADGE_ELIGIBLE_KEY = 'upcourse_bilimga-qadam-eligible';
+const learningBadgeOwnedKey = (userId) => `upcourse_bilimga-qadam-owned:${userId}`;
 
 /* Har bir nishon turi uchun katta (modal ichidagi) ko'rinish + matnlar. */
 const GIFT_CONTENT = {
@@ -1616,23 +1617,6 @@ function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange, 
   );
 }
 
-function GiftBanner({ onOpen }) {
-  return (
-    <button
-      onClick={onOpen}
-      className="w-full flex items-center gap-3 px-3 py-2.5 mb-3 rounded-lg text-left transition-colors hover:brightness-[0.98]"
-      style={{ background: 'linear-gradient(115deg, rgba(233, 230, 237, .82) 0%, rgba(231, 235, 240, .82) 100%)', border: '1px solid rgba(210, 205, 215, .85)', boxShadow: '0 6px 18px rgba(67, 54, 111, 0.06)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
-    >
-      <MiniLearningBadge size={34} />
-      <div className="min-w-0 flex-1">
-        <div className="text-[14px] leading-tight" style={{ ...fontBody, color: '#342B55', fontWeight: 700 }}>Yangi nishon: Bilimga qadam</div>
-        <div className="mt-0.5 text-[11px] leading-tight" style={{ ...fontBody, color: '#625A78' }}>Testni 70% yoki undan yuqori natija bilan yakunlang</div>
-      </div>
-      <span className="inline-flex items-center gap-0.5 rounded-full px-2 py-1.5 text-[11px] font-semibold shrink-0" style={{ color: '#44366F', background: 'rgba(255,255,255,.48)', border: '1px solid #D2CDD7' }}>Ko‘rish <ChevronRight size={14} /></span>
-    </button>
-  );
-}
-
 /* Ixcham nishon — collectibleId bo'yicha mos vizualni tanlaydi. Yangi
    nishon turi qo'shilganda, shu yerga yangi "else if" qatori qo'shiladi
    — eskilari hech qachon o'chirilmaydi, shuning uchun avval olingan
@@ -1753,9 +1737,9 @@ function PaperPanel({ children, className }) {
   );
 }
 
-function SearchBox({ value, onChange, placeholder }) {
+function SearchBox({ value, onChange, placeholder, className = '' }) {
   return (
-    <div className="relative mb-5">
+    <div className={`relative mb-5 min-w-0 ${className}`}>
       <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
       <input
         id="upcourse-search"
@@ -2152,7 +2136,7 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId }) {
+function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId }) {
   const [renaming, setRenaming] = useState(null);
 
   return (
@@ -2173,7 +2157,10 @@ function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, rename
                 <div className="flex items-start min-w-0">
                   <EntryNumber n={i + 1} />
                   <div className="min-w-0">
-                    <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                      {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
+                    </div>
                     <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
                     <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
                   </div>
@@ -2366,7 +2353,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenArena, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, badgeBanner }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2380,9 +2367,6 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = courses.filter((c) => c.status === 'approved');
   const featuredCourse = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id) || approved[0] || null;
-  const featuredCategory = featuredCourse
-    ? categories.find((category) => category.id === featuredCourse.categoryId)?.name
-    : FEATURED_COURSE_FALLBACK.category;
   const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
   /* To'liq courses ro'yxatidan qidiramiz — shu tufayli ulashilgan havola
      orqali kirilgan tekshirilmoqda/xususiy kurs ham (muallifi/admin
@@ -2505,48 +2489,22 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
-        {badgeBanner}
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
-        <button
-          type="button"
-          onClick={onOpenArena}
-          className="w-full flex items-center justify-between gap-4 p-4 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
-          style={{ background: `linear-gradient(110deg, ${C.cover}, ${C.coverDeep})`, color: C.white, border: `1px solid ${C.coverLine}`, outlineColor: C.gold }}
-        >
-          <span className="flex items-center gap-3 min-w-0">
-            <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: C.gold, color: C.cover }}><Zap size={19} /></span>
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold" style={fontBody}>Bugungi Arena</span>
-              <span className="block text-xs mt-1 opacity-80" style={fontBody}>Har kuni yangi mantiqiy chaqiriq · reyting va ligalar</span>
-            </span>
-          </span>
-          <ChevronRight size={18} className="flex-shrink-0" />
-        </button>
-        {(isLoading || featuredCourse) && !isSearching && (
+        <div className="flex items-stretch gap-2 mb-5">
+          <SearchBox className="flex-1 !mb-0" value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
           <button
             type="button"
-            onClick={() => goCourse((featuredCourse || FEATURED_COURSE_FALLBACK).id)}
-            aria-label={`Tavsiya etilgan mavzu: ${featuredCourse?.title || FEATURED_COURSE_FALLBACK.title}`}
-            className="w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 mb-5 rounded-lg text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
-            style={{ background: C.surface, color: C.ink, border: `1px solid ${C.rule}`, outlineColor: C.gold, boxShadow: '0 5px 16px rgba(31,61,43,0.08)' }}
+            onClick={onOpenTasks}
+            aria-label={`Topshiriqlar va sovg‘a. ${learningTaskComplete ? '1/1 bajarildi' : '0/1 bajarildi'}`}
+            title="Topshiriqlar va sovg‘a"
+            className="relative flex h-[50px] w-[54px] flex-shrink-0 items-center justify-center rounded-sm focus-visible:outline focus-visible:outline-2"
+            style={{ background: C.goldSoft, color: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.cover, boxShadow: '0 2px 7px rgba(31,61,43,.12)' }}
           >
-            <span className="relative flex h-[68px] w-[76px] sm:h-[76px] sm:w-[88px] flex-shrink-0 items-center justify-center overflow-hidden rounded-md" style={{ background: `linear-gradient(140deg, ${C.cover}, ${C.coverDeep})` }} aria-hidden="true">
-              <span className="absolute -right-3 -top-5 h-16 w-16 rounded-full opacity-20" style={{ background: C.goldSoft }} />
-              <span className="absolute bottom-2 left-2 h-1 w-10 rounded-full opacity-70" style={{ background: C.gold }} />
-              <BookOpen size={30} strokeWidth={1.7} style={{ color: C.goldSoft }} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10px] sm:text-[11px] uppercase tracking-[0.16em] font-semibold" style={{ ...fontMono, color: C.gold }}>Tavsiya etilgan mavzu</span>
-              <span className="block mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{featuredCategory || FEATURED_COURSE_FALLBACK.category}</span>
-              <span className="block mt-0.5 text-sm sm:text-base font-semibold leading-snug line-clamp-2" style={{ ...fontBody, color: C.ink }}>{featuredCourse?.title || FEATURED_COURSE_FALLBACK.title}</span>
-            </span>
-            <span className="hidden sm:flex items-center gap-1 flex-shrink-0 rounded-full px-3 py-2 text-xs font-medium" style={{ ...fontBody, color: C.cover, background: C.goldSoft }}>
-              Mavzuni ochish <ChevronRight size={14} />
-            </span>
-            <ChevronRight size={17} className="sm:hidden flex-shrink-0" style={{ color: C.gold }} />
+            <ListChecks size={23} strokeWidth={2.2} />
+            <span className="absolute -right-1 -top-1 flex h-[19px] min-w-[19px] items-center justify-center rounded-full px-1 text-[8px] font-bold" style={{ ...fontMono, background: C.cover, color: C.goldSoft, border: `1px solid ${C.surface}` }}>{learningTaskComplete ? '1/1' : '0/1'}</span>
+            <Gift size={12} strokeWidth={2.4} className="absolute bottom-[5px] right-[5px] rounded-sm" style={{ color: C.cover, background: C.goldSoft }} />
           </button>
-        )}
-        <SearchBox value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
+        </div>
         {isLoading ? (
           <div aria-busy="true" aria-label="Mavzular yuklanmoqda" className="grid sm:grid-cols-2 gap-3 sm:gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -2624,6 +2582,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             onGoToCommunity={() => onGoToCommunity('kurslar')}
             isAdmin={isAdmin}
             userId={session?.user?.id}
+            featuredCategoryId={featuredCourse?.categoryId || null}
           />
         )}
       </div>
@@ -5405,9 +5364,18 @@ export default function App() {
     setViewingUsername(null);
   };
   const [giftOpen, setGiftOpen] = useState(false);
+  const [learningTasksOpen, setLearningTasksOpen] = useState(false);
   const [learningBadgeEligible, setLearningBadgeEligible] = useState(() => {
     try { return localStorage.getItem(LEARNING_BADGE_ELIGIBLE_KEY) === 'true'; } catch { return false; }
   });
+  const [learningTaskComplete, setLearningTaskComplete] = useState(() => {
+    try { return localStorage.getItem(LEARNING_BADGE_ELIGIBLE_KEY) === 'true'; } catch { return false; }
+  });
+  useEffect(() => {
+    let owned = false;
+    try { owned = !!session?.user?.id && localStorage.getItem(learningBadgeOwnedKey(session.user.id)) === 'true'; } catch {}
+    setLearningTaskComplete(learningBadgeEligible || owned);
+  }, [session?.user?.id, learningBadgeEligible]);
   const [learningBadgeBusy, setLearningBadgeBusy] = useState(false);
   const [learningBadgeError, setLearningBadgeError] = useState('');
   /* Bosh sahifa kontenti kirish holatini kutmasdan yuklanadi. */
@@ -5419,6 +5387,14 @@ export default function App() {
 
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
+  const markLearningTaskComplete = useCallback((userId) => {
+    setLearningTaskComplete(true);
+    if (userId) { try { localStorage.setItem(learningBadgeOwnedKey(userId), 'true'); } catch {} }
+  }, []);
+  const checkLearningBadgeOwned = useCallback(async (userId) => {
+    const rows = await sbSelect('user_collectibles', `user_id=eq.${userId}&collectible_id=eq.${GIFT_ID}`, 'collected_at');
+    return rows.length > 0;
+  }, []);
 
   async function handleTestCompletion(percent) {
     if (percent < 70) return false;
@@ -5427,13 +5403,16 @@ export default function App() {
         const existing = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${GIFT_ID}`, 'collected_at');
         if (existing.length) {
           try { localStorage.removeItem(LEARNING_BADGE_ELIGIBLE_KEY); } catch {}
+          try { localStorage.setItem(learningBadgeOwnedKey(session.user.id), 'true'); } catch {}
           setLearningBadgeEligible(false);
+          setLearningTaskComplete(true);
           return false;
         }
       } catch { /* Nishon tekshiruvi xatosi test natijasini to‘xtatmaydi. */ }
     }
     try { localStorage.setItem(LEARNING_BADGE_ELIGIBLE_KEY, 'true'); } catch {}
     setLearningBadgeEligible(true);
+    setLearningTaskComplete(true);
     return true;
   }
 
@@ -5454,7 +5433,9 @@ export default function App() {
         unequipOtherCollectibles(session.user.id, GIFT_ID);
       }
       try { localStorage.removeItem(LEARNING_BADGE_ELIGIBLE_KEY); } catch {}
+      try { localStorage.setItem(learningBadgeOwnedKey(session.user.id), 'true'); } catch {}
       setLearningBadgeEligible(false);
+      setLearningTaskComplete(true);
       return created;
     } catch (error) {
       setLearningBadgeError('Nishonni saqlab bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.');
@@ -6616,7 +6597,7 @@ export default function App() {
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenArena={() => goTo('arena')} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} badgeBanner={<GiftBanner onOpen={() => { setLearningBadgeError(''); setGiftOpen(true); }} />} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
@@ -6726,6 +6707,23 @@ export default function App() {
         <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} />
       </Suspense>}
 
+      {learningTasksOpen && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,27,18,0.58)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
+          <LearningTasksModal
+            session={session}
+            eligible={learningBadgeEligible}
+            onKnownComplete={markLearningTaskComplete}
+            onCheckOwned={checkLearningBadgeOwned}
+            C={C}
+            fontBody={fontBody}
+            fontDisplay={fontDisplay}
+            fontMono={fontMono}
+            onClose={() => setLearningTasksOpen(false)}
+            onStartTest={() => { setLearningTasksOpen(false); setTab('testlar'); }}
+            onOpenGift={() => { setLearningTasksOpen(false); setLearningBadgeError(''); setGiftOpen(true); }}
+          />
+        </Suspense>
+      )}
       {giftOpen && (
         <GiftModal
           session={session}
