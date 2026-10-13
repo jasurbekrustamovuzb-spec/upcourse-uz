@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap, Gift, Star, Gem, Crown
+  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap, Gift, Star, Gem, Crown, Repeat2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut } from './supabaseClient';
 
