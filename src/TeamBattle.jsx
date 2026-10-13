@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, Eye, Loader2, RotateCcw, Search, Shuffle, Trophy, Users, X } from 'lucide-react';
-import { C, fontBody, fontMono } from './App';
+import { C, fontBody, fontMono, SectionLoading } from './App';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -123,7 +123,7 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
             style={{ ...fontBody, color: C.ink, background: C.paper, border: `1px solid ${C.rule}`, '--tw-ring-color': C.mathSoft }}
           />
         </div>
-        {testsLoading && !tests.length ? <div role="status" className="flex items-center gap-2 py-4 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={16} className="animate-spin" /> Testlar yuklanmoqda...</div> : testsLoadError && !tests.length ? <div role="alert" className="flex flex-wrap items-center gap-3 py-4 text-sm" style={{ ...fontBody, color: C.red }}><span>{testsLoadError}</span><button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button></div> : <div className="grid sm:grid-cols-2 gap-2">{filteredTests.map((test) => <button key={test.id} type="button" onClick={() => chooseTest(test)} disabled={!!loadingId} className="min-w-0 flex items-center gap-3 text-left p-3 rounded-lg transition-colors disabled:opacity-60" style={{ background: selectedTest?.id === test.id ? C.mathTint : C.paper, border: `1px solid ${selectedTest?.id === test.id ? C.math : C.rule}` }}>
+        {testsLoading && !tests.length ? <SectionLoading label="Testlar yuklanmoqda…" compact /> : testsLoadError && !tests.length ? <div role="alert" className="flex flex-wrap items-center gap-3 py-4 text-sm" style={{ ...fontBody, color: C.red }}><span>{testsLoadError}</span><button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button></div> : <div className="grid sm:grid-cols-2 gap-2">{filteredTests.map((test) => <button key={test.id} type="button" onClick={() => chooseTest(test)} disabled={!!loadingId} className="min-w-0 flex items-center gap-3 text-left p-3 rounded-lg transition-colors disabled:opacity-60" style={{ background: selectedTest?.id === test.id ? C.mathTint : C.paper, border: `1px solid ${selectedTest?.id === test.id ? C.math : C.rule}` }}>
           {loadingId === test.id ? <Loader2 size={18} className="animate-spin flex-shrink-0" style={{ color: C.math }} /> : <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: C.mathDeep, background: C.mathTint }}><Shuffle size={15} /></span>}
           <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium" style={{ ...fontBody }}>{test.title}</span><span className="block text-xs mt-0.5 truncate" style={{ ...fontBody, color: C.inkSoft }}>{categories.find((cat) => cat.id === test.categoryId)?.name || 'Test'} · {test.questionCount || test.questions?.length || 0} savol</span></span>
           {selectedTest?.id === test.id && <Check size={17} style={{ color: C.math, flexShrink: 0 }} />}

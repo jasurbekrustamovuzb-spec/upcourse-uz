@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, CheckCircle2, ChevronRight, Loader2, Medal, RefreshCw, Trophy, UserRound, XCircle } from 'lucide-react';
-import { C, fontBody, fontDisplay, fontMono } from './App';
+import { C, fontBody, fontDisplay, fontMono, SectionLoading } from './App';
 import { signInWithGoogle, supabase } from './supabaseClient';
 
 const DIVISIONS = [
@@ -211,7 +211,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
           </div>
         </div>
 
-        {loading ? <Notice><Loader2 size={15} className="inline animate-spin mr-2" />Bugungi topshiriq ochilmoqda...</Notice>
+        {loading ? <SectionLoading label="Bugungi topshiriq ochilmoqda…" compact />
           : error && !challenge ? <Notice error>{error} <button type="button" onClick={loadChallenge} className="underline ml-2">Qayta urinish</button></Notice>
             : done && !round ? <div className="p-6 sm:p-8 rounded-2xl text-center" style={{ background: C.surface, border: '1px solid ' + C.rule }}>
               <Trophy size={32} className="mx-auto mb-2" style={{ color: C.gold }} />
@@ -271,7 +271,7 @@ export default function DailyArena({ session, isAdmin = false, onOpenProfile, on
             <option value="">Barcha ligalar</option>{DIVISIONS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </div>
-        {boardLoading && !board ? <Notice><Loader2 size={15} className="inline animate-spin mr-2" />Reyting yuklanmoqda...</Notice>
+        {boardLoading && !board ? <SectionLoading label="Reyting yuklanmoqda…" compact />
           : boardError ? <Notice error>{boardError} <button onClick={loadBoard} className="underline ml-1">Qayta urinish</button></Notice>
             : <div>
               <div className="flex items-center justify-between mb-2 px-1 text-[10px]" style={{ ...fontMono, color: C.inkSoft }}><span>{period === 'day' ? 'BUGUNGI NATIJALAR' : 'OYLIK NATIJALAR'}</span><span>{board?.participants || 0} kishi</span></div>

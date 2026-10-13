@@ -3,7 +3,7 @@ import {
   ArrowLeft, Award, Check, Clock3, Loader2, Search, Users, X, Trophy, Medal, BookOpen,
 } from 'lucide-react';
 import {
-  C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField,
+  C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField, SectionLoading,
   MatchingTestQuestion, getQuestionCount, getQuestionScore,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
   sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants, sbFindParticipantByDevice,
@@ -547,9 +547,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
       )}
 
       {room.phase === 'question' && !peekLeaderboard && !currentQuestion && (
-        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
+        <SectionLoading label="Savol yuklanmoqda…" compact />
       )}
 
       {room.phase === 'intermission' && showingReveal && !peekLeaderboard && currentQuestion && (
@@ -663,7 +661,7 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
   }
 
   if (testsLoading && tests.length === 0) {
-    return <div><button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button><div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={17} className="animate-spin" /> Testlar yuklanmoqda...</div></div>;
+    return <div><button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button><SectionLoading label="Testlar yuklanmoqda…" /></div>;
   }
   if (testsLoadError && tests.length === 0) {
     return <div><button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button><div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}><span>{testsLoadError}</span><button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button></div></div>;
@@ -931,9 +929,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   if ((room.status === 'active' || room.status === 'finished') && room.mode === 'sync' && test) {
     if (test.questions === undefined) {
       return (
-        <div className="flex items-center gap-2 text-sm py-10 justify-center" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
+        <SectionLoading label="Test yuklanmoqda…" compact />
       );
     }
     return (
@@ -1199,9 +1195,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
       )}
 
       {room.phase === 'question' && !currentQuestion && (
-        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
+        <SectionLoading label="Savol yuklanmoqda…" compact />
       )}
 
       {room.phase === 'intermission' && showingReveal && currentQuestion && (
@@ -1603,18 +1597,14 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
 
   if (phase === 'quiz' && !test) {
     return (
-      <div className="flex items-center gap-2 text-sm py-10 justify-center" style={{ ...fontBody, color: C.inkSoft }}>
-        <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-      </div>
+      <SectionLoading label="Test yuklanmoqda…" compact />
     );
   }
 
   if (phase === 'quiz' && test) {
     if (test.questions === undefined) {
       return (
-        <div className="flex items-center gap-2 text-sm py-10 justify-center" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
+        <SectionLoading label="Savollar yuklanmoqda…" compact />
       );
     }
     if (room.mode === 'sync') {
