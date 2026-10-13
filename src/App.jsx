@@ -157,6 +157,39 @@ export const fontDisplay = { fontFamily: "Georgia, 'Times New Roman', serif" };
 export const fontBody = { fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" };
 export const fontMono = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" };
 
+export function SectionLoading({ label = 'Yuklanmoqda…', compact = false }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`flex w-full flex-col items-center justify-center text-center ${compact ? 'min-h-[112px] py-5' : 'min-h-[156px] py-8'}`}
+      style={{ ...fontBody, color: C.inkSoft }}
+    >
+      <span
+        className={`relative mb-3 grid place-items-center rounded-full ${compact ? 'h-11 w-11' : 'h-12 w-12'}`}
+        style={{ background: C.goldSoft + '44', border: `1px solid ${C.coverLine}` }}
+        aria-hidden="true"
+      >
+        <span
+          className="motion-safe:animate-spin absolute inset-[3px] rounded-full"
+          style={{ border: '2px solid transparent', borderTopColor: C.gold, borderRightColor: C.gold }}
+        />
+        <BookOpen size={compact ? 17 : 19} strokeWidth={1.8} style={{ color: C.cover }} />
+      </span>
+      <span className="text-sm font-medium" style={{ color: C.ink }}>{label}</span>
+      <span className="mt-2 flex items-center gap-1" aria-hidden="true">
+        {[0, 1, 2].map((dot) => (
+          <span
+            key={dot}
+            className="motion-safe:animate-pulse h-1.5 w-1.5 rounded-full"
+            style={{ background: dot === 1 ? C.gold : C.rule, animationDelay: `${dot * 140}ms` }}
+          />
+        ))}
+      </span>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Seed content — shown the first time the shared ledger is empty    */
 /* ------------------------------------------------------------------ */
@@ -1001,9 +1034,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
     return (
       <div>
         {backButton}
-        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
+        <SectionLoading label="Profil ma’lumotlari yuklanmoqda…" compact />
       </div>
     );
   }
@@ -1127,7 +1158,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
       </div>
 
       {section === 'kolleksiyalar' ? (
-        <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 size={18} className="animate-spin" style={{ color: C.gold }} /></div>}>
+        <Suspense fallback={<SectionLoading label="Kolleksiyalar yuklanmoqda…" compact />}>
           <PublicCollectionsView userId={row.id} />
         </Suspense>
       ) : contentError && items.length === 0 ? (
@@ -1135,9 +1166,7 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
           Materiallarni yuklab boʻlmadi. Sahifani yangilab qayta urinib koʻring.
         </div>
       ) : contentLoading && authorContent.userId !== row.id ? (
-        <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Materiallar yuklanmoqda…
-        </div>
+        <SectionLoading label="Materiallar yuklanmoqda…" compact />
       ) : items.length === 0 ? (
         <div className="py-10 text-center">
           <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
@@ -2420,9 +2449,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.content === undefined ? (
-          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <EditCourseForm course={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateCourse(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -2467,13 +2494,11 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           </div>
         </div>
         {active.content === undefined ? (
-          <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <CourseBody content={active.content} videoUrl={active.videoUrl} />
         )}
-        <Suspense fallback={<div className="mt-7 py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Testlar yuklanmoqda…</div>}>
+        <Suspense fallback={<SectionLoading label="Mavzuga tegishli testlar yuklanmoqda…" compact />}>
           <CourseLinkedTestsView
             courseId={active.id}
             courseAuthorId={active.authorId}
@@ -3049,7 +3074,7 @@ function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubm
 
   if (formMode === 'matching') {
     return (
-      <Suspense fallback={<div className="mt-6 flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Matching test muharriri yuklanmoqda...</div>}>
+      <Suspense fallback={<SectionLoading label="Matching test muharriri yuklanmoqda…" compact />}>
         <MatchingTestForm initialCategoryName={initialCategoryName} onSubmit={onSubmit} onDone={onDone} onView={onView} />
       </Suspense>
     );
@@ -3122,7 +3147,7 @@ function EditTestForm({ test, onSave, onDone }) {
 
   if (test.questions.some((question) => question.type === 'matching')) {
     return (
-      <Suspense fallback={<div className="mt-6 flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Matching test muharriri yuklanmoqda...</div>}>
+      <Suspense fallback={<SectionLoading label="Matching test muharriri yuklanmoqda…" compact />}>
         <MatchingTestForm initialTest={test} onSave={onSave} onDone={onDone} />
       </Suspense>
     );
@@ -3734,11 +3759,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
 
   if (active) {
     if (active.questions === undefined) {
-      return (
-        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
-      );
+      return <SectionLoading label="Test yuklanmoqda…" compact />;
     }
     return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
@@ -3755,28 +3776,20 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
             <button type="button" onClick={onRetryTests} className="rounded-sm px-3 py-1.5" style={{ color: C.white, background: C.cover }}>Qayta urinish</button>
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-sm" role="status" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={15} className="animate-spin" /> Tanlangan test ochilmoqda…</div>
+          <SectionLoading label="Tanlangan test ochilmoqda…" compact />
         )}
       </div>
     );
   }
 
   if (liveOpen) return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-      </div>
-    }>
+    <Suspense fallback={<SectionLoading label="Jonli test yuklanmoqda…" />}>
       <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={back} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
     </Suspense>
   );
 
   if (teamBattleOpen) return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-      </div>
-    }>
+    <Suspense fallback={<SectionLoading label="Jamoaviy test yuklanmoqda…" />}>
       <TeamBattleHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} categories={categories} ensureTestContent={ensureTestContent} onExit={back} />
     </Suspense>
   );
@@ -3793,9 +3806,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.questions === undefined ? (
-          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Test ma’lumotlari yuklanmoqda…" compact />
         ) : (
           <EditTestForm test={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateTest(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -3867,9 +3878,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
         {testsLoading && !tests.length ? (
-          <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={17} className="animate-spin" /> Testlar yuklanmoqda...
-          </div>
+          <SectionLoading label="Testlar yuklanmoqda…" />
         ) : testsLoadError && !tests.length ? (
           <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
             <span>{testsLoadError}</span>
@@ -3960,9 +3969,7 @@ function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categori
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
       {testsLoading && !tests.length ? (
-        <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={17} className="animate-spin" /> Testlar yuklanmoqda...
-        </div>
+        <SectionLoading label="Testlar yuklanmoqda…" />
       ) : testsLoadError && !tests.length ? (
         <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
           <span>{testsLoadError}</span>
@@ -4046,9 +4053,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.content === undefined ? (
-          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <EditCourseForm course={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateCourse(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -4089,9 +4094,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
         <AuthorLine authorId={active.authorId} authorName={active.author} className="text-xs mb-4" />
         {active.content === undefined ? (
-          <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <CourseBody content={active.content} videoUrl={active.videoUrl} />
         )}
@@ -4248,9 +4251,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.questions === undefined ? (
-          <div className="flex items-center gap-2 text-sm mt-4" style={{ ...fontBody, color: C.inkSoft }}>
-            <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-          </div>
+          <SectionLoading label="Test ma’lumotlari yuklanmoqda…" compact />
         ) : (
           <EditTestForm test={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateTest(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -4261,9 +4262,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
   if (active) {
     if (active.questions === undefined) {
       return (
-        <div className="flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          <Loader2 size={15} className="animate-spin" /> Yuklanmoqda...
-        </div>
+        <SectionLoading label="Test yuklanmoqda…" compact />
       );
     }
     return <QuizView test={active} onExit={back} />;
@@ -4887,13 +4886,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-      </div>
-    );
-  }
+  if (authLoading) return <SectionLoading label="Profil yuklanmoqda…" />;
 
   if (!session) {
     return (
@@ -5157,7 +5150,7 @@ function NewsView({ news, isLoading }) {
       <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklar" />
 
       {isLoading && sorted.length === 0 ? (
-        <div role="status" className="flex items-center gap-2 py-8 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={16} className="animate-spin" /> Yangiliklar yuklanmoqda...</div>
+        <SectionLoading label="Yangiliklar yuklanmoqda…" />
       ) : sorted.length === 0 ? (
         <EmptyState text="Hozircha yangilik yoʻq." />
       ) : (
@@ -6600,7 +6593,7 @@ export default function App() {
               {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
               {!viewingUsername && tab === 'arena' && (
-                <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 size={22} className="animate-spin" style={{ color: C.gold }} /></div>}>
+                <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
                 </Suspense>
               )}
@@ -6635,11 +6628,7 @@ export default function App() {
                 />
               )}
               {!viewingUsername && tab === 'admin' && isAdmin && (
-                <Suspense fallback={
-                  <div className="flex items-center justify-center py-20">
-                    <Loader2 size={22} className="animate-spin" style={{ color: C.gold }} />
-                  </div>
-                }>
+                <Suspense fallback={<SectionLoading label="Admin panel yuklanmoqda…" />}>
                   <AdminPanelView
                     courses={courses}
                     tests={tests}
@@ -6738,5 +6727,4 @@ export default function App() {
     </NavContext.Provider>
   );
 }
-
 
