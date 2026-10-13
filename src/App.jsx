@@ -4,7 +4,7 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap, Gift
+  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap, Gift, Star, Gem, Crown
 } from 'lucide-react';
 import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut } from './supabaseClient';
 
@@ -17,7 +17,6 @@ const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
 const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
 const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
-const ArenaProfileBadgeView = lazy(() => import('./DailyArena.jsx').then((module) => ({ default: module.ArenaProfileBadge })));
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
 const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
 const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
@@ -1110,7 +1109,6 @@ function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpe
               <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{row.username}</div>
               <ShareButton url={buildShareUrl({ u: row.username })} title={fullName || row.username} small />
             </div>
-            <Suspense fallback={null}><ArenaProfileBadgeView userId={row.id} compact /></Suspense>
             {row.bio && <LinkedUsernameText text={row.bio} className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }} />}
           </div>
 
@@ -1674,21 +1672,25 @@ function CollectionsView({ session, onBack }) {
   const [state, setState] = useState('loading'); // loading | ready | error
   const [catalog, setCatalog] = useState([]);
   const [owned, setOwned] = useState([]);
+  const [ratingBadges, setRatingBadges] = useState([]);
+  const [collectionType, setCollectionType] = useState('gifts');
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [ownedResult, catalogResult] = await Promise.allSettled([
+        const [ownedResult, catalogResult, ratingResult] = await Promise.allSettled([
           sbSelect('user_collectibles', `user_id=eq.${session.user.id}`, 'collected_at'),
           sbSelect('collectibles'),
+          supabase.rpc('daily_arena_get_profile', { target_user_id: session.user.id }),
         ]);
         if (cancelled) return;
         if (ownedResult.status === 'rejected') throw ownedResult.reason;
         // Katalog vaqtincha javob bermasa ham, foydalanuvchining saqlangan sovg'alarini yashirmaymiz.
         setOwned(ownedResult.value.map(userCollectibleFromRow));
         setCatalog(catalogResult.status === 'fulfilled' ? catalogResult.value.map(collectibleFromRow) : []);
+        setRatingBadges(ratingResult.status === 'fulfilled' && !ratingResult.value.error ? (ratingResult.value.data?.badges || []) : []);
         setState('ready');
       } catch (e) {
         if (!cancelled) setState('error');
@@ -1711,6 +1713,13 @@ function CollectionsView({ session, onBack }) {
       </button>
       <SectionHeading eyebrow="Mening hisobim" title="Kolleksiyalar" />
 
+      {state === 'ready' && (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Kolleksiya toifalari">
+          <button role="tab" aria-selected={collectionType === 'gifts'} onClick={() => setCollectionType('gifts')} className="shrink-0 rounded-full px-3.5 py-2 text-xs" style={{ ...fontBody, color: collectionType === 'gifts' ? C.white : C.inkSoft, background: collectionType === 'gifts' ? C.cover : C.paper, border: `1px solid ${collectionType === 'gifts' ? C.cover : C.rule}` }}>Sovg‘a va nishonlar · {owned.length}</button>
+          <button role="tab" aria-selected={collectionType === 'rating'} onClick={() => setCollectionType('rating')} className="shrink-0 rounded-full px-3.5 py-2 text-xs" style={{ ...fontBody, color: collectionType === 'rating' ? C.white : C.inkSoft, background: collectionType === 'rating' ? C.cover : C.paper, border: `1px solid ${collectionType === 'rating' ? C.cover : C.rule}` }}>Reyting nishonlari · {ratingBadges.length}</button>
+        </div>
+      )}
+
       {state === 'loading' && (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={20} className="animate-spin" style={{ color: C.gold }} />
@@ -1722,7 +1731,9 @@ function CollectionsView({ session, onBack }) {
       )}
 
       {state === 'ready' && (
-        owned.length === 0 ? (
+        collectionType === 'rating' ? (
+          <RatingBadgeCollection badges={ratingBadges} />
+        ) : owned.length === 0 ? (
           <EmptyState text="Hozircha kolleksiyangizda hech narsa yoʻq. Nishonlarni yigʻib boring!" />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -1760,6 +1771,33 @@ function CollectionsView({ session, onBack }) {
   );
 }
 
+const RATING_BADGE_STYLE = {
+  debut: { title: 'Birinchi qadam', color: '#9A6642', Icon: Award },
+  bronze: { title: 'Bronza', color: '#9A6642', Icon: Medal },
+  silver: { title: 'Kumush', color: '#718096', Icon: Medal },
+  gold: { title: 'Oltin', color: '#B8863B', Icon: Trophy },
+  platinum: { title: 'Platina', color: '#477C8A', Icon: Star },
+  diamond: { title: 'Olmos', color: '#4776B5', Icon: Gem },
+  legend: { title: 'Afsona', color: '#8D5CBD', Icon: Crown },
+};
+
+export function RatingBadgeCollection({ badges = [] }) {
+  const uniqueBadges = Array.from(new Map(badges.map((badge) => [`${badge.season}-${badge.badge}`, badge])).values());
+  if (!uniqueBadges.length) return <EmptyState text="Hozircha reyting nishonlari yoʻq. Kunlik Arenada qatnashib, birinchisini qoʻlga kiriting!" />;
+  return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    {uniqueBadges.map((badge) => {
+      const meta = RATING_BADGE_STYLE[badge.badge] || RATING_BADGE_STYLE.bronze;
+      const Icon = meta.Icon;
+      const month = badge.season ? new Intl.DateTimeFormat('uz-UZ', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${String(badge.season).slice(0, 10)}T00:00:00Z`)) : '';
+      return <article key={`${badge.season}-${badge.badge}`} className="flex min-h-36 flex-col items-center justify-center gap-2 rounded-lg p-4 text-center" style={{ background: C.surface, border: `1px solid ${meta.color}55` }}>
+        <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}66` }}><Icon size={25} strokeWidth={1.8} /></span>
+        <div className="text-[13px] font-medium" style={{ ...fontBody, color: C.ink }}>{meta.title} ligasi</div>
+        {month && <div className="text-[11px] capitalize" style={{ ...fontMono, color: C.inkSoft }}>{month}</div>}
+      </article>;
+    })}
+  </div>;
+}
+
 function PaperPanel({ children, className }) {
   return (
     <div className={className}>{children}</div>
@@ -1792,6 +1830,49 @@ function SearchBox({ value, onChange, placeholder, className = '' }) {
         </button>
       )}
     </div>
+  );
+}
+
+function CourseRecommendationCarousel({ items, categories, onOpen }) {
+  const [index, setIndex] = useState(0);
+  const touchStartX = useRef(null);
+  const count = items.length;
+  useEffect(() => {
+    if (count < 2) return undefined;
+    const timer = window.setInterval(() => setIndex((current) => (current + 1) % count), 6500);
+    return () => window.clearInterval(timer);
+  }, [count]);
+  if (!count) return null;
+  const item = items[index % count];
+  const category = categories.find((entry) => entry.id === item.categoryId)?.name || item.category || 'Tavsiya etilgan mavzu';
+  const move = (direction) => setIndex((current) => (current + direction + count) % count);
+  return (
+    <section aria-label="Tavsiya etilgan kurslar" className="mb-4 overflow-hidden rounded-lg" style={{ background: `linear-gradient(112deg, ${C.coverDeep}, #284F61 68%, #376B70)`, border: `1px solid ${C.coverLine}`, boxShadow: '0 5px 18px rgba(24,45,36,.12)' }}
+      onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
+      onTouchEnd={(event) => {
+        if (touchStartX.current == null) return;
+        const delta = event.changedTouches[0]?.clientX - touchStartX.current;
+        if (delta > 42) move(-1); else if (delta < -42) move(1);
+        touchStartX.current = null;
+      }}
+      onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
+    >
+      <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
+        <div className="relative flex w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-md sm:w-[100px]" aria-hidden="true" style={{ background: 'linear-gradient(145deg, #D8B66C, #A77B38)' }}>
+          <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: C.coverDeep }} />
+          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: 'rgba(31,61,43,.4)' }} />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] uppercase tracking-[.17em]" style={{ ...fontMono, color: C.goldSoft }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: 'rgba(255,255,255,.65)' }}>{index + 1}/{count}</span>}</div>
+          <div className="truncate text-[11px]" style={{ ...fontBody, color: 'rgba(255,255,255,.7)' }}>{category}</div>
+          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: C.white }}>{item.title}</div>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-medium transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.coverDeep, background: C.goldSoft, outlineColor: C.white }}>Mavzuni ochish <ChevronRight size={13} /></button>
+        </div>
+        {count > 1 && <div className="flex shrink-0 flex-col items-center justify-center gap-2"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.white, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.08)' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.coverDeep, background: C.goldSoft }}><ChevronRight size={16} /></button></div>}
+      </div>
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{items.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? C.goldSoft : 'rgba(255,255,255,.32)' }} />)}</div>}
+    </section>
   );
 }
 
@@ -2395,7 +2476,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = courses.filter((c) => c.status === 'approved');
-  const featuredCourse = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id) || approved[0] || null;
+  const fallbackRecommendation = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id) || FEATURED_COURSE_FALLBACK;
+  const recommendationItems = [fallbackRecommendation, ...approved.filter((course) => course.id !== fallbackRecommendation.id)].slice(0, 6);
   const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
   /* To'liq courses ro'yxatidan qidiramiz — shu tufayli ulashilgan havola
      orqali kirilgan tekshirilmoqda/xususiy kurs ham (muallifi/admin
@@ -2515,6 +2597,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     return (
       <div>
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
+        {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} />}
         <div className="flex items-stretch gap-2 mb-5">
           <SearchBox className="flex-1 !mb-0" value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
           <button
@@ -2607,7 +2690,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             onGoToCommunity={() => onGoToCommunity('kurslar')}
             isAdmin={isAdmin}
             userId={session?.user?.id}
-            featuredCategoryId={featuredCourse?.categoryId || null}
+            featuredCategoryId={null}
           />
         )}
       </div>
@@ -5048,7 +5131,6 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
                 <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`.trim()} small />
               </div>
             )}
-            <Suspense fallback={null}><ArenaProfileBadgeView userId={session.user.id} compact /></Suspense>
             {profile.bio && (
               <LinkedUsernameText text={profile.bio} className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }} />
             )}
@@ -6727,4 +6809,5 @@ export default function App() {
     </NavContext.Provider>
   );
 }
+
 
