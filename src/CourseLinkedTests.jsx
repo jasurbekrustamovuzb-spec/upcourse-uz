@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BookOpen, Link2, Loader2, Search, Trash2, X } from 'lucide-react';
-import { C, fontBody, fontDisplay, fontMono } from './App';
+import { C, fontBody, fontDisplay, fontMono, SectionLoading } from './App';
 import { supabase } from './supabaseClient';
 
 const safeLike = (value) => value.replace(/[\\%_]/g, '\\$&');
@@ -106,7 +106,7 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
         </div>
         {canManage && <button type="button" onClick={() => { setModalOpen(true); setError(''); }} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium" style={{ ...fontBody, color: C.white, background: C.cover }}><Link2 size={14} /> Test bog‘lash</button>}
       </div>
-      {loading ? <div role="status" className="flex items-center gap-2 py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={16} className="animate-spin" /> Testlar yuklanmoqda…</div>
+      {loading ? <SectionLoading label="Testlar yuklanmoqda…" compact />
         : listError ? <p role="status" className="text-sm py-2" style={{ ...fontBody, color: C.inkSoft }}>{listError}</p>
           : tests.length ? <div className="grid gap-2 sm:grid-cols-2">
             {tests.map((test) => <article key={test.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl p-3" style={panelStyle}>
