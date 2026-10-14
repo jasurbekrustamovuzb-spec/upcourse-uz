@@ -4948,7 +4948,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   const [testFormMode, setTestFormMode] = useState(null);
   const myBadge = useAuthorBadge(session?.user?.id);
   const [ownContent, setOwnContent] = useState({ userId: null, courses: [], tests: [], loading: false, error: false });
-  const { pushNav, back } = useContext(NavContext);
+  const { pushNav } = useContext(NavContext);
 
   // Muallif kontentini faqat profil ochilganda so'raymiz; bosh sahifadagi tez yuklanishga ta'sir qilmaydi.
   useEffect(() => {
@@ -5108,7 +5108,7 @@ function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, 
   }
 
   if (subTab === 'kolleksiya') {
-    return <CollectionsView session={session} onBack={back} />;
+    return <CollectionsView session={session} onBack={() => setSubTab(null)} />;
   }
 
   return (
@@ -5335,17 +5335,10 @@ export const NavContext = React.createContext({ pushNav: () => {}, back: () => {
 
 function useNavStack() {
   const stackRef = useRef([]);
-  const depthRef = useRef(0);
 
   useEffect(() => {
-    const currentState = window.history.state || {};
-    depthRef.current = Number.isInteger(currentState.upcourseDepth) ? currentState.upcourseDepth : 0;
-    try {
-      window.history.replaceState({ ...currentState, upcourseApp: true, upcourseDepth: depthRef.current }, '');
-    } catch {}
     function onPopState() {
       const undo = stackRef.current.pop();
-      depthRef.current = Math.max(0, depthRef.current - 1);
       if (undo) undo();
     }
     window.addEventListener('popstate', onPopState);
@@ -5354,17 +5347,11 @@ function useNavStack() {
 
   const pushNav = useCallback((undoFn) => {
     stackRef.current.push(undoFn);
-    depthRef.current += 1;
-    try {
-      window.history.pushState({ upcourseApp: true, upcourseNav: true, upcourseDepth: depthRef.current }, '');
-    } catch {
-      depthRef.current = Math.max(0, depthRef.current - 1);
-      stackRef.current.pop();
-    }
+    try { window.history.pushState({ upcourseNav: true }, ''); } catch {}
   }, []);
 
   const back = useCallback(() => {
-    if (depthRef.current > 0 && stackRef.current.length > 0) {
+    if (stackRef.current.length > 0) {
       window.history.back();
     }
   }, []);
@@ -5404,7 +5391,6 @@ export default function App() {
   const initialDeepLink = initialDeepLinkRef.current;
   const initialPositionRef = useRef(initialDeepLink ? {} : readPosition());
   const initialPosition = initialPositionRef.current;
-  const restorePositionRef = useRef(true);
   /* Havola o'qilgach, URL'dagi ?course=/?test=/?live=/?u= manzil
      qatorida QOLIB KETMASLIGI kerak — aks holda har safar sahifa
      yangilanganda (refresh) xuddi shu havola qayta-qayta o'qilib,
@@ -5415,7 +5401,7 @@ export default function App() {
      yuqoridagi "saqlangan pozitsiya" orqali to'g'ri joyga qaytaradi. */
   useEffect(() => {
     if (initialDeepLink) {
-      try { window.history.replaceState({ ...(window.history.state || {}) }, '', window.location.pathname); } catch (e) { /* e'tiborsiz qoldiriladi */ }
+      try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* e'tiborsiz qoldiriladi */ }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -5492,7 +5478,8 @@ export default function App() {
   }, [openRequest]);
   const openFromProfile = (kind, id) => {
     setOpenRequest({ type: kind === 'kurslar' ? 'course' : 'test', id });
-    goTo(kind === 'kurslar' ? 'kurslar' : 'testlar');
+    setTab(kind === 'kurslar' ? 'kurslar' : 'testlar');
+    setViewingUsername(null);
   };
   const [giftOpen, setGiftOpen] = useState(false);
   const [learningTasksOpen, setLearningTasksOpen] = useState(false);
@@ -5550,7 +5537,7 @@ export default function App() {
   async function claimLearningBadge() {
     if (!session?.user?.id) {
       setGiftOpen(false);
-      goTo('profil');
+      setTab('profil');
       return null;
     }
     setLearningBadgeBusy(true);
@@ -5579,7 +5566,6 @@ export default function App() {
   function openPublicProfile(username, returnTab = tab) {
     if (!username) return;
     const previousUsername = viewingUsername;
-    restorePositionRef.current = false;
     setTab('kurslar');
     setViewingUsername(username);
     nav.pushNav(() => {
@@ -5597,10 +5583,7 @@ export default function App() {
      bu foydalanuvchi admin emasligi ma'lum bo'lsa — bo'sh ekranda
      qolib ketmasligi uchun Bosh sahifaga qaytaramiz. */
   useEffect(() => {
-    if (!authLoading && tab === 'admin' && !isAdmin) {
-      restorePositionRef.current = false;
-      setTab('kurslar');
-    }
+    if (!authLoading && tab === 'admin' && !isAdmin) setTab('kurslar');
   }, [authLoading, isAdmin, tab]);
 
   /* Joriy bo'limni (tab) sessionStorage'ga yozib boramiz — sahifa
@@ -5658,7 +5641,7 @@ export default function App() {
     // tarixni "toza" holatga keltiramiz — orqaga tugmasi Google sahifasiga
     // emas, saytning o'zida ishlashi uchun.
     if (window.location.hash.includes('access_token') || window.location.search.includes('code=')) {
-      try { window.history.replaceState({ ...(window.history.state || {}) }, '', window.location.pathname); } catch {}
+      try { window.history.replaceState({}, '', window.location.pathname); } catch {}
     }
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setCachedAccessToken(newSession?.access_token);
@@ -5737,14 +5720,10 @@ export default function App() {
     await sbSignOut();
     setSession(null);
     setProfile(null);
-    restorePositionRef.current = false;
     setTab('kurslar');
   }
 
-  function goToCommunity(kind, prefillCategory, formMode) {
-    goTo('profil');
-    setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '', formMode: formMode || null });
-  }
+  function goToCommunity(kind, prefillCategory, formMode) { setTab('profil'); setCommunityTarget({ type: kind, action: 'add', prefillCategory: prefillCategory || '', formMode: formMode || null }); }
 
   const handleReadingChange = useCallback((v) => setReadingActive(v), []);
 
@@ -6408,14 +6387,13 @@ export default function App() {
 
   function goTo(id) {
     const prevTab = tab;
-    restorePositionRef.current = false;
     setViewingUsername(null);
     setTab(id);
     try {
       const url = new URL(window.location.href);
       if (url.searchParams.has('section')) {
         url.searchParams.set('section', id);
-        window.history.replaceState({ ...(window.history.state || {}) }, '', url.pathname + url.search + url.hash);
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash);
       }
     } catch (e) { /* URL holatini yangilab bo‘lmasa, oddiy navigatsiya davom etadi */ }
     if (id !== prevTab) nav.pushNav(() => setTab(prevTab));
@@ -6738,8 +6716,8 @@ export default function App() {
               {viewingUsername && (
                 <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => goTo('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (restorePositionRef.current ? initialPosition.kurslar?.openId || null : null))} initialCategoryId={initialDeepLink || !restorePositionRef.current ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (restorePositionRef.current ? initialPosition.testlar?.openId || null : null))} initialCategoryId={initialDeepLink || !restorePositionRef.current ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink || !restorePositionRef.current ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
@@ -6796,7 +6774,7 @@ export default function App() {
                     deleteNews={deleteNews}
                     ensureCourseContent={ensureCourseContent}
                     ensureTestContent={ensureTestContent}
-                    initialSubTab={initialDeepLink || !restorePositionRef.current ? null : (initialPosition.admin?.subTab || null)}
+                    initialSubTab={initialDeepLink ? null : (initialPosition.admin?.subTab || null)}
                   />
                 </Suspense>
               )}
@@ -6856,7 +6834,7 @@ export default function App() {
             fontDisplay={fontDisplay}
             fontMono={fontMono}
             onClose={() => setLearningTasksOpen(false)}
-            onStartTest={() => { setLearningTasksOpen(false); goTo('testlar'); }}
+            onStartTest={() => { setLearningTasksOpen(false); setTab('testlar'); }}
             onOpenGift={() => { setLearningTasksOpen(false); setLearningBadgeError(''); setGiftOpen(true); }}
           />
         </Suspense>
@@ -6866,8 +6844,8 @@ export default function App() {
           session={session}
           eligible={learningBadgeEligible}
           onAccept={claimLearningBadge}
-          onStartTest={() => { setGiftOpen(false); goTo('testlar'); }}
-          onRequireLogin={() => { setGiftOpen(false); goTo('profil'); }}
+          onStartTest={() => { setGiftOpen(false); setTab('testlar'); }}
+          onRequireLogin={() => { setGiftOpen(false); setTab('profil'); }}
           onClose={() => setGiftOpen(false)}
         />
       )}
