@@ -372,7 +372,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
   const [subTab, setSubTab] = useState(initialSubTab || null);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
-  const { pushNav, back } = useContext(NavContext);
+  const { pushNav } = useContext(NavContext);
   const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
 
   /* Qaysi bo'lim ochiqligini eslab qolamiz — sahifa yangilanganda
@@ -400,7 +400,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         categories={categories}
         openId={openCourseId}
         setOpenId={setOpenCourseId}
-        onBack={back}
+        onBack={() => setSubTab(null)}
         submitCourse={submitCourse}
         approveCourse={approveCourse}
         deleteCourse={deleteCourse}
@@ -421,7 +421,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         categories={categories}
         openId={openTestId}
         setOpenId={setOpenTestId}
-        onBack={back}
+        onBack={() => setSubTab(null)}
         submitTest={submitTest}
         approveTest={approveTest}
         deleteTest={deleteTest}
@@ -442,7 +442,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         categories={categories}
         openId={openCourseId}
         setOpenId={setOpenCourseId}
-        onBack={back}
+        onBack={() => setSubTab(null)}
         submitCourse={submitCourse}
         deleteCourse={deleteCourse}
         updateCourse={updateCourse}
@@ -462,7 +462,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         categories={categories}
         openId={openTestId}
         setOpenId={setOpenTestId}
-        onBack={back}
+        onBack={() => setSubTab(null)}
         submitTest={submitTest}
         deleteTest={deleteTest}
         updateTest={updateTest}
@@ -474,13 +474,13 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
       />
     );
   }
-  if (subTab === 'arena-materiallar') return <AdminArenaContentView onBack={back} />;
-  if (subTab === 'promo-kodlar') return <AdminPromoView onBack={back} />;
+  if (subTab === 'arena-materiallar') return <AdminArenaContentView onBack={() => setSubTab(null)} />;
+  if (subTab === 'promo-kodlar') return <AdminPromoView onBack={() => setSubTab(null)} />;
   if (subTab === 'sohalar') {
-    return <AdminCategoriesView categories={categories} courses={courses} tests={tests} renameCategory={renameCategory} deleteCategory={deleteCategory} onBack={back} />;
+    return <AdminCategoriesView categories={categories} courses={courses} tests={tests} renameCategory={renameCategory} deleteCategory={deleteCategory} onBack={() => setSubTab(null)} />;
   }
   if (subTab === 'yangiliklar') {
-    return <AdminNewsView news={news} addNews={addNews} deleteNews={deleteNews} onBack={back} />;
+    return <AdminNewsView news={news} addNews={addNews} deleteNews={deleteNews} onBack={() => setSubTab(null)} />;
   }
 
   return (
