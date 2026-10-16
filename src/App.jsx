@@ -13,15 +13,20 @@ import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut }
 /*  (React.lazy) — bu boshlang'ich yuklanish hajmini kamaytiradi.      */
 /* ------------------------------------------------------------------ */
 const AdminPanelView = lazy(() => import('./AdminPanel.jsx'));
-const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
+export const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
-const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
+export const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
 const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
-const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
-const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
+export const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
+export const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
 const CourseLinkedTestsView = lazy(() => import('./CourseLinkedTests.jsx'));
 const LearningTasksModal = lazy(() => import('./LearningTasks.jsx'));
+const DeferredTestsView = lazy(() => import('./DeferredTestsView.jsx').then((module) => ({ default: module.TestsView })));
+const DeferredCourseBody = lazy(() => import('./DeferredCourseContent.jsx').then((module) => ({ default: module.CourseBody })));
+const DeferredProfileView = lazy(() => import('./DeferredProfileViews.jsx').then((module) => ({ default: module.ProfileView })));
+const DeferredPublicProfileView = lazy(() => import('./DeferredProfileViews.jsx').then((module) => ({ default: module.PublicProfileView })));
+const DeferredGiftModal = lazy(() => import('./DeferredProfileViews.jsx').then((module) => ({ default: module.GiftModal })));
 
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
@@ -244,7 +249,7 @@ const SEED_NEWS = [
   { id: 'n2', title: 'Yangi mavzu va testlar muntazam qoʻshib boriladi', date: '2026-08-16', content: 'Platforma tarkibi vaqt oʻtishi bilan kengaytiriladi: yangi mavzular, testlar va yangiliklar muntazam ravishda qoʻshib boriladi. Yangilanishlarni kuzatib boring.' },
 ];
 
-function uid() {
+export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
@@ -426,7 +431,7 @@ async function sbRequest(path, options = {}) {
   return res.json();
 }
 
-const sbSelect = (table, filter, orderColumn = 'created_at', options = {}) => sbRequest(`${table}?select=*&order=${orderColumn}.asc${filter ? `&${filter}` : ''}`, options);
+export const sbSelect = (table, filter, orderColumn = 'created_at', options = {}) => sbRequest(`${table}?select=*&order=${orderColumn}.asc${filter ? `&${filter}` : ''}`, options);
 
 /* Profil ochilgandagina muallifning yengil roʻyxatini yuklaydi.
    Bosh sahifa soʻrovlari va katta content/questions ustunlariga taʼsir qilmaydi. */
@@ -528,7 +533,7 @@ const sbUpsert = (table, row) => sbRequest(`${table}`, { method: 'POST', headers
 
 /* Savol rasmlari (geometriya chizmalari va h.k.) shu omborga yuklanadi. */
 const IMAGE_BUCKET = 'question-images';
-async function sbUploadImage(file) {
+export async function sbUploadImage(file) {
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token || SUPABASE_ANON_KEY;
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
@@ -745,7 +750,7 @@ const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: 
 const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', questionCount: Array.isArray(r.questions) ? getQuestionCount(r.questions) : (r.question_count ?? undefined) });
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
-const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
+export const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
 
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
@@ -755,22 +760,22 @@ export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: true, shuffle:
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
    shu tayyor ranglardan birini tanlaydi. */
-const BANNER_PRESETS = {
+export const BANNER_PRESETS = {
   green: { from: '#1F3D2B', to: '#3C6B4A', label: 'Yashil' },
   gold: { from: '#8A611E', to: '#D4AC6E', label: 'Oltin' },
   maroon: { from: '#5A2320', to: '#A8433A', label: 'Malla-qizil' },
   navy: { from: '#16283D', to: '#2E4E73', label: 'Ko\u2018k' },
 };
-function bannerGradient(key) {
+export function bannerGradient(key) {
   const b = BANNER_PRESETS[key] || BANNER_PRESETS.green;
   return `linear-gradient(120deg, ${b.from}, ${b.to})`;
 }
 
 /* username: kichik lotin harflari, raqam, pastik chiziq, 5-20 belgi */
-function normalizeUsername(v) {
+export function normalizeUsername(v) {
   return (v || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
 }
-function isValidUsername(v) {
+export function isValidUsername(v) {
   return /^[a-z0-9_]{5,20}$/.test(v || '');
 }
 /* Rasmiy/chalkashlik tug'diradigan nomlar — oddiy foydalanuvchi ololmaydi. */
@@ -779,12 +784,12 @@ const RESERVED_USERNAMES = new Set([
   'root', 'moderator', 'moder', 'official', 'system', 'staff', 'team',
   'test', 'null', 'undefined', 'settings', 'profile', 'user', 'users',
 ]);
-function isReservedUsername(v) {
+export function isReservedUsername(v) {
   return RESERVED_USERNAMES.has((v || '').toLowerCase());
 }
 /* Username band emasligini tekshiradi (o'zining joriy username'idan tashqari),
    rasmiy nomlarni ham "band" deb hisoblaydi. */
-async function checkUsernameAvailable(username, currentUserId) {
+export async function checkUsernameAvailable(username, currentUserId) {
   if (isReservedUsername(username)) return false;
   const rows = await sbSelect('profiles', `username=eq.${encodeURIComponent(username)}`);
   return !rows.some((r) => r.id !== currentUserId);
@@ -794,7 +799,7 @@ async function checkUsernameAvailable(username, currentUserId) {
    bo'shab qolgan nomini "o'g'irlab" olish yoki tez-tez almashtirib
    chalkashlik tug'dirishning oldini olish uchun. */
 const USERNAME_CHANGE_COOLDOWN_DAYS = 14;
-function usernameChangeDaysLeft(usernameChangedAt) {
+export function usernameChangeDaysLeft(usernameChangedAt) {
   if (!usernameChangedAt) return 0;
   const elapsedDays = (Date.now() - new Date(usernameChangedAt).getTime()) / (1000 * 60 * 60 * 24);
   return Math.max(0, Math.ceil(USERNAME_CHANGE_COOLDOWN_DAYS - elapsedDays));
@@ -803,7 +808,7 @@ function usernameChangeDaysLeft(usernameChangedAt) {
 /* Ism (va bor bo'lsa familiya) asosida Instagram uslubida username taklif
    qiladi — band bo'lsa, tasodifiy raqamlar bilan bo'sh variant topguncha
    qidiradi. */
-async function suggestAvailableUsername(firstName, lastName, currentUserId) {
+export async function suggestAvailableUsername(firstName, lastName, currentUserId) {
   const base = normalizeUsername(`${firstName || ''}${lastName ? `_${lastName}` : ''}`) || 'talaba';
   const root = base.length >= 5 ? base : `${base}user`.slice(0, 20);
   const candidates = [root];
@@ -898,11 +903,11 @@ function useAuthorUsername(authorId) {
    chaqirilib, ochiq turgan barcha shu foydalanuvchiga tegishli
    ko'rinishlar darhol yangilanadi. */
 const _badgeLookup = makeBatchedLookup('user_collectibles', 'user_id', 'equipped=eq.true', (r) => r.collectible_id || null, 'collected_at');
-function setAuthorBadgeCache(authorId, collectibleId) {
+export function setAuthorBadgeCache(authorId, collectibleId) {
   if (!authorId) return;
   _badgeLookup.notify(authorId, collectibleId || null);
 }
-function useAuthorBadge(authorId) {
+export function useAuthorBadge(authorId) {
   return _badgeLookup.useLookup(authorId);
 }
 
@@ -914,7 +919,7 @@ let _goToPublicProfile = null;
 /* Kurs/test kartochkalarida "Tuzuvchi: ..." qatori. Agar muallifning
    username'i topilsa, ko'k rangdagi bosiladigan @username sifatida,
    aks holda oddiy matn sifatida ko'rsatadi. */
-function AuthorLine({ authorId, authorName, className, style }) {
+export function AuthorLine({ authorId, authorName, className, style }) {
   const username = useAuthorUsername(authorId);
   const badge = useAuthorBadge(authorId);
   if (!authorName && !username) return null;
@@ -940,7 +945,7 @@ function AuthorLine({ authorId, authorName, className, style }) {
 
 /* Boshqa foydalanuvchining ommaviy profili — ismi, @username'i, bio'si
    va tasdiqlangan mavzu/testlari ko'rsatiladi (tahrirlash imkonisiz). */
-function LinkedUsernameText({ text, className, style }) {
+export function LinkedUsernameText({ text, className, style }) {
   const value = String(text || '');
   const pattern = /(^|[\s(])@([a-zA-Z0-9_]{5,20})(?=$|[\s.,!?;:)])/g;
   const nodes = [];
@@ -967,220 +972,7 @@ function LinkedUsernameText({ text, className, style }) {
   return <p className={className} style={style}>{nodes}</p>;
 }
 
-function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, session }) {
-  const [loading, setLoading] = useState(true);
-  const [contentLoading, setContentLoading] = useState(false);
-  const [row, setRow] = useState(null);
-  const [err, setErr] = useState(false);
-  const [section, setSection] = useState('kurslar'); // kurslar | testlar | kolleksiyalar
-  const [authorContent, setAuthorContent] = useState({ userId: null, courses: [], tests: [] });
-  const [contentError, setContentError] = useState(false);
-  const badge = useAuthorBadge(row?.id);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setContentLoading(false);
-    setErr(false);
-    setContentError(false);
-    setRow(null);
-    setAuthorContent({ userId: null, courses: [], tests: [] });
-    (async () => {
-      let profileRow;
-      try {
-        const rows = await sbSelect('profiles', 'username=eq.' + encodeURIComponent(username));
-        profileRow = rows[0] ? profileFromRow(rows[0]) : null;
-      } catch (e) {
-        if (!cancelled) setErr(true);
-        if (!cancelled) setLoading(false);
-        return;
-      }
-
-      if (cancelled) return;
-      setRow(profileRow);
-      setLoading(false);
-      if (!profileRow) return;
-
-      // Profil kartasi kurs/test so'rovlarini kutmay darhol ko'rinadi.
-      // Kontent so'rovlari fon rejimida parallel davom etadi.
-      setContentLoading(true);
-      try {
-        const [courseRows, testRows] = await Promise.all([
-          sbSelectAuthorContent('courses', profileRow.id, true, profileRow),
-          sbSelectAuthorContent('tests', profileRow.id, true, profileRow),
-        ]);
-        if (!cancelled) setAuthorContent({ userId: profileRow.id, courses: courseRows, tests: testRows });
-      } catch (e) {
-        if (!cancelled) setContentError(true);
-      } finally {
-        if (!cancelled) setContentLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [username]);
-
-  const backButton = (
-    <button
-      onClick={onBack}
-      className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-      style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-    >
-      <ArrowLeft size={15} /> Ortga
-    </button>
-  );
-
-  if (loading) {
-    return (
-      <div>
-        {backButton}
-        <SectionLoading label="Profil ma’lumotlari yuklanmoqda…" compact />
-      </div>
-    );
-  }
-
-  if (err || !row) {
-    return (
-      <div>
-        {backButton}
-        <EmptyState text="Foydalanuvchi topilmadi." cta="Ehtimol, u hisobini o'chirgan yoki username o'zgargan." />
-      </div>
-    );
-  }
-
-  const fullName = `${row.firstName} ${row.lastName}`.trim();
-  const loadedCourses = authorContent.userId === row.id ? authorContent.courses : [];
-  const loadedTests = authorContent.userId === row.id ? authorContent.tests : [];
-  const myCourses = Array.from(new Map([
-    ...courses.filter((item) => item.authorId === row.id && item.status === 'approved').map((item) => [item.id, item]),
-    ...loadedCourses.map((item) => [item.id, item]),
-  ]).values());
-  const myTests = Array.from(new Map([
-    ...tests.filter((item) => item.authorId === row.id && item.status === 'approved').map((item) => [item.id, item]),
-    ...loadedTests.map((item) => [item.id, item]),
-  ]).values());
-  const items = section === 'kurslar' ? myCourses : section === 'testlar' ? myTests : [];
-
-  /* Instagram uslubidagi kvadrat "plitka" — kurs/test kartochkasi.
-     Kelajakda shu funksiyaga (masalan kolleksiya belgisi, ball, yoqtirish
-     soni) qo'shimcha kichik elementlar qo'shish oson bo'lishi uchun
-     alohida, mustaqil komponent qilib chiqarildi. */
-  const Tile = ({ item, kind }) => (
-    <button
-      onClick={() => onOpenItem(kind, item.id)}
-      className="aspect-square min-w-0 rounded-lg flex flex-col items-center justify-center gap-2 p-2.5 text-center transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
-      style={{ background: C.surface, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-    >
-      {kind === 'kurslar' ? <BookOpen size={20} style={{ color: C.gold, flexShrink: 0 }} /> : <ListChecks size={20} style={{ color: C.gold, flexShrink: 0 }} />}
-      <div
-        className="text-[12px] leading-tight w-full"
-        style={{ ...fontBody, color: C.ink, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-      >
-        {item.title}
-      </div>
-    </button>
-  );
-
-  return (
-    <div>
-      {backButton}
-
-      <div className="rounded-lg overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-        <div className="h-24 sm:h-28" style={{ background: bannerGradient(row.bannerKey) }} />
-        <div className="px-5 pb-5 -mt-12 relative">
-          <div className="flex items-end justify-between gap-3">
-            <div
-              className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: C.surface, border: `3px solid ${C.surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
-            >
-              <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: bannerGradient(row.bannerKey) }}>
-                <span className="text-xl" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>
-                  {(row.firstName || '?').slice(0, 1).toUpperCase()}{(row.lastName || '').slice(0, 1).toUpperCase()}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-              <span className="font-medium text-lg truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{fullName || `@${row.username}`}</span>
-              {badge && <CollectibleThumb collectibleId={badge} size={20} />}
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{row.username}</div>
-              <ShareButton url={buildShareUrl({ u: row.username })} title={fullName || row.username} small />
-            </div>
-            {row.bio && <LinkedUsernameText text={row.bio} className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }} />}
-          </div>
-
-          <div className="flex flex-wrap gap-x-6 gap-y-3 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
-            <div>
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{contentLoading ? '…' : myCourses.length}</div>
-              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mavzular</div>
-            </div>
-            <div>
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{contentLoading ? '…' : myTests.length}</div>
-              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
-            </div>
-            <Suspense fallback={<div className="h-9 w-24 rounded-full animate-pulse" style={{ background: C.paper }} />}>
-              <ProfileFollowView userId={row.id} session={session} onOpenProfile={onOpenProfile} />
-            </Suspense>
-          </div>
-        </div>
-      </div>
-
-      {/* Instagram uslubidagi bo'lim almashtirgich. Kelajakda yana bo'lim
-          (masalan "Kolleksiyalar") qo'shilsa, shu qatorga yana bitta
-          tugma qo'shish kifoya. */}
-      <div className="flex" style={{ borderTop: `1px solid ${C.rule}` }}>
-        <button
-          onClick={() => setSection('kurslar')}
-          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[12px]"
-          style={{ ...fontMono, letterSpacing: '0.04em', color: section === 'kurslar' ? C.ink : C.inkSoft, borderTop: `2px solid ${section === 'kurslar' ? C.ink : 'transparent'}`, marginTop: '-1px' }}
-        >
-          <BookOpen size={15} /> MAVZULAR
-        </button>
-        <button
-          onClick={() => setSection('testlar')}
-          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[12px]"
-          style={{ ...fontMono, letterSpacing: '0.04em', color: section === 'testlar' ? C.ink : C.inkSoft, borderTop: `2px solid ${section === 'testlar' ? C.ink : 'transparent'}`, marginTop: '-1px' }}
-        >
-          <ListChecks size={15} /> TESTLAR
-        </button>
-        <button
-          onClick={() => setSection('kolleksiyalar')}
-          className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] sm:text-[12px]"
-          style={{ ...fontMono, letterSpacing: '0.04em', color: section === 'kolleksiyalar' ? C.ink : C.inkSoft, borderTop: `2px solid ${section === 'kolleksiyalar' ? C.ink : 'transparent'}`, marginTop: '-1px' }}
-        >
-          <Award size={15} /> NISHONLAR
-        </button>
-      </div>
-
-      {section === 'kolleksiyalar' ? (
-        <Suspense fallback={<SectionLoading label="Kolleksiyalar yuklanmoqda…" compact />}>
-          <PublicCollectionsView userId={row.id} />
-        </Suspense>
-      ) : contentError && items.length === 0 ? (
-        <div className="py-10 text-center text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-          Materiallarni yuklab boʻlmadi. Sahifani yangilab qayta urinib koʻring.
-        </div>
-      ) : contentLoading && authorContent.userId !== row.id ? (
-        <SectionLoading label="Materiallar yuklanmoqda…" compact />
-      ) : items.length === 0 ? (
-        <div className="py-10 text-center">
-          <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>
-            {section === 'kurslar' ? 'Hozircha ommaviy mavzu yoʻq.' : 'Hozircha ommaviy test yoʻq.'}
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mt-3">
-          {items.map((item) => (
-            <Tile key={item.id} item={item} kind={section} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 /* ------------------------------------------------------------------ */
@@ -1198,7 +990,7 @@ export function EntryNumber({ n }) {
   );
 }
 
-function InfoHint({ text }) {
+export function InfoHint({ text }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -1300,14 +1092,14 @@ export function IconButtonDelete({ onClick, label }) {
 /*  faqat banner bosilgandagina bitta yengil so'rov ketadi.            */
 /* ------------------------------------------------------------------ */
 
-const collectibleFromRow = (r) => ({ id: r.id, title: r.title, subtitle: r.subtitle || '' });
-const userCollectibleFromRow = (r) => ({ id: r.id, userId: r.user_id, collectibleId: r.collectible_id, equipped: !!r.equipped, collectedAt: r.collected_at });
+export const collectibleFromRow = (r) => ({ id: r.id, title: r.title, subtitle: r.subtitle || '' });
+export const userCollectibleFromRow = (r) => ({ id: r.id, userId: r.user_id, collectibleId: r.collectible_id, equipped: !!r.equipped, collectedAt: r.collected_at });
 
 /* Foydalanuvchi biror nishonni "ishlatish"ga qo'yganda, uning boshqa
    barcha nishonlarini "ishlatilmayapti" holatiga o'tkazadi — bir vaqtda
    faqat bitta nishon ishlatilishi uchun. Jim tarzda ishlaydi (xatolik
    bo'lsa ham asosiy oqimni to'xtatmaydi, faqat konsolga yozadi). */
-async function unequipOtherCollectibles(userId, exceptCollectibleId) {
+export async function unequipOtherCollectibles(userId, exceptCollectibleId) {
   try {
     await sbRequest(`user_collectibles?user_id=eq.${userId}&collectible_id=neq.${exceptCollectibleId}&equipped=eq.true`, {
       method: 'PATCH',
@@ -1460,7 +1252,7 @@ function LearningStepBadge({ size = 168 }) {
   );
 }
 
-function MiniLearningBadge({ size = 18 }) {
+export function MiniLearningBadge({ size = 18 }) {
   return (
     <span className="inline-flex flex-shrink-0 items-center justify-center rounded-full" title="Bilimga qadam nishoni" style={{ width: size, height: size, background: '#E7E0FA', border: '1px solid #9A86D4', color: '#65539A' }}>
       <BookOpen size={Math.round(size * 0.56)} strokeWidth={2.2} />
@@ -1474,12 +1266,12 @@ function MiniLearningBadge({ size = 18 }) {
    yo'qotmaydi. GIFT_ID — topshiriq orqali olinadigan nishon. */
 const INDEPENDENCE_ID = 'mustaqillik-35';
 const LEGACY_EXPLORER_ID = 'kashfiyotchi-1';
-const GIFT_ID = 'bilimga-qadam-1';
+export const GIFT_ID = 'bilimga-qadam-1';
 const LEARNING_BADGE_ELIGIBLE_KEY = 'upcourse_bilimga-qadam-eligible';
 const learningBadgeOwnedKey = (userId) => `upcourse_bilimga-qadam-owned:${userId}`;
 
 /* Har bir nishon turi uchun katta (modal ichidagi) ko'rinish + matnlar. */
-const GIFT_CONTENT = {
+export const GIFT_CONTENT = {
   [INDEPENDENCE_ID]: {
     Badge: IndependenceBadge,
     title: "Mustaqillik bayrami — 35 yil!",
@@ -1500,149 +1292,7 @@ const GIFT_CONTENT = {
   },
 };
 
-function GiftModal({ session, onRequireLogin, onClose, collectibleId, onChange, eligible = false, onAccept, onStartTest }) {
-  const targetId = collectibleId || GIFT_ID;
-  const meta = GIFT_CONTENT[targetId] || GIFT_CONTENT[GIFT_ID];
-  const [phase, setPhase] = useState('loading'); // loading | offer | owned | busy | error
-  const [equipped, setEquipped] = useState(false);
-  const [rowId, setRowId] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!session) { setPhase(targetId === GIFT_ID && eligible ? 'earned' : 'offer'); return; }
-      try {
-        const rows = await sbSelect('user_collectibles', `user_id=eq.${session.user.id}&collectible_id=eq.${targetId}`, 'collected_at');
-        if (cancelled) return;
-        if (rows[0]) {
-          const uc = userCollectibleFromRow(rows[0]);
-          setRowId(uc.id);
-          setEquipped(uc.equipped);
-          setPhase('owned');
-        } else {
-          setPhase(targetId === GIFT_ID && eligible ? 'earned' : 'offer');
-        }
-      } catch (e) {
-        if (!cancelled) setPhase(targetId === GIFT_ID && eligible ? 'earned' : 'offer');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [session, targetId]);
-
-  async function accept() {
-    if (!session) { onRequireLogin(); return; }
-    setPhase('busy');
-    try {
-      if (targetId === GIFT_ID && onAccept) {
-        const created = await onAccept();
-        if (created?.id) setRowId(created.id);
-        setEquipped(!!created?.equipped);
-        setPhase('owned');
-        if (onChange) onChange(!!created?.equipped);
-        return;
-      }
-      const [created] = await sbInsert('user_collectibles', { user_id: session.user.id, collectible_id: targetId, equipped: true });
-      setRowId(created.id);
-      setEquipped(true);
-      setPhase('owned');
-      setAuthorBadgeCache(session.user.id, targetId);
-      unequipOtherCollectibles(session.user.id, targetId);
-      if (onChange) onChange(true);
-    } catch (e) {
-      setPhase('error');
-    }
-  }
-
-  async function toggleEquip() {
-    if (!rowId) return;
-    const next = !equipped;
-    setEquipped(next); // darhol ko'rsatamiz, orqa fonda saqlaymiz
-    setAuthorBadgeCache(session.user.id, next ? targetId : null);
-    if (onChange) onChange(next);
-    try {
-      await sbUpdate('user_collectibles', rowId, { equipped: next });
-      if (next) unequipOtherCollectibles(session.user.id, targetId);
-    } catch (e) {
-      setEquipped(!next); // saqlanmasa — orqaga qaytaramiz
-      setAuthorBadgeCache(session.user.id, !next ? targetId : null);
-      if (onChange) onChange(!next);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,27,18,0.62)' }} onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-lg overflow-hidden text-center"
-        style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 20px 50px rgba(0,0,0,0.35)' }}
-      >
-        <div className="pt-8 pb-6 px-6" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
-          <meta.Badge />
-          <div className="mt-4 text-lg" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>{meta.title}</div>
-          <div className="text-[13px] mt-1" style={{ ...fontBody, color: 'rgba(251,250,243,0.75)' }}>{meta.subtitle}</div>
-        </div>
-        <div className="p-6">
-          {phase === 'loading' && (
-            <div className="flex items-center justify-center gap-2 py-2" style={{ color: C.inkSoft }}>
-              <Loader2 size={18} className="animate-spin" />
-              <span className="text-[14px]" style={fontBody}>Tekshirilmoqda...</span>
-            </div>
-          )}
-
-          {phase === 'offer' && (
-            <>
-              <p className="text-[14px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
-                {meta.offer}
-              </p>
-              {targetId === GIFT_ID
-                ? <SolidButton onClick={onStartTest} icon={BookOpen}>Testni ishlash</SolidButton>
-                : <SolidButton onClick={accept} icon={Award}>Qabul qilish</SolidButton>}
-            </>
-          )}
-
-          {phase === 'earned' && (
-            <>
-              <div className="mb-4 rounded-lg px-4 py-3 text-left" style={{ background: '#F1EDFF', border: '1px solid #D8CCFF' }}>
-                <div className="text-sm font-semibold" style={{ ...fontBody, color: '#44366F' }}>Olish sharti bajarildi</div>
-                <div className="mt-1 text-xs" style={{ ...fontBody, color: '#625A78' }}>Istalgan testdan kamida 70% natija</div>
-              </div>
-              <SolidButton onClick={accept} icon={Award}>Nishonni qabul qilish</SolidButton>
-            </>
-          )}
-
-          {phase === 'busy' && (
-            <div className="flex items-center justify-center gap-2 py-2" style={{ color: C.inkSoft }}>
-              <Loader2 size={18} className="animate-spin" />
-              <span className="text-[14px]" style={fontBody}>Saqlanmoqda...</span>
-            </div>
-          )}
-
-          {phase === 'owned' && (
-            <>
-              <div className="flex items-center justify-center gap-1.5 text-[14px] mb-5" style={{ ...fontBody, color: C.accent }}>
-                <CheckCircle2 size={16} /> Bu nishon sizning kolleksiyangizda
-              </div>
-              <div className="flex gap-3 justify-center">
-                <SolidButton onClick={toggleEquip} icon={equipped ? X : Award}>
-                  {equipped ? "Olib tashlash" : "Ishlatish"}
-                </SolidButton>
-                <GhostButton onClick={onClose} icon={X}>Yopish</GhostButton>
-              </div>
-            </>
-          )}
-
-          {phase === 'error' && (
-            <div className="text-[14px]" style={{ ...fontBody, color: C.red }}>Xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring.</div>
-          )}
-
-          {phase !== 'owned' && phase !== 'loading' && phase !== 'busy' && (
-            <button onClick={onClose} className="mt-4 text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Yopish</button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* Ixcham nishon — collectibleId bo'yicha mos vizualni tanlaydi. Yangi
    nishon turi qo'shilganda, shu yerga yangi "else if" qatori qo'shiladi
@@ -1668,108 +1318,7 @@ export function CollectibleThumb({ collectibleId, size = 40, inline }) {
    nishonlarni ko'rsatadi. Faqat shu bo'lim ochilganda (Profil
    ichidan qo'lda bosilganda) ikkita yengil so'rov ketadi — sahifa
    yuklanganda yoki Profilga kirilganda avtomatik ishlamaydi. */
-function CollectionsView({ session, onBack }) {
-  const [state, setState] = useState('loading'); // loading | ready | error
-  const [catalog, setCatalog] = useState([]);
-  const [owned, setOwned] = useState([]);
-  const [ratingBadges, setRatingBadges] = useState([]);
-  const [collectionType, setCollectionType] = useState('gifts');
-  const [openId, setOpenId] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [ownedResult, catalogResult, ratingResult] = await Promise.allSettled([
-          sbSelect('user_collectibles', `user_id=eq.${session.user.id}`, 'collected_at'),
-          sbSelect('collectibles'),
-          supabase.rpc('daily_arena_get_profile', { target_user_id: session.user.id }),
-        ]);
-        if (cancelled) return;
-        if (ownedResult.status === 'rejected') throw ownedResult.reason;
-        // Katalog vaqtincha javob bermasa ham, foydalanuvchining saqlangan sovg'alarini yashirmaymiz.
-        setOwned(ownedResult.value.map(userCollectibleFromRow));
-        setCatalog(catalogResult.status === 'fulfilled' ? catalogResult.value.map(collectibleFromRow) : []);
-        setRatingBadges(ratingResult.status === 'fulfilled' && !ratingResult.value.error ? (ratingResult.value.data?.badges || []) : []);
-        setState('ready');
-      } catch (e) {
-        if (!cancelled) setState('error');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [session.user.id]);
-
-  function handleEquipChange(collectibleId, next) {
-    setOwned((prev) => prev.map((o) => {
-      if (o.collectibleId === collectibleId) return { ...o, equipped: next };
-      return next ? { ...o, equipped: false } : o;
-    }));
-  }
-
-  return (
-    <div>
-      <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm mb-4 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}>
-        <ArrowLeft size={15} /> Profil
-      </button>
-      <SectionHeading eyebrow="Mening hisobim" title="Kolleksiyalar" />
-
-      {state === 'ready' && (
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Kolleksiya toifalari">
-          <button role="tab" aria-selected={collectionType === 'gifts'} onClick={() => setCollectionType('gifts')} className="shrink-0 rounded-full px-3.5 py-2 text-xs" style={{ ...fontBody, color: collectionType === 'gifts' ? C.white : C.inkSoft, background: collectionType === 'gifts' ? C.cover : C.paper, border: `1px solid ${collectionType === 'gifts' ? C.cover : C.rule}` }}>Sovg‘a va nishonlar · {owned.length}</button>
-          <button role="tab" aria-selected={collectionType === 'rating'} onClick={() => setCollectionType('rating')} className="shrink-0 rounded-full px-3.5 py-2 text-xs" style={{ ...fontBody, color: collectionType === 'rating' ? C.white : C.inkSoft, background: collectionType === 'rating' ? C.cover : C.paper, border: `1px solid ${collectionType === 'rating' ? C.cover : C.rule}` }}>Reyting nishonlari · {ratingBadges.length}</button>
-        </div>
-      )}
-
-      {state === 'loading' && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={20} className="animate-spin" style={{ color: C.gold }} />
-        </div>
-      )}
-
-      {state === 'error' && (
-        <div className="text-[14px]" style={{ ...fontBody, color: C.red }}>Yuklab boʻlmadi. Birozdan keyin qayta urinib koʻring.</div>
-      )}
-
-      {state === 'ready' && (
-        collectionType === 'rating' ? (
-          <RatingBadgeCollection badges={ratingBadges} />
-        ) : owned.length === 0 ? (
-          <EmptyState text="Hozircha kolleksiyangizda hech narsa yoʻq. Nishonlarni yigʻib boring!" />
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {owned.map((uc) => {
-              const meta = catalog.find((c) => c.id === uc.collectibleId);
-              return (
-                <button
-                  key={uc.id}
-                  onClick={() => setOpenId(uc.collectibleId)}
-                  className="flex flex-col items-center gap-2 p-4 rounded-lg text-center transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
-                  style={{ background: C.surface, border: `1px solid ${uc.equipped ? C.gold : C.rule}`, outlineColor: C.gold }}
-                >
-                  <CollectibleThumb collectibleId={uc.collectibleId} size={44} />
-                  <div className="text-[13px]" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{meta?.title || 'Sovgʻa'}</div>
-                  {uc.equipped && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Ishlatilmoqda</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )
-      )}
-
-      {openId && (
-        <GiftModal
-          session={session}
-          collectibleId={openId}
-          onRequireLogin={() => {}}
-          onClose={() => setOpenId(null)}
-          onChange={(next) => handleEquipChange(openId, next)}
-        />
-      )}
-    </div>
-  );
-}
 
 const RATING_BADGE_STYLE = {
   debut: { title: 'Birinchi qadam', color: '#9A6642', Icon: Award },
@@ -1804,7 +1353,7 @@ function PaperPanel({ children, className }) {
   );
 }
 
-function SearchBox({ value, onChange, placeholder, className = '' }) {
+export function SearchBox({ value, onChange, placeholder, className = '' }) {
   return (
     <div className={`relative mb-5 min-w-0 ${className}`}>
       <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
@@ -1838,26 +1387,32 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const [menuOpen, setMenuOpen] = useState(false);
   const [preferredId, setPreferredId] = useState(null);
   const touchStartX = useRef(null);
-  const count = items.length;
   const userId = session?.user?.id || null;
+  const availableCategories = useMemo(() => categories.filter((entry) => items.some((item) => item.categoryId === entry.id)), [categories, items]);
+  const defaultCategoryId = items.find((entry) => entry.categoryId)?.categoryId || null;
   useEffect(() => {
     if (!userId) { setPreferredId(null); return; }
     try { setPreferredId(window.localStorage.getItem(`upcourse_recommendation:${userId}`)); }
     catch { setPreferredId(null); }
   }, [userId]);
   useEffect(() => {
-    if (!preferredId) return;
-    const savedIndex = items.findIndex((entry) => entry.id === preferredId);
-    if (savedIndex >= 0) setIndex(savedIndex);
-  }, [items, preferredId]);
+    setIndex(0);
+  }, [userId]);
+  const savedTopic = items.find((entry) => entry.id === preferredId);
+  const preferredCategoryId = items.some((entry) => entry.categoryId === preferredId) ? preferredId : savedTopic?.categoryId;
+  const activeCategoryId = preferredCategoryId || defaultCategoryId || availableCategories[0]?.id;
+  const categoryItems = activeCategoryId
+    ? items.filter((entry) => entry.categoryId === activeCategoryId).slice(0, 6)
+    : items.filter((entry) => !entry.categoryId).slice(0, 1);
+  const count = categoryItems.length;
   useEffect(() => {
     if (count < 2) return undefined;
     const timer = window.setInterval(() => setIndex((current) => (current + 1) % count), 6500);
     return () => window.clearInterval(timer);
-  }, [count]);
+  }, [count, activeCategoryId]);
   if (!count) return null;
-  const item = items[index % count];
-  const category = categories.find((entry) => entry.id === item.categoryId)?.name || item.category || 'Tavsiya etilgan mavzu';
+  const item = categoryItems[index % count];
+  const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
     <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 rounded-lg" style={{ background: `linear-gradient(112deg, ${C.coverDeep}, #284F61 68%, #376B70)`, border: `1px solid ${C.coverLine}`, boxShadow: '0 5px 18px rgba(24,45,36,.12)' }}
@@ -1870,18 +1425,18 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
-      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiyani almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: C.white, background: 'rgba(255,255,255,.13)', border: '1px solid rgba(255,255,255,.24)', outlineColor: C.goldSoft }} title="Tavsiyani almashtirish"><Repeat2 size={13} /></button>
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: C.white, background: 'rgba(255,255,255,.13)', border: '1px solid rgba(255,255,255,.24)', outlineColor: C.goldSoft }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
       {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
         {userId ? <>
-          <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Tavsiyani tanlang</div>
+          <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Kursni tanlang</div>
           <div className="max-h-56 space-y-1 overflow-y-auto">
-            {items.map((entry, entryIndex) => <button key={entry.id} type="button" onClick={() => {
-              setIndex(entryIndex);
+            {availableCategories.map((entry) => <button key={entry.id} type="button" onClick={() => {
+              setIndex(0);
               setPreferredId(entry.id);
               try { window.localStorage.setItem(`upcourse_recommendation:${userId}`, entry.id); } catch { /* local storage ixtiyoriy */ }
               setMenuOpen(false);
-            }} className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs" style={{ ...fontBody, color: entry.id === item.id ? C.cover : C.ink, background: entry.id === item.id ? C.goldSoft + '55' : 'transparent' }}>
-              <span className="min-w-0 truncate">{entry.title}</span>{entry.id === item.id && <Check size={14} className="shrink-0" />}
+            }} className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs" style={{ ...fontBody, color: entry.id === activeCategoryId ? C.cover : C.ink, background: entry.id === activeCategoryId ? C.goldSoft + '55' : 'transparent' }}>
+              <span className="min-w-0 truncate">{entry.name}</span>{entry.id === activeCategoryId && <Check size={14} className="shrink-0" />}
             </button>)}
           </div>
         </> : <>
@@ -1903,7 +1458,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
         </div>
         {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.white, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.08)' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.coverDeep, background: C.goldSoft }}><ChevronRight size={16} /></button></div>}
       </div>
-      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{items.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? C.goldSoft : 'rgba(255,255,255,.32)' }} />)}</div>}
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? C.goldSoft : 'rgba(255,255,255,.32)' }} />)}</div>}
     </section>
   );
 }
@@ -1955,7 +1510,7 @@ export function ShareButton({ url, title, small }) {
 /* ShareButton bilan bir xil mantiq, lekin ⋮ menyu ichidan (alohida
    ko'rinadigan tugmasiz) chaqirish uchun — masalan kartochka menyusidagi
    "Ulashish" bandi. */
-async function shareItem(url, title) {
+export async function shareItem(url, title) {
   if (!url) return;
   if (navigator.share) {
     try {
@@ -1985,204 +1540,18 @@ export function EmptyState({ text, cta }) {
 /*  which already has fullscreen, a scrub bar, and play/pause built in. */
 /* ------------------------------------------------------------------ */
 
-function extractYouTubeId(url) {
-  if (!url) return null;
-  try {
-    const u = new URL(url.trim());
-    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('/')[0] || null;
-    if (u.hostname.includes('youtube.com')) {
-      if (u.pathname === '/watch') return u.searchParams.get('v');
-      const m = u.pathname.match(/\/(embed|shorts)\/([^/?]+)/);
-      if (m) return m[2];
-    }
-  } catch (e) {
-    // not a valid URL
-  }
-  return null;
-}
 
-function YouTubeEmbed({ url }) {
-  const [playing, setPlaying] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
-  const shellRef = useRef(null);
-  const videoId = extractYouTubeId(url);
 
-  useEffect(() => {
-    const updateFullscreen = () => {
-      setFullscreen(document.fullscreenElement === shellRef.current || document.webkitFullscreenElement === shellRef.current);
-    };
-    document.addEventListener('fullscreenchange', updateFullscreen);
-    document.addEventListener('webkitfullscreenchange', updateFullscreen);
-    return () => {
-      document.removeEventListener('fullscreenchange', updateFullscreen);
-      document.removeEventListener('webkitfullscreenchange', updateFullscreen);
-    };
-  }, []);
 
-  if (!videoId) return null;
 
-  async function toggleFullscreen() {
-    const shell = shellRef.current;
-    if (!shell) return;
-    try {
-      if (document.fullscreenElement || document.webkitFullscreenElement) {
-        if (document.exitFullscreen) await document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-        return;
-      }
-      if (shell.requestFullscreen) await shell.requestFullscreen();
-      else if (shell.webkitRequestFullscreen) shell.webkitRequestFullscreen();
-    } catch (e) {
-      // Fullscreen can be blocked by the browser; inline playback remains available.
-    }
-  }
 
-  return (
-    <div className="max-w-2xl mx-auto my-5">
-      <style>{`
-        .youtube-embed-shell:fullscreen,
-        .youtube-embed-shell:-webkit-full-screen {
-          position: fixed !important;
-          inset: 0 !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          width: 100vw !important;
-          height: 100vh !important;
-          height: 100dvh !important;
-          max-width: none !important;
-          max-height: none !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          border: 0 !important;
-          border-radius: 0 !important;
-          transform: none !important;
-          background: #000 !important;
-        }
-        .youtube-embed-shell:fullscreen .youtube-embed-frame,
-        .youtube-embed-shell:-webkit-full-screen .youtube-embed-frame {
-          position: relative !important;
-          inset: auto !important;
-          display: block !important;
-          width: min(100vw, 177.7778dvh) !important;
-          height: min(100dvh, 56.25vw) !important;
-          max-width: 100vw !important;
-          max-height: 100dvh !important;
-          aspect-ratio: 16 / 9 !important;
-          flex: none !important;
-        }
-      `}</style>
-      <div
-        className="youtube-embed-shell relative w-full overflow-hidden rounded-sm"
-        ref={shellRef}
-        style={{ aspectRatio: '16 / 9', background: '#000', border: `1px solid ${C.rule}` }}
-      >
-        {playing ? (
-          <iframe
-            className="youtube-embed-frame absolute inset-0 w-full h-full"
-            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&fs=0`}
-            title="YouTube video"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-            allowFullScreen
-          />
-        ) : (
-          <button
-            onClick={() => setPlaying(true)}
-            className="absolute inset-0 w-full h-full group focus-visible:outline focus-visible:outline-2"
-            style={{ outlineColor: C.gold }}
-            aria-label="Videoni ishga tushirish"
-          >
-            <img
-              src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-              loading="lazy"
-            />
-            <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(20,30,20,0.25)' }}>
-              <span
-                className="flex items-center justify-center rounded-full transition-transform group-hover:scale-105"
-                style={{ width: 62, height: 62, background: 'rgba(20,30,20,0.72)', border: `2px solid ${C.goldSoft}` }}
-              >
-                <PlayIcon />
-              </span>
-            </span>
-          </button>
-        )}
-      </div>
-      {playing && !fullscreen && (
-        <div className="flex justify-end mt-1.5">
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-sm text-xs focus-visible:outline focus-visible:outline-2"
-            style={{ color: C.inkSoft, background: C.surface, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-            aria-label="To‘liq ekranda ko‘rish"
-            title="To‘liq ekranda ko‘rish"
-          >
-            <Maximize2 size={14} /> To‘liq ekran
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M8 5.5v13l11-6.5-11-6.5z" fill="#FBFAF3" />
-    </svg>
-  );
-}
 
 /* Renders course text line-by-line: a blank line starts a new paragraph,
    consecutive lines within a paragraph keep their line breaks (so numbered
    lists like "1." / "2." stay on separate lines), and a line that's just
    "{{video}}" is replaced with the video player exactly where it was typed —
    whether it's separated by one Enter or a blank line. */
-function CourseBody({ content, videoUrl }) {
-  const marker = '{{video}}';
-  const lines = (content || '').split('\n');
-  const blocks = [];
-  let buffer = [];
-  const flush = () => {
-    if (buffer.length) { blocks.push({ type: 'text', lines: buffer }); buffer = []; }
-  };
-  let videoInserted = false;
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (trimmed.toLowerCase() === marker) {
-      flush();
-      blocks.push({ type: 'video' });
-      videoInserted = true;
-    } else if (trimmed === '') {
-      flush();
-    } else {
-      buffer.push(line);
-    }
-  });
-  flush();
-  if (videoUrl && !videoInserted) blocks.push({ type: 'video' });
 
-  return (
-    <div className="space-y-4 max-w-2xl">
-      {blocks.map((b, i) =>
-        b.type === 'video' ? (
-          videoUrl ? <YouTubeEmbed key={i} url={videoUrl} /> : null
-        ) : (
-          <p key={i} className="text-base leading-7" style={{ ...fontBody, color: C.ink }}>
-            {b.lines.map((l, j) => (
-              <React.Fragment key={j}>
-                {l}
-                {j < b.lines.length - 1 && <br />}
-              </React.Fragment>
-            ))}
-          </p>
-        )
-      )}
-    </div>
-  );
-}
 
 export function TextField({ label, value, onChange, placeholder, textarea, rows }) {
   const common = {
@@ -2278,7 +1647,7 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId }) {
+export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId }) {
   const [renaming, setRenaming] = useState(null);
 
   return (
@@ -2373,7 +1742,7 @@ function CategoryPicker({ categories, value, onChange }) {
   );
 }
 
-function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
+export function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -2426,7 +1795,7 @@ function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSu
   );
 }
 
-function VisibilityToggle({ value, onChange }) {
+export function VisibilityToggle({ value, onChange }) {
   return (
     <div className="mb-3">
       <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div>
@@ -2471,7 +1840,7 @@ function VisibilityToggle({ value, onChange }) {
   );
 }
 
-function EditCourseForm({ course, onSave, onDone }) {
+export function EditCourseForm({ course, onSave, onDone }) {
   const [title, setTitle] = useState(course.title);
   const [content, setContent] = useState(course.content);
   const [videoUrl, setVideoUrl] = useState(course.videoUrl || '');
@@ -2495,7 +1864,7 @@ function EditCourseForm({ course, onSave, onDone }) {
   );
 }
 
-function PinnedAddButton({ icon: Icon, label, onClick }) {
+export function PinnedAddButton({ icon: Icon, label, onClick }) {
   return (
     <div className="pointer-events-none fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-5">
       <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full px-3.5 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.white, background: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.goldSoft, boxShadow: '0 5px 16px rgba(20,42,27,.24)' }}>
@@ -2519,8 +1888,13 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = courses.filter((c) => c.status === 'approved');
-  const fallbackRecommendation = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id) || FEATURED_COURSE_FALLBACK;
-  const recommendationItems = [fallbackRecommendation, ...approved.filter((course) => course.id !== fallbackRecommendation.id)].slice(0, 6);
+  const fallbackCourse = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id);
+  const fallbackCategoryId = approvedCategories.find((category) => category.name === FEATURED_COURSE_FALLBACK.category)?.id || null;
+  const recommendationItems = fallbackCourse
+    ? [fallbackCourse, ...approved.filter((course) => course.id !== fallbackCourse.id)]
+    : approved.length
+      ? approved
+      : [{ ...FEATURED_COURSE_FALLBACK, categoryId: fallbackCategoryId }];
   const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
   /* To'liq courses ro'yxatidan qidiramiz — shu tufayli ulashilgan havola
      orqali kirilgan tekshirilmoqda/xususiy kurs ham (muallifi/admin
@@ -2621,7 +1995,9 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         {active.content === undefined ? (
           <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
-          <CourseBody content={active.content} videoUrl={active.videoUrl} />
+          <Suspense fallback={<SectionLoading label="Mavzu yuklanmoqda…" compact />}>
+            <DeferredCourseBody content={active.content} videoUrl={active.videoUrl} />
+          </Suspense>
         )}
         <Suspense fallback={<SectionLoading label="Mavzuga tegishli testlar yuklanmoqda…" compact />}>
           <CourseLinkedTestsView
@@ -2920,7 +2296,7 @@ export function computeSyncScore(correct, timeTakenMs, limitMs) {
    shu sababli keyingi savol qatori raqamlangan ("1.") yoki
    raqamsiz ("Savol matni?") bo'lishidan qat'iy nazar to'g'ri
    aniqlanadi. */
-function parseTxtQuestions(rawText) {
+export function parseTxtQuestions(rawText) {
   const lines = rawText.replace(/\r\n/g, '\n').split('\n');
   const questions = [];
   let cur = null;
@@ -2973,323 +2349,11 @@ function parseTxtQuestions(rawText) {
   return questions;
 }
 
-function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
-  const [qType, setQType] = useState(mode === 'math' ? 'open' : 'mcq');
-  const [qText, setQText] = useState('');
-  const [opts, setOpts] = useState(['', '', '', '']);
-  const [correct, setCorrect] = useState(0);
-  const [answersText, setAnswersText] = useState('');
-  const [importError, setImportError] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [imageUploading, setImageUploading] = useState(false);
-  const [imageError, setImageError] = useState('');
-  const fileInputRef = useRef(null);
-  const imageInputRef = useRef(null);
 
-  function addQuestion() {
-    if (!qText.trim()) return;
-    if (qType === 'mcq') {
-      if (opts.some((o) => !o.trim())) return;
-      setQuestions([...questions, { id: uid(), type: 'mcq', text: qText.trim(), options: opts.map((o) => o.trim()), correct, imageUrl: imageUrl || undefined }]);
-      setOpts(['', '', '', '']);
-      setCorrect(0);
-    } else {
-      const answers = answersText.split(/[,\n]/).map((a) => a.trim()).filter(Boolean);
-      if (answers.length === 0) return;
-      setQuestions([...questions, { id: uid(), type: 'open', text: qText.trim(), answers, imageUrl: imageUrl || undefined }]);
-      setAnswersText('');
-    }
-    setQText('');
-    setImageUrl('');
-  }
 
-  function removeQuestion(id) {
-    setQuestions(questions.filter((q) => q.id !== id));
-  }
 
-  async function handleImageFile(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    setImageError('');
-    setImageUploading(true);
-    try {
-      const url = await sbUploadImage(file);
-      setImageUrl(url);
-    } catch (err) {
-      setImageError('Rasm yuklashda xatolik yuz berdi. Qaytadan urinib koʻring.');
-    } finally {
-      setImageUploading(false);
-      e.target.value = '';
-    }
-  }
 
-  function handleTxtFile(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    setImportError('');
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = parseTxtQuestions(String(reader.result));
-        if (parsed.length === 0) {
-          setImportError('Faylda savol topilmadi. Format toʻgʻriligini tekshiring: savol matni, keyin "A) variant" qatorlari, oxirida "ANSWER: A".');
-          return;
-        }
-        setQuestions([...questions, ...parsed]);
-      } catch (err) {
-        setImportError('Faylni oʻqishda xatolik yuz berdi.');
-      }
-    };
-    reader.readAsText(file, 'utf-8');
-    e.target.value = '';
-  }
 
-  const isTxtMode = mode === 'txt';
-  const isMathMode = mode === 'math';
-
-  return (
-    <>
-      {questions.length > 0 && (
-        <div className="mb-4 space-y-2">
-          {questions.map((q, i) => (
-            <div key={q.id} className="flex items-start justify-between p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
-              <div className="flex items-start gap-2 min-w-0">
-                {q.imageUrl && (
-                  <img src={q.imageUrl} alt="" className="w-10 h-10 object-cover rounded-sm flex-shrink-0" style={{ border: `1px solid ${C.rule}` }} />
-                )}
-                <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
-                  <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
-                  {q.type === 'open' && (
-                    <span className="ml-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>(yozma javob)</span>
-                  )}
-                </div>
-              </div>
-              <button onClick={() => removeQuestion(q.id)} className="flex-shrink-0 ml-3" style={{ color: C.inkSoft }}><X size={15} /></button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <input ref={fileInputRef} type="file" accept=".txt" onChange={handleTxtFile} className="hidden" />
-
-      {isTxtMode ? (
-        <div className="p-6 rounded-2xl mb-4 text-center" style={{ background: C.mathTint, border: `1px solid ${C.math}` }}>
-          <FileText size={22} style={{ color: C.math }} className="mx-auto mb-2" />
-          <div className="flex items-center justify-center gap-1.5 mb-4">
-            <div className="text-[15px]" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>TXT fayldan savollarni yuklang</div>
-            <InfoHint text={'Har bir savol alohida qatorda (raqami bo\u2018lsa ham, bo\u2018lmasa ham farqi yo\u2018q), keyin "A)", "B)", "C)", "D)" variantlari, oxirida "ANSWER: A" (yoki B, C, D) yozilgan bo\u2018lishi kerak.'} />
-          </div>
-          <SolidButton onClick={() => fileInputRef.current && fileInputRef.current.click()} icon={Paperclip}>TXT faylni tanlash</SolidButton>
-          {importError && <div className="text-xs mt-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
-        </div>
-      ) : (
-        <div className="p-4 rounded-sm mb-4" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="text-xs tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol qoʻshish</div>
-            {!isMathMode && (
-              <button
-                onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0 focus-visible:outline focus-visible:outline-2"
-                style={{ background: C.mathTint, color: C.mathDeep, outlineColor: C.mathSoft }}
-                aria-label="TXT fayldan yuklash"
-                title="TXT fayldan yuklash"
-              >
-                <FileText size={13} />
-              </button>
-            )}
-          </div>
-          {importError && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
-
-          <div className="flex items-center gap-2 mb-3">
-            <button
-              onClick={() => setQType('mcq')}
-              className="px-3 py-1.5 rounded-sm text-sm"
-              style={{ ...fontBody, background: qType === 'mcq' ? C.cover : 'transparent', color: qType === 'mcq' ? C.white : C.inkSoft, border: `1px solid ${qType === 'mcq' ? C.cover : C.rule}` }}
-            >
-              Variantli
-            </button>
-            <button
-              onClick={() => setQType('open')}
-              className="px-3 py-1.5 rounded-sm text-sm"
-              style={{ ...fontBody, background: qType === 'open' ? C.cover : 'transparent', color: qType === 'open' ? C.white : C.inkSoft, border: `1px solid ${qType === 'open' ? C.cover : C.rule}` }}
-            >
-              Yozma javob
-            </button>
-            {isMathMode && qType === 'open' && (
-              <InfoHint text={'Bir nechta toʻgʻri koʻrinishni kiritishingiz mumkin — masalan "1/2" va "0,5" ikkalasi ham toʻgʻri hisoblanadi, chunki javob son sifatida solishtiriladi.'} />
-            )}
-          </div>
-
-          <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
-
-          <div className="mb-3">
-            <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
-            {imageUrl ? (
-              <div className="flex items-center gap-3">
-                <img src={imageUrl} alt="" className="w-16 h-16 object-cover rounded-sm" style={{ border: `1px solid ${C.rule}` }} />
-                <button onClick={() => setImageUrl('')} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: C.red }}>
-                  <X size={13} /> Rasmni olib tashlash
-                </button>
-              </div>
-            ) : (
-              <>
-                <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
-                <button
-                  onClick={() => imageInputRef.current && imageInputRef.current.click()}
-                  disabled={imageUploading}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-visible:outline focus-visible:outline-2"
-                  style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-                >
-                  <ImageIcon size={13} /> {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish'}
-                </button>
-              </>
-            )}
-            {imageError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{imageError}</div>}
-          </div>
-
-          {qType === 'mcq' ? (
-            <>
-              {opts.map((o, i) => (
-                <div key={i} className="flex items-center gap-2 mb-2">
-                  <input
-                    type="radio"
-                    name="correct-opt"
-                    checked={correct === i}
-                    onChange={() => setCorrect(i)}
-                    className="flex-shrink-0"
-                    title="Toʻgʻri javob"
-                  />
-                  <input
-                    type="text"
-                    value={o}
-                    onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
-                    placeholder={`Variant ${String.fromCharCode(65 + i)}`}
-                    className="w-full bg-transparent outline-none py-1.5 text-[15px]"
-                    style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
-                  />
-                </div>
-              ))}
-              <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
-            </>
-          ) : (
-            <>
-              <TextField
-                label="Toʻgʻri javob(lar)"
-                value={answersText}
-                onChange={setAnswersText}
-                placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
-                textarea
-                rows={2}
-              />
-            </>
-          )}
-
-          <GhostButton onClick={addQuestion} icon={Plus} disabled={imageUploading}>Savolni testga qoʻshish</GhostButton>
-        </div>
-      )}
-    </>
-  );
-}
-
-function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView, formMode }) {
-  const [categoryName, setCategoryName] = useState(initialCategoryName || '');
-  const [title, setTitle] = useState('');
-  const [questions, setQuestions] = useState([]);
-  const [visibility, setVisibility] = useState('public');
-  const [newId, setNewId] = useState(null);
-
-  if (formMode === 'matching') {
-    return (
-      <Suspense fallback={<SectionLoading label="Matching test muharriri yuklanmoqda…" compact />}>
-        <MatchingTestForm initialCategoryName={initialCategoryName} onSubmit={onSubmit} onDone={onDone} onView={onView} />
-      </Suspense>
-    );
-  }
-
-  if (newId) {
-    return (
-      <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
-        <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
-        <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Testingiz yuborildi!</div>
-        <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
-          {visibility === 'private'
-            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
-            : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
-        </div>
-        <div className="flex gap-3 justify-center">
-          <SolidButton onClick={() => onView(newId)} icon={ChevronRight}>Koʻrish</SolidButton>
-          <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
-        </div>
-      </div>
-    );
-  }
-
-  const canSubmit = title.trim() && questions.length > 0 && (lockedCategoryId || categoryName.trim());
-
-  async function submit() {
-    if (!canSubmit) return;
-    const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions, visibility }
-      : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions, visibility };
-    const id = await onSubmit(payload);
-    if (id) setNewId(id);
-  }
-
-  return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-      {formMode === 'txt' && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-          <FileText size={14} style={{ flexShrink: 0 }} /> TXT fayldan test yaratish — savollarni qoʻlda yozish shart emas.
-        </div>
-      )}
-      {formMode === 'math' && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-          <Calculator size={14} style={{ flexShrink: 0 }} /> Matematik test — savollarga rasm/chizma qoʻshishingiz va yozma javob (kasr, ildiz, daraja) qabul qilishingiz mumkin.
-        </div>
-      )}
-      {!lockedCategoryId && (
-        <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Sohaga nom bering" />
-      )}
-      <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
-      <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
-      <VisibilityToggle value={visibility} onChange={setVisibility} />
-      <div className="flex gap-3">
-        <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
-        <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
-      </div>
-    </div>
-  );
-}
-
-function EditTestForm({ test, onSave, onDone }) {
-  const [title, setTitle] = useState(test.title);
-  const [questions, setQuestions] = useState(test.questions);
-
-  async function submit() {
-    if (!title.trim() || questions.length === 0) return;
-    const ok = await onSave({ categoryId: test.categoryId, title: title.trim(), description: test.description || '', questions });
-    if (ok) onDone();
-  }
-
-  if (test.questions.some((question) => question.type === 'matching')) {
-    return (
-      <Suspense fallback={<SectionLoading label="Matching test muharriri yuklanmoqda…" compact />}>
-        <MatchingTestForm initialTest={test} onSave={onSave} onDone={onDone} />
-      </Suspense>
-    );
-  }
-
-  return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-      <TextField label="Test nomi" value={title} onChange={setTitle} />
-      <QuestionBuilder questions={questions} setQuestions={setQuestions} />
-      <div className="flex gap-3">
-        <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Saqlash</SolidButton>
-        <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
-      </div>
-    </div>
-  );
-}
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -3300,7 +2364,7 @@ function shuffleArray(arr) {
   return a;
 }
 
-function formatDuration(totalSeconds) {
+export function formatDuration(totalSeconds) {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
@@ -3310,7 +2374,7 @@ function formatDuration(totalSeconds) {
 /*  Testni boshlashdan oldingi ixcham sozlamalar paneli                */
 /* ------------------------------------------------------------------ */
 
-function SettingChip({ active, onClick, children }) {
+export function SettingChip({ active, onClick, children }) {
   return (
     <button
       onClick={onClick}
@@ -3335,7 +2399,7 @@ function SettingChip({ active, onClick, children }) {
 /* Sozlamalar (mode/count/partsTotal/partIndex/shuffle) asosida savollar
    ro'yxatini hisoblaydi. QuizSetupPanel ichida ham, sozlamalar ekranini
    ko'rsatmasdan to'g'ridan-to'g'ri boshlashda ham ishlatiladi. */
-function computeQuizQuestions(test, cfg) {
+export function computeQuizQuestions(test, cfg) {
   const total = test.questions.length;
   const mode = cfg.mode || 'all';
   const count = cfg.count ?? Math.min(5, total);
@@ -3357,419 +2421,9 @@ function computeQuizQuestions(test, cfg) {
   return base;
 }
 
-function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
-  const total = test.questions.length;
-  const unitTotal = getQuestionCount(test.questions);
-  const itemLabel = test.questions.some((question) => question.type === 'matching') ? `${unitTotal} ta moslik` : `${unitTotal} ta savol`;
-  const init = initialConfig || DEFAULT_TEST_PREFS;
-  const [immediate, setImmediate] = useState(!!init.immediate);
-  const [autoScroll, setAutoScroll] = useState(!!init.autoScroll);
-  const [shuffle, setShuffle] = useState(!!init.shuffle);
-  const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | split
-  const [count, setCount] = useState(Math.min(init.count || 5, total));
-  const [partsTotal, setPartsTotal] = useState(init.partsTotal || 2);
-  const [partIndex, setPartIndex] = useState(init.partIndex || 1);
 
-  function start() {
-    const cfg = { immediate, autoScroll, shuffle, mode, count, partsTotal, partIndex };
-    const questions = computeQuizQuestions(test, cfg);
-    if (questions.length === 0) return;
-    onStart({ ...cfg, questions });
-  }
 
-  const parts = Math.max(2, Math.min(partsTotal, total));
 
-  return (
-    <div>
-      <button
-        onClick={onExit}
-        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-      >
-        <ArrowLeft size={15} /> Barcha testlar
-      </button>
-
-      <h3 className="text-2xl sm:text-3xl mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-      {test.description && <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
-      <div className="text-xs mb-6" style={{ ...fontMono, color: C.gold }}>{itemLabel} mavjud</div>
-
-      <div className="flex flex-wrap gap-2 mb-5">
-        <SettingChip active={immediate} onClick={() => setImmediate((v) => !v)}>Darhol javob koʻrsatish</SettingChip>
-        <SettingChip active={autoScroll} onClick={() => setAutoScroll((v) => !v)}>Keyingi savolga avtomatik oʻtish</SettingChip>
-        <SettingChip active={shuffle} onClick={() => setShuffle((v) => !v)}>Savollarni aralashtirish</SettingChip>
-      </div>
-
-      <div className="mb-6">
-        <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Savollar toʻplami</div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <SettingChip active={mode === 'all'} onClick={() => setMode('all')}>Hammasi ({total})</SettingChip>
-          <SettingChip active={mode === 'random'} onClick={() => setMode('random')}>Tasodifiy N ta</SettingChip>
-          <SettingChip active={mode === 'first'} onClick={() => setMode('first')}>Dastlabki N ta</SettingChip>
-          {total > 1 && <SettingChip active={mode === 'split'} onClick={() => setMode('split')}>Qismlarga boʻlib</SettingChip>}
-
-          {(mode === 'random' || mode === 'first') && (
-            <input
-              type="number"
-              min={1}
-              max={total}
-              value={count}
-              onChange={(e) => setCount(Math.max(1, Math.min(total, Number(e.target.value) || 1)))}
-              className="w-16 px-2 py-1.5 rounded-sm text-[13px] outline-none"
-              style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
-            />
-          )}
-
-          {mode === 'split' && (
-            <>
-              <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Necha qism:</span>
-              <input
-                type="number"
-                min={2}
-                max={total}
-                value={partsTotal}
-                onChange={(e) => { setPartsTotal(Math.max(2, Math.min(total, Number(e.target.value) || 2))); setPartIndex(1); }}
-                className="w-14 px-2 py-1.5 rounded-sm text-[13px] outline-none"
-                style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
-              />
-              <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Qaysi qism:</span>
-              <select
-                value={partIndex}
-                onChange={(e) => setPartIndex(Number(e.target.value))}
-                className="px-2 py-1.5 rounded-sm text-[13px] outline-none"
-                style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
-              >
-                {Array.from({ length: parts }, (_, i) => i + 1).map((p) => (
-                  <option key={p} value={p}>{p}-qism</option>
-                ))}
-              </select>
-            </>
-          )}
-        </div>
-      </div>
-
-      <SolidButton onClick={start} icon={Award}>Testni boshlash</SolidButton>
-    </div>
-  );
-}
-
-function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
-  const questions = config.questions;
-  const [answers, setAnswers] = useState({});
-  const [revealed, setRevealed] = useState({});
-  const [finished, setFinished] = useState(false);
-  const [showBadgeNotice, setShowBadgeNotice] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const questionRefs = useRef({});
-  const resultSummaryRef = useRef(null);
-  const autoScrollTimerRef = useRef(null);
-
-  useEffect(() => () => clearTimeout(autoScrollTimerRef.current), []);
-
-  useEffect(() => {
-    if (finished || paused) return;
-    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(t);
-  }, [finished, paused]);
-
-  useEffect(() => {
-    if (!finished || !resultSummaryRef.current) return undefined;
-    const frame = requestAnimationFrame(() => {
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      resultSummaryRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [finished]);
-
-  const allAnswered = questions.every((q) => {
-    const a = answers[q.id];
-    if (q.type === 'matching') return Array.isArray(q.pairs) ? q.pairs.every((pair) => a?.[pair.id] !== undefined) : a !== undefined;
-    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
-  });
-
-  /* Keyingi javobsiz savolga brauzerning native scroll animatsiyasi bilan oʻtamiz.
-     Bu har kadrda JavaScript hisoblashni talab qilmaydi va sekin qurilmalarda yengilroq. */
-  function scrollToNextUnanswered(fromQid, latestAnswers) {
-    if (!config.autoScroll) return;
-    const fromIndex = questions.findIndex((q) => q.id === fromQid);
-    const next = questions.slice(fromIndex + 1).find((q) => {
-      const a = latestAnswers[q.id];
-      if (q.type === 'matching') return Array.isArray(q.pairs) ? !q.pairs.every((pair) => a?.[pair.id] !== undefined) : a === undefined;
-      return q.type === 'open' ? !(typeof a === 'string' && a.trim().length > 0) : a === undefined;
-    });
-    if (!next) return;
-    const el = questionRefs.current[next.id];
-    if (!el) return;
-
-    clearTimeout(autoScrollTimerRef.current);
-    autoScrollTimerRef.current = setTimeout(() => {
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'center' });
-    }, 160);
-  }
-
-  function select(qid, idx) {
-    if (finished || paused) return;
-    setAnswers((a) => {
-      const next = { ...a, [qid]: idx };
-      scrollToNextUnanswered(qid, next);
-      return next;
-    });
-    if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
-  }
-
-  function selectMatching(qid, pairId, optionIndex) {
-    if (finished || paused) return;
-    const nextMatching = { ...(answers[qid] || {}) };
-    if (optionIndex === undefined) delete nextMatching[pairId];
-    else nextMatching[pairId] = optionIndex;
-    const next = { ...answers, [qid]: nextMatching };
-    setAnswers(next);
-    scrollToNextUnanswered(qid, next);
-    if (config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
-      setRevealed((revealedAnswers) => ({ ...revealedAnswers, [qid]: true }));
-    }
-  }
-
-  function setOpenAnswer(qid, text) {
-    if (finished || paused) return;
-    setAnswers((a) => ({ ...a, [qid]: text }));
-  }
-
-  function confirmOpenAnswer(qid) {
-    if (finished || paused) return;
-    setAnswers((a) => { scrollToNextUnanswered(qid, a); return a; });
-    if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
-  }
-
-  function submit() {
-    const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, answers[question.id]), 0);
-    const totalCount = getQuestionCount(questions);
-    const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
-    setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
-    setFinished(true);
-    if (percent >= 70 && onTestComplete) {
-      Promise.resolve()
-        .then(() => onTestComplete(percent))
-        .then((shouldNotify) => { if (shouldNotify) setShowBadgeNotice(true); })
-        .catch(() => {});
-    }
-  }
-
-  if (finished) {
-    const correctCount = questions.reduce((s, qq) => s + getQuestionScore(qq, answers[qq.id]), 0);
-    const totalCount = getQuestionCount(questions);
-    const incorrectCount = totalCount - correctCount;
-    const percent = Math.round((correctCount / totalCount) * 100);
-    return (
-      <div>
-        <button
-          onClick={onExit}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> Barcha testlar
-        </button>
-        <h3 ref={resultSummaryRef} className="text-2xl sm:text-3xl mb-5" style={{ ...fontDisplay, color: C.ink, fontWeight: 600, scrollMarginTop: '5rem' }}>{test.title} — yakunlandi</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mb-8">
-          <div className="p-4 rounded-sm text-center" style={{ background: C.cover }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.gold, fontWeight: 700 }}>{percent}%</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.goldSoft }}>Natija</div>
-          </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.successTint, border: `1px solid ${C.accent}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}>{correctCount}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri</div>
-          </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.dangerTint, border: `1px solid ${C.red}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.red, fontWeight: 700 }}>{incorrectCount}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Notoʻgʻri</div>
-          </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.ink, fontWeight: 700 }}>{formatDuration(seconds)}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Sarflangan vaqt</div>
-          </div>
-        </div>
-        {showBadgeNotice && (
-          <div role="status" className="mb-6 flex max-w-2xl flex-wrap items-center gap-3 rounded-xl px-3 py-3 sm:px-4" style={{ background: 'rgba(232, 229, 238, .78)', border: '1px solid #D2CDD7', backdropFilter: 'blur(8px)', boxShadow: '0 4px 14px rgba(45, 40, 58, .07)' }}>
-            <MiniLearningBadge size={34} />
-            <div className="min-w-[150px] flex-1">
-              <div className="text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Tabriklaymiz, shart bajarildi!</div>
-              <div className="mt-0.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}>“Bilimga qadam” nishonini kolleksiyaga qo‘shing.</div>
-            </div>
-            <button type="button" disabled={badgeClaimBusy} onClick={async () => { try { await onBadgeClaim?.(); setShowBadgeNotice(false); } catch {} }} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-60" style={{ background: '#65539A', color: '#fff' }}>{badgeClaimBusy ? '...' : session ? 'Qabul qilish' : 'Kirish va olish'}</button>
-            <button type="button" aria-label="Yopish" onClick={() => setShowBadgeNotice(false)} className="rounded-md px-2 py-1 text-xs" style={{ color: C.inkSoft }}>Yopish</button>
-            {badgeClaimError && <div className="w-full text-xs" style={{ ...fontBody, color: C.red }}>{badgeClaimError}</div>}
-          </div>
-        )}
-        <section className="max-w-2xl mb-8">
-          <h4 className="text-lg mb-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Javoblar tahlili</h4>
-          <div className="space-y-3">
-            {questions.map((q, qi) => {
-              const userAnswer = answers[q.id];
-              const correct = getQuestionScore(q, userAnswer);
-              const total = getQuestionCount([q]);
-              let chosenText = 'Javob berilmadi';
-              let correctText = '';
-              if (q.type === 'open') {
-                chosenText = typeof userAnswer === 'string' && userAnswer.trim() ? userAnswer : 'Javob berilmadi';
-                correctText = (q.answers || []).join(' yoki ');
-              } else if (q.type === 'matching') {
-                const pairs = q.pairs || [{ id: q.id, text: q.text, correct: q.correct }];
-                const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                if (!q.pairs) {
-                  chosenText = q.options?.[userAnswer] ?? 'Javob berilmadi';
-                  correctText = q.options?.[q.correct] ?? '';
-                } else {
-                  chosenText = pairs.map((pair, i) => `${i + 1}. ${userAnswer?.[pair.id] === undefined ? '—' : letters[userAnswer[pair.id]]}`).join(' · ');
-                  correctText = pairs.map((pair, i) => `${i + 1}. ${letters[pair.correct]}`).join(' · ');
-                }
-              } else {
-                chosenText = q.options?.[userAnswer] ?? 'Javob berilmadi';
-                correctText = q.options?.[q.correct] ?? '';
-              }
-              const isCorrect = correct === total;
-              return (
-                <article key={q.id} className="p-4 rounded-sm" style={{ background: isCorrect ? C.successTint : C.dangerTint, border: `1px solid ${isCorrect ? C.accent : C.red}` }}>
-                  <div className="text-sm mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>{qi + 1}. {q.text || 'Moslashtirish savoli'}</div>
-                  <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <div style={{ ...fontBody, color: C.inkSoft }}>Sizning javobingiz</div>
-                      <div className="mt-1 break-words" style={{ ...fontBody, color: C.ink }}>{chosenText}</div>
-                    </div>
-                    <div>
-                      <div style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javob</div>
-                      <div className="mt-1 break-words" style={{ ...fontBody, color: C.accent, fontWeight: 600 }}>{correctText || 'Javob kiritilmagan'}</div>
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs" style={{ ...fontMono, color: isCorrect ? C.accent : C.red }}>
-                    {isCorrect ? 'Toʻgʻri' : 'Notoʻgʻri'} · {correct}/{total} ball
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-        <div className="flex flex-wrap gap-3">
-          <GhostButton onClick={onRetry} icon={RotateCcw}>Qayta ishlash</GhostButton>
-          <GhostButton onClick={onRestart} icon={Settings}>Sozlamalarni oʻzgartirish</GhostButton>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
-        <button
-          onClick={onExit}
-          className="inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> Barcha testlar
-        </button>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[13px]" style={{ ...fontMono, color: C.gold, background: C.cover }}>
-            <Clock3 size={13} /> {formatDuration(seconds)}
-          </div>
-          <button
-            onClick={() => setPaused((p) => !p)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-sm text-[13px]"
-            style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
-          >
-            {paused ? <><Play2 size={13} /> Davom</> : <><Pause size={13} /> Pauza</>}
-          </button>
-        </div>
-      </div>
-
-      <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-      {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
-
-      {paused ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <Pause size={26} style={{ color: C.gold }} className="mb-3" />
-          <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>Test pauzada — vaqt hisoblagich toʻxtatildi.</div>
-          <SolidButton onClick={() => setPaused(false)} icon={Play2}>Davom ettirish</SolidButton>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-4 max-w-2xl">
-            {questions.map((q, qi) => {
-              const showResult = config.immediate ? !!revealed[q.id] : finished;
-              return (
-                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-3 sm:p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-                  {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
-                    <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
-                  </div>}
-                  {q.imageUrl && (
-                    <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
-                  )}
-                  {q.type === 'matching' ? (
-                    <MatchingTestQuestion question={q} answer={answers[q.id]} onChange={(pairId, optionIndex) => selectMatching(q.id, pairId, optionIndex)} disabled={finished || paused} showResult={showResult} />
-                  ) : q.type === 'open' ? (
-                    <div>
-                      <input
-                        type="text"
-                        value={answers[q.id] || ''}
-                        onChange={(e) => setOpenAnswer(q.id, e.target.value)}
-                        onBlur={() => confirmOpenAnswer(q.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
-                        disabled={showResult}
-                        placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
-                        className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
-                        style={{
-                          ...fontBody, color: C.ink,
-                          background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
-                          border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
-                        }}
-                      />
-                      {showResult && (
-                        <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
-                          {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
-                          Toʻgʻri javob: {(q.answers || []).join(' yoki ')}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {q.options.map((opt, oi) => {
-                        const isSelected = answers[q.id] === oi;
-                        let bg = C.surface, border = C.rule;
-                        if (showResult) {
-                          if (oi === q.correct) { bg = C.successTint; border = C.accent; }
-                          else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
-                        } else if (isSelected) {
-                          border = C.gold; bg = C.selectedTint;
-                        }
-                        return (
-                          <button
-                            key={oi}
-                            onClick={() => select(q.id, oi)}
-                            disabled={showResult}
-                            className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
-                            style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
-                          >
-                            <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                            <span>{opt}</span>
-                            {showResult && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
-                            {showResult && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="flex gap-3 mt-8">
-            <SolidButton onClick={submit} icon={Check} disabled={!allAnswered}>Javoblarni tekshirish</SolidButton>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 /* effectivePrefs — joriy (saqlangan yoki andoza) sozlamalar. forceSetup
    true bo'lsa (⋮ menyudagi "Sozlamalar" orqali ochilganda), avval
@@ -3778,1468 +2432,52 @@ function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, 
    umuman ko'rsatilmaydi. onSavePrefs berilgan bo'lsa (foydalanuvchi
    tizimga kirgan bo'lsa) — sozlamalar o'zgartirilganda akkauntga
    saqlanadi; berilmasa (akkaunti yo'q), hech qayerga saqlanmaydi. */
-function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
-  const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
-  const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
-  const [lastConfig, setLastConfig] = useState(prefs);
-  const [attemptKey, setAttemptKey] = useState(0);
 
-  function handleStart(cfg) {
-    const { questions, ...rest } = cfg;
-    setLastConfig(rest);
-    setConfig(cfg);
-    if (onSavePrefs) onSavePrefs(rest);
-  }
-
-  if (!config) {
-    return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
-  }
-  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={() => setAttemptKey((key) => key + 1)} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Jonli test rejimi — endi ./LiveQuiz.jsx faylida (lazy-load)        */
 /* ------------------------------------------------------------------ */
 
-function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
-  const [categoryId, setCategoryId] = useState(null);
-  const [activeId, setActiveId] = useState(null);
-  const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId));
-  const [setupMode, setSetupMode] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [query, setQuery] = useState('');
-  const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
-  const [teamBattleOpen, setTeamBattleOpen] = useState(false);
-  /* Jonli xona holati (xona ochgan/qo'shilgan bo'lsa) — LiveQuizHub
-     shuni o'zgarganda xabar beradi, biz esa sessionStorage'ga yozamiz,
-     shu tufayli refresh qilinganda xonaga qaytib kirish mumkin. */
-  const [liveSession, setLiveSession] = useState(null);
-  const { pushNav, back } = useContext(NavContext);
-  const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
-     oldin sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash")
-     saqlangan/andoza sozlamalar bilan darhol boshlanadi. */
-  const goTest = (id, forceSetup) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); setSetupMode(!!forceSetup); pushNav(() => { setActiveId(null); setSetupMode(false); }); };
-  const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
-  const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
-  const goTeamBattle = () => { setTeamBattleOpen(true); pushNav(() => setTeamBattleOpen(false)); };
-  const goTxtImport = () => onGoToCommunity('testlar', '', 'txt');
-  const goMathTest = () => onGoToCommunity('testlar', '', 'math');
-  const goMatchingTest = () => onGoToCommunity('testlar', '', 'matching');
 
-  const myId = session?.user?.id;
-  const approvedCategories = categories.filter((c) => c.status !== 'pending');
-  const approved = tests.filter((t) => t.status === 'approved');
-  const viewable = isAdmin ? tests : tests.filter((t) => t.status === 'approved' || t.authorId === myId);
-  /* To'liq tests ro'yxatidan qidiramiz (faqat viewable'dan emas) — shu
-     tufayli ulashilgan havola orqali kirilgan tekshirilmoqda/xususiy
-     test ham (uning muallifi yoki admin bo'lmasa ham) ochiladi:
-     ensureTestContent uni ID bo'yicha to'g'ridan-to'g'ri yuklab, tests
-     ro'yxatiga qo'shib qo'yadi. */
-  const active = tests.find((t) => t.id === activeId);
-  const editing = approved.find((t) => t.id === editId);
-  const activeCategory = categories.find((c) => c.id === categoryId);
-  const inCategory = approved.filter((t) => t.categoryId === categoryId);
-  const q = query.trim().toLowerCase();
-  const effectivePrefs = profile?.testPrefs || DEFAULT_TEST_PREFS;
-  const onSavePrefs = session ? saveTestPrefs : undefined;
-
-  /* Ulashilgan havola orqali kirilgan bo'lsa (?test=ID), shu testni
-     avtomatik ochamiz — faqat ilk yuklanganda, bitta marta. Statusidan
-     qat'i nazar ochishga urinib ko'ramiz (ensureTestContent ID bo'yicha
-     to'g'ridan-to'g'ri so'raydi). Havola bo'lmasa, oxirgi saqlangan
-     pozitsiyani tiklaymiz — masalan internet uzilib sahifa yangilanib
-     ketgan bo'lsa, foydalanuvchi Bosh sahifaga emas, aynan shu test
-     turgan joyga qaytadi (test qaytadan, boshidan boshlanadi — allaqachon
-     bergan javoblar saqlanmaydi, lekin hech bo'lmasa qaysi testda
-     ekanini qayta izlashga hojat qolmaydi). */
-  useEffect(() => {
-    if (initialOpenId) {
-      goTest(initialOpenId);
-      setOpeningInitialTest(false);
-    }
-    else if (initialCategoryId) goCategory(initialCategoryId);
-    if (initialLiveCode) pushNav(() => setLiveOpen(false));
-    else if (initialLiveSession) { setLiveSession(initialLiveSession); setLiveOpen(true); pushNav(() => setLiveOpen(false)); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* Joriy holatni (qaysi test yoki soha ochiq, jonli xonadamizmi)
-     sessionStorage'ga yozib boramiz. Agar bu test keyinchalik
-     o'chirilgan bo'lsa, "active" topilmay qoladi va sahifa oddiy
-     ro'yxatga qaytadi — xatolik chiqmaydi. */
-  useEffect(() => {
-    writePosition({ testlar: { openId: activeId, categoryId, live: liveOpen ? liveSession : null } });
-  }, [activeId, categoryId, liveOpen, liveSession]);
-
-
-  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((t) => t.categoryId === cat.id)) : [];
-  const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
-  const isSearching = q.length > 0;
-  const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
-
-  useEffect(() => {
-    if (onReadingChange) onReadingChange(!!active);
-    return () => { if (onReadingChange) onReadingChange(false); };
-  }, [active, onReadingChange]);
-
-  if (active) {
-    if (active.questions === undefined) {
-      return <SectionLoading label="Test yuklanmoqda…" compact />;
-    }
-    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
-  }
-
-  // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
-  // test metadata/savollari kelguncha foydalanuvchi bevosita ochilish holatini ko'radi.
-  if (openingInitialTest || activeId) {
-    return (
-      <div className="flex flex-col items-start gap-3 py-6" aria-live="polite">
-        <button onClick={back} className="inline-flex items-center gap-1 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button>
-        {testsLoadError ? (
-          <div className="flex flex-wrap items-center gap-3 text-sm" style={{ ...fontBody, color: C.red }}>
-            <span>Testni yuklab bo‘lmadi.</span>
-            <button type="button" onClick={onRetryTests} className="rounded-sm px-3 py-1.5" style={{ color: C.white, background: C.cover }}>Qayta urinish</button>
-          </div>
-        ) : (
-          <SectionLoading label="Tanlangan test ochilmoqda…" compact />
-        )}
-      </div>
-    );
-  }
-
-  if (liveOpen) return (
-    <Suspense fallback={<SectionLoading label="Jonli test yuklanmoqda…" />}>
-      <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={back} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
-    </Suspense>
-  );
-
-  if (teamBattleOpen) return (
-    <Suspense fallback={<SectionLoading label="Jamoaviy test yuklanmoqda…" />}>
-      <TeamBattleHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} categories={categories} ensureTestContent={ensureTestContent} onExit={back} />
-    </Suspense>
-  );
-
-  if (editing) {
-    return (
-      <div>
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> Ortga
-        </button>
-        <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
-        {editing.questions === undefined ? (
-          <SectionLoading label="Test ma’lumotlari yuklanmoqda…" compact />
-        ) : (
-          <EditTestForm test={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateTest(editing.id, data, editing.title, editing)} onDone={back} />
-        )}
-      </div>
-    );
-  }
-
-  if (!categoryId) {
-    return (
-      <div>
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
-          <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
-        </div>
-        <button
-          onClick={goLive}
-          className="w-full flex items-center gap-3 px-4 py-3 mb-2.5 rounded-2xl text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
-          style={{ background: C.liveTint, border: `1.5px solid ${C.live}`, outlineColor: C.liveSoft }}
-        >
-          <div className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style={{ background: C.live }}>
-            <Users size={18} style={{ color: C.white }} />
-            <span
-              className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full live-pulse"
-              style={{ background: '#e5484d', border: `2px solid ${C.paper}` }}
-            />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[15px]" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>Jonli test rejimi</span>
-              <span
-                className="px-1.5 py-0.5 rounded text-[10px] tracking-wider uppercase live-pulse"
-                style={{ ...fontMono, background: C.live, color: C.white, fontWeight: 700 }}
-              >
-                Live
-              </span>
-            </div>
-            <div className="text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>Guruh boʻlib bir vaqtda ishlang</div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.live, flexShrink: 0, marginLeft: 'auto' }} />
-        </button>
-        <div className="grid grid-cols-2 gap-1.5 mb-3">
-          <button
-            onClick={goTxtImport}
-            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-          >
-            <FileText size={13} /> TXT fayldan
-          </button>
-          <button
-            onClick={goMatchingTest}
-            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
-          >
-            <ListChecks size={14} /> Matching test yaratish
-          </button>
-          <button
-            onClick={goTeamBattle}
-            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.coverLine}`, outlineColor: C.gold, fontWeight: 600 }}
-          >
-            <Users size={14} /> Jamoaviy jang
-          </button>
-          <button
-            onClick={goMathTest}
-            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
-          >
-            <Calculator size={13} /> Matematik test
-          </button>
-        </div>
-        <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
-        {testsLoading && !tests.length ? (
-          <SectionLoading label="Testlar yuklanmoqda…" />
-        ) : testsLoadError && !tests.length ? (
-          <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
-            <span>{testsLoadError}</span>
-            <button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button>
-          </div>
-        ) : isSearching ? (
-          noSearchResults ? (
-            <EmptyState text="Hech narsa topilmadi." cta="Boshqa soʻz bilan qidirib koʻring." />
-          ) : (
-            <div className="space-y-6">
-              {matchedCategories.length > 0 && (
-                <div>
-                  <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Sohalar</div>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {matchedCategories.map((cat) => {
-                      const count = approved.filter((t) => t.categoryId === cat.id).length;
-                      return (
-                        <div
-                          key={cat.id}
-                          className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                          onClick={() => goCategory(cat.id)}
-                        >
-                          <div className="min-w-0">
-                            <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                            <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta test</div>
-                            <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
-                          </div>
-                          <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {matchedTests.length > 0 && (
-                <div>
-                  <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {matchedTests.map((t) => (
-                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-                        <div className="min-w-0">
-                          <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
-                            {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
-                          </div>
-                          <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                          <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
-                        </div>
-                        <button
-                          onClick={() => goTest(t.id)}
-                          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
-                          style={{ ...fontBody, color: C.white, background: C.cover }}
-                        >
-                          <Award size={13} /> Boshlash
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        ) : (
-          <CategoryGrid
-            categories={approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id))}
-            itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
-            itemLabel="test"
-            onSelect={goCategory}
-            renameCategory={renameCategory}
-            deleteCategory={deleteCategory}
-            onGoToCommunity={() => onGoToCommunity('testlar')}
-            isAdmin={isAdmin}
-            userId={session?.user?.id}
-          />
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        onClick={back}
-        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-      >
-        <ArrowLeft size={15} /> Barcha sohalar
-      </button>
-      <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
-      <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} />
-      {testsLoading && !tests.length ? (
-        <SectionLoading label="Testlar yuklanmoqda…" />
-      ) : testsLoadError && !tests.length ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
-          <span>{testsLoadError}</span>
-          <button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button>
-        </div>
-      ) : inCategory.length === 0 ? (
-        <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
-      ) : (
-        <div className="grid sm:grid-cols-2 gap-4">
-          {inCategory.map((t, i) => (
-            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <div className="flex items-start min-w-0">
-                <EntryNumber n={i + 1} />
-                <div className="min-w-0">
-                  <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                  {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
-                  <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                <ItemMenu actions={[
-                  { label: 'Sozlamalar', icon: Settings, onClick: () => goTest(t.id, true) },
-                  { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
-                  ...(isAdmin ? [
-                    { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
-                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
-                  ] : []),
-                ]} />
-                <button
-                  onClick={() => goTest(t.id)}
-                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
-                  style={{ ...fontBody, color: C.white, background: C.cover }}
-                >
-                  <Award size={13} /> Boshlash
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Hamjamiyat (Community) — user-submitted courses & tests, pending    */
 /*  admin approval before they appear in the main Kurslar/Testlar       */
 /* ------------------------------------------------------------------ */
 
-export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, updateCourse, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
-  const [categoryId, setCategoryId] = useState(null);
-  const [editId, setEditId] = useState(null);
-  const [renaming, setRenaming] = useState(null);
-  const { pushNav, back } = useContext(NavContext);
-  const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  const goOpen = (id) => { if (ensureCourseContent) ensureCourseContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
-  const goEdit = (id) => { if (ensureCourseContent) ensureCourseContent(id); setEditId(id); pushNav(() => setEditId(null)); };
-  const active = courses.find((c) => c.id === openId);
-  const editing = courses.find((c) => c.id === editId);
-  const activeCategory = categories.find((c) => c.id === categoryId);
-  const inCategory = courses.filter((c) => c.categoryId === categoryId);
-  const categoriesWithPending = categories.filter((cat) => courses.some((c) => c.categoryId === cat.id));
-  const isMine = mode === 'mine';
-  const backLabel = isMine ? 'Profil' : 'Admin panel';
-  const heading = isMine ? 'Mening mavzularim' : 'Hamjamiyat — Kurslar';
-  const countLabel = isMine ? `${courses.length} ta` : `${courses.length} ta kutilmoqda`;
-
-  if (editing) {
-    return (
-      <div>
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> Ortga
-        </button>
-        <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
-        {editing.content === undefined ? (
-          <SectionLoading label="Mavzu yuklanmoqda…" compact />
-        ) : (
-          <EditCourseForm course={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateCourse(editing.id, data, editing.title, editing)} onDone={back} />
-        )}
-      </div>
-    );
-  }
-
-  if (active) {
-    return (
-      <div>
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> {heading}
-        </button>
-        {active.status === 'pending' && (
-          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
-            <Clock3 size={13} /> Tekshirilmoqda
-          </div>
-        )}
-        {mode === 'admin' && active.pendingRevision && (
-          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
-            <Clock3 size={13} /> Muallif tahriri — tasdiqlansa saytdagi amaldagi nusxa yangilanadi
-          </div>
-        )}
-        {isMine && active.pendingEdit && (
-          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
-            <Clock3 size={13} /> Tahrir tasdiq kutilmoqda — ommaviy nusxa hozircha o‘zgarishsiz
-          </div>
-        )}
-        {active.status === 'private' && (
-          <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
-            <Lock size={13} /> Xususiy
-          </div>
-        )}
-        <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
-        <AuthorLine authorId={active.authorId} authorName={active.author} className="text-xs mb-4" />
-        {active.content === undefined ? (
-          <SectionLoading label="Mavzu yuklanmoqda…" compact />
-        ) : (
-          <CourseBody content={active.content} videoUrl={active.videoUrl} />
-        )}
-      </div>
-    );
-  }
-
-  if (!categoryId) {
-    return (
-      <div>
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> {backLabel}
-        </button>
-        <SectionHeading eyebrow={countLabel} title={heading} />
-        {categoriesWithPending.length === 0 ? (
-          <EmptyState text={isMine ? 'Hozircha mavzu qoʻshmagansiz.' : 'Hozircha foydalanuvchilar mavzu qoʻshmagan.'} cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
-            {categoriesWithPending.map((cat, i) => {
-              const count = courses.filter((c) => c.categoryId === cat.id).length;
-              return (
-                <div
-                  key={cat.id}
-                  className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                  style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                  onClick={() => goCategory(cat.id)}
-                >
-                  <div className="flex items-start min-w-0">
-                    <EntryNumber n={i + 1} />
-                    <div className="min-w-0">
-                      <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {isMine && cat.authorId === ownerId && renameCategory && (
-                      <ItemMenu actions={[{ label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) }]} />
-                    )}
-                    <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {renaming && (
-          <RenameCategoryModal
-            category={renaming}
-            onCancel={() => setRenaming(null)}
-            onSave={async (newName) => {
-              const ok = await renameCategory(renaming.id, renaming.name, newName);
-              if (ok) setRenaming(null);
-            }}
-          />
-        )}
-
-        {formOpen ? (
-          <AddCourseForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitCourse} onDone={back} onView={goOpen} />
-        ) : (
-          <div className="mt-6">
-            <GhostButton onClick={onOpenForm} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
-          </div>
-        )}
-      </div>
-    );
-  }
-
+export function PreviousItemsDisclosure({ label, count, children }) {
   return (
-    <div>
-      <button
-        onClick={back}
-        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-      >
-        <ArrowLeft size={15} /> {heading} — barcha sohalar
-      </button>
-      <SectionHeading eyebrow={`${inCategory.length} ta`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
-      <div className="grid sm:grid-cols-2 gap-4">
-        {inCategory.map((c, i) => (
-          <div
-            key={c.id}
-            className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-            style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-            onClick={() => goOpen(c.id)}
-          >
-            <div className="flex items-start min-w-0">
-              <EntryNumber n={i + 1} />
-              <div className="min-w-0">
-                <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
-                {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
-                <AuthorLine authorId={c.authorId} authorName={c.author} className="text-xs mt-1.5" />
-                {isMine && (
-                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : c.status === 'private' ? C.inkSoft : C.accent }}>
-                    {c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : c.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center flex-shrink-0 gap-1">
-              <ItemMenu actions={[
-                { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ course: c.id }), c.title) },
-                ...(updateCourse ? [{ label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(c.id) }] : []),
-                ...(approveCourse && c.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) }] : []),
-                ...(!isMine || c.status === 'pending' || c.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) }] : []),
-              ]} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {formOpen ? (
-        <AddCourseForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitCourse} onDone={back} onView={goOpen} />
-      ) : (
-        <div className="mt-6">
-          <GhostButton onClick={onOpenForm} icon={Plus}>Yangi mavzu qoʻshish</GhostButton>
-        </div>
-      )}
-    </div>
+    <details className="mt-5 rounded-xl" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0 text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{label}</span>
+        <span className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>{count} ta · ko‘rsatish</span>
+      </summary>
+      <div className="border-t p-3 sm:p-4" style={{ borderColor: C.rule }}>{children}</div>
+    </details>
   );
 }
 
-export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, updateTest, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
-  const [categoryId, setCategoryId] = useState(null);
-  const [editId, setEditId] = useState(null);
-  const [renaming, setRenaming] = useState(null);
-  const { pushNav, back } = useContext(NavContext);
-  const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  const goOpen = (id) => { if (ensureTestContent) ensureTestContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
-  const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
-  const active = tests.find((t) => t.id === openId);
-  const editing = tests.find((t) => t.id === editId);
-  const activeCategory = categories.find((c) => c.id === categoryId);
-  const inCategory = tests.filter((t) => t.categoryId === categoryId);
-  const categoriesWithPending = categories.filter((cat) => tests.some((t) => t.categoryId === cat.id));
-  const isMine = mode === 'mine';
-  const backLabel = isMine ? 'Profil' : 'Admin panel';
-  const heading = isMine ? 'Mening testlarim' : 'Hamjamiyat — Testlar';
-  const countLabel = isMine ? `${tests.length} ta` : `${tests.length} ta kutilmoqda`;
 
-  if (editing) {
-    return (
-      <div>
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> Ortga
-        </button>
-        <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
-        {editing.questions === undefined ? (
-          <SectionLoading label="Test ma’lumotlari yuklanmoqda…" compact />
-        ) : (
-          <EditTestForm test={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateTest(editing.id, data, editing.title, editing)} onDone={back} />
-        )}
-      </div>
-    );
-  }
 
-  if (active) {
-    if (active.questions === undefined) {
-      return (
-        <SectionLoading label="Test yuklanmoqda…" compact />
-      );
-    }
-    return <QuizView test={active} onExit={back} />;
-  }
 
-  if (!categoryId) {
-    return (
-      <div>
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> {backLabel}
-        </button>
-        <SectionHeading eyebrow={countLabel} title={heading} />
-        {categoriesWithPending.length === 0 ? (
-          <EmptyState text={isMine ? 'Hozircha test qoʻshmagansiz.' : 'Hozircha foydalanuvchilar test qoʻshmagan.'} cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
-            {categoriesWithPending.map((cat, i) => {
-              const count = tests.filter((t) => t.categoryId === cat.id).length;
-              return (
-                <div
-                  key={cat.id}
-                  className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                  style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-                  onClick={() => goCategory(cat.id)}
-                >
-                  <div className="flex items-start min-w-0">
-                    <EntryNumber n={i + 1} />
-                    <div className="min-w-0">
-                      <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {isMine && cat.authorId === ownerId && renameCategory && (
-                      <ItemMenu actions={[{ label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) }]} />
-                    )}
-                    <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {renaming && (
-          <RenameCategoryModal
-            category={renaming}
-            onCancel={() => setRenaming(null)}
-            onSave={async (newName) => {
-              const ok = await renameCategory(renaming.id, renaming.name, newName);
-              if (ok) setRenaming(null);
-            }}
-          />
-        )}
-
-        {formOpen ? (
-          <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
-        ) : (
-          <div className="mt-6">
-            <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        onClick={back}
-        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-      >
-        <ArrowLeft size={15} /> {heading} — barcha sohalar
-      </button>
-      <SectionHeading eyebrow={`${inCategory.length} ta`} title={activeCategory ? activeCategory.name : 'Testlar'} />
-      <div className="grid sm:grid-cols-2 gap-4">
-        {inCategory.map((t, i) => (
-          <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-            <div className="flex items-start min-w-0">
-              <EntryNumber n={i + 1} />
-              <div className="min-w-0">
-                <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
-                <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
-                <AuthorLine authorId={t.authorId} authorName={t.author} className="text-xs mt-1.5" />
-                {isMine && (
-                  <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : t.status === 'private' ? C.inkSoft : C.accent }}>
-                    {t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : t.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-2 flex-shrink-0">
-              <ItemMenu actions={[
-                { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
-                ...(updateTest ? [{ label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) }] : []),
-                ...(approveTest && t.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
-                ...(!isMine || t.status === 'pending' || t.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
-              ]} />
-              <button
-                onClick={() => goOpen(t.id)}
-                className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
-                style={{ ...fontBody, color: C.white, background: C.cover }}
-              >
-                <Award size={13} /> Boshlash
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {formOpen ? (
-        <AddTestForm categories={categories} initialCategoryName={activeCategory ? activeCategory.name : prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
-      ) : (
-        <div className="mt-6">
-          <GhostButton onClick={onOpenForm} icon={Plus}>Yangi test qoʻshish</GhostButton>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 /* ------------------------------------------------------------------ */
 /*  Profil — login (Google), roʻyxatdan oʻtish, "Mening kurslarim"      */
 /* ------------------------------------------------------------------ */
 
-function BannerPicker({ value, onChange }) {
-  return (
-    <div className="mb-4 text-left">
-      <label className="block text-xs mb-2" style={{ ...fontMono, color: C.inkSoft }}>Banner rangi</label>
-      <div className="flex gap-2">
-        {Object.entries(BANNER_PRESETS).map(([key, b]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onChange(key)}
-            aria-label={b.label}
-            className="w-9 h-9 rounded-full flex-shrink-0 transition-transform"
-            style={{
-              background: bannerGradient(key),
-              border: value === key ? `2px solid ${C.gold}` : `2px solid transparent`,
-              outline: value === key ? `1px solid ${C.gold}` : 'none',
-              outlineOffset: '2px',
-              transform: value === key ? 'scale(1.08)' : 'scale(1)',
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function UsernameField({ value, onChange, currentUserId, locked, lockedDaysLeft }) {
-  const [status, setStatus] = useState('idle'); // idle | checking | ok | taken | invalid | reserved
-  const timerRef = useRef(null);
-
-  useEffect(() => {
-    if (locked) return;
-    if (!value) { setStatus('idle'); return; }
-    if (!isValidUsername(value)) { setStatus('invalid'); return; }
-    if (isReservedUsername(value)) { setStatus('reserved'); return; }
-    setStatus('checking');
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      try {
-        const available = await checkUsernameAvailable(value, currentUserId);
-        setStatus(available ? 'ok' : 'taken');
-      } catch (e) {
-        setStatus('idle');
-      }
-    }, 450);
-    return () => clearTimeout(timerRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, locked]);
-
-  const helper = locked
-    ? `Username'ni ${lockedDaysLeft} kundan keyin qayta o'zgartira olasiz`
-    : {
-        idle: 'Kamida 5 ta belgi: kichik lotin harflari, raqam, pastki chiziq (_)',
-        invalid: 'Notoʻgʻri format — faqat a-z, 0-9 va _ (5-20 belgi)',
-        checking: 'Tekshirilmoqda...',
-        ok: 'Bu username boʻsh ✓',
-        taken: 'Bu username band, boshqasini tanlang',
-        reserved: 'Bu nom band (rasmiy nom sifatida saqlangan)',
-      }[status];
-  const helperColor = locked ? C.inkSoft : status === 'ok' ? C.gold : (status === 'taken' || status === 'invalid' || status === 'reserved') ? C.red : C.inkSoft;
-
-  return (
-    <div className="mb-1 text-left">
-      <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Username</label>
-      <div className="flex items-center rounded-sm overflow-hidden" style={{ border: `1px solid ${C.rule}`, background: locked ? C.paper : C.paperSoft, opacity: locked ? 0.7 : 1 }}>
-        <span className="pl-3 pr-1 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>@</span>
-        <input
-          value={value}
-          onChange={(e) => onChange(normalizeUsername(e.target.value))}
-          placeholder="username"
-          disabled={locked}
-          className="flex-1 py-2.5 pr-3 text-[15px] bg-transparent outline-none"
-          style={{ ...fontBody, color: C.ink }}
-        />
-        {locked && <Lock size={14} style={{ color: C.inkSoft, marginRight: 10, flexShrink: 0 }} />}
-      </div>
-      <div className="text-xs mt-1 mb-4" style={{ ...fontMono, color: helperColor }}>{helper}</div>
-    </div>
-  );
-}
-
-function ProfileSetupForm({ defaultFirstName, defaultLastName, defaultBio, defaultBannerKey, currentUserId, onSave }) {
-  const [firstName, setFirstName] = useState(defaultFirstName || '');
-  const [lastName, setLastName] = useState(defaultLastName || '');
-  const [username, setUsername] = useState('');
-  const [usernameTouched, setUsernameTouched] = useState(false);
-  const [bio, setBio] = useState(defaultBio || '');
-  const [bannerKey, setBannerKey] = useState(defaultBannerKey || 'green');
-  const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState(null);
-
-  /* Instagram uslubida: ism (va familiya, bo'lsa) o'zgargan sayin, agar
-     foydalanuvchi username'ni o'zi qo'lda tahrirlamagan bo'lsa, avtomatik
-     bo'sh nom taklif qilib beriladi. */
-  useEffect(() => {
-    if (usernameTouched) return;
-    if (!firstName.trim()) return;
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      const suggested = await suggestAvailableUsername(firstName.trim(), lastName.trim(), currentUserId);
-      if (!cancelled && !usernameTouched) setUsername(suggested);
-    }, 500);
-    return () => { cancelled = true; clearTimeout(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstName, lastName, usernameTouched]);
-
-  const canSubmit = firstName.trim() && isValidUsername(username);
-
-  async function submit() {
-    if (!canSubmit) return;
-    setBusy(true);
-    setFormError(null);
-    const res = await onSave(firstName.trim(), lastName.trim(), username, bio.trim(), bannerKey);
-    setBusy(false);
-    if (res && res.ok === false) setFormError(res.error);
-  }
-
-  return (
-    <div className="max-w-sm mx-auto mt-10 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-      <UserCircle2 size={28} style={{ color: C.gold }} className="mx-auto mb-2" />
-      <div className="text-lg mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Profilni tugating</div>
-      <div className="text-left">
-        <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
-        <TextField label="Familiya (ixtiyoriy)" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
-        <UsernameField value={username} onChange={(v) => { setUsernameTouched(true); setUsername(v); }} currentUserId={currentUserId} />
-        <TextField label="Bio (ixtiyoriy)" value={bio} onChange={setBio} placeholder="O'zingiz haqingizda qisqacha..." textarea rows={2} />
-        <BannerPicker value={bannerKey} onChange={setBannerKey} />
-      </div>
-      {formError && (
-        <div className="text-xs mb-3 text-left" style={{ ...fontBody, color: C.red }}>{formError}</div>
-      )}
-      <SolidButton onClick={submit} icon={Check} disabled={busy || !canSubmit}>
-        {busy ? 'Saqlanmoqda...' : 'Davom etish'}
-      </SolidButton>
-    </div>
-  );
-}
-
-function ProfileSettingsPanel({ profile, currentUserId, onSave, onSignOut, onSwitchAccount, onClose }) {
-  const [firstName, setFirstName] = useState(profile.firstName || '');
-  const [lastName, setLastName] = useState(profile.lastName || '');
-  const [username, setUsername] = useState(profile.username || '');
-  const [bio, setBio] = useState(profile.bio || '');
-  const [bannerKey, setBannerKey] = useState(profile.bannerKey || 'green');
-  const [busy, setBusy] = useState(false);
-  const [switchingAccount, setSwitchingAccount] = useState(false);
-  const [formError, setFormError] = useState(null);
-  const [confirmSignOut, setConfirmSignOut] = useState(false);
-
-  const daysLeft = usernameChangeDaysLeft(profile.usernameChangedAt);
-  const usernameLocked = daysLeft > 0 && username !== profile.username;
-  const canSubmit = firstName.trim() && (username === profile.username ? true : isValidUsername(username)) && !usernameLocked;
-
-  async function submit() {
-    if (!canSubmit) return;
-    setBusy(true);
-    setFormError(null);
-    const res = await onSave(firstName.trim(), lastName.trim(), username, bio.trim(), bannerKey);
-    setBusy(false);
-    if (res && res.ok === false) setFormError(res.error);
-    else onClose();
-  }
-
-  async function switchAccount() {
-    if (switchingAccount) return;
-    setSwitchingAccount(true);
-    setFormError(null);
-    try {
-      const { error } = await onSwitchAccount();
-      if (error) {
-        setFormError('Google akkaunt tanlash oynasini ochib boʻlmadi. Qayta urinib koʻring.');
-        setSwitchingAccount(false);
-      }
-    } catch {
-      setFormError('Google akkaunt tanlash oynasini ochib boʻlmadi. Qayta urinib koʻring.');
-      setSwitchingAccount(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
-      <div
-        className="w-full max-w-sm rounded-sm p-6 my-8"
-        style={{ background: C.surface, border: `1px solid ${C.rule}` }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Settings size={18} style={{ color: C.gold }} />
-            <span className="text-base" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Sozlamalar</span>
-          </div>
-          <button onClick={onClose} aria-label="Yopish" style={{ color: C.inkSoft }}><X size={18} /></button>
-        </div>
-
-        <div className="text-left">
-          <TextField label="Ism" value={firstName} onChange={setFirstName} placeholder="Ismingiz" />
-          <TextField label="Familiya (ixtiyoriy)" value={lastName} onChange={setLastName} placeholder="Familiyangiz" />
-          <UsernameField
-            value={username}
-            onChange={setUsername}
-            currentUserId={currentUserId}
-            locked={daysLeft > 0}
-            lockedDaysLeft={daysLeft}
-          />
-          <TextField label="Bio" value={bio} onChange={setBio} placeholder="O'zingiz haqingizda qisqacha..." textarea rows={2} />
-          <BannerPicker value={bannerKey} onChange={setBannerKey} />
-        </div>
-        {formError && (
-          <div className="text-xs mb-3 text-left" style={{ ...fontBody, color: C.red }}>{formError}</div>
-        )}
-        <SolidButton onClick={submit} icon={Check} disabled={busy || !canSubmit}>
-          {busy ? 'Saqlanmoqda...' : 'Saqlash'}
-        </SolidButton>
-
-        <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
-          <button
-            type="button"
-            onClick={switchAccount}
-            disabled={switchingAccount}
-            className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm disabled:opacity-60"
-            style={{ ...fontBody, color: C.ink, border: `1px solid ${C.gold}`, background: C.surface }}
-          >
-            <LogIn size={14} /> {switchingAccount ? 'Google ochilmoqda...' : 'Akkauntni almashtirish'}
-          </button>
-          <p className="text-[11px] mt-1.5 mb-4 text-center" style={{ ...fontBody, color: C.inkSoft }}>
-            Boshqa Google akkauntini tanlang.
-          </p>
-          {!confirmSignOut ? (
-            <button
-              onClick={() => setConfirmSignOut(true)}
-              className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm"
-              style={{ ...fontBody, color: C.red, border: `1px solid ${C.red}` }}
-            >
-              <LogOut size={14} /> Hisobdan chiqish
-            </button>
-          ) : (
-            <div className="text-center">
-              <p className="text-xs mb-2" style={{ ...fontBody, color: C.inkSoft }}>Hisobdan chiqishni tasdiqlaysizmi?</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setConfirmSignOut(false)}
-                  className="flex-1 text-[13px] px-3 py-2 rounded-sm"
-                  style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}
-                >
-                  Bekor qilish
-                </button>
-                <button
-                  onClick={onSignOut}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 text-[13px] px-3 py-2 rounded-sm"
-                  style={{ ...fontBody, color: C.white, background: C.red }}
-                >
-                  <LogOut size={14} /> Ha, chiqish
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProfileRewardsPanel() {
-  const [rewardsOpen, setRewardsOpen] = useState(false);
-  const [coins, setCoins] = useState(null);
-  const [code, setCode] = useState('');
-  const [promoOpen, setPromoOpen] = useState(false);
-  const [storeOpen, setStoreOpen] = useState(false);
-  const [store, setStore] = useState(null);
-  const [storeLoading, setStoreLoading] = useState(false);
-  const [storeBusy, setStoreBusy] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageIsError, setMessageIsError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    supabase.rpc('daily_arena_wallet').then(({ data, error }) => {
-      if (cancelled) return;
-      if (error) {
-        setCoins(null);
-        setMessage('Coin hamyonini yuklab boʻlmadi.');
-        setMessageIsError(true);
-        return;
-      }
-      setCoins(Number(data?.coins) || 0);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  async function redeem(event) {
-    event.preventDefault();
-    if (!code.trim() || busy) return;
-    setBusy(true);
-    setMessage('');
-    setMessageIsError(false);
-    const { data, error } = await supabase.rpc('daily_arena_redeem_promo', { p_code: code });
-    setBusy(false);
-    if (error) {
-      setMessage(error.message?.includes('PROMO_USED')
-        ? 'Bu promo kod hisobingizda avval ishlatilgan.'
-        : 'Kod yaroqsiz, muddati tugagan yoki ishlatish limiti toʻlgan.');
-      setMessageIsError(true);
-      return;
-    }
-    setCoins(Number(data?.coins) || 0);
-    setCode('');
-    setMessage(`Promo kod qabul qilindi: +${Number(data?.earned) || 0} coin.`);
-  }
-
-  async function openStore() {
-    setStoreOpen(true);
-    setStoreLoading(true);
-    setMessage('');
-    const { data, error } = await supabase.rpc('daily_arena_store_catalog');
-    if (error) {
-      setStore(null);
-      setMessage('Coin do‘konini yuklab bo‘lmadi. Qayta urinib ko‘ring.');
-      setMessageIsError(true);
-    } else {
-      const catalog = data || { coins: 0, items: [] };
-      setStore(catalog);
-      setCoins(Number(catalog.coins) || 0);
-    }
-    setStoreLoading(false);
-  }
-
-  async function purchase(item) {
-    if (storeBusy) return;
-    setStoreBusy(item.id);
-    setMessage('');
-    setMessageIsError(false);
-    const { error } = await supabase.rpc('daily_arena_store_purchase', { p_collectible_id: item.id });
-    if (error) {
-      setMessage(error.message?.includes('NOT_ENOUGH_COINS')
-        ? 'Coin yetarli emas. Kunlik Arenada mashqlarni bajaring.'
-        : 'Xarid amalga oshmadi. Qayta urinib ko‘ring.');
-      setMessageIsError(true);
-      setStoreBusy('');
-      return;
-    }
-    const { data, error: catalogError } = await supabase.rpc('daily_arena_store_catalog');
-    if (!catalogError) {
-      const catalog = data || { coins: 0, items: [] };
-      setStore(catalog);
-      setCoins(Number(catalog.coins) || 0);
-    }
-    setMessage('Nishon kolleksiyangizga qo‘shildi.');
-    setStoreBusy('');
-  }
-
-  return (
-    <section className="mb-4">
-      <button type="button" onClick={() => setRewardsOpen((open) => !open)} aria-expanded={rewardsOpen} aria-controls="profile-rewards-panel" aria-label="Coin va promo imkoniyatlari" className="inline-flex items-center gap-2 rounded-full px-3 py-2" style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.gold}` }}>
-        <Coins size={16} />
-        <span className="text-xs font-medium" style={fontMono}>{coins === null ? '…' : coins}</span>
-        <ChevronRight size={14} className="transition-transform" style={{ transform: rewardsOpen ? 'rotate(90deg)' : 'none' }} />
-      </button>
-      {rewardsOpen && <div id="profile-rewards-panel" className="mt-2 rounded-sm p-3 sm:p-4" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: C.goldSoft, color: C.cover }}><Coins size={20} /></span>
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Mukofotlar</div>
-            <div className="font-medium" style={{ ...fontDisplay, color: C.ink }}>Coin hamyoni <span className="ml-1" style={{ ...fontMono, color: C.cover }}>{coins === null ? '…' : `${coins} coin`}</span></div>
-          </div>
-        </div>
-        <button type="button" onClick={openStore} className="inline-flex items-center justify-center gap-2 rounded-sm px-3 py-2 text-sm" style={{ ...fontBody, color: C.white, background: C.cover }}>
-          <ShoppingBag size={15} /> Coin do‘koni
-        </button>
-      </div>
-      <div className="mt-3">
-        <button type="button" onClick={() => setPromoOpen((open) => !open)} aria-expanded={promoOpen} aria-controls="profile-promo-panel" className="inline-flex items-center gap-2 rounded-sm px-2.5 py-2 text-sm" style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}`, background: C.paper }}>
-          <Tag size={15} style={{ color: C.gold }} /> Promo kod
-          <ChevronRight size={15} className="transition-transform" style={{ transform: promoOpen ? 'rotate(90deg)' : 'none', color: C.gold }} />
-        </button>
-        {promoOpen && <div id="profile-promo-panel" className="mt-2 rounded-sm p-3" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
-          <form onSubmit={redeem} className="flex flex-col sm:flex-row gap-2">
-            <label className="sr-only" htmlFor="profile-promo-code">Promo kod</label>
-            <input id="profile-promo-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} autoCapitalize="characters" placeholder="Promo kodni kiriting" className="min-w-0 flex-1 rounded-sm px-3 py-2.5 text-sm outline-none" style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }} />
-            <button type="submit" disabled={busy || !code.trim()} className="inline-flex items-center justify-center gap-1.5 rounded-sm px-4 py-2.5 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>
-              {busy ? <Loader2 size={15} className="animate-spin" /> : <Tag size={15} />} Kodni ishlatish
-            </button>
-          </form>
-          {message && <p role={messageIsError ? 'alert' : 'status'} className="mt-2 text-xs" style={{ ...fontBody, color: messageIsError ? C.red : C.accent }}>{message}</p>}
-        </div>}
-      </div>
-      {message && !promoOpen && <p role={messageIsError ? 'alert' : 'status'} className="mt-2 text-xs" style={{ ...fontBody, color: messageIsError ? C.red : C.accent }}>{message}</p>}
-
-      {storeOpen && <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="profile-store-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setStoreOpen(false); }} style={{ background: 'rgba(12,25,18,.62)' }}>
-        <div className="w-full max-w-xl max-h-[90vh] overflow-auto rounded-2xl p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div><div className="text-[10px] uppercase tracking-widest" style={{ ...fontMono, color: C.gold }}>Profil mukofotlari</div><h2 id="profile-store-title" className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>Coin do‘koni</h2></div>
-            <button type="button" onClick={() => setStoreOpen(false)} aria-label="Do‘konni yopish" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: C.paper }}><X size={17} /></button>
-          </div>
-          <div className="flex items-center gap-2 p-3 rounded-xl mb-3" style={{ background: C.paper }}><Coins size={18} style={{ color: C.gold }} /><span className="text-sm" style={{ ...fontBody, color: C.ink }}>Balansingiz</span><b className="ml-auto" style={{ ...fontMono, color: C.cover }}>{coins ?? 0} coin</b></div>
-          <p className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Coinlaringizni esdalik nishonlariga almashtiring. Yangi coinlarni Kunlik Arenadagi mashqlardan to‘plang.</p>
-          {storeLoading ? <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin" style={{ color: C.gold }} /></div> : <>
-            {message && <p role={messageIsError ? 'alert' : 'status'} className="text-xs mb-3" style={{ ...fontBody, color: messageIsError ? C.red : C.accent }}>{message}</p>}
-            <div className="space-y-2">
-              {(store?.items || []).map((item) => <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
-                <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ color: C.gold, background: C.goldSoft + '77' }}><Medal size={20} /></span>
-                <div className="min-w-0 flex-1"><b className="block text-sm" style={{ ...fontBody, color: C.ink }}>{item.title}</b><span className="block text-xs truncate" style={{ ...fontBody, color: C.inkSoft }}>{item.subtitle || 'Kolleksiyaga qo‘shiladigan esdalik nishoni'}</span></div>
-                {item.owned ? <span className="text-xs" style={{ ...fontBody, color: C.accent }}>Olingan</span> : <button type="button" disabled={Boolean(storeBusy) || coins === null || coins < item.price} onClick={() => purchase(item)} className="px-3 py-2 rounded-lg text-xs disabled:opacity-45" style={{ ...fontBody, color: C.white, background: C.cover }}>{storeBusy === item.id ? <Loader2 size={14} className="inline animate-spin" /> : `${item.price} coin`}</button>}
-              </div>)}
-              {store && !store.items?.length && <p className="text-sm py-5 text-center" style={{ ...fontBody, color: C.inkSoft }}>Do‘kon nishonlari hozircha mavjud emas.</p>}
-            </div>
-          </>}
-        </div>
-      </div>}
-      </div>}
-    </section>
-  );
-}
 
 
-function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
-  const [subTab, setSubTab] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [openCourseId, setOpenCourseId] = useState(null);
-  const [openTestId, setOpenTestId] = useState(null);
-  const [courseFormOpen, setCourseFormOpen] = useState(false);
-  const [testFormOpen, setTestFormOpen] = useState(false);
-  const [prefillCategory, setPrefillCategory] = useState('');
-  const [testFormMode, setTestFormMode] = useState(null);
-  const myBadge = useAuthorBadge(session?.user?.id);
-  const [ownContent, setOwnContent] = useState({ userId: null, courses: [], tests: [], loading: false, error: false });
-  const { pushNav } = useContext(NavContext);
-
-  // Muallif kontentini faqat profil ochilganda so'raymiz; bosh sahifadagi tez yuklanishga ta'sir qilmaydi.
-  useEffect(() => {
-    const userId = session?.user?.id;
-    if (!userId) {
-      setOwnContent({ userId: null, courses: [], tests: [], loading: false, error: false });
-      return undefined;
-    }
-    let cancelled = false;
-    setOwnContent((previous) => ({ ...previous, userId, loading: true, error: false }));
-    Promise.all([
-      sbSelectAuthorContent('courses', userId, false, profile),
-      sbSelectAuthorContent('tests', userId, false, profile),
-    ]).then(([ownCourses, ownTests]) => {
-      if (!cancelled) setOwnContent({ userId, courses: ownCourses, tests: ownTests, loading: false, error: false });
-    }).catch((error) => {
-      console.error('Muallif materiallarini profil uchun yuklab bo‘lmadi:', error);
-      if (!cancelled) setOwnContent((previous) => ({ ...previous, userId, loading: false, error: true }));
-    });
-    return () => { cancelled = true; };
-  }, [session?.user?.id, profile?.username, profile?.firstName, profile?.lastName]);
-  const saveOwnCourseEdit = async (id, data, title, sourceItem) => {
-    const saved = await updateCourse(id, data, title, sourceItem);
-    if (saved) setOwnContent((previous) => ({
-      ...previous,
-      courses: previous.courses.map((item) => item.id !== id ? item : item.status === 'approved'
-        ? { ...item, pendingEdit: data, pendingEditUpdatedAt: new Date().toISOString() }
-        : { ...item, ...data }),
-    }));
-    return saved;
-  };
-  const saveOwnTestEdit = async (id, data, title, sourceItem) => {
-    const saved = await updateTest(id, data, title, sourceItem);
-    if (saved) setOwnContent((previous) => ({
-      ...previous,
-      tests: previous.tests.map((item) => item.id !== id ? item : item.status === 'approved'
-        ? { ...item, pendingEdit: data, pendingEditUpdatedAt: new Date().toISOString() }
-        : { ...item, ...data }),
-    }));
-    return saved;
-  };
-  const goSubTab = (id) => { setSubTab(id); pushNav(() => setSubTab(null)); };
-
-  useEffect(() => {
-    if (target) {
-      setSubTab(target.type);
-      pushNav(() => setSubTab(null));
-      if (target.action === 'add') {
-        setOpenCourseId(null);
-        setOpenTestId(null);
-        setPrefillCategory(target.prefillCategory || '');
-        setTestFormMode(target.formMode || null);
-        if (target.type === 'kurslar') { setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }
-        if (target.type === 'testlar') { setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }
-      } else {
-        if (target.type === 'kurslar') { setOpenCourseId(target.id); pushNav(() => setOpenCourseId(null)); }
-        if (target.type === 'testlar') { setOpenTestId(target.id); pushNav(() => setOpenTestId(null)); }
-      }
-      onConsumeTarget();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
-
-  if (authLoading) return <SectionLoading label="Profil yuklanmoqda…" />;
-
-  if (!session) {
-    return (
-      <div className="max-w-sm mx-auto mt-10 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-        <UserCircle2 size={28} style={{ color: C.gold }} className="mx-auto mb-2" />
-        <div className="text-lg mb-2" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Profil</div>
-        <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
-          Oʻz kursingizni yaratish, testlar tuzish va ularni kuzatib borish uchun hisob yarating. Kurslarni oʻrganish va testlarni ishlash uchun ro'yxatdan o'tish shart emas.
-        </p>
-        <SolidButton onClick={signInWithGoogle} icon={LogIn}>Google orqali kirish</SolidButton>
-        <div className="mt-6 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
-          UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
-          <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!profile || !profile.username) {
-    const meta = session.user?.user_metadata || {};
-    const guessFirst = profile?.firstName || (meta.given_name || (meta.full_name || meta.name || '').split(' ')[0] || '');
-    const guessLast = profile?.lastName || (meta.family_name || (meta.full_name || meta.name || '').split(' ').slice(1).join(' ') || '');
-    return (
-      <ProfileSetupForm
-        defaultFirstName={guessFirst}
-        defaultLastName={guessLast}
-        defaultBio={profile?.bio || ''}
-        defaultBannerKey={profile?.bannerKey || 'green'}
-        currentUserId={session.user.id}
-        onSave={onSaveProfile}
-      />
-    );
-  }
 
 
-  const loadedOwnCourses = ownContent.userId === session.user.id ? ownContent.courses : [];
-  const loadedOwnTests = ownContent.userId === session.user.id ? ownContent.tests : [];
-  const myCourses = Array.from(new Map([
-    ...loadedOwnCourses.map((item) => [item.id, item]),
-    ...courses.filter((item) => item.authorId === session.user.id).map((item) => [item.id, item]),
-  ]).values());
-  const myTests = Array.from(new Map([
-    ...loadedOwnTests.map((item) => [item.id, item]),
-    ...tests.filter((item) => item.authorId === session.user.id).map((item) => [item.id, item]),
-  ]).values());
 
-  if (subTab === 'kurslar') {
-    return (
-      <CommunityCoursesView
-        mode="mine"
-        courses={myCourses}
-        categories={categories}
-        openId={openCourseId}
-        setOpenId={setOpenCourseId}
-        onBack={() => setSubTab(null)}
-        submitCourse={submitCourse}
-        approveCourse={null}
-        deleteCourse={deleteCourse}
-        updateCourse={saveOwnCourseEdit}
-        renameCategory={renameCategory}
-        ownerId={session.user.id}
-        formOpen={courseFormOpen}
-        onOpenForm={() => { setPrefillCategory(''); setCourseFormOpen(true); pushNav(() => setCourseFormOpen(false)); }}
-        onCloseForm={() => setCourseFormOpen(false)}
-        prefillCategory={prefillCategory}
-        ensureCourseContent={ensureCourseContent}
-      />
-    );
-  }
-  if (subTab === 'testlar') {
-    return (
-      <CommunityTestsView
-        mode="mine"
-        tests={myTests}
-        categories={categories}
-        openId={openTestId}
-        setOpenId={setOpenTestId}
-        onBack={() => setSubTab(null)}
-        submitTest={submitTest}
-        approveTest={null}
-        deleteTest={deleteTest}
-        updateTest={saveOwnTestEdit}
-        renameCategory={renameCategory}
-        ownerId={session.user.id}
-        formOpen={testFormOpen}
-        onOpenForm={() => { setPrefillCategory(''); setTestFormMode(null); setTestFormOpen(true); pushNav(() => setTestFormOpen(false)); }}
-        onCloseForm={() => setTestFormOpen(false)}
-        prefillCategory={prefillCategory}
-        formMode={testFormMode}
-        ensureTestContent={ensureTestContent}
-      />
-    );
-  }
 
-  if (subTab === 'kolleksiya') {
-    return <CollectionsView session={session} onBack={() => setSubTab(null)} />;
-  }
 
-  return (
-    <div>
-      <div className="rounded-sm overflow-hidden mb-6" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-        <div className="h-28 sm:h-32" style={{ background: bannerGradient(profile.bannerKey) }} />
-        <div className="px-5 pb-5 -mt-12 relative">
-          <div className="flex items-end justify-between gap-3">
-            <div
-              className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: C.surface, border: `3px solid ${C.surface}`, boxShadow: '0 2px 8px rgba(0,0,0,0.18)' }}
-            >
-              <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: bannerGradient(profile.bannerKey) }}>
-                <span className="text-xl" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>
-                  {(profile.firstName[0] || '').toUpperCase()}{(profile.lastName[0] || '').toUpperCase()}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mb-1">
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={onOpenAdmin}
-                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium"
-                  style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.coverLine}` }}
-                >
-                  <ShieldCheck size={14} /> Admin panel
-                </button>
-              )}
-              <button
-                onClick={() => setSettingsOpen(true)}
-                aria-label="Sozlamalar"
-                className="inline-flex items-center justify-center w-9 h-9 rounded-full flex-shrink-0"
-                style={{ color: C.inkSoft, border: `1px solid ${C.rule}`, background: C.surface }}
-              >
-                <Settings size={16} />
-              </button>
-            </div>
-          </div>
 
-          {settingsOpen && (
-            <ProfileSettingsPanel
-              profile={profile}
-              currentUserId={session.user.id}
-              onSave={onSaveProfile}
-              onSignOut={onSignOut}
-              onSwitchAccount={switchGoogleAccount}
-              onClose={() => setSettingsOpen(false)}
-            />
-          )}
 
-          <div className="mt-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-lg" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>{`${profile.firstName} ${profile.lastName}`.trim()}</span>
-              {myBadge && <CollectibleThumb collectibleId={myBadge} size={20} />}
-              {isAdmin && (
-                <span className="text-xs inline-flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}><ShieldCheck size={11} /> Admin</span>
-              )}
-            </div>
-            {profile.username && (
-              <div className="flex items-center gap-2">
-                <div className="text-[13px]" style={{ ...fontMono, color: C.gold }}>@{profile.username}</div>
-                <ShareButton url={buildShareUrl({ u: profile.username })} title={`${profile.firstName} ${profile.lastName}`.trim()} small />
-              </div>
-            )}
-            {profile.bio && (
-              <LinkedUsernameText text={profile.bio} className="text-[14px] mt-2 max-w-md" style={{ ...fontBody, color: C.inkSoft }} />
-            )}
-          </div>
 
-          <div className="flex gap-6 mt-4 pt-4" style={{ borderTop: `1px solid ${C.rule}` }}>
-            <div>
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myCourses.length}</div>
-              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Mavzular</div>
-            </div>
-            <div>
-              <div className="text-base font-medium" style={{ ...fontMono, color: C.ink }}>{myTests.length}</div>
-              <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlar</div>
-            </div>
-            <Suspense fallback={<span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Yuklanmoqda…</span>}>
-              <ProfileFollowView userId={session.user.id} session={session} onOpenProfile={onOpenProfile} />
-            </Suspense>
-          </div>
-        </div>
-      </div>
 
-      <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
-      <div className="grid sm:grid-cols-2 gap-4">
-        <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <BookOpen size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening mavzularim</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myCourses.length} ta</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-        <button onClick={() => goSubTab('testlar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <ListChecks size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening testlarim</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myTests.length} ta</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-        <button onClick={() => goSubTab('kolleksiya')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-center gap-3">
-            <Award size={20} style={{ color: C.gold }} />
-            <div>
-              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Kolleksiyalar</div>
-              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Yigʻgan nishonlaringiz</div>
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: C.gold }} />
-        </button>
-      </div>
 
-      <div className="mt-5">
-        <ProfileRewardsPanel />
-      </div>
-
-      <div className="mt-8 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>
-        UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
-        <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Yangiliklar (News)                                                  */
@@ -6714,17 +3952,17 @@ export default function App() {
             )}
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
               {viewingUsername && (
-                <PublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} />
+                <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <TestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />}
+              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
                 </Suspense>
               )}
               {!viewingUsername && tab === 'profil' && (
-                <ProfileView
+                <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" />}><DeferredProfileView
                   session={session}
                   profile={profile}
                   authLoading={authLoading}
@@ -6751,7 +3989,7 @@ export default function App() {
                   onOpenAdmin={() => goTo('admin')}
                   onOpenProfile={openSearchProfile}
                   onOpenArena={() => goTo('arena')}
-                />
+                /></Suspense>
               )}
               {!viewingUsername && tab === 'admin' && isAdmin && (
                 <Suspense fallback={<SectionLoading label="Admin panel yuklanmoqda…" />}>
@@ -6840,7 +4078,8 @@ export default function App() {
         </Suspense>
       )}
       {giftOpen && (
-        <GiftModal
+        <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,27,18,0.62)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
+        <DeferredGiftModal
           session={session}
           eligible={learningBadgeEligible}
           onAccept={claimLearningBadge}
@@ -6848,6 +4087,7 @@ export default function App() {
           onRequireLogin={() => { setGiftOpen(false); setTab('profil'); }}
           onClose={() => setGiftOpen(false)}
         />
+        </Suspense>
       )}
     </div>
     </NavContext.Provider>

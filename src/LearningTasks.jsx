@@ -1,6 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Award, BookOpen, Check, CheckCircle2, Gift, ListChecks, Lock, X } from 'lucide-react';
 
+function LearningBadgePreview() {
+  return (
+    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full" style={{ background: '#E7E0FA', border: '1px solid #9A86D4' }}>
+      <svg width="40" height="40" viewBox="0 0 64 64" role="img" aria-label="Bilimga qadam nishoni" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="28" fill="#F8F6FF" stroke="#9A86D4" strokeWidth="2" />
+        <circle cx="32" cy="32" r="23" fill="none" stroke="#C7BCE7" strokeWidth="1.2" />
+        <path d="M32 26c-5-3-10-4-15-2v16c5-2 10-1 15 2m0-16c5-3 10-4 15-2v16c-5-2-10-1-15 2m0-16v16" fill="none" stroke="#65539A" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="m32 8 2.1 4.1 4.5.6-3.3 3.2.8 4.5-4.1-2.2-4.1 2.2.8-4.5-3.3-3.2 4.5-.6z" fill="#B8863B" />
+      </svg>
+    </span>
+  );
+}
+
 export default function LearningTasksModal({ session, eligible, onClose, onStartTest, onOpenGift, onKnownComplete, onCheckOwned, C, fontBody, fontDisplay, fontMono }) {
   const [state, setState] = useState(session ? 'loading' : 'ready');
   const [owned, setOwned] = useState(false);
@@ -55,12 +68,11 @@ export default function LearningTasksModal({ session, eligible, onClose, onStart
             </div>
           </div>
           <div className="flex items-center gap-3 rounded-xl px-3.5 py-3" style={{ background: C.goldSoft, border: `1px solid ${C.gold}` }}>
-            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg" style={{ background: C.surface, color: C.gold }}><Gift size={22} strokeWidth={2} /></span>
+            <LearningBadgePreview />
             <div className="min-w-0 flex-1"><div className="text-[10px] uppercase tracking-[0.12em]" style={{ ...fontMono, color: C.cover }}>Sovg‘a</div><div className="text-sm font-bold" style={{ ...fontBody, color: C.cover }}>Bilimga qadam nishoni</div></div>
             {owned ? <span className="text-[11px] font-semibold" style={{ ...fontBody, color: C.cover }}>Olingan ✓</span> : completed ? <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ ...fontBody, color: C.cover, background: C.surface }}>Tayyor</span> : <Lock size={16} style={{ color: C.cover }} />}
           </div>
           {owned ? <button type="button" onClick={onClose} className="flex w-full items-center justify-center gap-2 rounded-sm px-4 py-3 font-semibold" style={{ ...fontBody, background: C.successTint, color: C.accent, border: `1px solid ${C.rule}` }}><CheckCircle2 size={17} />Sovg‘a kolleksiyangizda</button> : completed ? <button type="button" onClick={onOpenGift} className="flex w-full items-center justify-center gap-2 rounded-sm px-4 py-3 font-semibold" style={{ ...fontBody, background: C.cover, color: C.white, border: `1px solid ${C.cover}` }}><Gift size={17} />Sovg‘ani qabul qilish</button> : <button type="button" onClick={onStartTest} disabled={state === 'loading'} className="flex w-full items-center justify-center gap-2 rounded-sm px-4 py-3 font-semibold disabled:opacity-60" style={{ ...fontBody, background: C.cover, color: C.white, border: `1px solid ${C.cover}` }}><BookOpen size={17} />{state === 'loading' ? 'Holat tekshirilmoqda…' : 'Testni boshlash'}</button>}
-          <p className="text-center text-[10px]" style={{ ...fontBody, color: C.inkSoft }}>Testdan 70% yoki yuqori natija olish kifoya.</p>
         </div>
       </section>
     </div>

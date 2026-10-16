@@ -6,7 +6,7 @@ import {
 import {
   C, fontBody, fontMono, NavContext, formatDate, writePosition,
   SectionHeading, EmptyState, EntryNumber, ItemMenu, GhostButton, IconButtonDelete, SectionLoading,
-  RenameCategoryModal, AddNewsForm, CommunityCoursesView, CommunityTestsView,
+  RenameCategoryModal, AddNewsForm,
 } from './App';
 import { supabase } from './supabaseClient';
 
@@ -574,3 +574,5 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
     </div>
   );
 }
+
+import { CommunityCoursesView, CommunityTestsView } from './DeferredCommunityViews.jsx';
