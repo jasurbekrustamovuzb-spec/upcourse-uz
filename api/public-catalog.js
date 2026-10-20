@@ -29,8 +29,12 @@ export default async function handler(request, response) {
       fetchPublicRows('courses?select=id,category_id,title,summary,video_url,author,author_id,status,created_at&order=created_at.asc&status=eq.approved'),
     ]);
 
-    response.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=60');
-    response.setHeader('CDN-Cache-Control', 'public, s-maxage=60, stale-while-revalidate=60');
+    // Keep this small, public catalog warm at the edge so a new visitor does
+    // not wait for a cold pair of Supabase queries after every short idle.
+    // Lesson bodies are not part of this response; five minutes is a safe
+    // freshness window for titles, categories and summaries.
+    response.setHeader('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=3600');
+    response.setHeader('CDN-Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     return response.status(200).json({ categoryRows, courseRows });
   } catch (error) {

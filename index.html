@@ -3,6 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Start the small public catalog request while HTML/CSS and the app
+      // bundle load. It is safe for signed-in visitors too: the endpoint only
+      // returns approved public list metadata.
+      (function () {
+        if (location.pathname !== '/' || location.search || location.hash) return;
+        var controller = new AbortController();
+        var timeout = setTimeout(function () { controller.abort(); }, 5000);
+        window.__upcourseInitialCatalogPromise = fetch('/api/public-catalog', {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+          priority: 'high'
+        }).then(function (response) {
+          if (!response.ok) return null;
+          return response.json();
+        }).catch(function () { return null; }).finally(function () { clearTimeout(timeout); });
+      })();
+    </script>
 
     <!-- ==== Asosiy SEO teglar ==== -->
     <title>UpCourse Uz — kurslar, testlar va jonli test platformasi</title>
@@ -353,25 +371,6 @@
         });
         observer.observe(root, { childList: true });
         setTimeout(removeSplash, 10000);
-      })();
-    </script>
-    <script>
-      // Mehmonlar uchun keshlangan katalogni React bundle yuklanayotganda erta so‘raymiz.
-      (function () {
-        try {
-          if (location.pathname !== '/' || location.search || location.hash ||
-              localStorage.getItem('sb-cuubcnnzjlmvcbgnctvb-auth-token')) return;
-        } catch (e) { return; }
-
-        var controller = new AbortController();
-        var timeout = setTimeout(function () { controller.abort(); }, 12000);
-        window.__upcourseInitialCatalogPromise = fetch('/api/public-catalog', {
-          signal: controller.signal,
-          headers: { Accept: 'application/json' }
-        }).then(function (response) {
-          if (!response.ok) return null;
-          return response.json();
-        }).catch(function () { return null; }).finally(function () { clearTimeout(timeout); });
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>

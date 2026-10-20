@@ -376,6 +376,17 @@ function setCachedAccessToken(token) {
 }
 async function getAccessToken() {
   if (cachedAccessToken !== undefined) return cachedAccessToken;
+  // Guests can use the anon key immediately. Do not wait for Supabase auth
+  // initialization before starting public profile lookups on the home page.
+  let hasStoredSession = true;
+  try {
+    const isOAuthCallback = window.location.hash.includes('access_token') || window.location.search.includes('code=');
+    if (!isOAuthCallback) hasStoredSession = !!localStorage.getItem('sb-cuubcnnzjlmvcbgnctvb-auth-token');
+  } catch { /* If storage is unavailable, keep the regular SDK flow. */ }
+  if (!hasStoredSession) {
+    cachedAccessToken = null;
+    return null;
+  }
   if (!sessionReadyPromise) {
     sessionReadyPromise = supabase.auth.getSession()
       .then(({ data }) => { cachedAccessToken = data?.session?.access_token || null; return cachedAccessToken; })
@@ -748,6 +759,25 @@ const courseToRow = (c) => ({ id: c.id, category_id: c.categoryId || null, title
 const courseFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, summary: r.summary || '', content: r.content, videoUrl: r.video_url || '', author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved' });
 const testToRow = (t) => ({ id: t.id, category_id: t.categoryId || null, title: t.title, description: t.description || '', questions: t.questions, author: t.author || '', author_id: t.authorId || null, status: t.status || 'approved' });
 const testFromRow = (r) => ({ id: r.id, categoryId: r.category_id, title: r.title, description: r.description || '', questions: r.questions, author: r.author || '', authorId: r.author_id || null, status: r.status || 'approved', questionCount: Array.isArray(r.questions) ? getQuestionCount(r.questions) : (r.question_count ?? undefined) });
+const PUBLIC_CATALOG_CACHE_KEY = 'upcourse-public-catalog-v1';
+const PUBLIC_CATALOG_CACHE_MAX_AGE = 6 * 60 * 60 * 1000;
+function readPublicCatalogCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(PUBLIC_CATALOG_CACHE_KEY) || 'null');
+    if (!cached || !Number.isFinite(cached.savedAt) || Date.now() - cached.savedAt > PUBLIC_CATALOG_CACHE_MAX_AGE ||
+        !Array.isArray(cached.categoryRows) || !Array.isArray(cached.courseRows)) return null;
+    return cached;
+  } catch { return null; }
+}
+function writePublicCatalogCache(categoryRows, courseRows) {
+  try {
+    localStorage.setItem(PUBLIC_CATALOG_CACHE_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      categoryRows: categoryRows.filter((row) => row.status === 'approved'),
+      courseRows: courseRows.filter((row) => row.status === 'approved'),
+    }));
+  } catch { /* Private mode or full storage: network loading still works. */ }
+}
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
 export const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
@@ -837,14 +867,34 @@ export async function suggestAvailableUsername(firstName, lastName, currentUserI
    Bu ayniqsa yangi kiruvchi uchun muhim — har bir qo'shimcha so'rov
    tarmoq kechikishi tufayli sezilarli vaqt yeydi (hatto ma'lumotning
    o'zi kichik bo'lsa ham). */
-function makeBatchedLookup(table, idColumn, extraFilter, pickValue, orderColumn) {
+function makeBatchedLookup(table, idColumn, extraFilter, pickValue, orderColumn, options = {}) {
   const cache = {};
+  if (options.storageKey) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(options.storageKey) || 'null');
+      if (saved && typeof saved === 'object') {
+        Object.entries(saved).forEach(([id, entry]) => {
+          if (entry && entry.value && Date.now() - entry.savedAt <= options.maxAge) cache[id] = entry.value;
+        });
+      }
+    } catch { /* Persistent cache is optional. */ }
+  }
   const listeners = {};
   let pending = new Set();
   let scheduled = false;
 
   function notify(id, value) {
     cache[id] = value;
+    if (options.storageKey && value) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(options.storageKey) || '{}');
+        Object.entries(saved).forEach(([savedId, entry]) => {
+          if (!entry || Date.now() - entry.savedAt > options.maxAge) delete saved[savedId];
+        });
+        saved[id] = { value, savedAt: Date.now() };
+        localStorage.setItem(options.storageKey, JSON.stringify(saved));
+      } catch { /* In-memory cache still works. */ }
+    }
     (listeners[id] || new Set()).forEach((fn) => fn(value));
   }
 
@@ -892,9 +942,15 @@ function makeBatchedLookup(table, idColumn, extraFilter, pickValue, orderColumn)
   return { useLookup, notify, cache };
 }
 
-const _usernameLookup = makeBatchedLookup('profiles', 'id', null, (r) => r.username || null);
+const _usernameLookup = makeBatchedLookup('profiles', 'id', null, (r) => r.username || null, undefined, {
+  storageKey: 'upcourse-author-usernames-v1',
+  maxAge: 15 * 60 * 1000,
+});
 function useAuthorUsername(authorId) {
   return _usernameLookup.useLookup(authorId);
+}
+function setAuthorUsernameCache(authorId, username) {
+  if (authorId && username) _usernameLookup.notify(authorId, username);
 }
 
 /* Mualliflarning "ishlatilayotgan" bayram nishonini ham xuddi shu tarzda
@@ -919,25 +975,23 @@ let _goToPublicProfile = null;
 /* Kurs/test kartochkalarida "Tuzuvchi: ..." qatori. Agar muallifning
    username'i topilsa, ko'k rangdagi bosiladigan @username sifatida,
    aks holda oddiy matn sifatida ko'rsatadi. */
-export function AuthorLine({ authorId, authorName, className, style }) {
+export function AuthorLine({ authorId, className, style }) {
   const username = useAuthorUsername(authorId);
   const badge = useAuthorBadge(authorId);
-  if (!authorName && !username) return null;
+  // The saved author string is a historical full name and can be stale.
+  // Show a creator line only when we have the current profile username.
+  if (!username) return null;
   return (
     <div className={className || 'text-xs mt-1.5'} style={{ ...fontBody, color: C.inkSoft, ...style }}>
       Tuzuvchi:{' '}
-      {username ? (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); if (_goToPublicProfile) _goToPublicProfile(username); }}
-          className="hover:underline focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.math, outlineColor: C.mathSoft }}
-        >
-          @{username}
-        </button>
-      ) : (
-        authorName
-      )}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); if (_goToPublicProfile) _goToPublicProfile(username); }}
+        className="hover:underline focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.math, outlineColor: C.mathSoft }}
+      >
+        @{username}
+      </button>
       {badge && <CollectibleThumb collectibleId={badge} size={14} inline />}
     </div>
   );
@@ -2848,7 +2902,11 @@ export default function App() {
       lastLoadedUid = uid;
       try {
         const rows = await sbSelect('profiles', `id=eq.${uid}`);
-        if (!cancelled) setProfile(rows[0] ? profileFromRow(rows[0]) : null);
+        if (!cancelled) {
+          const nextProfile = rows[0] ? profileFromRow(rows[0]) : null;
+          if (nextProfile?.username) setAuthorUsernameCache(uid, nextProfile.username);
+          setProfile(nextProfile);
+        }
       } catch (e) {
         if (!cancelled) setProfile(null);
         lastLoadedUid = null; // xatolik bo'lsa keyinroq qayta urinib ko'rish imkoni qolsin
@@ -2930,6 +2988,7 @@ export default function App() {
     };
     try {
       await sbUpsert('profiles', row);
+      setAuthorUsernameCache(session.user.id, username);
       setProfile((prev) => profileFromRow({ ...(prev ? { username_changed_at: prev.usernameChangedAt } : {}), ...row }));
       return { ok: true };
     } catch (e) {
@@ -3099,8 +3158,32 @@ export default function App() {
 
   const loadAppData = useCallback(async (silent) => {
     let succeeded = false;
+    let hasUsablePublicCache = false;
     const requestUserId = session?.user?.id || null;
-    if (!silent) setLoading(true);
+    if (!silent) {
+      setLoading(true);
+      // Repeat visitors see the last public catalog immediately while the
+      // edge/API refresh runs in the background. Only approved list metadata
+      // is cached; private rows and lesson bodies never enter local storage.
+      const cachedCatalog = !isAdmin && typeof window !== 'undefined' && window.location.pathname === '/'
+        ? readPublicCatalogCache()
+        : null;
+      if (cachedCatalog) {
+        hasUsablePublicCache = true;
+        setCategories(cachedCatalog.categoryRows.map(categoryFromRow));
+        setCourses((previous) => {
+          const previousById = new Map(previous.map((course) => [course.id, course]));
+          return cachedCatalog.courseRows.map((row) => {
+            const next = courseFromRow(row);
+            const cached = previousById.get(next.id);
+            return cached?.content !== undefined
+              ? { ...next, content: cached.content, videoUrl: cached.videoUrl || next.videoUrl }
+              : next;
+          });
+        });
+        setLoading(false);
+      }
+    }
     setError(null);
     if (!isSupabaseConfigured()) {
       setError('Supabase ulanish maʼlumotlari hali kiritilmagan. Kod faylining yuqori qismidagi SUPABASE_URL va SUPABASE_ANON_KEY qatorlarini toʻldiring.');
@@ -3141,7 +3224,7 @@ export default function App() {
             initialDataTimeoutId = setTimeout(() => {
               initialDataController.abort();
               reject(new Error('Bosh sahifa maʼlumotlarini yuklash vaqti tugadi.'));
-            }, 15000);
+            }, 12000);
           }),
         ]);
       } finally {
@@ -3153,6 +3236,9 @@ export default function App() {
       // akkauntning yopiq materiallarini yangi sessiyaga qo‘shmaymiz.
       if (requestUserId && activeUserIdRef.current !== requestUserId) return false;
 
+      if (typeof window !== 'undefined' && window.location.pathname === '/') {
+        writePublicCatalogCache(catRows, courseRows);
+      }
       setCategories(catRows.map(categoryFromRow));
       const courseRevisionsById = new Map(courseRevisionRows.map((revision) => [String(revision.course_id), revision]));
       setCourses((previous) => {
@@ -3183,7 +3269,7 @@ export default function App() {
       // "Jim" (silent) qayta yuklashda esa ekranda allaqachon ma'lumot
       // turibdi — shu xabarni ko'rsatib, uni bekorga "yuklab bo'lmadi"
       // holatiga o'tkazib yubormaymiz, faqat konsolga yozib qo'yamiz.
-      if (!silent) setError('Ma\u02bblumotlarni yuklab bo\u02bblmadi. Internetni tekshirib, qayta urinib ko\u02bbring.');
+      if (!silent && !hasUsablePublicCache) setError('Ma\u02bblumotlarni yuklab bo\u02bblmadi. Internetni tekshirib, qayta urinib ko\u02bbring.');
       else console.error('Fon rejimida qayta yuklashda xatolik:', e);
     }
     if (!silent) setLoading(false);
