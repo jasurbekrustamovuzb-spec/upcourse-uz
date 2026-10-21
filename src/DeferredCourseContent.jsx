@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 
-import { Maximize2 } from 'lucide-react';
+import { Loader2, Maximize2 } from 'lucide-react';
 
 import { C, fontBody } from './App.jsx';
 
@@ -20,23 +20,73 @@ function extractYouTubeId(url) {
   return null;
 }
 
+let youtubeIframeApiPromise = null;
+
+function loadYouTubeIframeApi() {
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (youtubeIframeApiPromise) return youtubeIframeApiPromise;
+
+  youtubeIframeApiPromise = new Promise((resolve, reject) => {
+    let script;
+    const finish = (error) => {
+      clearTimeout(timeoutId);
+      if (error) {
+        script?.remove();
+        reject(error);
+      }
+      else if (window.YT?.Player) resolve(window.YT);
+      else reject(new Error('YouTube player is unavailable'));
+    };
+    let timeoutId;
+    const previousCallback = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      try { previousCallback?.(); } catch { /* boshqa embed callback'i ixtiyoriy */ }
+      finish();
+    };
+    timeoutId = window.setTimeout(() => finish(new Error('YouTube player timed out')), 15000);
+    script = document.createElement('script');
+    script.dataset.upcourseYouTubeApi = 'true';
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.async = true;
+    script.onerror = () => finish(new Error('YouTube player failed to load'));
+    document.head.appendChild(script);
+  }).catch((error) => {
+    youtubeIframeApiPromise = null;
+    throw error;
+  });
+
+  return youtubeIframeApiPromise;
+}
+
 function YouTubeEmbed({ url }) {
-  const [playing, setPlaying] = useState(false);
+  const [playerState, setPlayerState] = useState('poster');
   const [fullscreen, setFullscreen] = useState(false);
   const shellRef = useRef(null);
+  const playerMountRef = useRef(null);
+  const playerRef = useRef(null);
+  const mountedRef = useRef(true);
+  const playRequestedRef = useRef(false);
   const videoId = extractYouTubeId(url);
 
   useEffect(() => {
+    if (!videoId) return undefined;
+    mountedRef.current = true;
     const updateFullscreen = () => {
       setFullscreen(document.fullscreenElement === shellRef.current || document.webkitFullscreenElement === shellRef.current);
     };
     document.addEventListener('fullscreenchange', updateFullscreen);
     document.addEventListener('webkitfullscreenchange', updateFullscreen);
+    // Lesson content is already open at this point, so warm up the player
+    // behind its poster. Clicking Play can then start playback immediately.
+    loadYouTubeIframeApi().then(initializePlayer).catch(() => {});
     return () => {
+      mountedRef.current = false;
       document.removeEventListener('fullscreenchange', updateFullscreen);
       document.removeEventListener('webkitfullscreenchange', updateFullscreen);
+      try { playerRef.current?.destroy(); } catch { /* player allaqachon yopilgan bo‘lishi mumkin */ }
+      playerRef.current = null;
     };
-  }, []);
+  }, [videoId]);
 
   if (!videoId) return null;
 
@@ -54,6 +104,47 @@ function YouTubeEmbed({ url }) {
     } catch (e) {
       // Fullscreen can be blocked by the browser; inline playback remains available.
     }
+  }
+
+  function initializePlayer(YT) {
+    if (!mountedRef.current || !playerMountRef.current || playerRef.current) return;
+    playerRef.current = new YT.Player(playerMountRef.current, {
+      width: '100%',
+      height: '100%',
+      videoId,
+      playerVars: { autoplay: 0, playsinline: 1, fs: 0, origin: window.location.origin, rel: 0 },
+      events: {
+        onReady: (event) => {
+          if (playRequestedRef.current) event.target.playVideo();
+        },
+        onStateChange: (event) => {
+          if (event.data === YT.PlayerState.PLAYING && mountedRef.current) setPlayerState('playing');
+        },
+        onError: (event) => {
+          try { event.target.destroy(); } catch { /* player allaqachon yopilgan bo‘lishi mumkin */ }
+          playerRef.current = null;
+          if (mountedRef.current && playRequestedRef.current) {
+            playRequestedRef.current = false;
+            setPlayerState('error');
+          }
+        },
+      },
+    });
+  }
+
+  function startVideo() {
+    if (playerState === 'loading') return;
+    playRequestedRef.current = true;
+    setPlayerState('loading');
+    if (playerRef.current) {
+      // Keep the call inside the click gesture so browser autoplay policy
+      // does not block the first frame after the user presses Play.
+      playerRef.current.playVideo();
+      return;
+    }
+    loadYouTubeIframeApi()
+      .then(initializePlayer)
+      .catch(() => { if (mountedRef.current) setPlayerState('error'); });
   }
 
   return (
@@ -96,39 +187,40 @@ function YouTubeEmbed({ url }) {
         ref={shellRef}
         style={{ aspectRatio: '16 / 9', background: '#000', border: `1px solid ${C.rule}` }}
       >
-        {playing ? (
-          <iframe
-            className="youtube-embed-frame absolute inset-0 w-full h-full"
-            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&fs=0`}
-            title="YouTube video"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-            allowFullScreen
-          />
-        ) : (
+        <div
+          className="youtube-embed-frame absolute inset-0 w-full h-full transition-opacity duration-200"
+          style={{ opacity: playerState === 'playing' ? 1 : 0, pointerEvents: playerState === 'playing' ? 'auto' : 'none' }}
+        >
+          <div ref={playerMountRef} className="w-full h-full" />
+        </div>
+        {playerState !== 'playing' && (
           <button
-            onClick={() => setPlaying(true)}
-            className="absolute inset-0 w-full h-full group focus-visible:outline focus-visible:outline-2"
+            type="button"
+            onClick={startVideo}
+            disabled={playerState === 'loading'}
+            className="absolute inset-0 w-full h-full group focus-visible:outline focus-visible:outline-2 disabled:cursor-wait"
             style={{ outlineColor: C.gold }}
-            aria-label="Videoni ishga tushirish"
+            aria-label={playerState === 'error' ? 'Videoni qayta yuklash' : playerState === 'loading' ? 'Video yuklanmoqda' : 'Videoni ishga tushirish'}
           >
             <img
               src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
-              loading="lazy"
+              loading="eager"
+              decoding="async"
             />
             <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(20,30,20,0.25)' }}>
               <span
                 className="flex items-center justify-center rounded-full transition-transform group-hover:scale-105"
                 style={{ width: 62, height: 62, background: 'rgba(20,30,20,0.72)', border: `2px solid ${C.goldSoft}` }}
               >
-                <PlayIcon />
+                {playerState === 'loading' ? <Loader2 size={24} className="animate-spin" style={{ color: C.goldSoft }} /> : <PlayIcon />}
               </span>
             </span>
           </button>
         )}
       </div>
-      {playing && !fullscreen && (
+      {playerState === 'playing' && !fullscreen && (
         <div className="flex justify-end mt-1.5">
           <button
             type="button"
@@ -186,10 +278,10 @@ export function CourseBody({ content, videoUrl }) {
         ) : (
           <p key={i} className="text-base leading-7" style={{ ...fontBody, color: C.ink }}>
             {b.lines.map((l, j) => (
-              <React.Fragment key={j}>
+              <Fragment key={j}>
                 {l}
                 {j < b.lines.length - 1 && <br />}
-              </React.Fragment>
+              </Fragment>
             ))}
           </p>
         )

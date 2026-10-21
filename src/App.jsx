@@ -194,6 +194,22 @@ export function SectionLoading() {
   );
 }
 
+function CourseContentLoadError({ onRetry }) {
+  return (
+    <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
+      <span className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Mavzuni yuklab bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.</span>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="inline-flex min-h-10 items-center gap-2 rounded-sm px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.white, background: C.cover, outlineColor: C.gold }}
+      >
+        <RotateCcw size={15} /> Qayta urinish
+      </button>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Seed content — shown the first time the shared ledger is empty    */
 /* ------------------------------------------------------------------ */
@@ -1933,11 +1949,28 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
+  const [loadingCourseId, setLoadingCourseId] = useState(null);
+  const [courseLoadErrorId, setCourseLoadErrorId] = useState(null);
   const [query, setQuery] = useState('');
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
-  const goCourse = (id) => { if (ensureCourseContent) ensureCourseContent(id); setOpenId(id); pushNav(() => setOpenId(null)); };
-  const goEdit = (id) => { if (ensureCourseContent) ensureCourseContent(id); setEditId(id); pushNav(() => setEditId(null)); };
+  const loadCourseContent = (id) => {
+    setCourseLoadErrorId(null);
+    if (!ensureCourseContent || courses.find((course) => course.id === id)?.content !== undefined) {
+      setLoadingCourseId(null);
+      return;
+    }
+    setLoadingCourseId(id);
+    Promise.resolve(ensureCourseContent(id)).then((loaded) => {
+      setLoadingCourseId((current) => current === id ? null : current);
+      if (!loaded) setCourseLoadErrorId(id);
+    }).catch(() => {
+      setLoadingCourseId((current) => current === id ? null : current);
+      setCourseLoadErrorId(id);
+    });
+  };
+  const goCourse = (id) => { setOpenId(id); loadCourseContent(id); pushNav(() => setOpenId(null)); };
+  const goEdit = (id) => { setEditId(id); loadCourseContent(id); pushNav(() => setEditId(null)); };
 
   const myId = session?.user?.id;
   const approvedCategories = categories.filter((c) => c.status !== 'pending');
@@ -2002,7 +2035,9 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         </button>
         <SectionHeading eyebrow="Tahrirlash" title={editing.title} />
         {editing.content === undefined ? (
-          <SectionLoading label="Mavzu yuklanmoqda…" compact />
+          courseLoadErrorId === editing.id
+            ? <CourseContentLoadError onRetry={() => loadCourseContent(editing.id)} />
+            : <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <EditCourseForm course={editing?.pendingEdit ? { ...editing, ...editing.pendingEdit } : editing} onSave={(data) => updateCourse(editing.id, data, editing.title, editing)} onDone={back} />
         )}
@@ -2047,7 +2082,9 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           </div>
         </div>
         {active.content === undefined ? (
-          <SectionLoading label="Mavzu yuklanmoqda…" compact />
+          courseLoadErrorId === active.id
+            ? <CourseContentLoadError onRetry={() => loadCourseContent(active.id)} />
+            : <SectionLoading label="Mavzu yuklanmoqda…" compact />
         ) : (
           <Suspense fallback={<SectionLoading label="Mavzu yuklanmoqda…" compact />}>
             <DeferredCourseBody content={active.content} videoUrl={active.videoUrl} />
@@ -2064,6 +2101,14 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         </Suspense>
       </div>
     );
+  }
+
+  if (openId && loadingCourseId === openId) {
+    return <SectionLoading label="Mavzu yuklanmoqda…" compact />;
+  }
+
+  if (openId && courseLoadErrorId === openId) {
+    return <CourseContentLoadError onRetry={() => loadCourseContent(openId)} />;
   }
 
   if (!categoryId) {
@@ -3029,19 +3074,19 @@ export default function App() {
      yoki tahrirlash uchun kerak bo'lganda alohida so'raladi. */
   const ensureCourseContent = useCallback(async (id) => {
     try {
-        const rows = await sbRequest(`courses?select=id,category_id,title,summary,content,video_url,author,author_id,status,created_at&id=eq.${encodeURIComponent(id)}`);
-      if (rows[0]) {
-          const loadedCourse = courseFromRow(rows[0]);
-          setCourses((prev) => prev.some((course) => course.id === id)
-            ? prev.map((course) => (course.id === id ? {
-              ...loadedCourse,
-              ...(course.pendingEdit ? { pendingEdit: course.pendingEdit, pendingEditUpdatedAt: course.pendingEditUpdatedAt } : {}),
-            } : course))
-            : [...prev, loadedCourse]);
-      }
+      const rows = await sbRequest(`courses?select=id,category_id,title,summary,content,video_url,author,author_id,status,created_at&id=eq.${encodeURIComponent(id)}`);
+      if (!rows[0]) return false;
+      const loadedCourse = courseFromRow(rows[0]);
+      setCourses((prev) => prev.some((course) => course.id === id)
+        ? prev.map((course) => (course.id === id ? {
+          ...loadedCourse,
+          ...(course.pendingEdit ? { pendingEdit: course.pendingEdit, pendingEditUpdatedAt: course.pendingEditUpdatedAt } : {}),
+        } : course))
+        : [...prev, loadedCourse]);
+      return true;
     } catch (e) {
-      // Jim tarzda o'tkazib yuborish — mavzu ochilganda "Yuklanmoqda..." holatida qoladi,
-      // foydalanuvchi qayta urinib ko'rishi mumkin.
+      console.warn('Mavzu tarkibini yuklab bo‘lmadi:', e);
+      return false;
     }
   }, []);
 
