@@ -682,8 +682,116 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                         >
                           <div className="min-w-0">
                             <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                            <div claMethodInvocationException: 
-Line |
-   2 |  … File]::ReadAllText($p);[Console]::Out.Write($s.Substring(40000,6122))
-     |                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     | Exception calling "Substring" with "2" argument(s): "Index and length must refer to a location within the string. (Parameter 'length')"
+                            <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta test</div>
+                            <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
+                          </div>
+                          <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {matchedTests.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {matchedTests.map((t) => (
+                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+                        <div className="min-w-0">
+                          <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
+                            {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
+                          </div>
+                          <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+                          <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
+                        </div>
+                        <button
+                          onClick={() => goTest(t.id)}
+                          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm flex-shrink-0"
+                          style={{ ...fontBody, color: C.white, background: C.cover }}
+                        >
+                          <Award size={13} /> Boshlash
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          <CategoryGrid
+            categories={approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id))}
+            itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            itemLabel="test"
+            onSelect={goCategory}
+            renameCategory={renameCategory}
+            deleteCategory={deleteCategory}
+            onGoToCommunity={() => onGoToCommunity('testlar')}
+            isAdmin={isAdmin}
+            userId={session?.user?.id}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={back}
+        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
+      >
+        <ArrowLeft size={15} /> Barcha sohalar
+      </button>
+      <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
+      <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} />
+      {testsLoading && !tests.length ? (
+        <SectionLoading label="Testlar yuklanmoqda…" />
+      ) : testsLoadError && !tests.length ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 py-6 text-sm" style={{ ...fontBody, color: C.red }}>
+          <span>{testsLoadError}</span>
+          <button type="button" onClick={onRetryTests} className="px-3 py-1.5 rounded-sm" style={{ color: C.white, background: C.cover }}>Qayta yuklash</button>
+        </div>
+      ) : inCategory.length === 0 ? (
+        <EmptyState text="Bu sohada hozircha test qoʻshilmagan." cta="Quyidagi tugma orqali birinchi testni qoʻshing." />
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-4">
+          {inCategory.map((t, i) => (
+            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <div className="flex items-start min-w-0">
+                <EntryNumber n={i + 1} />
+                <div className="min-w-0">
+                  <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
+                  {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
+                  <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                <ItemMenu actions={[
+                  { label: 'Sozlamalar', icon: Settings, onClick: () => goTest(t.id, true) },
+                  { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
+                  ...(isAdmin ? [
+                    { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
+                    { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
+                  ] : []),
+                ]} />
+                <button
+                  onClick={() => goTest(t.id)}
+                  className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm"
+                  style={{ ...fontBody, color: C.white, background: C.cover }}
+                >
+                  <Award size={13} /> Boshlash
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      
+    </div>
+  );
+}
+import { EditTestForm } from './DeferredTestForms.jsx';
