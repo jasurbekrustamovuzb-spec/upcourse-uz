@@ -245,6 +245,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
             {badgeClaimError && <div className="w-full text-xs" style={{ ...fontBody, color: C.red }}>{badgeClaimError}</div>}
           </div>
         )}
+        <div className="flex flex-wrap gap-3 mb-8">
+          <GhostButton onClick={onRetry} icon={RotateCcw}>Qayta ishlash</GhostButton>
+          <GhostButton onClick={onRestart} icon={Settings}>Sozlamalarni oʻzgartirish</GhostButton>
+        </div>
         <section className="max-w-2xl mb-8">
           <h4 className="text-lg mb-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Javoblar tahlili</h4>
           <div className="space-y-3">
@@ -293,10 +297,6 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
             })}
           </div>
         </section>
-        <div className="flex flex-wrap gap-3">
-          <GhostButton onClick={onRetry} icon={RotateCcw}>Qayta ishlash</GhostButton>
-          <GhostButton onClick={onRestart} icon={Settings}>Sozlamalarni oʻzgartirish</GhostButton>
-        </div>
       </div>
     );
   }
@@ -428,16 +428,22 @@ export function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs
     if (onSavePrefs) onSavePrefs(rest);
   }
 
+  function handleRetry() {
+    setConfig((current) => current ? { ...current, questions: computeQuizQuestions(test, current) } : current);
+    setAttemptKey((key) => key + 1);
+  }
+
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={() => setAttemptKey((key) => key + 1)} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={handleRetry} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
-  const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId));
+  const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId || openRequest));
+  const handledOpenRequestRef = useRef(null);
   const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
@@ -496,6 +502,18 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     else if (initialLiveSession) { setLiveSession(initialLiveSession); setLiveOpen(true); pushNav(() => setLiveOpen(false)); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Navigatsiya testlar sahifasini lazy-load qilayotgan paytda kelishi mumkin.
+  // So‘rovni mount bilan bog‘lamaymiz: komponent tayyor bo‘lgach aniq testni ochadi.
+  useEffect(() => {
+    if (!openRequest || handledOpenRequestRef.current === openRequest.requestId) return;
+    handledOpenRequestRef.current = openRequest.requestId;
+    goTest(openRequest.id);
+    setOpeningInitialTest(false);
+    onOpenRequestHandled?.(openRequest.requestId);
+    // goTest/nav callback render oralig‘ida yangilanadi; requestId bir marta bajarilishini ta’minlaydi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRequest, onOpenRequestHandled]);
 
   /* Joriy holatni (qaysi test yoki soha ochiq, jonli xonadamizmi)
      sessionStorage'ga yozib boramiz. Agar bu test keyinchalik

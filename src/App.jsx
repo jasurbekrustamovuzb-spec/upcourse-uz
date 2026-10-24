@@ -2463,6 +2463,26 @@ function shuffleArray(arr) {
   return a;
 }
 
+function shuffleQuestionOptions(question) {
+  if (!Array.isArray(question.options) || question.options.length < 2) return question;
+  const optionIndexes = question.options.map((_, index) => index);
+  // Derangement: an option will not remain in its original slot. This also
+  // prevents the keyed correct answer from staying at A on every attempt.
+  let order;
+  do { order = shuffleArray(optionIndexes); }
+  while (order.some((originalIndex, newIndex) => originalIndex === newIndex));
+  const newIndexByOldIndex = new Map(order.map((oldIndex, newIndex) => [oldIndex, newIndex]));
+  const remap = (index) => newIndexByOldIndex.has(index) ? newIndexByOldIndex.get(index) : index;
+  return {
+    ...question,
+    options: order.map((index) => question.options[index]),
+    ...(Number.isInteger(question.correct) ? { correct: remap(question.correct) } : {}),
+    ...(Array.isArray(question.pairs) ? {
+      pairs: question.pairs.map((pair) => Number.isInteger(pair.correct) ? { ...pair, correct: remap(pair.correct) } : pair),
+    } : {}),
+  };
+}
+
 export function formatDuration(totalSeconds) {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
@@ -2517,7 +2537,7 @@ export function computeQuizQuestions(test, cfg) {
     if (base.length === 0) base = test.questions.slice(0, size);
   }
   if (cfg.shuffle) base = shuffleArray(base);
-  return base;
+  return base.map(shuffleQuestionOptions);
 }
 
 
@@ -2803,18 +2823,19 @@ export default function App() {
     const frame = window.requestAnimationFrame(() => window.scrollTo({ top: savedTop, behavior: 'auto' }));
     return () => window.cancelAnimationFrame(frame);
   }, [activeViewKey]);
-  /* Boshqa birovning profilida kurs/testni bosganda, o'sha kurs/testni
-     ochish uchun — "bir martalik" ko'rsatma. Kurslar/Testlar ekrani
-     buni o'zining oddiy initialOpenId'i kabi o'qiydi (deep link bilan
-     bir xil mexanizm), shundan keyin darhol tozalanadi (pastdagi
-     useEffect'ga qarang) — aks holda o'sha bo'limga keyinroq oddiy
-     yo'l bilan qaytilganda ham eskicha qayta ochilib qolar edi. */
-  const [openRequest, setOpenRequest] = useState(null); // {type:'course'|'test', id}
+  /* Profil ichidan ochilgan kursga bir martalik mount so‘rovi. Testlar
+     alohida so‘rovda saqlanadi, chunki ularning bo‘limi lazy-load bo‘ladi. */
+  const [openRequest, setOpenRequest] = useState(null); // {type:'course', id}
   useEffect(() => {
-    if (openRequest) setOpenRequest(null);
+    // Kurslar bo‘limi initialOpenId orqali mount vaqtida so‘rovni qabul qiladi.
+    // Test so‘rovi esa DeferredTestsView yuklanib, uni ochguncha saqlanishi kerak.
+    if (openRequest?.type === 'course') setOpenRequest(null);
   }, [openRequest]);
+  const [testOpenRequest, setTestOpenRequest] = useState(null);
+  const testOpenRequestSeq = useRef(0);
   const openFromProfile = (kind, id) => {
-    setOpenRequest({ type: kind === 'kurslar' ? 'course' : 'test', id });
+    if (kind === 'kurslar') setOpenRequest({ type: 'course', id });
+    else setTestOpenRequest({ id, requestId: ++testOpenRequestSeq.current });
     setTab(kind === 'kurslar' ? 'kurslar' : 'testlar');
     setViewingUsername(null);
   };
@@ -3802,8 +3823,16 @@ export default function App() {
 
   function openSearchItem(kind, id) {
     setGlobalSearchOpen(false);
-    setOpenRequest({ type: kind, id });
+    if (kind === 'test') {
+      setTestOpenRequest({ id, requestId: ++testOpenRequestSeq.current });
+    } else {
+      setOpenRequest({ type: kind, id });
+    }
     goTo(kind === 'course' ? 'kurslar' : 'testlar');
+  }
+
+  function consumeTestOpenRequest(requestId) {
+    setTestOpenRequest((request) => request?.requestId === requestId ? null : request);
   }
 
   function openSearchProfile(username) {
@@ -4086,7 +4115,7 @@ export default function App() {
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={openRequest?.type === 'test' ? openRequest.id : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={initialDeepLink?.type === 'live' ? initialDeepLink.value : null} initialLiveSession={initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
+              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
