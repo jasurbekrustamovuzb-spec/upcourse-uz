@@ -439,7 +439,7 @@ export function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs
   return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={handleRetry} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId || openRequest));
@@ -448,7 +448,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
   const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
-  const [teamBattleOpen, setTeamBattleOpen] = useState(false);
+  const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken));
   /* Jonli xona holati (xona ochgan/qo'shilgan bo'lsa) — LiveQuizHub
      shuni o'zgarganda xabar beradi, biz esa sessionStorage'ga yozamiz,
      shu tufayli refresh qilinganda xonaga qaytib kirish mumkin. */
@@ -567,7 +567,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
 
   if (teamBattleOpen) return (
     <Suspense fallback={<SectionLoading label="Jamoaviy test yuklanmoqda…" />}>
-      <TeamBattleHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} categories={categories} ensureTestContent={ensureTestContent} onExit={back} />
+      <TeamBattleHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} categories={categories} ensureTestContent={ensureTestContent} onExit={back} session={session} initialShareToken={initialBattleToken} />
     </Suspense>
   );
 

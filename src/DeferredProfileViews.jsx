@@ -1,8 +1,9 @@
 import { useState, useEffect, useContext, useRef, Suspense } from 'react';
-import { ArrowLeft, Award, BookOpen, Check, CheckCircle2, ChevronRight, Coins, Gift, ListChecks, Loader2, Lock, LogIn, LogOut, Medal, Settings, ShieldCheck, ShoppingBag, Tag, UserCircle2, X } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, Check, CheckCircle2, ChevronRight, Coins, Gift, ListChecks, Loader2, Lock, LogIn, LogOut, Medal, Settings, ShieldCheck, ShoppingBag, Tag, UserCircle2, Users, X } from 'lucide-react';
 import { BANNER_PRESETS, C, CollectibleThumb, EmptyState, GhostButton, LinkedUsernameText, ProfileFollowView, PublicCollectionsView, RatingBadgeCollection, SectionLoading, SectionHeading, ShareButton, SolidButton, TextField, bannerGradient, buildShareUrl, checkUsernameAvailable, collectibleFromRow, fontBody, fontDisplay, fontMono, GIFT_CONTENT, GIFT_ID, isReservedUsername, isValidUsername, normalizeUsername, profileFromRow, sbInsert, sbSelect, sbSelectAuthorContent, sbUpdate, setAuthorBadgeCache, suggestAvailableUsername, unequipOtherCollectibles, useAuthorBadge, userCollectibleFromRow, usernameChangeDaysLeft, NavContext } from './App.jsx';
 import { supabase } from './supabaseClient.js';
 import { signInWithGoogle, switchGoogleAccount } from './supabaseClient.js';
+import TeamBattleLibrary from './TeamBattleLibrary.jsx';
 export function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, session }) {
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
@@ -388,6 +389,8 @@ export function ProfileView({ session, profile, authLoading, onSaveProfile, onSi
     );
   }
 
+  if (subTab === 'jamoaviy-savollar') return <TeamBattleLibrary onBack={() => setSubTab(null)} />;
+
   if (subTab === 'kolleksiya') {
     return <CollectionsView session={session} onBack={() => setSubTab(null)} />;
   }
@@ -498,7 +501,16 @@ export function ProfileView({ session, profile, authLoading, onSaveProfile, onSi
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
         </button>
-        <button onClick={() => goSubTab('kolleksiya')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <button onClick={() => goSubTab('jamoaviy-savollar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Users size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Jamoaviy jang savollari</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Saqlangan savol-javob toʻplamlari</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>        <button onClick={() => goSubTab('kolleksiya')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <Award size={20} style={{ color: C.gold }} />
             <div>

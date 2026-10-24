@@ -287,6 +287,7 @@ function parseDeepLink() {
     if (p.get('course')) return { type: 'course', value: p.get('course') };
     if (p.get('test')) return { type: 'test', value: p.get('test') };
     if (p.get('live')) return { type: 'live', value: p.get('live').toUpperCase() };
+    if (p.get('battle')) return { type: 'battle', value: p.get('battle') };
     if (p.get('u')) return { type: 'profile', value: p.get('u') };
   } catch (e) { /* URL o'qib bo'lmasa, oddiy holatda ochiladi */ }
   return null;
@@ -2135,7 +2136,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         {isLoading ? (
           <div aria-busy="true" aria-label="Mavzular yuklanmoqda" className="grid sm:grid-cols-2 gap-3 sm:gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="p-3 sm:p-4 rounded-sm animate-pulse" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+              <div key={i} className="p-3 sm:p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
                 <div className="h-4 rounded-sm" style={{ background: C.rule, width: `${58 + (i % 3) * 12}%`, opacity: 0.6 }} />
                 <div className="h-3 rounded-sm mt-2.5" style={{ background: C.rule, width: '42%', opacity: 0.45 }} />
                 <div className="h-3 rounded-sm mt-1.5" style={{ background: C.rule, width: '60%', opacity: 0.35 }} />
@@ -2770,11 +2771,11 @@ export default function App() {
      pardasini (va fon rejimidagi xatolik ekranini) chetlab o'tamiz —
      foydalanuvchi darhol qo'shilish ekranini ko'radi, kurslar/testlar
      ma'lumoti esa fonda, sekin-asta yuklanaveradi (kerak bo'lsa). */
-  const skipMainLoadingGate = initialDeepLink?.type === 'live';
+  const skipMainLoadingGate = initialDeepLink?.type === 'live' || initialDeepLink?.type === 'battle';
   const initialTab = (() => {
     if (initialDeepLink) {
       if (initialDeepLink.type === 'course') return 'kurslar';
-      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'live') return 'testlar';
+      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle') return 'testlar';
       if (initialDeepLink.type === 'profile') return 'profil';
       return 'kurslar';
     }
@@ -4053,13 +4054,13 @@ export default function App() {
           <div aria-busy="true" aria-label="Yuklanmoqda">
             {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
             <div className="mb-6">
-              <div className="h-3 rounded-sm animate-pulse mb-2" style={{ background: C.rule, width: '80px', opacity: 0.55 }} />
-              <div className="h-7 rounded-sm animate-pulse" style={{ background: C.rule, width: '150px', opacity: 0.45 }} />
+              <div className="h-3 rounded-sm mb-2" style={{ background: C.rule, width: '80px', opacity: 0.55 }} />
+              <div className="h-7 rounded-sm" style={{ background: C.rule, width: '150px', opacity: 0.45 }} />
             </div>
 
             {/* Qidiruv maydoni oʻrnidagi skelet */}
             <div
-              className="h-[50px] rounded-sm animate-pulse mb-5 flex items-center px-3.5"
+              className="h-[50px] rounded-sm mb-5 flex items-center px-3.5"
               style={{ background: C.surface, border: `1px solid ${C.rule}` }}
             >
               <Search size={18} style={{ color: C.rule }} />
@@ -4070,7 +4071,7 @@ export default function App() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm animate-pulse"
+                  className="flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm"
                   style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                 >
                   <div className="flex items-start min-w-0 flex-1">
@@ -4115,7 +4116,7 @@ export default function App() {
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
+              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />

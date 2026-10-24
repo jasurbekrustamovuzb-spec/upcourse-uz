@@ -2,7 +2,12 @@
 <html lang="uz">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />    <style>
+      html { min-height: 100%; background: #EFE9D6; }
+      html[data-theme="dark"] { background: #20241F; }
+      body { min-height: 100%; margin: 0; background: transparent; color: #262A1E; }
+      html[data-theme="dark"] body { color: #F4F1E7; }
+    </style>
     <script>
       // Start the small public catalog request while HTML/CSS and the app
       // bundle load. It is safe for signed-in visitors too: the endpoint only
