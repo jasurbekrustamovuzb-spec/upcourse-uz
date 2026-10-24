@@ -4142,8 +4142,118 @@ export default function App() {
                   updateTest={updateTest}
                   renameCategory={renameCategory}
                   target={communityTarget}
-                  onConsumeTarget={() => setCommunityTargetMethodInvocationException: 
-Line |
-   2 |  … ile]::ReadAllText($p);[Console]::Out.Write($s.Substring(208000,6089))
-     |                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     | Exception calling "Substring" with "2" argument(s): "Index and length must refer to a location within the string. (Parameter 'length')"
+                  onConsumeTarget={() => setCommunityTarget(null)}
+                  isAdmin={isAdmin}
+                  ensureCourseContent={ensureCourseContent}
+                  ensureTestContent={ensureTestContent}
+                  onGoToAbout={() => goTo('about')}
+                  onOpenAdmin={() => goTo('admin')}
+                  onOpenProfile={openSearchProfile}
+                  onOpenArena={() => goTo('arena')}
+                /></Suspense>
+              )}
+              {!viewingUsername && tab === 'admin' && isAdmin && (
+                <Suspense fallback={<SectionLoading label="Admin panel yuklanmoqda…" />}>
+                  <AdminPanelView
+                    courses={courses}
+                    tests={tests}
+                    categories={categories}
+                    news={news}
+                    submitCourse={submitCourse}
+                    approveCourse={approveCourse}
+                    deleteCourse={deleteCourse}
+                    updateCourse={updateCourse}
+                    submitTest={submitTest}
+                    approveTest={approveTest}
+                    deleteTest={deleteTest}
+                    updateTest={updateTest}
+                    renameCategory={renameCategory}
+                    deleteCategory={deleteCategory}
+                    addNews={addNews}
+                    deleteNews={deleteNews}
+                    ensureCourseContent={ensureCourseContent}
+                    ensureTestContent={ensureTestContent}
+                    initialSubTab={initialDeepLink ? null : (initialPosition.admin?.subTab || null)}
+                  />
+                </Suspense>
+              )}
+              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} />}
+              {!viewingUsername && tab === 'about' && <AboutView />}
+            </PaperPanel>
+          </>
+        )}
+      </main>
+
+      </div>
+
+      {/* Mobil pastki navigatsiya paneli: beshta bo‘lim teng kenglikda */}
+      {!readingActive && (
+        <nav
+          className="md:hidden fixed bottom-0 inset-x-0 z-40 flex items-center px-1.5 pb-[max(6px,env(safe-area-inset-bottom))] pt-2"
+          style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})`, boxShadow: '0 -6px 20px rgba(15,61,46,0.25)' }}
+          aria-label="Asosiy navigatsiya"
+        >
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            const activeTab = tab === t.id;
+            const label = t.id === 'arena' ? 'Arena' : t.label;
+            return (
+              <button
+                key={t.id}
+                onClick={() => goTo(t.id)}
+                aria-current={activeTab ? 'page' : undefined}
+                className="nav-btn flex flex-1 min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1.5 rounded-2xl focus-visible:outline focus-visible:outline-2"
+                style={{
+                  color: activeTab ? C.cover : 'rgba(251,250,243,0.72)',
+                  background: activeTab ? C.gold : 'transparent',
+                  outlineColor: C.gold,
+                }}
+              >
+                <Icon size={19} strokeWidth={activeTab ? 2.3 : 1.8} />
+                <span className="text-[10px] leading-tight whitespace-nowrap" style={{ ...fontBody, fontWeight: activeTab ? 600 : 400 }}>{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
+        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} />
+      </Suspense>}
+
+      {learningTasksOpen && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,27,18,0.58)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
+          <LearningTasksModal
+            session={session}
+            eligible={learningBadgeEligible}
+            onKnownComplete={markLearningTaskComplete}
+            onCheckOwned={checkLearningBadgeOwned}
+            C={C}
+            fontBody={fontBody}
+            fontDisplay={fontDisplay}
+            fontMono={fontMono}
+            onClose={() => setLearningTasksOpen(false)}
+            onStartTest={() => { setLearningTasksOpen(false); setTab('testlar'); }}
+            onOpenGift={() => { setLearningTasksOpen(false); setLearningBadgeError(''); setGiftOpen(true); }}
+          />
+        </Suspense>
+      )}
+      {giftOpen && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,27,18,0.62)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
+        <DeferredGiftModal
+          session={session}
+          eligible={learningBadgeEligible}
+          onAccept={claimLearningBadge}
+          onStartTest={() => { setGiftOpen(false); setTab('testlar'); }}
+          onRequireLogin={() => { setGiftOpen(false); setTab('profil'); }}
+          onClose={() => setGiftOpen(false)}
+        />
+        </Suspense>
+      )}
+    </div>
+    </NavContext.Provider>
+    </SectionLoadingProvider>
+  );
+}
+
+
