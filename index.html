@@ -320,8 +320,64 @@
             <span>Testlar</span>
           </button>
           <button class="ucs-nb-center">
-            <svg width="20" height="20" viewBox="0 0 24 MethodInvocationException: 
-Line |
-   2 |  … File]::ReadAllText($p);[Console]::Out.Write($s.Substring(16000,2794))
-     |                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     | Exception calling "Substring" with "2" argument(s): "Index and length must refer to a location within the string. (Parameter 'length')"
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="ucs-nb">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
+            <span>Yangiliklar</span>
+          </button>
+          <button class="ucs-nb">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+            <span>Profil</span>
+          </button>
+        </nav>
+      </div>
+    </div>
+    <script>
+      // 6 ta skeleton kartochkasini generatsiya qilamiz (haqiqiy ilova skeletoni bilan bir xil sondagi va nisbatdagi).
+      (function () {
+        var wrap = document.getElementById('ucsCards');
+        if (!wrap) return;
+        var widths = [82, 70, 65, 82, 70, 78];
+        var html = '';
+        for (var i = 0; i < 6; i++) {
+          html += '' +
+            '<div class="ucs-card">' +
+              '<div class="ucs-card-left">' +
+                '<div class="ucs-card-icon"></div>' +
+                '<div class="ucs-card-lines">' +
+                  '<div class="ucs-card-line1" style="width:' + widths[i] + '%"></div>' +
+                  '<div class="ucs-card-line2"></div>' +
+                  '<div class="ucs-card-line3"></div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="ucs-card-right"><span></span><span></span></div>' +
+            '</div>';
+        }
+        wrap.innerHTML = html;
+      })();
+
+      // React ildizga birinchi marta chizib bo'lgach, splash ekranni yumshoq yo'qotadi.
+      (function () {
+        var root = document.getElementById('root');
+        var splash = document.getElementById('upcourse-splash');
+        if (!root || !splash) return;
+        function removeSplash() {
+          splash.classList.add('uc-hide');
+          setTimeout(function () {
+            if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+          }, 400);
+          observer.disconnect();
+        }
+        var observer = new MutationObserver(function () {
+          for (var i = 0; i < root.childNodes.length; i++) {
+            if (root.childNodes[i] !== splash) { removeSplash(); break; }
+          }
+        });
+        observer.observe(root, { childList: true });
+        setTimeout(removeSplash, 10000);
+      })();
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
