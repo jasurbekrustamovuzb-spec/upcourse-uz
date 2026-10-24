@@ -66,7 +66,7 @@ function YouTubeEmbed({ url }) {
   const playerRef = useRef(null);
   const mountedRef = useRef(true);
   const playRequestedRef = useRef(false);
-  const videoId = extractYouTubeId(url);
+  const videoId = extractYouTubeId(typeof url === 'string' ? url : '');
 
   useEffect(() => {
     if (!videoId) return undefined;
@@ -248,7 +248,15 @@ function PlayIcon() {
 
 export function CourseBody({ content, videoUrl }) {
   const marker = '{{video}}';
-  const lines = (content || '').split('\n');
+  const safeContent = typeof content === 'string'
+    ? content
+    : Array.isArray(content)
+      ? content.map((line) => typeof line === 'string' ? line : JSON.stringify(line)).join('\n')
+      : content && typeof content === 'object'
+        ? String(content.text ?? content.content ?? JSON.stringify(content))
+        : '';
+  const safeVideoUrl = typeof videoUrl === 'string' ? videoUrl : '';
+  const lines = safeContent.split('\n');
   const blocks = [];
   let buffer = [];
   const flush = () => {
@@ -268,13 +276,13 @@ export function CourseBody({ content, videoUrl }) {
     }
   });
   flush();
-  if (videoUrl && !videoInserted) blocks.push({ type: 'video' });
+  if (safeVideoUrl && !videoInserted) blocks.push({ type: 'video' });
 
   return (
     <div className="space-y-4 max-w-2xl">
       {blocks.map((b, i) =>
         b.type === 'video' ? (
-          videoUrl ? <YouTubeEmbed key={i} url={videoUrl} /> : null
+          safeVideoUrl ? <YouTubeEmbed key={i} url={safeVideoUrl} /> : null
         ) : (
           <p key={i} className="text-base leading-7" style={{ ...fontBody, color: C.ink }}>
             {b.lines.map((l, j) => (
