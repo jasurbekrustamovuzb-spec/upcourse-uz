@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Check, Lock, Plus, Trash2, Users, X } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Check, Download, FileText, Lock, Plus, Trash2, Upload, Users, X } from 'lucide-react';
 import { C, fontBody, fontMono, GhostButton, SolidButton } from './App';
 
 export default function MatchingTestForm({ initialCategoryName = '', initialTest, onSubmit, onSave, onDone, onView }) {
@@ -13,9 +13,47 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
     return rows.length ? rows : [{ left: '', right: '' }, { left: '', right: '' }];
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [newId, setNewId] = useState(null);
+  const [importMessage, setImportMessage] = useState('');
+  const fileInput = useRef(null);
   function change(index, key, value) { setPairs(rows => rows.map((row, i) => i === index ? { ...row, [key]: value } : row)); }
   function addPair() { if (pairs.length < 26) setPairs(rows => [...rows, { left: '', right: '' }]); }
   function removePair(index) { if (pairs.length > 2) setPairs(rows => rows.filter((_, i) => i !== index)); }
+  function downloadTemplate() {
+    const template = '# Har bir qatorda bitta juftlik yozing: chapdagi element | mos javob\n# Masalan:\nO‘zbekiston poytaxti | Toshkent\n2 × 3 | 6\nKitob | Book\n';
+    const url = URL.createObjectURL(new Blob([template], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'matching-juftliklar-namuna.txt'; link.click();
+    URL.revokeObjectURL(url);
+  }
+  async function importTextFile(file) {
+    setImportMessage(''); setError('');
+    if (!file) return;
+    try {
+      const text = (await file.text()).replace(/^\uFEFF/, '');
+      const rows = [], invalid = [];
+      text.split(/\r?\n/).forEach((line, index) => {
+        const value = line.trim();
+        if (!value || value.startsWith('#')) return;
+        const separator = value.includes('|') ? '|' : value.includes('\t') ? '\t' : value.includes('→') ? '→' : null;
+        if (!separator) { invalid.push(index + 1); return; }
+        const parts = value.split(separator);
+        if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) { invalid.push(index + 1); return; }
+        rows.push({ left: parts[0].trim(), right: parts[1].trim() });
+      });
+      if (invalid.length) {
+        setError('TXT faylning ' + invalid.slice(0, 5).join(', ') + '-qatori noto‘g‘ri. Har qatorni “chap | o‘ng” shaklida yozing.');
+      } else if (rows.length < 2) {
+        setError('Faylda kamida 2 ta juftlik boʻlishi kerak.');
+      } else if (rows.length > 26) {
+        setError('Faylda ' + rows.length + ' ta juftlik bor. Hozircha eng koʻpi 26 ta juftlik kiritish mumkin.');
+      } else {
+        setPairs(rows); setImportMessage(rows.length + ' ta juftlik fayldan qoʻshildi.');
+      }
+    } catch {
+      setError('TXT faylni oʻqib boʻlmadi. UTF-8 formatidagi .txt faylni tanlang.');
+    } finally {
+      if (fileInput.current) fileInput.current.value = '';
+    }
+  }
   const valid = (initialTest || categoryName.trim()) && title.trim() && pairs.length >= 2 && pairs.every(p => p.left.trim() && p.right.trim());
   async function submit() {
     if (!valid || busy) return;
@@ -46,7 +84,14 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
     </div>
     {!initialTest && <><label className="mb-1 block text-xs" style={{ ...fontMono, color: C.inkSoft }}>Soha nomi</label><input value={categoryName} onChange={e => setCategoryName(e.target.value)} placeholder="Masalan: Ingliz tili" className="mb-4 w-full rounded-lg px-3 py-2.5 text-sm outline-none" style={field} /></>}
     <label className="mb-1 block text-xs" style={{ ...fontMono, color: C.inkSoft }}>Test nomi</label><input value={title} onChange={e => setTitle(e.target.value)} placeholder="Masalan: Soʻzlarni maʼnosi bilan moslang" className="mb-4 w-full rounded-lg px-3 py-2.5 text-sm outline-none" style={field} />
-    <div className="mb-2 flex items-center justify-between"><span className="text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Juftliklar</span><span className="text-xs" style={{ ...fontMono, color: C.gold }}>{pairs.length}/26</span></div>
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Juftliklar</span><span className="text-xs" style={{ ...fontMono, color: C.gold }}>{pairs.length}/26</span></div>
+    <div className="mb-3 flex flex-wrap gap-2">
+      <input ref={fileInput} type="file" accept=".txt,text/plain" className="hidden" aria-label="Juftliklar TXT faylini tanlang" onChange={event => importTextFile(event.target.files?.[0])} />
+      <button type="button" onClick={() => fileInput.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium" style={{ ...fontBody, color: C.cover, background: C.mathTint, border: '1px solid ' + C.mathSoft }}><Upload size={14} /> TXT fayldan yuklash</button>
+      <button type="button" onClick={downloadTemplate} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs" style={{ ...fontBody, color: C.inkSoft, border: '1px solid ' + C.rule }}><Download size={14} /> Namuna TXT</button>
+    </div>
+    <p className="mb-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}><FileText size={13} className="mr-1 inline" />Faylda har qatorda bitta juftlik: <code className="rounded px-1" style={{ background: C.paperSoft }}>chapdagi element | mos javob</code>. Boʻsh qator va # bilan boshlangan izohlar eʼtiborga olinmaydi.</p>
+    {importMessage && <p role="status" className="mb-3 text-xs font-medium" style={{ ...fontBody, color: C.accent }}>{importMessage}</p>}
     <div className="space-y-2">{pairs.map((pair, i) => <div key={pair.id || i} className="grid min-w-0 grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)_32px] items-center gap-1.5 rounded-xl p-2 sm:grid-cols-[32px_minmax(0,1fr)_28px_minmax(0,1fr)_36px] sm:gap-2 sm:p-3" style={{ background: C.paper, border: '1px solid ' + C.rule }}>
       <span className="hidden h-7 w-7 items-center justify-center rounded-full text-xs sm:flex" style={{ ...fontMono, color: C.white, background: C.cover }}>{i + 1}</span>
       <input value={pair.left} onChange={e => change(i, 'left', e.target.value)} aria-label={(i + 1) + '-chapdagi juft'} placeholder="Chapdagi element" className="min-w-0 w-full rounded-lg px-2 py-2 text-xs outline-none sm:px-3 sm:text-sm" style={field} />
@@ -64,3 +109,5 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
     <div className="mt-4 flex flex-wrap gap-3"><SolidButton onClick={submit} icon={Check} disabled={!valid || busy}>{busy ? 'Saqlanmoqda…' : initialTest ? 'Matching testni yangilash' : 'Matching testni saqlash'}</SolidButton><GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton></div>
   </div>;
 }
+
+
