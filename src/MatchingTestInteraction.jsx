@@ -21,7 +21,7 @@ export default function MatchingTestInteraction({ question, answer = {}, onChang
   function point(e) { const r = root.current?.getBoundingClientRect(); return r ? { x: e.clientX - r.left, y: e.clientY - r.top } : null; }
   function down(e) { pointerUsed.current = true; const n = e.target.closest?.('[data-left]'); if (!n || disabled || showResult) return; setSelected(n.dataset.left); setDrag(point(e)); if (e.pointerType === 'touch') e.preventDefault(); }
   function move(e) { if (selected) setDrag(point(e)); }
-  function up(e) { if (selected) { const n = e.target.closest?.('[data-right]'); if (n) connect(selected, Number(n.dataset.right)); } setTimeout(() => { pointerUsed.current = false; }, 0); }
+  function up(e) { if (selected) { const hit = document.elementFromPoint(e.clientX, e.clientY); const n = hit?.closest?.('[data-right]'); if (n && root.current?.contains(n)) connect(selected, Number(n.dataset.right)); } setTimeout(() => { pointerUsed.current = false; }, 0); }
   function chooseLeft(id) { if (disabled || showResult || solved.has(id)) return; setSelected(id); setDrag(center('left', id)); }
   async function openWide() { try { if (!root.current?.requestFullscreen) throw new Error('fullscreen unavailable'); await root.current.requestFullscreen(); if (screen.orientation?.lock) await screen.orientation.lock('landscape'); else setRotateHint(true); } catch { setRotateHint(true); } }
   const pct = pairs.length ? Math.round(solved.size / pairs.length * 100) : 0;
