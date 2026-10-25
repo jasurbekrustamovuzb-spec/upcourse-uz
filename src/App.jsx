@@ -15,6 +15,7 @@ import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut }
 const AdminPanelView = lazy(() => import('./AdminPanel.jsx'));
 export const LiveQuizHub = lazy(() => import('./LiveQuiz.jsx'));
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
+const MatchingTestInteraction = lazy(() => import('./MatchingTestInteraction.jsx'));
 export const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
 const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
@@ -2329,50 +2330,11 @@ export function getQuestionScore(q, userAnswer) {
   return isQuestionCorrect(q, userAnswer) ? 1 : 0;
 }
 
-export function MatchingTestQuestion({ question, answer = {}, onChange, disabled = false, showResult = false, accent = 'gold' }) {
-  const accentColor = accent === 'live' ? C.live : C.gold;
-  const items = question.pairs || [{ id: question.id, text: question.text, correct: question.correct }];
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+export function MatchingTestQuestion(props) {
   return (
-    <div>
-      <div className="text-xs mb-3" style={{ ...fontMono, color: accentColor }}>Moslashtiring — har bir raqam uchun harfni tanlang</div>
-      <div className="grid md:grid-cols-2 gap-4">
-        <section className="min-w-0">
-          <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Matnlar</div>
-          <div className="space-y-2">
-            {items.map((pair, index) => {
-              const selected = typeof answer === 'number' && !question.pairs ? answer : answer[pair.id];
-              const correct = selected === pair.correct;
-              return (
-                <div key={pair.id} className="flex items-center gap-2 p-2.5 rounded-sm" style={{ background: showResult ? (correct ? C.successTint : C.dangerTint) : C.surface, border: `1px solid ${showResult ? (correct ? C.accent : C.red) : C.rule}` }}>
-                  <span className="w-7 h-7 flex items-center justify-center rounded-full text-xs flex-shrink-0" style={{ ...fontMono, color: C.white, background: accentColor }}>{index + 1}</span>
-                  <span className="min-w-0 flex-1 text-sm" style={{ ...fontBody, color: C.ink }}>{pair.text}</span>
-                  <select value={selected ?? ''} onChange={(event) => onChange(pair.id, event.target.value === '' ? undefined : Number(event.target.value))} disabled={disabled || showResult} aria-label={`${index + 1}-matn uchun mos harf`} className="w-16 px-2 py-2 rounded-sm text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }}>
-                    <option value="">—</option>
-                    {(question.options || []).map((_, optionIndex) => <option key={optionIndex} value={optionIndex}>{letters[optionIndex]}</option>)}
-                  </select>
-                  {showResult && <span className="text-xs flex-shrink-0" style={{ ...fontMono, color: correct ? C.accent : C.red }}>{correct ? 'OK' : letters[pair.correct]}</span>}
-                </div>
-              );
-            })}
-          </div>
-          <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>
-            Javoblar: {items.map((pair, index) => `${index + 1}${answer[pair.id] === undefined ? '—' : letters[answer[pair.id]]}`).join('  ')}
-          </div>
-        </section>
-        <section className="min-w-0">
-          <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Variantlar</div>
-          <div className="space-y-2">
-            {(question.options || []).map((option, index) => (
-              <div key={index} className="flex items-start gap-2 p-2.5 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
-                <span className="w-7 h-7 flex items-center justify-center rounded-full text-xs flex-shrink-0" style={{ ...fontMono, color: C.white, background: C.cover }}>{letters[index]}</span>
-                <span className="text-sm" style={{ ...fontBody, color: C.ink }}>{option}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </div>
+    <Suspense fallback={<div role="status" className="py-8 text-center text-sm" style={{ ...fontBody, color: C.inkSoft }}>Mosliklar…</div>}>
+      <MatchingTestInteraction {...props} colors={C} fonts={{ fontBody, fontMono }} />
+    </Suspense>
   );
 }
 
