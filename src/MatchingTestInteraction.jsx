@@ -40,7 +40,7 @@ export default function MatchingTestInteraction({ question, answer = {}, onChang
         {showResult && !isLeft && [...solved].map(sid => pairs.find(p => p.id === sid)).filter(p => p?.correct === ix).map(p => <span key={p.id} className="mt-1 block text-[10px]" style={{ color }}>✓ {p.text}</span>)}
       </button>;
     })}</div></section>)}</div>
-    <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full overflow-visible" aria-hidden="true">
+    <svg className="pointer-events-none absolute inset-0 z-[2] h-full w-full overflow-visible" aria-hidden="true">
       {flash?.a && flash?.b && <path d={'M' + flash.a.x + ' ' + flash.a.y + ' C' + (flash.a.x + 32) + ' ' + flash.a.y + ',' + (flash.b.x - 32) + ' ' + flash.b.y + ',' + flash.b.x + ' ' + flash.b.y} fill="none" stroke={flash.ok ? color : c.red} strokeWidth="3" strokeLinecap="round" strokeDasharray={flash.ok ? undefined : '6 5'} opacity=".85" />}
       {selected && drag && <path d={'M' + (center('left', selected)?.x ?? drag.x) + ' ' + (center('left', selected)?.y ?? drag.y) + ' C' + (drag.x + 30) + ' ' + drag.y + ',' + (drag.x - 30) + ' ' + drag.y + ',' + drag.x + ' ' + drag.y} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" opacity=".75" />}
     </svg>
