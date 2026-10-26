@@ -1735,32 +1735,46 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
             return (
               <div
                 key={cat.id}
-                className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                className="min-w-0 group flex flex-col gap-3 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                 style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                 onClick={() => onSelect(cat.id)}
               >
-                <div className="flex items-start min-w-0">
-                  <EntryNumber n={i + 1} />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                      {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
+                <div className="flex items-start justify-between gap-3 min-w-0">
+                  <div className="flex items-start min-w-0 gap-2">
+                    <EntryNumber n={i + 1} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                        {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
+                      </div>
+                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
                     </div>
-                    <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
-                    <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
                   </div>
+                  <ChevronRight size={16} className="flex-shrink-0 mt-1" style={{ color: C.gold }} />
                 </div>
-                <div className="flex items-center flex-shrink-0 gap-1">
-                  {shareParam && (
-                    <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={(event) => { event.stopPropagation(); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="inline-flex h-8 w-8 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, background: C.paper, border: `1px solid ${C.rule}`, outlineColor: C.gold }}><Share2 size={14} /></button>
-                  )}
-                  {(isAdmin || cat.authorId === userId) && (
-                    <ItemMenu actions={[
-                      { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
-                      ...(isAdmin ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) }] : []),
-                    ]} />
-                  )}
-                  <ChevronRight size={16} style={{ color: C.gold }} />
+
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <AuthorLine authorId={cat.authorId} authorName={cat.author} className="min-w-0 truncate text-xs" />
+                  <div className="flex flex-shrink-0 items-center gap-1">
+                    {shareParam && (
+                      <button
+                        type="button"
+                        aria-label={`${cat.name} sohasini ulashish`}
+                        title="Sohani ulashish"
+                        onClick={(event) => { event.stopPropagation(); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2"
+                        style={{ color: C.inkSoft, outlineColor: C.gold }}
+                      >
+                        <Share2 size={13} />
+                      </button>
+                    )}
+                    {(isAdmin || cat.authorId === userId) && (
+                      <ItemMenu actions={[
+                        { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
+                        ...(isAdmin ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) }] : []),
+                      ]} />
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -1779,46 +1793,13 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
           onSave={async (newName) => {
             const ok = await renameCategory(renaming.id, renaming.name, newName);
             if (ok) setRenaming(null);
+            return ok;
           }}
         />
       )}
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Kurslar (Courses)                                                  */
-/* ------------------------------------------------------------------ */
-
-function SuccessPanel({ onView, onDone }) {
-  return (
-    <div className="mt-6 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.accent}` }}>
-      <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" />
-      <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>Sizning loyihangiz muvaffaqiyatli qoʻshildi!</div>
-      <div className="flex gap-3 justify-center">
-        <SolidButton onClick={onView} icon={ChevronRight}>Koʻrish</SolidButton>
-        <GhostButton onClick={onDone} icon={X}>Yopish</GhostButton>
-      </div>
-    </div>
-  );
-}
-
-function CategoryPicker({ categories, value, onChange }) {
-  return (
-    <label className="block mb-4">
-      <span className="block text-xs mb-1 tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Soha</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-transparent outline-none py-2 text-base"
-        style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
-      >
-        {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-      </select>
-    </label>
-  );
-}
-
 export function AddCourseForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
