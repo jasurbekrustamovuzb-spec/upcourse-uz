@@ -1735,47 +1735,33 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
             return (
               <div
                 key={cat.id}
-                className="min-w-0 group flex flex-col gap-3 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
+                className="relative min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
                 style={{ background: C.surface, border: `1px solid ${C.rule}` }}
                 onClick={() => onSelect(cat.id)}
               >
-                <div className="flex items-start justify-between gap-3 min-w-0">
-                  <div className="flex items-start min-w-0 gap-2">
-                    <EntryNumber n={i + 1} />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                        {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
-                      </div>
-                      <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
+                <div className="flex items-start min-w-0">
+                  <EntryNumber n={i + 1} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
+                      {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
                     </div>
-                  </div>
-                  <ChevronRight size={16} className="flex-shrink-0 mt-1" style={{ color: C.gold }} />
-                </div>
-
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <AuthorLine authorId={cat.authorId} authorName={cat.author} className="min-w-0 truncate text-xs" />
-                  <div className="flex flex-shrink-0 items-center gap-1">
-                    {shareParam && (
-                      <button
-                        type="button"
-                        aria-label={`${cat.name} sohasini ulashish`}
-                        title="Sohani ulashish"
-                        onClick={(event) => { event.stopPropagation(); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2"
-                        style={{ color: C.inkSoft, outlineColor: C.gold }}
-                      >
-                        <Share2 size={13} />
-                      </button>
-                    )}
-                    {(isAdmin || cat.authorId === userId) && (
-                      <ItemMenu actions={[
-                        { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
-                        ...(isAdmin ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) }] : []),
-                      ]} />
-                    )}
+                    <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
+                    <AuthorLine authorId={cat.authorId} authorName={cat.author} className={shareParam ? "text-xs mt-1 pr-8" : "text-xs mt-1"} />
                   </div>
                 </div>
+                <div className="flex items-center flex-shrink-0 gap-1">
+                  {(isAdmin || cat.authorId === userId) && (
+                    <ItemMenu actions={[
+                      { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
+                      ...(isAdmin ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCategory(cat.id, cat.name) }] : []),
+                    ]} />
+                  )}
+                  <ChevronRight size={16} style={{ color: C.gold }} />
+                </div>
+                {shareParam && (
+                  <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={(event) => { event.stopPropagation(); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="absolute bottom-2 right-2 inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, outlineColor: C.gold }}><Share2 size={12} /></button>
+                )}
               </div>
             );
           })}
