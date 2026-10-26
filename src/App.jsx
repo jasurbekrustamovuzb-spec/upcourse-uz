@@ -287,6 +287,8 @@ function parseDeepLink() {
     const p = new URLSearchParams(window.location.search);
     if (p.get('course')) return { type: 'course', value: p.get('course') };
     if (p.get('test')) return { type: 'test', value: p.get('test') };
+    if (p.get('courseCategory')) return { type: 'courseCategory', value: p.get('courseCategory') };
+    if (p.get('testCategory')) return { type: 'testCategory', value: p.get('testCategory') };
     if (p.get('live')) return { type: 'live', value: p.get('live').toUpperCase() };
     if (p.get('battle')) return { type: 'battle', value: p.get('battle') };
     if (p.get('u')) return { type: 'profile', value: p.get('u') };
@@ -1719,7 +1721,7 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId }) {
+export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId, shareParam }) {
   const [renaming, setRenaming] = useState(null);
 
   return (
@@ -1749,6 +1751,9 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
                   </div>
                 </div>
                 <div className="flex items-center flex-shrink-0 gap-1">
+                  {shareParam && (
+                    <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={(event) => { event.stopPropagation(); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="inline-flex h-8 w-8 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, background: C.paper, border: `1px solid ${C.rule}`, outlineColor: C.gold }}><Share2 size={14} /></button>
+                  )}
                   {(isAdmin || cat.authorId === userId) && (
                     <ItemMenu actions={[
                       { label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) },
@@ -1975,8 +1980,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const goEdit = (id) => { setEditId(id); loadCourseContent(id); pushNav(() => setEditId(null)); };
 
   const myId = session?.user?.id;
-  const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = courses.filter((c) => c.status === 'approved');
+  const approvedCategories = categories.filter((c) => c.status !== 'pending' || approved.some((course) => course.categoryId === c.id));
   const fallbackCourse = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id);
   const fallbackCategoryId = approvedCategories.find((category) => category.name === FEATURED_COURSE_FALLBACK.category)?.id || null;
   const recommendationItems = fallbackCourse
@@ -2212,6 +2217,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             isAdmin={isAdmin}
             userId={session?.user?.id}
             featuredCategoryId={null}
+            shareParam="courseCategory"
           />
         )}
       </div>
@@ -2736,8 +2742,8 @@ export default function App() {
   const skipMainLoadingGate = initialDeepLink?.type === 'live' || initialDeepLink?.type === 'battle';
   const initialTab = (() => {
     if (initialDeepLink) {
-      if (initialDeepLink.type === 'course') return 'kurslar';
-      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle') return 'testlar';
+      if (initialDeepLink.type === 'course' || initialDeepLink.type === 'courseCategory') return 'kurslar';
+      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle') return 'testlar';
       if (initialDeepLink.type === 'profile') return 'profil';
       return 'kurslar';
     }
@@ -4077,8 +4083,8 @@ export default function App() {
               {viewingUsername && (
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
