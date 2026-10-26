@@ -467,8 +467,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const goMatchingTest = () => onGoToCommunity('testlar', '', 'matching');
 
   const myId = session?.user?.id;
-  const approvedCategories = categories.filter((c) => c.status !== 'pending');
   const approved = tests.filter((t) => t.status === 'approved');
+  const approvedCategories = categories.filter((c) => c.status !== 'pending' || approved.some((test) => test.categoryId === c.id));
   const viewable = isAdmin ? tests : tests.filter((t) => t.status === 'approved' || t.authorId === myId);
   /* To'liq tests ro'yxatidan qidiramiz (faqat viewable'dan emas) — shu
      tufayli ulashilgan havola orqali kirilgan tekshirilmoqda/xususiy
@@ -730,6 +730,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             onGoToCommunity={() => onGoToCommunity('testlar')}
             isAdmin={isAdmin}
             userId={session?.user?.id}
+            shareParam="testCategory"
           />
         )}
       </div>
