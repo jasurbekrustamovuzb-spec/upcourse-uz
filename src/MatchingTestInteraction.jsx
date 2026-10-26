@@ -4,13 +4,13 @@ export default function MatchingTestInteraction({ question, answer = {}, onChang
   const pairs = question.pairs || [{ id: question.id, text: question.text, correct: question.correct }], options = question.options || [];
   const order = useMemo(() => shuffle(options.length), [question.id, options.length]);
   const leftOrder = useMemo(() => shuffle(pairs.length), [question.id, pairs.length]);
-  const root = useRef(null), refs = useRef({ left: {}, right: {} }), pointerUsed = useRef(false), selectedDrag = useRef(null), rightScroller = useRef(null), dragFrame = useRef(0), pointer = useRef(null);
+  const root = useRef(null), refs = useRef({ left: {}, right: {} }), pointerUsed = useRef(false), selectedDrag = useRef(null), boardScroller = useRef(null), dragFrame = useRef(0), pointer = useRef(null);
   const [solved, setSolved] = useState(() => new Set(pairs.filter(p => answer?.[p.id] === p.correct).map(p => p.id)));
   const [selected, setSelected] = useState(null), [drag, setDrag] = useState(null), [flash, setFlash] = useState(null);
   const [streak, setStreak] = useState(0), [wrong, setWrong] = useState(null);
   const color = accent === 'live' ? c.live : c.gold, used = new Set([...solved].map(id => pairs.find(p => p.id === id)?.correct));
   const left = showResult ? pairs : leftOrder.map(i => pairs[i]).filter(p => !solved.has(p.id)), right = showResult ? order : order.filter(i => !used.has(i));
-  function center(side, id) { const n = refs.current[side][id], f = root.current; if (!n || !f) return null; const r = n.getBoundingClientRect(), b = f.getBoundingClientRect(); return { x: r.left + r.width / 2 - b.left, y: r.top + r.height / 2 - b.top }; }
+  function center(side, id) { const n = refs.current[side][id], f = root.current; if (!n || !f) return null; const r = n.getBoundingClientRect(), b = f.getBoundingClientRect(); return { x: (side === 'left' ? r.right : r.left) - b.left, y: r.top + r.height / 2 - b.top }; }
   function connect(id, ix) {
     if (!id || disabled || showResult || solved.has(id)) return;
     const p = pairs.find(x => x.id === id); if (!p) return;
@@ -26,14 +26,14 @@ export default function MatchingTestInteraction({ question, answer = {}, onChang
     const pageStep = y < edge ? -Math.ceil((edge - y) / 7) : y > window.innerHeight - edge ? Math.ceil((y - (window.innerHeight - edge)) / 7) : 0;
     if (pageStep) {
       let node = root.current?.parentElement, scrolled = false;
-      while (node && node !== document.body && node !== document.documentElement) {
+      while (node && node !== boardScroller.current && node !== document.body && node !== document.documentElement) {
         const style = getComputedStyle(node);
         if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1) { node.scrollTop += pageStep; scrolled = true; break; }
         node = node.parentElement;
       }
       if (!scrolled) window.scrollBy(0, pageStep);
     }
-    const lane = rightScroller.current, rect = lane?.getBoundingClientRect();
+    const lane = boardScroller.current, rect = lane?.getBoundingClientRect();
     if (lane && rect && x >= rect.left && x <= rect.right) {
       const laneEdge = Math.min(52, rect.height * .22);
       if (y < rect.top + laneEdge) lane.scrollTop -= Math.max(2, Math.ceil((rect.top + laneEdge - y) / 5));
@@ -46,15 +46,17 @@ export default function MatchingTestInteraction({ question, answer = {}, onChang
   function startAutoScroll() { if (!dragFrame.current) dragFrame.current = requestAnimationFrame(autoScroll); }
   function down(e) { pointerUsed.current = true; const n = e.target.closest?.('[data-left]'); if (!n || disabled || showResult) return; e.currentTarget.setPointerCapture?.(e.pointerId); pointer.current = { x: e.clientX, y: e.clientY }; selectedDrag.current = n.dataset.left; setSelected(n.dataset.left); setDrag(point(e)); if (e.pointerType === 'touch') e.preventDefault(); startAutoScroll(); }
   function move(e) { if (selectedDrag.current) { pointer.current = { x: e.clientX, y: e.clientY }; setDrag(point(e)); startAutoScroll(); } }
-  function up(e) { stopAutoScroll(); pointer.current = null; if (selectedDrag.current) { const selectedId = selectedDrag.current; const hit = document.elementFromPoint(e.clientX, e.clientY); const n = hit?.closest?.('[data-right]'); if (n && root.current?.contains(n)) connect(selectedId, Number(n.dataset.right)); } selectedDrag.current = null; setTimeout(() => { pointerUsed.current = false; }, 0); }
+  function up(e) { stopAutoScroll(); pointer.current = null; if (selectedDrag.current) { const selectedId = selectedDrag.current; const hit = document.elementFromPoint(e.clientX, e.clientY); const n = hit?.closest?.('[data-right]'); if (n && root.current?.contains(n)) connect(selectedId, Number(n.dataset.right)); else { selectedDrag.current = null; setSelected(null); setDrag(null); } } selectedDrag.current = null; setTimeout(() => { pointerUsed.current = false; }, 0); }
   function cancelDrag() { stopAutoScroll(); pointer.current = null; selectedDrag.current = null; setSelected(null); setDrag(null); }
   function chooseLeft(id) { if (disabled || showResult || solved.has(id)) return; setSelected(id); setDrag(center('left', id)); }
   const pct = pairs.length ? Math.round(solved.size / pairs.length * 100) : 0;
-  return <div ref={root} className="relative select-none" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancelDrag}>
+  return <div className="relative select-none">
     <style>{'@keyframes mp{55%{opacity:.55;transform:scale(1.04)}100%{opacity:0;transform:scale(.82) translateY(-5px)}}@keyframes mw{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}'}</style>
     <div className="mb-3 flex items-center justify-between gap-2"><span className="text-xs" style={{ ...fonts.fontMono, color }}>{showResult ? 'MOSLIKLAR' : 'JUFTLIKLARNI BOGʻLANG'}</span>{!showResult && <div className="flex items-center gap-2"><span aria-live="polite" className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ ...fonts.fontBody, color: streak ? c.cover : c.inkSoft, background: streak ? '#E7C477' : c.paperSoft }}>{streak ? '🔥 ' + streak + ' streak' : solved.size + '/' + pairs.length}</span></div>}</div>
     {!showResult && <div className="mb-3 h-1.5 overflow-hidden rounded-full" style={{ background: c.paperSoft }}><div className="h-full rounded-full transition-[width] duration-300" style={{ width: pct + '%', background: color }} /></div>}
-    <div className="relative z-[1] grid grid-cols-2 gap-2 sm:gap-4">{[['left', 'Chap tomon'], ['right', 'Oʻng tomon']].map(([side, title]) => <section key={side} className="min-w-0"><div className="mb-2 px-1 text-[10px] uppercase tracking-wide sm:text-xs" style={{ ...fonts.fontMono, color: c.inkSoft }}>{title}</div><div ref={side === 'right' ? rightScroller : undefined} className={side === 'right' ? 'max-h-[min(62vh,520px)] space-y-2 overflow-y-auto overscroll-contain pr-1 pb-1' : 'space-y-2'} style={side === 'right' ? { scrollbarGutter: 'stable' } : undefined}>{(side === 'left' ? left : right).map(item => {
+    <div ref={boardScroller} className="max-h-[min(62vh,520px)] overflow-y-auto overscroll-contain rounded-2xl px-3 py-1" style={{ scrollbarGutter: 'stable both-edges' }}>
+    <div ref={root} className="relative select-none" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancelDrag}>
+    <div className="relative z-[1] grid grid-cols-2 gap-2 px-1 sm:gap-4 sm:px-2">{[['left', 'Chap tomon'], ['right', 'Oʻng tomon']].map(([side, title]) => <section key={side} className="min-w-0"><div className="mb-2 px-1 text-[10px] uppercase tracking-wide sm:text-xs" style={{ ...fonts.fontMono, color: c.inkSoft }}>{title}</div><div className="space-y-2">{(side === 'left' ? left : right).map(item => {
       const isLeft = side === 'left', id = isLeft ? item.id : null, ix = isLeft ? null : item, label = isLeft ? item.text : options[ix];
       const correct = isLeft && answer?.[id] === item.correct, isWrong = isLeft && answer?.[id] !== undefined && !correct;
       const done = isLeft ? solved.has(id) : used.has(ix), fading = isLeft ? flash?.id === id && flash.ok : flash?.ix === ix && flash.ok;
@@ -68,6 +70,7 @@ export default function MatchingTestInteraction({ question, answer = {}, onChang
       {flash?.a && flash?.b && <path d={'M' + flash.a.x + ' ' + flash.a.y + ' C' + (flash.a.x + 32) + ' ' + flash.a.y + ',' + (flash.b.x - 32) + ' ' + flash.b.y + ',' + flash.b.x + ' ' + flash.b.y} fill="none" stroke={flash.ok ? color : c.red} strokeWidth="3" strokeLinecap="round" strokeDasharray={flash.ok ? undefined : '6 5'} opacity=".85" />}
       {selected && drag && <path d={'M' + (center('left', selected)?.x ?? drag.x) + ' ' + (center('left', selected)?.y ?? drag.y) + ' C' + (drag.x + 30) + ' ' + drag.y + ',' + (drag.x - 30) + ' ' + drag.y + ',' + drag.x + ' ' + drag.y} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" opacity=".75" />}
     </svg>
+    </div></div>
     {selected && <div className="mt-2 text-center text-[11px] sm:hidden" style={{ ...fonts.fontBody, color: c.inkSoft }}>Mos javobga chizing yoki tegining</div>}
     {!showResult && pairs.length > 0 && solved.size === pairs.length && <div role="status" className="mt-3 rounded-xl px-3 py-2 text-center text-sm font-semibold" style={{ ...fonts.fontBody, color: c.cover, background: c.successTint }}>Ajoyib! Barcha juftliklar topildi ✨</div>}
   </div>;
