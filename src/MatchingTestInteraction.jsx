@@ -40,7 +40,7 @@ export default function MatchingTestInteraction({ question, answer = {}, onChang
       }
     } catch { /* fullscreen bloklansa, odatiy sahifa ishlashda davom etadi */ }
   }
-  function center(side, id) { const n = refs.current[side][id], f = root.current; if (!n || !f) return null; const r = n.getBoundingClientRect(), b = f.getBoundingClientRect(); return { x: (side === 'left' ? r.right : r.left) - b.left, y: r.top + r.height / 2 - b.top }; }
+  function center(side, id) { const n = refs.current[side][id], f = root.current; if (!n || !f) return null; const r = n.getBoundingClientRect(), b = f.getBoundingClientRect(); return { x: r.left + r.width / 2 - b.left, y: r.top + r.height / 2 - b.top }; }
   function connect(id, ix) {
     if (!id || disabled || showResult || solved.has(id)) return;
     const p = pairs.find(x => x.id === id); if (!p) return;
