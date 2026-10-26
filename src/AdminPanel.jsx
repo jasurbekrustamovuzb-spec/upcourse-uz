@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import {
   BookOpen, ListChecks, Newspaper, Plus, ChevronRight, ArrowLeft, Trash2,
-  Pencil, ShieldCheck, Lock, Clock3, Tag, Coins, Check,
+  Pencil, ShieldCheck, Lock, Clock3, Tag, Coins, Check, Swords,
 } from 'lucide-react';
 import {
   C, fontBody, fontMono, NavContext, formatDate, writePosition,
@@ -9,6 +9,7 @@ import {
   RenameCategoryModal, AddNewsForm,
 } from './App';
 import { supabase } from './supabaseClient';
+import TeamBattleAdminView from './TeamBattleAdminView.jsx';
 
 /* ------------------------------------------------------------------ */
 /*  Admin panel — faqat "Admin panel" boʻlimiga kirilganda React.lazy   */
@@ -474,6 +475,7 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
       />
     );
   }
+  if (subTab === 'jamoaviy-savollar') return <TeamBattleAdminView onBack={() => setSubTab(null)} />;
   if (subTab === 'arena-materiallar') return <AdminArenaContentView onBack={() => setSubTab(null)} />;
   if (subTab === 'promo-kodlar') return <AdminPromoView onBack={() => setSubTab(null)} />;
   if (subTab === 'sohalar') {
@@ -490,6 +492,16 @@ export default function AdminPanelView({ courses, tests, categories, news, submi
         Foydalanuvchilar yuborgan mavzu va testlarni shu yerda tekshirasiz. Tasdiqlangach, ular asosiy Kurslar/Testlar boʻlimiga chiqadi va hammaga ochiq boʻladi. Xususiy deb belgilanganlar tasdiqlashsiz saqlanadi — bu yerda faqat koʻrish uchun.
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
+        <button onClick={() => goSubTab('jamoaviy-savollar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Swords size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Jamoaviy jang savollari</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Saqlangan savol-javob toʻplamlari</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
         <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
           <div className="flex items-center gap-3">
             <BookOpen size={20} style={{ color: C.gold }} />
