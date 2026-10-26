@@ -32,3 +32,8 @@ export async function setTeamBattleSetShared(id, isShared) {
 export async function deleteTeamBattleSet(id) {
   return unwrap(await supabase.from('team_battle_sets').delete().eq('id', id));
 }
+
+export async function listTeamBattleSetsAdmin() {
+  const data = unwrap(await supabase.rpc('admin_list_team_battle_sets'));
+  return Array.isArray(data) ? data : [];
+}
