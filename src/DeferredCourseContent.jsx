@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect, useRef } from 'react';
 
-import { Loader2, Maximize2 } from 'lucide-react';
+import { Loader2, Maximize2, Minimize2 } from 'lucide-react';
 
 import { C, fontBody } from './App.jsx';
 
@@ -72,7 +72,9 @@ function YouTubeEmbed({ url }) {
     if (!videoId) return undefined;
     mountedRef.current = true;
     const updateFullscreen = () => {
-      setFullscreen(document.fullscreenElement === shellRef.current || document.webkitFullscreenElement === shellRef.current);
+      const active = document.fullscreenElement === shellRef.current || document.webkitFullscreenElement === shellRef.current;
+      setFullscreen(active);
+      if (!active) { try { screen.orientation?.unlock?.(); } catch { /* ixtiyoriy imkoniyat */ } }
     };
     document.addEventListener('fullscreenchange', updateFullscreen);
     document.addEventListener('webkitfullscreenchange', updateFullscreen);
@@ -97,10 +99,14 @@ function YouTubeEmbed({ url }) {
       if (document.fullscreenElement || document.webkitFullscreenElement) {
         if (document.exitFullscreen) await document.exitFullscreen();
         else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        try { screen.orientation?.unlock?.(); } catch { /* brauzer unlock'ni qo'llamasligi mumkin */ }
         return;
       }
       if (shell.requestFullscreen) await shell.requestFullscreen();
       else if (shell.webkitRequestFullscreen) shell.webkitRequestFullscreen();
+      if (matchMedia('(pointer: coarse)').matches && screen.orientation?.lock) {
+        try { await screen.orientation.lock('landscape'); } catch { /* bu qurilmada aylantirish qulfi qo'llanmasligi mumkin */ }
+      }
     } catch (e) {
       // Fullscreen can be blocked by the browser; inline playback remains available.
     }
@@ -193,6 +199,9 @@ function YouTubeEmbed({ url }) {
         >
           <div ref={playerMountRef} className="w-full h-full" />
         </div>
+        {fullscreen && playerState === 'playing' && (
+          <button type="button" onClick={toggleFullscreen} className="absolute right-3 top-3 z-30 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium" style={{ color: '#fff', background: 'rgba(0,0,0,.72)', border: '1px solid rgba(255,255,255,.6)' }} aria-label="Asliga qaytarish" title="Asliga qaytarish"><Minimize2 size={16} /> Asliga qaytarish</button>
+        )}
         {playerState !== 'playing' && (
           <button
             type="button"
