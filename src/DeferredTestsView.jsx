@@ -637,7 +637,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
           >
-            <ListChecks size={14} /> Matching test yaratish
+            <ListChecks size={14} /> Moslik testi
           </button>
           <button
             onClick={goTeamBattle}
