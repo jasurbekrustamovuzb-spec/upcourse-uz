@@ -11,10 +11,15 @@ export default function MatchingTestInteraction({ question, answer = {}, onChang
   const [streak, setStreak] = useState(0), [wrong, setWrong] = useState(null), [wideMode, setWideMode] = useState(false), [streakToast, setStreakToast] = useState(null);
   const streakTimer = useRef(null);
   const color = accent === 'live' ? c.live : c.gold, used = new Set([...solved].map(id => pairs.find(p => p.id === id)?.correct));
-  // Faqat uchta ochiq juftlik ko‘rinadi; bittasi yechilishi bilan navbatdagisi kiradi.
+  // Chapda uchta juftlik turadi, o‘ngda esa bir vaqtning o‘zida ulardan faqat bittasining javobi chiqadi.
   const activePairs = showResult ? pairs : leftOrder.map(i => pairs[i]).filter(p => !solved.has(p.id)).slice(0, 3);
+  const activePairKey = activePairs.map(pair => pair.id).join('|');
+  const targetPairId = useMemo(() => activePairs[Math.floor(Math.random() * activePairs.length)]?.id, [activePairKey]);
+  const targetPair = activePairs.find(pair => pair.id === targetPairId) || activePairs[0];
   const activeCorrectOptions = new Set(activePairs.map(pair => pair.correct));
-  const left = showResult ? pairs : activePairs, right = showResult ? order : order.filter(i => activeCorrectOptions.has(i));
+  const decoyOptions = order.filter(index => !activeCorrectOptions.has(index)).slice(0, 2);
+  const visibleOptions = targetPair ? new Set([targetPair.correct, ...decoyOptions]) : new Set();
+  const left = showResult ? pairs : activePairs, right = showResult ? order : order.filter(index => visibleOptions.has(index));
   useEffect(() => {
     const syncFullscreen = () => {
       const active = document.fullscreenElement === wideRoot.current || document.webkitFullscreenElement === wideRoot.current;
