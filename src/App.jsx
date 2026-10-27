@@ -1584,17 +1584,17 @@ export function ShareButton({ url, title, small }) {
 /* ShareButton bilan bir xil mantiq, lekin ⋮ menyu ichidan (alohida
    ko'rinadigan tugmasiz) chaqirish uchun — masalan kartochka menyusidagi
    "Ulashish" bandi. */
-export async function shareItem(url, title) {
+export async function shareItem(url, title, text) {
   if (!url) return;
   if (navigator.share) {
     try {
-      await navigator.share({ url, title: title || 'UpCourse Uz' });
+      await navigator.share({ url, title: title || 'UpCourse Uz', ...(text ? { text } : {}) });
       return;
     } catch (e) { /* foydalanuvchi ulashish oynasini bekor qilgan bo'lishi mumkin */ }
   }
   try {
-    await navigator.clipboard.writeText(url);
-    window.alert('Havola nusxalandi!');
+    await navigator.clipboard.writeText(text ? `${text}\n${url}` : url);
+    window.alert(text ? 'Natija va havola nusxalandi!' : 'Havola nusxalandi!');
   } catch (e) { /* clipboard mavjud bo'lmasa e'tiborsiz qoldiriladi */ }
 }
 
