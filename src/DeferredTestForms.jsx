@@ -233,7 +233,7 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
 
   if (formMode === 'matching') {
     return (
-      <Suspense fallback={<SectionLoading label="Matching test muharriri yuklanmoqda…" compact />}>
+      <Suspense fallback={<SectionLoading label="Moslik testi yuklanmoqda…" compact />}>
         <MatchingTestForm initialCategoryName={initialCategoryName} onSubmit={onSubmit} onDone={onDone} onView={onView} />
       </Suspense>
     );
@@ -306,7 +306,7 @@ export function EditTestForm({ test, onSave, onDone }) {
 
   if (test.questions.some((question) => question.type === 'matching')) {
     return (
-      <Suspense fallback={<SectionLoading label="Matching test muharriri yuklanmoqda…" compact />}>
+      <Suspense fallback={<SectionLoading label="Moslik testi yuklanmoqda…" compact />}>
         <MatchingTestForm initialTest={test} onSave={onSave} onDone={onDone} />
       </Suspense>
     );
