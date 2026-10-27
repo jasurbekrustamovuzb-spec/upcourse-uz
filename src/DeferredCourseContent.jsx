@@ -200,7 +200,7 @@ function YouTubeEmbed({ url }) {
           <div ref={playerMountRef} className="w-full h-full" />
         </div>
         {fullscreen && playerState === 'playing' && (
-          <button type="button" onClick={toggleFullscreen} className="absolute right-3 top-3 z-30 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium" style={{ color: '#fff', background: 'rgba(0,0,0,.72)', border: '1px solid rgba(255,255,255,.6)' }} aria-label="Asliga qaytarish" title="Asliga qaytarish"><Minimize2 size={16} /> Asliga qaytarish</button>
+          <button type="button" onClick={toggleFullscreen} className="absolute left-2 top-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-full p-0 opacity-75 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2" style={{ color: '#fff', background: 'rgba(0,0,0,.5)', border: '1px solid rgba(255,255,255,.4)', backdropFilter: 'blur(4px)' }} aria-label="Asliga qaytarish" title="Asliga qaytarish"><Minimize2 size={13} /></button>
         )}
         {playerState !== 'playing' && (
           <button
