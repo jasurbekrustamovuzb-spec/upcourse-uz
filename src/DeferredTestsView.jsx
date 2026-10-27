@@ -223,52 +223,54 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           <ArrowLeft size={15} /> Barcha testlar
         </button>
 
-        <section ref={resultSummaryRef} aria-labelledby="quiz-result-title" className="relative max-w-2xl overflow-hidden rounded-2xl p-4 sm:p-6 mb-4" style={{ background: `linear-gradient(135deg, ${C.cover}, ${C.coverDeep})`, color: C.white, scrollMarginTop: '5rem', boxShadow: '0 10px 28px rgba(24, 54, 39, .16)' }}>
-          <div className="absolute -right-10 -top-14 h-40 w-40 rounded-full opacity-10" style={{ background: C.goldSoft }} aria-hidden="true" />
-          <div className="relative flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[10px] sm:text-xs uppercase tracking-[.18em]" style={{ ...fontBody, color: C.goldSoft }}>Test yakunlandi</div>
-              <h3 id="quiz-result-title" className="mt-1 text-xl sm:text-2xl" style={{ ...fontDisplay, color: C.white, fontWeight: 600 }}>{test.title}</h3>
+        <section ref={resultSummaryRef} aria-labelledby="quiz-result-title" className="max-w-2xl rounded-xl border p-4 sm:p-5 mb-3" style={{ background: C.surface, borderColor: C.rule, scrollMarginTop: '5rem' }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[.16em]" style={{ ...fontBody, color: C.inkSoft }}>Test yakunlandi</div>
+              <h3 id="quiz-result-title" className="mt-1 text-xl sm:text-2xl" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
             </div>
-            <button
-              type="button"
-              aria-label="Natijani ulashish"
-              title="Natijani ulashish"
-              onClick={() => {
-                const message = `🧠 Men «${test.title}» testidan ${percent}% oldim — ${correctCount}/${totalCount}! ⏱️ ${formatDuration(seconds)}\\nBu mavzuni siz qanchalik yaxshi bilasiz? Bilimingizni sinab ko‘ring 👇`;
-                shareItem(buildShareUrl({ test: test.id }), `${test.title} · UpCourse Uz`, message);
-              }}
-              className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition hover:scale-105 focus-visible:outline focus-visible:outline-2"
-              style={{ color: C.white, borderColor: 'rgba(255,255,255,.32)', background: 'rgba(255,255,255,.1)', outlineColor: C.gold }}
-            >
-              <Share2 size={18} />
+            <button type="button" aria-label="Natijani ulashish" title="Natijani ulashish" onClick={() => {
+              const message = `🧠 Men «${test.title}» testidan ${percent}% oldim — ${correctCount}/${totalCount}! ⏱️ ${formatDuration(seconds)}\nBu mavzuni siz qanchalik yaxshi bilasiz? Bilimingizni sinab ko‘ring 👇`;
+              shareItem(buildShareUrl({ test: test.id }), `${test.title} · UpCourse Uz`, message);
+            }} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition hover:scale-105 focus-visible:outline focus-visible:outline-2" style={{ color: C.cover, borderColor: C.rule, background: C.successTint, outlineColor: C.gold }}>
+              <Share2 size={17} />
             </button>
           </div>
-          <div className="relative mt-5 flex flex-wrap items-end justify-between gap-x-5 gap-y-2">
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl sm:text-5xl leading-none" style={{ ...fontMono, color: C.goldSoft, fontWeight: 700 }}>{percent}%</span>
-              <span className="text-sm" style={{ ...fontBody, color: 'rgba(255,255,255,.82)' }}>natija</span>
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="rounded-lg px-3 py-2" style={{ background: C.successTint }}>
+              <div className="text-2xl leading-none" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}>{percent}%</div>
+              <div className="mt-1 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>Natija</div>
             </div>
-            <div className="flex items-center gap-3 text-sm" style={{ ...fontBody, color: 'rgba(255,255,255,.9)' }}>
-              <span className="inline-flex items-center gap-1.5"><Check size={16} style={{ color: C.goldSoft }} /> {correctCount}/{totalCount} to‘g‘ri</span>
-              <span className="inline-flex items-center gap-1.5"><Clock3 size={15} /> {formatDuration(seconds)}</span>
+            <div className="rounded-lg px-3 py-2" style={{ background: C.successTint }}>
+              <div className="inline-flex items-center gap-1.5 text-lg leading-none" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}><Check size={16} /> {correctCount}/{totalCount}</div>
+              <div className="mt-1 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>To‘g‘ri</div>
+            </div>
+            <div className="rounded-lg px-3 py-2" style={{ background: C.dangerTint }}>
+              <div className="inline-flex items-center gap-1.5 text-lg leading-none" style={{ ...fontMono, color: C.red, fontWeight: 700 }}><X size={16} /> {incorrectCount}</div>
+              <div className="mt-1 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>Xato</div>
+            </div>
+            <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(184, 137, 57, .11)' }}>
+              <div className="inline-flex items-center gap-1.5 text-lg leading-none" style={{ ...fontMono, color: C.gold, fontWeight: 700 }}><Clock3 size={15} /> {formatDuration(seconds)}</div>
+              <div className="mt-1 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>Vaqt</div>
             </div>
           </div>
-          <div className="relative mt-4 h-2 overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} role="progressbar" aria-label="Test natijasi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${percent}%`, background: C.goldSoft }} />
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: C.dangerTint }} role="progressbar" aria-label="Test natijasi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${percent}%`, background: C.accent }} />
           </div>
-          <div className="relative mt-2 text-xs" style={{ ...fontBody, color: 'rgba(255,255,255,.72)' }}>{incorrectCount} ta noto‘g‘ri javob</div>
+          <p className="mt-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+            {percent === 100 ? 'Ajoyib! Mavzuni juda yaxshi o‘zlashtirdingiz.' : 'Yaxshi urinish — yana bir bor urinib, natijangizni oshiring.'}
+          </p>
         </section>
 
         <div className={`grid ${nextTest ? 'grid-cols-3' : 'grid-cols-2'} max-w-2xl gap-2 mb-5`}>
-          <button type="button" onClick={onRestart} aria-label="Sozlamalarni oʻzgartirish" title="Sozlamalarni oʻzgartirish" className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, outlineColor: C.gold }}>
-            <Settings size={18} /><span className="text-[11px] sm:text-xs font-semibold">Sozlash</span>
+          <button type="button" onClick={onRestart} aria-label="Sozlamalarni oʻzgartirish" title="Sozlamalarni oʻzgartirish" className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, outlineColor: C.gold }}>
+            <Settings size={16} /><span className="text-[11px] sm:text-xs font-semibold">Sozlash</span>
           </button>
-          <button type="button" onClick={onRetry} aria-label="Qayta ishlash" title="Qayta ishlash" className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, outlineColor: C.gold }}>
-            <RotateCcw size={18} /><span className="text-[11px] sm:text-xs font-semibold">Qayta ishlash</span>
+          <button type="button" onClick={onRetry} aria-label="Qayta ishlash" title="Qayta ishlash" className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, outlineColor: C.gold }}>
+            <RotateCcw size={16} /><span className="text-[11px] sm:text-xs font-semibold">Qayta</span>
           </button>
-          {nextTest && <button type="button" onClick={onNextTest} aria-label={`Keyingi test: ${nextTest.title}`} title={`Keyingi test: ${nextTest.title}`} className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.white, background: C.cover, borderColor: C.cover, outlineColor: C.gold }}>
-            <ChevronRight size={19} /><span className="text-[11px] sm:text-xs font-semibold">Keyingi test</span>
+          {nextTest && <button type="button" onClick={onNextTest} aria-label={`Keyingi test: ${nextTest.title}`} title={`Keyingi test: ${nextTest.title}`} className="flex min-h-[48px] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft, outlineColor: C.cover }}>
+            <ChevronRight size={18} /><span className="text-[11px] sm:text-xs font-semibold">Keyingi</span>
           </button>}
         </div>
         {showBadgeNotice && (
