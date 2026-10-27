@@ -98,6 +98,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
 
 export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const questions = config.questions;
+  const matchingOnly = questions.length > 0 && questions.every((question) => question.type === 'matching');
   const [answers, setAnswers] = useState({});
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
@@ -107,8 +108,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
   const questionRefs = useRef({});
   const resultSummaryRef = useRef(null);
   const autoScrollTimerRef = useRef(null);
+  const autoFinishTimerRef = useRef(null);
 
-  useEffect(() => () => clearTimeout(autoScrollTimerRef.current), []);
+  useEffect(() => () => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoFinishTimerRef.current); }, []);
 
   useEffect(() => {
     if (finished || paused) return;
@@ -170,8 +172,13 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
     const next = { ...answers, [qid]: nextMatching };
     setAnswers(next);
     scrollToNextUnanswered(qid, next);
-    if (config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
+    if (!matchingOnly && config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
       setRevealed((revealedAnswers) => ({ ...revealedAnswers, [qid]: true }));
+    }
+    if (matchingOnly) {
+      const allCorrect = questions.every((question) => getQuestionScore(question, next[question.id]) === getQuestionCount([question]));
+      clearTimeout(autoFinishTimerRef.current);
+      if (allCorrect) autoFinishTimerRef.current = setTimeout(() => submit(next), 360);
     }
   }
 
@@ -186,8 +193,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
-  function submit() {
-    const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, answers[question.id]), 0);
+  function submit(latestAnswers = answers) {
+    clearTimeout(autoFinishTimerRef.current);
+    const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, latestAnswers[question.id]), 0);
     const totalCount = getQuestionCount(questions);
     const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
     setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
@@ -302,16 +310,18 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+    <div className={matchingOnly ? "w-full space-y-2" : ""}>
+      <div className={matchingOnly ? "flex items-center gap-2 mb-1" : "flex items-center justify-between gap-3 mb-1 flex-wrap"}>
         <button
           onClick={onExit}
-          className="inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"
+          className={matchingOnly ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2" : "inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"}
+          aria-label={matchingOnly ? "Barcha testlar" : undefined}
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
-          <ArrowLeft size={15} /> Barcha testlar
+          <ArrowLeft size={15} />{!matchingOnly && " Barcha testlar"}
         </button>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5">
+          {matchingOnly && <span className="max-w-[36vw] truncate text-xs font-medium sm:max-w-none" style={{ ...fontBody, color: C.ink }}>{test.title}</span>}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[13px]" style={{ ...fontMono, color: C.gold, background: C.cover }}>
             <Clock3 size={13} /> {formatDuration(seconds)}
           </div>
@@ -325,8 +335,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
         </div>
       </div>
 
-      <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-      {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+      {!matchingOnly && <>
+        <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+        {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+      </>}
 
       {paused ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -336,11 +348,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
         </div>
       ) : (
         <>
-          <div className="space-y-4 max-w-2xl">
+          <div className={matchingOnly ? "w-full space-y-2" : "space-y-4 max-w-2xl"}>
             {questions.map((q, qi) => {
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
-                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-3 sm:p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className={matchingOnly ? "p-1.5 sm:p-2 rounded-xl" : "p-3 sm:p-4 rounded-sm"} style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
                   {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
                     <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
                   </div>}
@@ -406,9 +418,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
             })}
           </div>
 
-          <div className="flex gap-3 mt-8">
+          {!matchingOnly && <div className="flex gap-3 mt-8">
             <SolidButton onClick={submit} icon={Check} disabled={!allAnswered}>Javoblarni tekshirish</SolidButton>
-          </div>
+          </div>}
         </>
       )}
     </div>
