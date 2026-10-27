@@ -3948,7 +3948,7 @@ export default function App() {
       <div className="flex-1 min-w-0 pb-24 md:pb-0 min-h-screen flex flex-col">
 
       {/* Ixcham top-bar (Instagram/Telegram uslubida) — bosh sahifada brend, boshqa bo'limlarda o'sha bo'lim nomi */}
-      <header className="sticky top-0 z-30 md:hidden" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
+      {!readingActive && <header className="sticky top-0 z-30 md:hidden" style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}>
         <div className="max-w-5xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between">
           {tab === 'kurslar' ? (
             <div className="flex items-center gap-2 min-w-0">
@@ -3981,10 +3981,10 @@ export default function App() {
             </button>
           )}
         </div>
-      </header>
+      </header>}
 
       {/* Content */}
-      <main className={tab === 'arena' ? "flex-1 w-full px-2 sm:px-4 pt-3 pb-6" : "flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full"}>
+      <main className={tab === 'arena' ? "flex-1 w-full px-2 sm:px-4 pt-3 pb-6" : readingActive ? "flex-1 max-w-5xl mx-auto px-1 sm:px-4 pt-1 sm:pt-4 pb-3 w-full" : "flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full"}>
         {(loading && !skipMainLoadingGate && tab !== 'kurslar') ? (
           <div aria-busy="true" aria-label="Yuklanmoqda">
             {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
