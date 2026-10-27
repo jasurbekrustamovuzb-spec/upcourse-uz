@@ -96,8 +96,9 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
-export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
+export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTest, nextTest, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const questions = config.questions;
+  const matchingOnly = questions.length > 0 && questions.every((question) => question.type === 'matching');
   const [answers, setAnswers] = useState({});
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
@@ -107,8 +108,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
   const questionRefs = useRef({});
   const resultSummaryRef = useRef(null);
   const autoScrollTimerRef = useRef(null);
+  const autoFinishTimerRef = useRef(null);
 
-  useEffect(() => () => clearTimeout(autoScrollTimerRef.current), []);
+  useEffect(() => () => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoFinishTimerRef.current); }, []);
 
   useEffect(() => {
     if (finished || paused) return;
@@ -170,8 +172,13 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
     const next = { ...answers, [qid]: nextMatching };
     setAnswers(next);
     scrollToNextUnanswered(qid, next);
-    if (config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
+    if (!matchingOnly && config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
       setRevealed((revealedAnswers) => ({ ...revealedAnswers, [qid]: true }));
+    }
+    if (matchingOnly) {
+      const allCorrect = questions.every((question) => getQuestionScore(question, next[question.id]) === getQuestionCount([question]));
+      clearTimeout(autoFinishTimerRef.current);
+      if (allCorrect) autoFinishTimerRef.current = setTimeout(() => submit(next), 360);
     }
   }
 
@@ -186,8 +193,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
-  function submit() {
-    const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, answers[question.id]), 0);
+  function submit(latestAnswers = answers) {
+    clearTimeout(autoFinishTimerRef.current);
+    const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, latestAnswers[question.id]), 0);
     const totalCount = getQuestionCount(questions);
     const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
     setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
@@ -209,29 +217,61 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
       <div>
         <button
           onClick={onExit}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-1 text-sm mb-3 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Barcha testlar
         </button>
-        <h3 ref={resultSummaryRef} className="text-2xl sm:text-3xl mb-5" style={{ ...fontDisplay, color: C.ink, fontWeight: 600, scrollMarginTop: '5rem' }}>{test.title} — yakunlandi</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mb-8">
-          <div className="p-4 rounded-sm text-center" style={{ background: C.cover }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.gold, fontWeight: 700 }}>{percent}%</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.goldSoft }}>Natija</div>
+
+        <section ref={resultSummaryRef} aria-labelledby="quiz-result-title" className="max-w-2xl rounded-xl border p-4 sm:p-5 mb-3" style={{ background: C.surface, borderColor: C.rule, scrollMarginTop: '5rem' }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[.16em]" style={{ ...fontBody, color: C.inkSoft }}>Test yakunlandi</div>
+              <h3 id="quiz-result-title" className="mt-1 text-xl sm:text-2xl" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+            </div>
+            <button type="button" aria-label="Natijani ulashish" title="Natijani ulashish" onClick={() => {
+              const message = `🧠 Men «${test.title}» testidan ${percent}% oldim — ${correctCount}/${totalCount}! ⏱️ ${formatDuration(seconds)}\nBu mavzuni siz qanchalik yaxshi bilasiz? Bilimingizni sinab ko‘ring 👇`;
+              shareItem(buildShareUrl({ test: test.id }), `${test.title} · UpCourse Uz`, message);
+            }} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition hover:scale-105 focus-visible:outline focus-visible:outline-2" style={{ color: C.cover, borderColor: C.rule, background: C.successTint, outlineColor: C.gold }}>
+              <Share2 size={17} />
+            </button>
           </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.successTint, border: `1px solid ${C.accent}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}>{correctCount}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri</div>
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="rounded-lg px-3 py-2" style={{ background: C.successTint }}>
+              <div className="text-2xl leading-none" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}>{percent}%</div>
+              <div className="mt-1 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>Natija</div>
+            </div>
+            <div className="rounded-lg px-3 py-2" style={{ background: C.successTint }}>
+              <div className="inline-flex items-center gap-1.5 text-lg leading-none" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}><Check size={16} /> {correctCount}/{totalCount}</div>
+              <div className="mt-1 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>To‘g‘ri</div>
+            </div>
+            <div className="rounded-lg px-3 py-2" style={{ background: C.dangerTint }}>
+              <div className="inline-flex items-center gap-1.5 text-lg leading-none" style={{ ...fontMono, color: C.red, fontWeight: 700 }}><X size={16} /> {incorrectCount}</div>
+              <div className="mt-1 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>Xato</div>
+            </div>
+            <div className="rounded-lg px-3 py-2" style={{ background: 'rgba(184, 137, 57, .11)' }}>
+              <div className="inline-flex items-center gap-1.5 text-lg leading-none" style={{ ...fontMono, color: C.gold, fontWeight: 700 }}><Clock3 size={15} /> {formatDuration(seconds)}</div>
+              <div className="mt-1 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>Vaqt</div>
+            </div>
           </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.dangerTint, border: `1px solid ${C.red}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.red, fontWeight: 700 }}>{incorrectCount}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Notoʻgʻri</div>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: C.dangerTint }} role="progressbar" aria-label="Test natijasi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${percent}%`, background: C.accent }} />
           </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.ink, fontWeight: 700 }}>{formatDuration(seconds)}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Sarflangan vaqt</div>
-          </div>
+          <p className="mt-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+            {percent === 100 ? 'Ajoyib! Mavzuni juda yaxshi o‘zlashtirdingiz.' : 'Yaxshi urinish — yana bir bor urinib, natijangizni oshiring.'}
+          </p>
+        </section>
+
+        <div className={`grid ${nextTest ? 'grid-cols-3' : 'grid-cols-2'} max-w-2xl gap-2 mb-5`}>
+          <button type="button" onClick={onRestart} aria-label="Sozlamalarni oʻzgartirish" title="Sozlamalarni oʻzgartirish" className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, outlineColor: C.gold }}>
+            <Settings size={16} /><span className="text-[11px] sm:text-xs font-semibold">Sozlash</span>
+          </button>
+          <button type="button" onClick={onRetry} aria-label="Qayta ishlash" title="Qayta ishlash" className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, outlineColor: C.gold }}>
+            <RotateCcw size={16} /><span className="text-[11px] sm:text-xs font-semibold">Qayta</span>
+          </button>
+          {nextTest && <button type="button" onClick={onNextTest} aria-label={`Keyingi test: ${nextTest.title}`} title={`Keyingi test: ${nextTest.title}`} className="flex min-h-[48px] items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft, outlineColor: C.cover }}>
+            <ChevronRight size={18} /><span className="text-[11px] sm:text-xs font-semibold">Keyingi</span>
+          </button>}
         </div>
         {showBadgeNotice && (
           <div role="status" className="mb-6 flex max-w-2xl flex-wrap items-center gap-3 rounded-xl px-3 py-3 sm:px-4" style={{ background: 'rgba(232, 229, 238, .78)', border: '1px solid #D2CDD7', backdropFilter: 'blur(8px)', boxShadow: '0 4px 14px rgba(45, 40, 58, .07)' }}>
@@ -245,10 +285,6 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
             {badgeClaimError && <div className="w-full text-xs" style={{ ...fontBody, color: C.red }}>{badgeClaimError}</div>}
           </div>
         )}
-        <div className="flex flex-wrap gap-3 mb-8">
-          <GhostButton onClick={onRetry} icon={RotateCcw}>Qayta ishlash</GhostButton>
-          <GhostButton onClick={onRestart} icon={Settings}>Sozlamalarni oʻzgartirish</GhostButton>
-        </div>
         <section className="max-w-2xl mb-8">
           <h4 className="text-lg mb-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Javoblar tahlili</h4>
           <div className="space-y-3">
@@ -302,16 +338,18 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+    <div className={matchingOnly ? "w-full space-y-2" : ""}>
+      <div className={matchingOnly ? "flex items-center gap-2 mb-1" : "flex items-center justify-between gap-3 mb-1 flex-wrap"}>
         <button
           onClick={onExit}
-          className="inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"
+          className={matchingOnly ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2" : "inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"}
+          aria-label={matchingOnly ? "Barcha testlar" : undefined}
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
-          <ArrowLeft size={15} /> Barcha testlar
+          <ArrowLeft size={15} />{!matchingOnly && " Barcha testlar"}
         </button>
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5">
+          {matchingOnly && <span className="max-w-[36vw] truncate text-xs font-medium sm:max-w-none" style={{ ...fontBody, color: C.ink }}>{test.title}</span>}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[13px]" style={{ ...fontMono, color: C.gold, background: C.cover }}>
             <Clock3 size={13} /> {formatDuration(seconds)}
           </div>
@@ -325,8 +363,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
         </div>
       </div>
 
-      <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-      {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+      {!matchingOnly && <>
+        <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
+        {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+      </>}
 
       {paused ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -336,11 +376,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
         </div>
       ) : (
         <>
-          <div className="space-y-4 max-w-2xl">
+          <div className={matchingOnly ? "w-full space-y-2" : "space-y-4 max-w-2xl"}>
             {questions.map((q, qi) => {
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
-                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className="p-3 sm:p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className={matchingOnly ? "p-1.5 sm:p-2 rounded-xl" : "p-3 sm:p-4 rounded-sm"} style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
                   {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
                     <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
                   </div>}
@@ -406,16 +446,16 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
             })}
           </div>
 
-          <div className="flex gap-3 mt-8">
+          {!matchingOnly && <div className="flex gap-3 mt-8">
             <SolidButton onClick={submit} icon={Check} disabled={!allAnswered}>Javoblarni tekshirish</SolidButton>
-          </div>
+          </div>}
         </>
       )}
     </div>
   );
 }
 
-export function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
+export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
   const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
   const [lastConfig, setLastConfig] = useState(prefs);
@@ -436,7 +476,7 @@ export function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={handleRetry} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={handleRetry} onNextTest={onNextTest} nextTest={nextTest} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
 }
 
 export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
@@ -476,6 +516,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
      ensureTestContent uni ID bo'yicha to'g'ridan-to'g'ri yuklab, tests
      ro'yxatiga qo'shib qo'yadi. */
   const active = tests.find((t) => t.id === activeId);
+  const activeCategoryTests = active ? approved.filter((test) => test.categoryId === active.categoryId) : [];
+  const activeCategoryIndex = activeCategoryTests.findIndex((test) => test.id === activeId);
+  const nextTest = activeCategoryIndex >= 0 ? activeCategoryTests[activeCategoryIndex + 1] || null : null;
   const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
@@ -538,7 +581,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     if (active.questions === undefined) {
       return <SectionLoading label="Test yuklanmoqda…" compact />;
     }
-    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
+    const openNextTest = nextTest ? () => { if (ensureTestContent) ensureTestContent(nextTest.id); setActiveId(nextTest.id); setSetupMode(false); } : undefined;
+    return <QuizView key={active.id} test={active} onExit={back} onNextTest={openNextTest} nextTest={nextTest} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
 
   // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
@@ -637,7 +681,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
           >
-            <ListChecks size={14} /> Matching test yaratish
+            <ListChecks size={14} /> Moslik testi
           </button>
           <button
             onClick={goTeamBattle}

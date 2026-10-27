@@ -72,7 +72,7 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
     finally { setBusy(false); }
   }
   if (newId) return <div className="mt-6 rounded-xl p-6 text-center" style={{ background: C.surface, border: '1px solid ' + C.accent }}>
-    <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" /><div className="mb-1 text-base" style={{ ...fontBody, color: C.ink }}>Matching testingiz saqlandi!</div>
+    <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" /><div className="mb-1 text-base" style={{ ...fontBody, color: C.ink }}>Moslik testingiz saqlandi!</div>
     <div className="mb-4 text-sm" style={{ ...fontBody, color: C.inkSoft }}>{visibility === 'private' ? 'Xususiy test sifatida saqlandi.' : 'Administrator tasdiqlagach hammaga koʻrinadi.'}</div>
     <div className="flex justify-center gap-3"><SolidButton onClick={() => onView(newId)} icon={Check}>Koʻrish</SolidButton><GhostButton onClick={onDone} icon={X}>Yopish</GhostButton></div>
   </div>;
@@ -106,7 +106,7 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
     </div>
     {!initialTest && <div className="mt-4"><div className="mb-1.5 text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div><div className="flex gap-2">{[['public', Users, 'Ommaviy'], ['private', Lock, 'Xususiy']].map(([value, Icon, label]) => <button key={value} type="button" onClick={() => setVisibility(value)} className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm" style={{ ...fontBody, color: visibility === value ? C.white : C.ink, background: visibility === value ? C.cover : C.surface, border: '1px solid ' + (visibility === value ? C.cover : C.rule) }}><Icon size={15} />{label}</button>)}</div></div>}
     {error && <div role="alert" className="mb-3 mt-3 text-sm" style={{ ...fontBody, color: C.red }}>{error}</div>}
-    <div className="mt-4 flex flex-wrap gap-3"><SolidButton onClick={submit} icon={Check} disabled={!valid || busy}>{busy ? 'Saqlanmoqda…' : initialTest ? 'Matching testni yangilash' : 'Matching testni saqlash'}</SolidButton><GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton></div>
+    <div className="mt-4 flex flex-wrap gap-3"><SolidButton onClick={submit} icon={Check} disabled={!valid || busy}>{busy ? 'Saqlanmoqda…' : initialTest ? 'Moslik testini yangilash' : 'Moslik testini saqlash'}</SolidButton><GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton></div>
   </div>;
 }
 

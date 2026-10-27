@@ -776,7 +776,7 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
               <option value={120}>120 soniya</option>
               <option value={180}>180 soniya</option>
             </select>
-            <div className="text-xs -mt-2 mb-4" style={{ ...fontBody, color: C.inkSoft }}>Matching topshiriqlarida juftliklar soniga qarab vaqt avtomatik uzaytiriladi.</div>
+            <div className="text-xs -mt-2 mb-4" style={{ ...fontBody, color: C.inkSoft }}>Moslik topshiriqlarida juftliklar soniga qarab vaqt avtomatik uzaytiriladi.</div>
           </>
         ) : (
           <>
