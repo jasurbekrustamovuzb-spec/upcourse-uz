@@ -96,7 +96,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
-export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
+export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTest, nextTest, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const questions = config.questions;
   const matchingOnly = questions.length > 0 && questions.every((question) => question.type === 'matching');
   const [answers, setAnswers] = useState({});
@@ -217,29 +217,59 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
       <div>
         <button
           onClick={onExit}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
+          className="inline-flex items-center gap-1 text-sm mb-3 focus-visible:outline focus-visible:outline-2"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} /> Barcha testlar
         </button>
-        <h3 ref={resultSummaryRef} className="text-2xl sm:text-3xl mb-5" style={{ ...fontDisplay, color: C.ink, fontWeight: 600, scrollMarginTop: '5rem' }}>{test.title} — yakunlandi</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl mb-8">
-          <div className="p-4 rounded-sm text-center" style={{ background: C.cover }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.gold, fontWeight: 700 }}>{percent}%</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.goldSoft }}>Natija</div>
+
+        <section ref={resultSummaryRef} aria-labelledby="quiz-result-title" className="relative max-w-2xl overflow-hidden rounded-2xl p-4 sm:p-6 mb-4" style={{ background: `linear-gradient(135deg, ${C.cover}, ${C.coverDeep})`, color: C.white, scrollMarginTop: '5rem', boxShadow: '0 10px 28px rgba(24, 54, 39, .16)' }}>
+          <div className="absolute -right-10 -top-14 h-40 w-40 rounded-full opacity-10" style={{ background: C.goldSoft }} aria-hidden="true" />
+          <div className="relative flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-[.18em]" style={{ ...fontBody, color: C.goldSoft }}>Test yakunlandi</div>
+              <h3 id="quiz-result-title" className="mt-1 text-xl sm:text-2xl" style={{ ...fontDisplay, color: C.white, fontWeight: 600 }}>{test.title}</h3>
+            </div>
+            <button
+              type="button"
+              aria-label="Natijani ulashish"
+              title="Natijani ulashish"
+              onClick={() => {
+                const message = `🧠 Men «${test.title}» testidan ${percent}% oldim — ${correctCount}/${totalCount}! ⏱️ ${formatDuration(seconds)}\\nBu mavzuni siz qanchalik yaxshi bilasiz? Bilimingizni sinab ko‘ring 👇`;
+                shareItem(buildShareUrl({ test: test.id }), `${test.title} · UpCourse Uz`, message);
+              }}
+              className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition hover:scale-105 focus-visible:outline focus-visible:outline-2"
+              style={{ color: C.white, borderColor: 'rgba(255,255,255,.32)', background: 'rgba(255,255,255,.1)', outlineColor: C.gold }}
+            >
+              <Share2 size={18} />
+            </button>
           </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.successTint, border: `1px solid ${C.accent}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.accent, fontWeight: 700 }}>{correctCount}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri</div>
+          <div className="relative mt-5 flex flex-wrap items-end justify-between gap-x-5 gap-y-2">
+            <div className="flex items-baseline gap-3">
+              <span className="text-4xl sm:text-5xl leading-none" style={{ ...fontMono, color: C.goldSoft, fontWeight: 700 }}>{percent}%</span>
+              <span className="text-sm" style={{ ...fontBody, color: 'rgba(255,255,255,.82)' }}>natija</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm" style={{ ...fontBody, color: 'rgba(255,255,255,.9)' }}>
+              <span className="inline-flex items-center gap-1.5"><Check size={16} style={{ color: C.goldSoft }} /> {correctCount}/{totalCount} to‘g‘ri</span>
+              <span className="inline-flex items-center gap-1.5"><Clock3 size={15} /> {formatDuration(seconds)}</span>
+            </div>
           </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.dangerTint, border: `1px solid ${C.red}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.red, fontWeight: 700 }}>{incorrectCount}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Notoʻgʻri</div>
+          <div className="relative mt-4 h-2 overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} role="progressbar" aria-label="Test natijasi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${percent}%`, background: C.goldSoft }} />
           </div>
-          <div className="p-4 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-            <div className="text-2xl" style={{ ...fontMono, color: C.ink, fontWeight: 700 }}>{formatDuration(seconds)}</div>
-            <div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Sarflangan vaqt</div>
-          </div>
+          <div className="relative mt-2 text-xs" style={{ ...fontBody, color: 'rgba(255,255,255,.72)' }}>{incorrectCount} ta noto‘g‘ri javob</div>
+        </section>
+
+        <div className={`grid ${nextTest ? 'grid-cols-3' : 'grid-cols-2'} max-w-2xl gap-2 mb-5`}>
+          <button type="button" onClick={onRestart} aria-label="Sozlamalarni oʻzgartirish" title="Sozlamalarni oʻzgartirish" className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, outlineColor: C.gold }}>
+            <Settings size={18} /><span className="text-[11px] sm:text-xs font-semibold">Sozlash</span>
+          </button>
+          <button type="button" onClick={onRetry} aria-label="Qayta ishlash" title="Qayta ishlash" className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, outlineColor: C.gold }}>
+            <RotateCcw size={18} /><span className="text-[11px] sm:text-xs font-semibold">Qayta ishlash</span>
+          </button>
+          {nextTest && <button type="button" onClick={onNextTest} aria-label={`Keyingi test: ${nextTest.title}`} title={`Keyingi test: ${nextTest.title}`} className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.white, background: C.cover, borderColor: C.cover, outlineColor: C.gold }}>
+            <ChevronRight size={19} /><span className="text-[11px] sm:text-xs font-semibold">Keyingi test</span>
+          </button>}
         </div>
         {showBadgeNotice && (
           <div role="status" className="mb-6 flex max-w-2xl flex-wrap items-center gap-3 rounded-xl px-3 py-3 sm:px-4" style={{ background: 'rgba(232, 229, 238, .78)', border: '1px solid #D2CDD7', backdropFilter: 'blur(8px)', boxShadow: '0 4px 14px rgba(45, 40, 58, .07)' }}>
@@ -253,10 +283,6 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
             {badgeClaimError && <div className="w-full text-xs" style={{ ...fontBody, color: C.red }}>{badgeClaimError}</div>}
           </div>
         )}
-        <div className="flex flex-wrap gap-3 mb-8">
-          <GhostButton onClick={onRetry} icon={RotateCcw}>Qayta ishlash</GhostButton>
-          <GhostButton onClick={onRestart} icon={Settings}>Sozlamalarni oʻzgartirish</GhostButton>
-        </div>
         <section className="max-w-2xl mb-8">
           <h4 className="text-lg mb-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Javoblar tahlili</h4>
           <div className="space-y-3">
@@ -427,7 +453,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onTestCom
   );
 }
 
-export function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
+export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
   const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
   const [lastConfig, setLastConfig] = useState(prefs);
@@ -448,7 +474,7 @@ export function QuizView({ test, onExit, effectivePrefs, forceSetup, onSavePrefs
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={handleRetry} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={handleRetry} onNextTest={onNextTest} nextTest={nextTest} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
 }
 
 export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
@@ -488,6 +514,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
      ensureTestContent uni ID bo'yicha to'g'ridan-to'g'ri yuklab, tests
      ro'yxatiga qo'shib qo'yadi. */
   const active = tests.find((t) => t.id === activeId);
+  const activeCategoryTests = active ? approved.filter((test) => test.categoryId === active.categoryId) : [];
+  const activeCategoryIndex = activeCategoryTests.findIndex((test) => test.id === activeId);
+  const nextTest = activeCategoryIndex >= 0 ? activeCategoryTests[activeCategoryIndex + 1] || null : null;
   const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
@@ -550,7 +579,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     if (active.questions === undefined) {
       return <SectionLoading label="Test yuklanmoqda…" compact />;
     }
-    return <QuizView test={active} onExit={back} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
+    const openNextTest = nextTest ? () => { if (ensureTestContent) ensureTestContent(nextTest.id); setActiveId(nextTest.id); setSetupMode(false); } : undefined;
+    return <QuizView key={active.id} test={active} onExit={back} onNextTest={openNextTest} nextTest={nextTest} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
 
   // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
