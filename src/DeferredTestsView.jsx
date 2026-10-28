@@ -1,8 +1,20 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, Calculator, Check, ChevronRight, Clock3, FileText, ListChecks, Pause, Pencil, Play as Play2, RotateCcw, Settings, Share2, Trash2, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronRight, Clock3, FileText, ListChecks, LogIn, LogOut, Pause, Pencil, RotateCcw, Save, Settings, Share2, Trash2, Users, X } from 'lucide-react';
 import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
 const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
+
+function countAnsweredUnits(questions, answers) {
+  return questions.reduce((count, question) => {
+    const answer = answers?.[question.id];
+    if (question.type === 'matching') {
+      const pairs = question.pairs || [];
+      return count + (pairs.length ? pairs.filter((pair) => answer?.[pair.id] !== undefined).length : (answer === undefined ? 0 : 1));
+    }
+    if (question.type === 'open') return count + (typeof answer === 'string' && answer.trim() ? 1 : 0);
+    return count + (answer === undefined ? 0 : 1);
+  }, 0);
+}
 export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const total = test.questions.length;
   const unitTotal = getQuestionCount(test.questions);
@@ -98,27 +110,55 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
-export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTest, nextTest, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
+export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTest, nextTest, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session, initialProgress, onPauseAttempt, onClearPaused, onRequireAccount }) {
   const questions = config.questions;
   const matchingOnly = questions.length > 0 && questions.every((question) => question.type === 'matching');
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState(() => initialProgress?.answers || {});
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
   const [showBadgeNotice, setShowBadgeNotice] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [seconds, setSeconds] = useState(() => Math.max(0, Number(initialProgress?.seconds) || 0));
+  const [leaveDialog, setLeaveDialog] = useState(false);
+  const [finishDialog, setFinishDialog] = useState(!!initialProgress?.finishOnResume);
+  const [guestPausePrompt, setGuestPausePrompt] = useState(false);
+  const [pauseBusy, setPauseBusy] = useState(false);
+  const [leaveError, setLeaveError] = useState('');
   const questionRefs = useRef({});
   const resultSummaryRef = useRef(null);
   const autoScrollTimerRef = useRef(null);
   const autoFinishTimerRef = useRef(null);
+  const { registerBackGuard } = useContext(NavContext);
+  const unregisterBackGuardRef = useRef(null);
+
+  function requestLeave() {
+    setLeaveError('');
+    // Orqaga qaytish avval ochiq yakunlash ogohlantirishini yopadi.
+    if (finishDialog) { setFinishDialog(false); return; }
+    setLeaveDialog(true);
+  }
+  const requestLeaveRef = useRef(requestLeave);
+  requestLeaveRef.current = requestLeave;
+
+  useEffect(() => {
+    if (finished) return undefined;
+    const unregister = registerBackGuard ? registerBackGuard(() => requestLeaveRef.current()) : null;
+    unregisterBackGuardRef.current = unregister;
+    return () => { unregister?.(); unregisterBackGuardRef.current = null; };
+  }, [finished, registerBackGuard]);
+
+  function exitTest() {
+    unregisterBackGuardRef.current?.();
+    unregisterBackGuardRef.current = null;
+    onExit();
+  }
 
   useEffect(() => () => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoFinishTimerRef.current); }, []);
 
   useEffect(() => {
-    if (finished || paused) return;
+    if (finished) return;
     const t = setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => clearInterval(t);
-  }, [finished, paused]);
+  }, [finished]);
 
   useEffect(() => {
     if (!finished || !resultSummaryRef.current) return undefined;
@@ -129,11 +169,30 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     return () => cancelAnimationFrame(frame);
   }, [finished]);
 
-  const allAnswered = questions.every((q) => {
-    const a = answers[q.id];
-    if (q.type === 'matching') return Array.isArray(q.pairs) ? q.pairs.every((pair) => a?.[pair.id] !== undefined) : a !== undefined;
-    return q.type === 'open' ? (typeof a === 'string' && a.trim().length > 0) : a !== undefined;
-  });
+  const answeredCount = countAnsweredUnits(questions, answers);
+  const totalCount = getQuestionCount(questions);
+
+  function createPauseSnapshot() {
+    const { questions: _selectedQuestions, ...prefs } = config;
+    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), prefs, answers, seconds, answeredCount, totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
+  }
+
+  async function pauseAndExit() {
+    if (!session) { setGuestPausePrompt(true); return; }
+    if (!onPauseAttempt) { setLeaveError('Testni saqlab bo‘lmadi. Qayta urinib ko‘ring.'); return; }
+    setPauseBusy(true);
+    setLeaveError('');
+    try {
+      const saved = await onPauseAttempt(createPauseSnapshot());
+      if (!saved) throw new Error('save-failed');
+      setLeaveDialog(false);
+      exitTest();
+    } catch {
+      setLeaveError('Javoblarni saqlab bo‘lmadi. Internetni tekshirib, yana urinib ko‘ring.');
+    } finally {
+      setPauseBusy(false);
+    }
+  }
 
   /* Keyingi javobsiz savolga brauzerning native scroll animatsiyasi bilan oʻtamiz.
      Bu har kadrda JavaScript hisoblashni talab qilmaydi va sekin qurilmalarda yengilroq. */
@@ -157,7 +216,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   }
 
   function select(qid, idx) {
-    if (finished || paused) return;
+    if (finished) return;
     setAnswers((a) => {
       const next = { ...a, [qid]: idx };
       scrollToNextUnanswered(qid, next);
@@ -167,7 +226,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   }
 
   function selectMatching(qid, pairId, optionIndex) {
-    if (finished || paused) return;
+    if (finished) return;
     const nextMatching = { ...(answers[qid] || {}) };
     if (optionIndex === undefined) delete nextMatching[pairId];
     else nextMatching[pairId] = optionIndex;
@@ -185,22 +244,29 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   }
 
   function setOpenAnswer(qid, text) {
-    if (finished || paused) return;
+    if (finished) return;
     setAnswers((a) => ({ ...a, [qid]: text }));
   }
 
   function confirmOpenAnswer(qid) {
-    if (finished || paused) return;
+    if (finished) return;
     setAnswers((a) => { scrollToNextUnanswered(qid, a); return a; });
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
-  function submit(latestAnswers = answers) {
+  function submit(latestAnswers = answers, allowIncomplete = false) {
+    if (!allowIncomplete && countAnsweredUnits(questions, latestAnswers) < totalCount) {
+      setLeaveDialog(false);
+      setFinishDialog(true);
+      return;
+    }
     clearTimeout(autoFinishTimerRef.current);
     const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, latestAnswers[question.id]), 0);
     const totalCount = getQuestionCount(questions);
     const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
     setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
+    setFinishDialog(false);
+    onClearPaused?.(test.id);
     setFinished(true);
     if (percent >= 70 && onTestComplete) {
       Promise.resolve()
@@ -213,7 +279,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   if (finished) {
     const correctCount = questions.reduce((s, qq) => s + getQuestionScore(qq, answers[qq.id]), 0);
     const totalCount = getQuestionCount(questions);
-    const incorrectCount = totalCount - correctCount;
+    const resultAnsweredCount = countAnsweredUnits(questions, answers);
+    const incorrectCount = Math.max(0, resultAnsweredCount - correctCount);
+    const unansweredCount = Math.max(0, totalCount - resultAnsweredCount);
     const percent = Math.round((correctCount / totalCount) * 100);
     return (
       <div>
@@ -259,6 +327,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           <div className="mt-3 h-1.5 overflow-hidden rounded-full" style={{ background: C.dangerTint }} role="progressbar" aria-label="Test natijasi" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
             <div className="h-full rounded-full transition-all" style={{ width: `${percent}%`, background: C.accent }} />
           </div>
+          {unansweredCount > 0 && <p className="mt-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{resultAnsweredCount}/{totalCount} ta javob belgilandi · {unansweredCount} ta javobsiz</p>}
           <p className="mt-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
             {percent === 100 ? 'Ajoyib! Mavzuni juda yaxshi o‘zlashtirdingiz.' : 'Yaxshi urinish — yana bir bor urinib, natijangizni oshiring.'}
           </p>
@@ -343,9 +412,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     <div className={matchingOnly ? "w-full space-y-2" : ""}>
       <div className={matchingOnly ? "flex items-center gap-2 mb-1" : "flex items-center justify-between gap-3 mb-1 flex-wrap"}>
         <button
-          onClick={onExit}
+          onClick={requestLeave}
           className={matchingOnly ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2" : "inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"}
           aria-label={matchingOnly ? "Barcha testlar" : undefined}
+          title="Testdan chiqish amallari"
           style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
         >
           <ArrowLeft size={15} />{!matchingOnly && " Barcha testlar"}
@@ -356,11 +426,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             <Clock3 size={13} /> {formatDuration(seconds)}
           </div>
           <button
-            onClick={() => setPaused((p) => !p)}
+          onClick={requestLeave}
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-sm text-[13px]"
             style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
           >
-            {paused ? <><Play2 size={13} /> Davom</> : <><Pause size={13} /> Pauza</>}
+            <Pause size={13} /> Saqlash
           </button>
         </div>
       </div>
@@ -370,14 +440,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
       </>}
 
-      {paused ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <Pause size={26} style={{ color: C.gold }} className="mb-3" />
-          <div className="text-base mb-4" style={{ ...fontBody, color: C.ink }}>Test pauzada — vaqt hisoblagich toʻxtatildi.</div>
-          <SolidButton onClick={() => setPaused(false)} icon={Play2}>Davom ettirish</SolidButton>
-        </div>
-      ) : (
-        <>
+      <>
           <div className={matchingOnly ? "w-full space-y-2" : "space-y-4 max-w-2xl"}>
             {questions.map((q, qi) => {
               const showResult = config.immediate ? !!revealed[q.id] : finished;
@@ -391,12 +454,12 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
                     ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-lg bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
                     : <img src={q.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-sm sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
                   {q.type === 'matching' ? (
-                    <MatchingTestQuestion question={q} answer={answers[q.id]} onChange={(pairId, optionIndex) => selectMatching(q.id, pairId, optionIndex)} disabled={finished || paused} showResult={showResult} />
+                    <MatchingTestQuestion question={q} answer={answers[q.id]} onChange={(pairId, optionIndex) => selectMatching(q.id, pairId, optionIndex)} disabled={finished} showResult={showResult} />
                   ) : q.type === 'open' ? (
                     <div>
                       {q.answerMode === 'math' ? (
                         <Suspense fallback={<div className="py-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}>
-                          <MathInput value={answers[q.id] || ''} onChange={(value) => setOpenAnswer(q.id, value)} onBlur={() => confirmOpenAnswer(q.id)} disabled={showResult} placeholder="Javobingizni kiriting" />
+                          <MathInput value={answers[q.id] || ''} onChange={(value) => setOpenAnswer(q.id, value)} onBlur={() => confirmOpenAnswer(q.id)} disabled={showResult} placeholder="Javobingiz" />
                         </Suspense>
                       ) : (
                       <input
@@ -406,8 +469,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
                         onBlur={() => confirmOpenAnswer(q.id)}
                         onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
                         disabled={showResult}
-                        placeholder="Javobingizni yozing (masalan: 1/2 yoki 0,5)"
-                        className="w-full px-4 py-2.5 rounded-sm text-[15px] outline-none"
+                        placeholder="Javobingiz"
+                        className="w-full min-w-0 px-4 py-2.5 rounded-sm text-[15px] outline-none"
                         style={{
                           ...fontBody, color: C.ink,
                           background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
@@ -456,28 +519,64 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           </div>
 
           {!matchingOnly && <div className="flex gap-3 mt-8">
-            <SolidButton onClick={submit} icon={Check} disabled={!allAnswered}>Javoblarni tekshirish</SolidButton>
+            <SolidButton onClick={() => submit()} icon={Check}>Testni yakunlash</SolidButton>
           </div>}
-        </>
+      </>
+      {(leaveDialog || finishDialog) && (
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setLeaveDialog(false); setFinishDialog(false); setGuestPausePrompt(false); } }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="quiz-exit-title" className="w-full max-w-md rounded-2xl p-4 shadow-2xl sm:p-5" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="quiz-exit-title" className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>{finishDialog ? 'Testni yakunlaysizmi?' : 'Testni to‘xtatish'}</h3>
+                <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>{finishDialog ? `${answeredCount}/${totalCount} ta javob belgilangan. Qolgan savollar javobsiz hisoblanadi.` : 'Javoblaringizni saqlab davom ettirishingiz yoki testdan chiqishingiz mumkin.'}</p>
+              </div>
+              <button type="button" onClick={() => { setLeaveDialog(false); setFinishDialog(false); setGuestPausePrompt(false); }} aria-label="Yopish" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: C.surface, color: C.inkSoft }}><X size={18} /></button>
+            </div>
+            {finishDialog ? (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setFinishDialog(false)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><ArrowLeft size={16} /> Davom etish</button>
+                <button type="button" onClick={() => submit(answers, true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><CheckCircle2 size={17} /> Yakunlash</button>
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <button type="button" disabled={pauseBusy} onClick={pauseAndExit} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><Save size={18} style={{ color: C.accent }} />Tanaffus</button>
+                  <button type="button" onClick={() => { setLeaveDialog(false); exitTest(); }} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.red, background: C.surface, borderColor: C.rule }}><LogOut size={18} />Chiqish</button>
+                  <button type="button" onClick={() => submit()} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft }}><CheckCircle2 size={18} />Yakunlash</button>
+                </div>
+                {guestPausePrompt && <div className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.ink, background: C.goldSoft }}><div className="flex items-start gap-2"><LogIn size={17} className="mt-0.5 shrink-0" />Testni tanaffusga saqlash uchun hisobga kiring. Hisob bilan javoblaringiz keyin ham saqlanadi.</div><button type="button" onClick={() => onRequireAccount?.(createPauseSnapshot())} className="mt-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: C.white, background: C.cover }}>Hisobga kirish</button></div>}
+                {leaveError && <p role="alert" className="mt-3 text-sm" style={{ ...fontBody, color: C.red }}>{leaveError}</p>}
+              </>
+            )}
+          </section>
+        </div>
       )}
     </div>
   );
 }
 
-export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session }) {
+export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session, initialProgress, onPauseAttempt, onClearPaused, onRequireAccount }) {
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
-  const [config, setConfig] = useState(() => (forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) }));
+  const [resumeProgress, setResumeProgress] = useState(initialProgress || null);
+  const [config, setConfig] = useState(() => {
+    const restoredQuestions = initialProgress?.questionIds?.map((id) => test.questions.find((question) => question.id === id)).filter(Boolean);
+    if (restoredQuestions?.length) return { ...(initialProgress.prefs || prefs), questions: restoredQuestions };
+    return forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) };
+  });
   const [lastConfig, setLastConfig] = useState(prefs);
   const [attemptKey, setAttemptKey] = useState(0);
 
   function handleStart(cfg) {
     const { questions, ...rest } = cfg;
+    setResumeProgress(null);
     setLastConfig(rest);
     setConfig(cfg);
     if (onSavePrefs) onSavePrefs(rest);
   }
 
   function handleRetry() {
+    onClearPaused?.(test.id);
+    setResumeProgress(null);
     setConfig((current) => current ? { ...current, questions: computeQuizQuestions(test, current) } : current);
     setAttemptKey((key) => key + 1);
   }
@@ -485,12 +584,13 @@ export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, f
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer key={attemptKey} test={test} config={config} onExit={onExit} onRestart={() => setConfig(null)} onRetry={handleRetry} onNextTest={onNextTest} nextTest={nextTest} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} initialProgress={resumeProgress} onExit={onExit} onRestart={() => { onClearPaused?.(test.id); setResumeProgress(null); setConfig(null); }} onRetry={handleRetry} onNextTest={onNextTest} nextTest={nextTest} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} />;
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
+  const [activeResumeState, setActiveResumeState] = useState(null);
   const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId || openRequest));
   const handledOpenRequestRef = useRef(null);
   const [setupMode, setSetupMode] = useState(false);
@@ -507,7 +607,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
      oldin sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash")
      saqlangan/andoza sozlamalar bilan darhol boshlanadi. */
-  const goTest = (id, forceSetup) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); setSetupMode(!!forceSetup); pushNav(() => { setActiveId(null); setSetupMode(false); }); };
+  const goTest = (id, forceSetup, resumeState = null) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); setActiveResumeState(resumeState); setSetupMode(!!forceSetup); pushNav(() => { setActiveId(null); setActiveResumeState(null); setSetupMode(false); }); };
   const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTeamBattle = () => { setTeamBattleOpen(true); pushNav(() => setTeamBattleOpen(false)); };
@@ -560,7 +660,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   useEffect(() => {
     if (!openRequest || handledOpenRequestRef.current === openRequest.requestId) return;
     handledOpenRequestRef.current = openRequest.requestId;
-    goTest(openRequest.id);
+    goTest(openRequest.id, false, openRequest.resumeState || null);
     setOpeningInitialTest(false);
     onOpenRequestHandled?.(openRequest.requestId);
     // goTest/nav callback render oralig‘ida yangilanadi; requestId bir marta bajarilishini ta’minlaydi.
@@ -590,8 +690,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     if (active.questions === undefined) {
       return <SectionLoading label="Test yuklanmoqda…" compact />;
     }
-    const openNextTest = nextTest ? () => { if (ensureTestContent) ensureTestContent(nextTest.id); setActiveId(nextTest.id); setSetupMode(false); } : undefined;
-    return <QuizView key={active.id} test={active} onExit={back} onNextTest={openNextTest} nextTest={nextTest} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
+    const openNextTest = nextTest ? () => { if (ensureTestContent) ensureTestContent(nextTest.id); onClearPaused?.(active.id); setActiveId(nextTest.id); setActiveResumeState(null); setSetupMode(false); } : undefined;
+    return <QuizView key={active.id} test={active} initialProgress={activeResumeState} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} onExit={back} onNextTest={openNextTest} nextTest={nextTest} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
 
   // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
@@ -849,4 +949,3 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   );
 }
 import { EditTestForm } from './DeferredTestForms.jsx';
-

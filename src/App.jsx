@@ -4,9 +4,11 @@ import {
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
-  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Pause, Play as Play2, Compass, Maximize2, Zap, Gift, Star, Gem, Crown, Repeat2
+  Trophy, Medal, Coins, ShoppingBag, Tag, Image as ImageIcon, Calculator, FileText, Compass, Maximize2, Zap, Gift, Star, Gem, Crown, Repeat2
 } from 'lucide-react';
 import { supabase, signInWithGoogle, switchGoogleAccount, signOut as sbSignOut } from './supabaseClient';
+
+const PausedTestsPanel = lazy(() => import('./PausedTestsPanel.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Admin panel faqat "Admin panel" boʻlimiga kirilganda yuklanadi     */
@@ -1919,7 +1921,7 @@ export function PinnedAddButton({ icon: Icon, label, onClick }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, onRequireAccount, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, onRequireAccount, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete, pausedTests, onResumePausedTest, onPausedTestVisibilityChange }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2090,6 +2092,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
       <div>
         <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
         <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar')} />
+        {!!pausedTests?.length && <Suspense fallback={null}><PausedTestsPanel attempts={pausedTests} onResume={onResumePausedTest} onVisibilityChange={onPausedTestVisibilityChange} /></Suspense>}
         {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} session={session} onRequireAccount={onRequireAccount} />}
         <div className="flex items-stretch gap-2 mb-5">
           <SearchBox className="flex-1 !mb-0" value={query} onChange={setQuery} placeholder="Mavzu yoki soha nomi boʻyicha qidirish..." />
@@ -2687,9 +2690,17 @@ export const NavContext = React.createContext({ pushNav: () => {}, back: () => {
 
 function useNavStack() {
   const stackRef = useRef([]);
+  const backGuardRef = useRef(null);
 
   useEffect(() => {
     function onPopState() {
+      const guard = backGuardRef.current;
+      if (guard && stackRef.current.length <= guard.depth) {
+        // Keep the current route alive while the test asks how to leave.
+        try { window.history.pushState({ upcourseNav: true }, ''); } catch {}
+        guard.handler();
+        return;
+      }
       const undo = stackRef.current.pop();
       if (undo) undo();
     }
@@ -2708,7 +2719,13 @@ function useNavStack() {
     }
   }, []);
 
-  return { pushNav, back };
+  const registerBackGuard = useCallback((handler) => {
+    const guard = { handler, depth: stackRef.current.length };
+    backGuardRef.current = guard;
+    return () => { if (backGuardRef.current === guard) backGuardRef.current = null; };
+  }, []);
+
+  return { pushNav, back, registerBackGuard };
 }
 
 /* ------------------------------------------------------------------ */
@@ -3050,7 +3067,7 @@ export default function App() {
     try {
       await sbUpsert('profiles', row);
       setAuthorUsernameCache(session.user.id, username);
-      setProfile((prev) => profileFromRow({ ...(prev ? { username_changed_at: prev.usernameChangedAt } : {}), ...row }));
+      setProfile((prev) => ({ ...profileFromRow({ ...(prev ? { username_changed_at: prev.usernameChangedAt, test_prefs: prev.testPrefs } : {}), ...row }), testPrefs: prev?.testPrefs || null }));
       return { ok: true };
     } catch (e) {
       setActionError('Profilni saqlashda xatolik yuz berdi.');
@@ -3067,12 +3084,55 @@ export default function App() {
   async function saveTestPrefs(prefs) {
     if (!session) return;
     try {
-      await sbUpsert('profiles', { id: session.user.id, test_prefs: prefs });
-      setProfile((prev) => (prev ? { ...prev, testPrefs: prefs } : prev));
+      const nextPrefs = { ...prefs, pausedTests: prefs.pausedTests ?? profile?.testPrefs?.pausedTests ?? [] };
+      await sbUpsert('profiles', { id: session.user.id, test_prefs: nextPrefs });
+      setProfile((prev) => (prev ? { ...prev, testPrefs: nextPrefs } : prev));
+      return true;
     } catch (e) {
       console.error('Test sozlamalarini saqlashda xatolik:', e);
+      return false;
     }
   }
+
+  const pausedTests = Array.isArray(profile?.testPrefs?.pausedTests) ? profile.testPrefs.pausedTests : [];
+  async function savePausedTest(snapshot) {
+    if (!session?.user?.id || !snapshot?.testId) return false;
+    const next = [...pausedTests.filter((attempt) => attempt.testId !== snapshot.testId), snapshot].slice(-10);
+    return await saveTestPrefs({ ...(profile?.testPrefs || DEFAULT_TEST_PREFS), pausedTests: next });
+  }
+  async function clearPausedTest(testId) {
+    if (!session?.user?.id || !testId) return false;
+    const next = pausedTests.filter((attempt) => attempt.testId !== testId);
+    return await saveTestPrefs({ ...(profile?.testPrefs || DEFAULT_TEST_PREFS), pausedTests: next });
+  }
+  async function setPausedTestHomeVisibility(testId, hiddenOnHome) {
+    if (!session?.user?.id || !testId) return false;
+    const next = pausedTests.map((attempt) => attempt.testId === testId ? { ...attempt, hiddenOnHome: !!hiddenOnHome } : attempt);
+    return await saveTestPrefs({ ...(profile?.testPrefs || DEFAULT_TEST_PREFS), pausedTests: next });
+  }
+  function resumePausedTest(attempt, finishOnResume = false) {
+    setTestOpenRequest({ id: attempt.testId, resumeState: { ...attempt, finishOnResume }, requestId: ++testOpenRequestSeq.current });
+    setViewingUsername(null);
+    setTab('testlar');
+  }
+  function requireAccountForPausedTest(snapshot) {
+    try { sessionStorage.setItem('upcourse-pending-test-pause', JSON.stringify(snapshot)); } catch {}
+    setTab('profil');
+  }
+
+  useEffect(() => {
+    if (!session?.user?.id || profile?.id !== session.user.id) return;
+    let pending = null;
+    try {
+      pending = JSON.parse(sessionStorage.getItem('upcourse-pending-test-pause') || 'null');
+    } catch {}
+    if (!pending?.testId) return;
+    const current = Array.isArray(profile?.testPrefs?.pausedTests) ? profile.testPrefs.pausedTests : [];
+    const next = [...current.filter((attempt) => attempt.testId !== pending.testId), pending].slice(-10);
+    saveTestPrefs({ ...(profile?.testPrefs || DEFAULT_TEST_PREFS), pausedTests: next }).then((saved) => {
+      if (saved) { try { sessionStorage.removeItem('upcourse-pending-test-pause'); } catch {} }
+    });
+  }, [session?.user?.id, profile?.id]);
 
   async function handleSignOut() {
     await sbSignOut();
@@ -4109,8 +4169,8 @@ export default function App() {
               {viewingUsername && (
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
@@ -4120,6 +4180,9 @@ export default function App() {
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" />}><DeferredProfileView
                   session={session}
                   profile={profile}
+                  pausedTests={pausedTests}
+                  onResumePausedTest={resumePausedTest}
+                  onPausedTestVisibilityChange={setPausedTestHomeVisibility}
                   authLoading={authLoading}
                   onSaveProfile={saveProfile}
                   onSignOut={handleSignOut}

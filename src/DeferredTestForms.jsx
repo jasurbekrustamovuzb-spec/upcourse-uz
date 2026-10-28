@@ -1,6 +1,6 @@
 import { useState, useRef, Suspense, lazy } from 'react';
 
-import { Calculator, Check, ChevronRight, FileText, Image as ImageIcon, Info, Paperclip, Plus, X } from 'lucide-react';
+import { Calculator, Check, ChevronRight, FileText, Image as ImageIcon, Info, Loader2, Paperclip, Plus, X } from 'lucide-react';
 
 import { C, GhostButton, InfoHint, SectionLoading, SolidButton, TextField, VisibilityToggle, fontBody, fontMono, parseTxtQuestions, sbUploadImage, uid } from './App.jsx';
 
@@ -20,8 +20,12 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
   const [imageUrl, setImageUrl] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState('');
+  const [replaceImageError, setReplaceImageError] = useState('');
+  const [replaceImageQuestionId, setReplaceImageQuestionId] = useState(null);
+  const [replacingImage, setReplacingImage] = useState(false);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
+  const replaceImageInputRef = useRef(null);
 
   function addQuestion() {
     if (!qText.trim() && !qFormula.trim()) return;
@@ -61,6 +65,24 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
     }
   }
 
+  async function handleReplaceQuestionImage(e) {
+    const file = e.target.files && e.target.files[0];
+    const questionId = replaceImageQuestionId;
+    if (!file || !questionId) return;
+    setReplaceImageError('');
+    setReplacingImage(true);
+    try {
+      const url = await sbUploadImage(file);
+      setQuestions((current) => current.map((question) => question.id === questionId ? { ...question, imageUrl: url } : question));
+    } catch {
+      setReplaceImageError('Savol rasmini almashtirib bo‘lmadi. Faylni tekshirib, qayta urinib ko‘ring.');
+    } finally {
+      setReplacingImage(false);
+      setReplaceImageQuestionId(null);
+      e.target.value = '';
+    }
+  }
+
   function handleTxtFile(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -89,6 +111,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
     <>
       {questions.length > 0 && (
         <div className="mb-4 space-y-2">
+          <input ref={replaceImageInputRef} type="file" accept="image/*" onChange={handleReplaceQuestionImage} className="hidden" />
           {questions.map((q, i) => (
             <div key={q.id} className="flex min-w-0 items-start justify-between gap-3 p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
               <div className={q.pdfSourceImageOnly ? "flex min-w-0 flex-1" : "flex items-start gap-2 min-w-0"}>
@@ -105,9 +128,14 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                   )}
                 </div>}
               </div>
+              <button type="button" disabled={replacingImage} onClick={() => { setReplaceImageQuestionId(q.id); replaceImageInputRef.current?.click(); }} className="inline-flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-lg border text-[11px] font-medium disabled:opacity-60 sm:w-auto sm:gap-1 sm:px-2" style={{ ...fontBody, color: C.inkSoft, background: C.surface, borderColor: C.rule }} title={q.imageUrl ? 'Savol rasmini almashtirish' : 'Savolga rasm qo‘shish'} aria-label={q.imageUrl ? 'Savol rasmini almashtirish' : 'Savolga rasm qo‘shish'}>
+                {replacingImage && replaceImageQuestionId === q.id ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={13} />}
+                <span className="hidden sm:inline">{replacingImage && replaceImageQuestionId === q.id ? 'Yuklanmoqda' : q.imageUrl ? 'Rasmni almashtirish' : 'Rasm qo‘shish'}</span>
+              </button>
               <button onClick={() => removeQuestion(q.id)} className="flex-shrink-0 ml-3" style={{ color: C.inkSoft }}><X size={15} /></button>
             </div>
           ))}
+          {replaceImageError && <div role="alert" className="text-xs" style={{ ...fontBody, color: C.red }}>{replaceImageError}</div>}
         </div>
       )}
 
@@ -315,7 +343,7 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
 
 export function EditTestForm({ test, onSave, onDone }) {
   const [title, setTitle] = useState(test.title);
-  const [questions, setQuestions] = useState(test.questions);
+  const [questions, setQuestions] = useState(() => test.questions.map((question) => question.id ? question : { ...question, id: uid() }));
   const isMathTest = questions.some((question) => question.answerMode === 'math' || question.pdfSourceImageOnly || question.optionsAreMath);
 
   async function submit() {
@@ -343,5 +371,4 @@ export function EditTestForm({ test, onSave, onDone }) {
     </div>
   );
 }
-
 
