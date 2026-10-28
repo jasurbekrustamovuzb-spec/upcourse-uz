@@ -5,6 +5,7 @@ import { Calculator, Check, ChevronRight, FileText, Image as ImageIcon, Info, Pa
 import { C, GhostButton, InfoHint, SectionLoading, SolidButton, TextField, VisibilityToggle, fontBody, fontMono, parseTxtQuestions, sbUploadImage, uid } from './App.jsx';
 
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
+const MathInput = lazy(() => import('./MathInput.jsx'));
 
 function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
   const [qType, setQType] = useState(mode === 'math' ? 'open' : 'mcq');
@@ -29,7 +30,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
     } else {
       const answers = answersText.split(/[,\n]/).map((a) => a.trim()).filter(Boolean);
       if (answers.length === 0) return;
-      setQuestions([...questions, { id: uid(), type: 'open', text: qText.trim(), answers, imageUrl: imageUrl || undefined }]);
+      setQuestions([...questions, { id: uid(), type: 'open', answerMode: mode === 'math' ? 'math' : undefined, text: qText.trim(), answers, imageUrl: imageUrl || undefined }]);
       setAnswersText('');
     }
     setQText('');
@@ -153,7 +154,11 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             )}
           </div>
 
-          <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />
+          {isMathMode ? (
+            <Suspense fallback={<div className="mb-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Maydon ochilmoqda…</div>}>
+              <MathInput label="Savol matni" value={qText} onChange={setQText} placeholder="Masala yoki formulani kiriting" rows={3} />
+            </Suspense>
+          ) : <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />}
 
           <div className="mb-3">
             <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
@@ -206,14 +211,13 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             </>
           ) : (
             <>
-              <TextField
-                label="Toʻgʻri javob(lar)"
-                value={answersText}
-                onChange={setAnswersText}
-                placeholder="Masalan: 1/2, 0.5, 0,5 (vergul yoki yangi qator bilan ajrating)"
-                textarea
-                rows={2}
-              />
+              {isMathMode ? (
+                <Suspense fallback={<div className="mb-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Maydon ochilmoqda…</div>}>
+                  <MathInput label="Toʻgʻri javob(lar)" value={answersText} onChange={setAnswersText} placeholder={'Har bir qabul qilinadigan javobni yangi qatordan yozing. Masalan:\n1/2\n0,5'} rows={2} />
+                </Suspense>
+              ) : (
+                <TextField label="Toʻgʻri javob(lar)" value={answersText} onChange={setAnswersText} placeholder="Masalan: javob yoki boshqa qabul qilinadigan javob" textarea rows={2} />
+              )}
             </>
           )}
 
