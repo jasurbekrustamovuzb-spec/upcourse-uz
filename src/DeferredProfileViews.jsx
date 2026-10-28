@@ -4,6 +4,8 @@ import { BANNER_PRESETS, C, CollectibleThumb, EmptyState, GhostButton, LinkedUse
 import { supabase } from './supabaseClient.js';
 import { signInWithGoogle, switchGoogleAccount } from './supabaseClient.js';
 import TeamBattleLibrary from './TeamBattleLibrary.jsx';
+
+const PausedTestsPanel = lazy(() => import('./PausedTestsPanel.jsx'));
 export function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, session }) {
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
@@ -219,7 +221,7 @@ export function PublicProfileView({ username, courses, tests, onBack, onOpenItem
   );
 }
 
-export function ProfileView({ session, profile, authLoading, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
+export function ProfileView({ session, profile, authLoading, pausedTests, onResumePausedTest, onPausedTestVisibilityChange, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -479,6 +481,7 @@ export function ProfileView({ session, profile, authLoading, onSaveProfile, onSi
         </div>
       </div>
 
+      {!!pausedTests?.length && <Suspense fallback={null}><PausedTestsPanel attempts={pausedTests} placement="profile" onResume={onResumePausedTest} onVisibilityChange={onPausedTestVisibilityChange} /></Suspense>}
       <SectionHeading eyebrow="Mening hisobim" title="Mening kurs va testlarim" />
       <div className="grid sm:grid-cols-2 gap-4">
         <button onClick={() => goSubTab('kurslar')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>

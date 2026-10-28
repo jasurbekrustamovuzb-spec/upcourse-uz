@@ -11,3 +11,12 @@
   }
 }
 
+math-field.upcourse-math-field {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* MathLive's menu opens a context menu; the touch keyboard toggle remains. */
+math-field.upcourse-math-field::part(menu-toggle) {
+  display: none;
+}

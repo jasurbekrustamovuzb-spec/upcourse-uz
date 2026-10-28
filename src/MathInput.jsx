@@ -59,7 +59,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
   }, [value]);
 
   return (
-    <div className={compact ? '' : 'mb-3'}>
+    <div className={compact ? 'min-w-0 max-w-full' : 'mb-3 min-w-0 max-w-full'}>
       {label && <label className="block text-xs mb-1.5" style={{ ...fontBody, color: C.inkSoft }}>{label}</label>}
       <math-field
         ref={fieldRef}
@@ -69,7 +69,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
         disabled={disabled ? '' : undefined}
         className="upcourse-math-field"
         style={{
-          display: 'block', width: '100%', minHeight: compact ? 38 : 48,
+          display: 'block', width: '100%', minWidth: 0, maxWidth: '100%', minHeight: compact ? 38 : 48,
           padding: compact ? '6px 9px' : '9px 12px', borderRadius: 10,
           color: C.ink, background: readOnly ? 'transparent' : C.surface,
           border: readOnly ? '0' : `1px solid ${C.rule}`,
