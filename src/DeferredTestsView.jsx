@@ -262,7 +262,6 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     }
     clearTimeout(autoFinishTimerRef.current);
     const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, latestAnswers[question.id]), 0);
-    const totalCount = getQuestionCount(questions);
     const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
     setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
     setFinishDialog(false);
