@@ -2,6 +2,7 @@ import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
 import { ArrowLeft, Award, Calculator, Check, ChevronRight, Clock3, FileText, ListChecks, Pause, Pencil, Play as Play2, RotateCcw, Settings, Share2, Trash2, Users, X } from 'lucide-react';
 import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
+const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const total = test.questions.length;
   const unitTotal = getQuestionCount(test.questions);
@@ -382,13 +383,13 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
                 <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className={matchingOnly ? "p-1.5 sm:p-2 rounded-xl" : "p-3 sm:p-4 rounded-sm"} style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-                  {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+                  {q.type !== 'matching' && !q.pdfSourceImageOnly && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
                     <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
                     {q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
                   </div>}
-                  {q.imageUrl && (
-                    <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
-                  )}
+                  {q.imageUrl && (q.pdfSourceImageOnly
+                    ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-lg bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
+                    : <img src={q.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-sm sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
                   {q.type === 'matching' ? (
                     <MatchingTestQuestion question={q} answer={answers[q.id]} onChange={(pairId, optionIndex) => selectMatching(q.id, pairId, optionIndex)} disabled={finished || paused} showResult={showResult} />
                   ) : q.type === 'open' ? (
@@ -441,7 +442,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
                             style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
                           >
                             <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                            {q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
+                            {q.pdfSourceImageOnly ? null : q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
                             {showResult && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
                             {showResult && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
                           </button>

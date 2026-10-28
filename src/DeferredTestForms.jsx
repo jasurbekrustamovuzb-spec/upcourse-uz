@@ -7,6 +7,7 @@ import { C, GhostButton, InfoHint, SectionLoading, SolidButton, TextField, Visib
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
 const MathInput = lazy(() => import('./MathInput.jsx'));
 const MathPdfImport = lazy(() => import('./MathPdfImport.jsx'));
+const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 
 function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
   const [qType, setQType] = useState(mode === 'math' ? 'open' : 'mcq');
@@ -89,18 +90,20 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
       {questions.length > 0 && (
         <div className="mb-4 space-y-2">
           {questions.map((q, i) => (
-            <div key={q.id} className="flex items-start justify-between p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
-              <div className="flex items-start gap-2 min-w-0">
+            <div key={q.id} className="flex min-w-0 items-start justify-between gap-3 p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+              <div className={q.pdfSourceImageOnly ? "flex min-w-0 flex-1" : "flex items-start gap-2 min-w-0"}>
                 {q.imageUrl && (
-                  <img src={q.imageUrl} alt="" className="w-10 h-10 object-cover rounded-sm flex-shrink-0" style={{ border: `1px solid ${C.rule}` }} />
+                  q.pdfSourceImageOnly
+                    ? <Suspense fallback={<div className="mb-2 h-20 animate-pulse rounded-lg bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
+                    : <img src={q.imageUrl} alt="" loading="lazy" className="h-10 w-10 flex-shrink-0 rounded-sm object-cover" style={{ border: `1px solid ${C.rule}` }} />
                 )}
-                <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
+                {!q.pdfSourceImageOnly && <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
                   <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
                   {q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
                   {q.type === 'open' && (
                     <span className="ml-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>(yozma javob)</span>
                   )}
-                </div>
+                </div>}
               </div>
               <button onClick={() => removeQuestion(q.id)} className="flex-shrink-0 ml-3" style={{ color: C.inkSoft }}><X size={15} /></button>
             </div>
@@ -121,7 +124,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
           {importError && <div className="text-xs mt-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
         </div>
       ) : (
-        <div className="p-4 rounded-sm mb-4" style={{ background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
+        <div className={isMathMode ? "mb-4 w-full min-w-0 space-y-2" : "p-4 rounded-sm mb-4"} style={isMathMode ? undefined : { background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="text-xs tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol qoʻshish</div>
             {!isMathMode && (
@@ -277,15 +280,15 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
   }
 
   return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+    <div className={formMode === 'math' ? "math-test-form mt-4 w-full min-w-0" : "mt-6 p-5 rounded-sm"} style={formMode === 'math' ? undefined : { background: C.surface, border: `1px solid ${C.rule}` }}>
       {formMode === 'txt' && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
           <FileText size={14} style={{ flexShrink: 0 }} /> TXT fayldan test yaratish — savollarni qoʻlda yozish shart emas.
         </div>
       )}
       {formMode === 'math' && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-          <Calculator size={14} style={{ flexShrink: 0 }} /> Matematik test — formulalarni ko‘rinishida yozing, PDF savollarini olib tekshiring yoki qo‘lda kiriting.
+        <div className="mb-4 flex items-start gap-2 border-l-2 py-1 pl-3 text-[13px]" style={{ ...fontBody, color: C.inkSoft, borderColor: C.mathSoft }}>
+          <Calculator size={15} style={{ flexShrink: 0, color: C.mathDeep }} /> Matematik test — PDF savollarini asl ko‘rinishida oling yoki formula klaviaturasi bilan kiriting.
         </div>
       )}
       {!lockedCategoryId && (
@@ -313,6 +316,7 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
 export function EditTestForm({ test, onSave, onDone }) {
   const [title, setTitle] = useState(test.title);
   const [questions, setQuestions] = useState(test.questions);
+  const isMathTest = questions.some((question) => question.answerMode === 'math' || question.pdfSourceImageOnly || question.optionsAreMath);
 
   async function submit() {
     if (!title.trim() || questions.length === 0) return;
@@ -329,9 +333,9 @@ export function EditTestForm({ test, onSave, onDone }) {
   }
 
   return (
-    <div className="mt-6 p-5 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+    <div className={isMathTest ? "math-test-form mt-4 w-full min-w-0" : "mt-6 p-5 rounded-sm"} style={isMathTest ? undefined : { background: C.surface, border: `1px solid ${C.rule}` }}>
       <TextField label="Test nomi" value={title} onChange={setTitle} />
-      <QuestionBuilder questions={questions} setQuestions={setQuestions} />
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={isMathTest ? 'math' : 'manual'} />
       <div className="flex gap-3">
         <SolidButton onClick={submit} icon={Check} disabled={questions.length === 0 || !title.trim()}>Saqlash</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>

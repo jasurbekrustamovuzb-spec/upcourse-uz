@@ -12,6 +12,7 @@ import {
 } from './App';
 
 const MathInput = lazy(() => import('./MathInput.jsx'));
+const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 
 /* ------------------------------------------------------------------ */
 /*  Ixcham QR-kod generatori (ISO/IEC 18004, Byte rejimi, "M" xato     */
@@ -527,10 +528,10 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
 
       {room.phase === 'question' && !peekLeaderboard && currentQuestion && (
         <div className="max-w-2xl">
-          {currentQuestion.type !== 'matching' && <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}{currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact /></Suspense>}</div>}
-          {currentQuestion.imageUrl && (
-            <img src={currentQuestion.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
-          )}
+          {currentQuestion.type !== 'matching' && !currentQuestion.pdfSourceImageOnly && <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}{currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact /></Suspense>}</div>}
+          {currentQuestion.imageUrl && (currentQuestion.pdfSourceImageOnly
+            ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-xl bg-[#e8e2d2]" />}><PdfQuestionImage src={currentQuestion.imageUrl} alt={currentQuestion.text || 'PDFdagi savol'} /></Suspense>
+            : <img src={currentQuestion.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-2xl sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
           {currentQuestion.type === 'matching' ? (
             <MatchingTestQuestion question={currentQuestion} answer={{}} onChange={() => {}} disabled accent="live" />
           ) : currentQuestion.type === 'open' ? (
@@ -540,7 +541,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
               {currentQuestion.options.map((opt, oi) => (
                 <div key={oi} className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>
                   <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                  {currentQuestion.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
+                  {currentQuestion.pdfSourceImageOnly ? null : currentQuestion.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
                 </div>
               ))}
             </div>
@@ -1141,10 +1142,10 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
 
       {room.phase === 'question' && currentQuestion && (
         <div className="max-w-2xl">
-          {currentQuestion.type !== 'matching' && <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}{currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact /></Suspense>}</div>}
-          {currentQuestion.imageUrl && (
-            <img src={currentQuestion.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
-          )}
+          {currentQuestion.type !== 'matching' && !currentQuestion.pdfSourceImageOnly && <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}{currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact /></Suspense>}</div>}
+          {currentQuestion.imageUrl && (currentQuestion.pdfSourceImageOnly
+            ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-xl bg-[#e8e2d2]" />}><PdfQuestionImage src={currentQuestion.imageUrl} alt="PDFdagi savolning asl ko‘rinishi" /></Suspense>
+            : <img src={currentQuestion.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-2xl sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
 
           {hasAnswered ? (
             <div className="flex items-center gap-2 px-4 py-3 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.liveTint, border: `1px solid ${C.live}`, color: C.ink }}>
@@ -1188,7 +1189,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
                   style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink, outlineColor: C.live }}
                 >
                   <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                  <span>{opt}</span>
+                  {!currentQuestion.pdfSourceImageOnly && <span>{opt}</span>}
                 </button>
               ))}
             </div>
@@ -1457,12 +1458,12 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
       <div className="space-y-6 max-w-2xl">
         {test.questions.map((q, qi) => (
           <div key={q.id}>
-            {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+            {q.type !== 'matching' && !q.pdfSourceImageOnly && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
               <span style={{ ...fontMono, color: C.live }}>{qi + 1}.</span> {q.text}{q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
             </div>}
-            {q.imageUrl && (
-              <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-2xl mb-3" style={{ border: `1px solid ${C.rule}` }} />
-            )}
+          {q.imageUrl && (q.pdfSourceImageOnly
+            ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-xl bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
+            : <img src={q.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-2xl sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
             {q.type === 'matching' ? (
               <MatchingTestQuestion question={q} answer={answers[q.id] || {}} onChange={(pairId, optionIndex) => setMatchingAnswer(q.id, pairId, optionIndex)} disabled={submitted} accent="live" />
             ) : q.type === 'open' ? (
@@ -1488,7 +1489,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
                     style={{ ...fontBody, background: isSelected ? C.liveTint : C.surface, border: `1px solid ${isSelected ? C.live : C.rule}`, color: C.ink, outlineColor: C.live }}
                   >
                     <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                    {q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
+                    {q.pdfSourceImageOnly ? null : q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
                   </button>
                 );
               })}
