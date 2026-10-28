@@ -1,6 +1,7 @@
-import { useState, useEffect, useContext, useRef, Suspense } from 'react';
+import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
 import { ArrowLeft, Award, Calculator, Check, ChevronRight, Clock3, FileText, ListChecks, Pause, Pencil, Play as Play2, RotateCcw, Settings, Share2, Trash2, Users, X } from 'lucide-react';
 import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
+const MathInput = lazy(() => import('./MathInput.jsx'));
 export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const total = test.questions.length;
   const unitTotal = getQuestionCount(test.questions);
@@ -391,6 +392,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
                     <MatchingTestQuestion question={q} answer={answers[q.id]} onChange={(pairId, optionIndex) => selectMatching(q.id, pairId, optionIndex)} disabled={finished || paused} showResult={showResult} />
                   ) : q.type === 'open' ? (
                     <div>
+                      {q.answerMode === 'math' ? (
+                        <Suspense fallback={<div className="py-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}>
+                          <MathInput value={answers[q.id] || ''} onChange={(value) => setOpenAnswer(q.id, value)} disabled={showResult} placeholder="Javobingizni kiriting" rows={1} />
+                        </Suspense>
+                      ) : (
                       <input
                         type="text"
                         value={answers[q.id] || ''}
@@ -406,6 +412,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
                           border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
                         }}
                       />
+                      )}
                       {showResult && (
                         <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
                           {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
