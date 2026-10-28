@@ -243,6 +243,9 @@ export default function MathPdfImport({ onImport, onClose }) {
   const [rawText, setRawText] = useState('');
   const [fileName, setFileName] = useState('');
   const [editingAnswerId, setEditingAnswerId] = useState(null);
+  const [bulkMcqKey, setBulkMcqKey] = useState('');
+  const [bulkWrittenAnswers, setBulkWrittenAnswers] = useState('');
+  const [bulkAnswerMessage, setBulkAnswerMessage] = useState('');
 
   const incomplete = useMemo(() => drafts.some((question) => (
     (!question.text.trim() && !question.sourcePreviewUrl)
@@ -268,6 +271,9 @@ export default function MathPdfImport({ onImport, onClose }) {
     setRawText('');
     setFileName(file.name);
     setEditingAnswerId(null);
+    setBulkMcqKey('');
+    setBulkWrittenAnswers('');
+    setBulkAnswerMessage('');
 
     if (file.size > MAX_FILE_BYTES) {
       setError('PDF 20 MB dan katta. Telefon sekinlashmasligi uchun kichikroq fayl tanlang.');
@@ -373,6 +379,54 @@ export default function MathPdfImport({ onImport, onClose }) {
     setDrafts((current) => current.map((question) => question.id === id ? { ...question, ...changes } : question));
   }
 
+  function applyBulkMcqKey() {
+    const input = bulkMcqKey.trim();
+    if (!input) return;
+    const numberedMatches = [...input.matchAll(/(?:^|[\s,;])(?:№\s*)?(\d{1,3})\s*[-:.)]\s*([A-F])(?=$|[\s,;])/gi)];
+    const keyedAnswers = new Map(numberedMatches.map((match) => [Number(match[1]), match[2].toUpperCase()]));
+    const sequence = numberedMatches.length ? [] : (input.toUpperCase().match(/[A-F]/g) || []);
+    const targets = drafts.filter((question) => question.type === 'mcq');
+    let applied = 0;
+    let invalid = 0;
+
+    setDrafts((current) => current.map((question) => {
+      if (question.type !== 'mcq') return question;
+      const number = Number(String(question.sourceNumber).match(/^\d+/)?.[0]);
+      const letter = numberedMatches.length ? keyedAnswers.get(number) : sequence[targets.indexOf(question)];
+      if (!letter) return question;
+      const correct = question.options.indexOf(letter);
+      if (correct < 0) { invalid += 1; return question; }
+      applied += 1;
+      return { ...question, correct, needsAnswerReview: false, hasAnswerKey: false };
+    }));
+
+    setBulkAnswerMessage(applied + ' ta variantli savol javobi qo‘llandi' + (invalid ? '; ' + invalid + ' tasida bu variant yo‘q, ularni alohida tanlang.' : '.'));
+  }
+
+  function applyBulkWrittenAnswers() {
+    const lines = bulkWrittenAnswers.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) return;
+    const keyedLines = lines.map((line) => line.match(/^(\d{1,3}[a-z]?)\s*[:=]\s*(.+)$/i));
+    const useQuestionLabels = keyedLines.every(Boolean);
+    const answerByNumber = useQuestionLabels
+      ? new Map(keyedLines.map((match) => [match[1].toLowerCase(), match[2].trim()]))
+      : null;
+    const targets = drafts.filter((question) => question.type === 'open');
+    let applied = 0;
+
+    setDrafts((current) => current.map((question) => {
+      if (question.type !== 'open') return question;
+      const answer = useQuestionLabels
+        ? answerByNumber.get(String(question.sourceNumber).toLowerCase())
+        : lines[targets.indexOf(question)] === '-' ? undefined : lines[targets.indexOf(question)];
+      if (!answer) return question;
+      applied += 1;
+      return { ...question, answerText: answer };
+    }));
+
+    setBulkAnswerMessage(applied + ' ta yozma javob qo‘llandi' + (useQuestionLabels ? '.' : '. Ketma-ket ro‘yxatda bo‘sh javob uchun “-” qatoridan foydalaning.'));
+  }
+
   async function confirmImport() {
     if (!drafts.length || incomplete || saving) return;
     setSaving(true);
@@ -443,6 +497,26 @@ export default function MathPdfImport({ onImport, onClose }) {
       {message && <div role="status" className="mt-3 border-l-2 pl-3 py-1 text-sm" style={{ ...fontBody, color: C.mathDeep, borderColor: C.mathSoft }}>{message}</div>}
 
       {drafts.length > 0 && <>
+        <details className="mt-3 rounded-lg border px-3 py-2" style={{ borderColor: C.rule }}>
+          <summary className="cursor-pointer py-1 text-sm font-semibold" style={{ ...fontBody, color: C.mathDeep }}>
+            Ko‘p javobni birdan kiritish · {drafts.filter((question) => question.type === 'mcq').length} variantli, {drafts.filter((question) => question.type === 'open').length} yozma
+          </summary>
+          <div className="mt-2 grid gap-3 md:grid-cols-2">
+            <div className="min-w-0">
+              <label className="mb-1 block text-xs font-medium" style={{ ...fontBody, color: C.ink }}>Variantli javoblar kaliti</label>
+              <textarea value={bulkMcqKey} onChange={(event) => setBulkMcqKey(event.target.value)} rows={2} placeholder="ABCD... yoki 1-A, 2-C, 33-F" className="w-full resize-y rounded-md border p-2 text-sm" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }} />
+              <button type="button" onClick={applyBulkMcqKey} className="mt-1 min-h-8 rounded-md px-2.5 text-xs font-semibold" style={{ ...fontBody, color: C.white, background: C.mathDeep }}>Variantli javoblarni qo‘llash</button>
+              <p className="mt-1 text-[11px] leading-4" style={{ ...fontBody, color: C.inkSoft }}>Javoblarni savollar tartibida ketma-ket yozing yoki raqamlab kiriting.</p>
+            </div>
+            <div className="min-w-0">
+              <label className="mb-1 block text-xs font-medium" style={{ ...fontBody, color: C.ink }}>Yozma javoblar · har qatorda bittadan</label>
+              <textarea value={bulkWrittenAnswers} onChange={(event) => setBulkWrittenAnswers(event.target.value)} rows={3} placeholder={'Ketma-ket javoblar\nYoki raqamlab: 36a=...'} className="w-full resize-y rounded-md border p-2 text-sm" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }} />
+              <button type="button" onClick={applyBulkWrittenAnswers} className="mt-1 min-h-8 rounded-md px-2.5 text-xs font-semibold" style={{ ...fontBody, color: C.white, background: C.mathDeep }}>Yozma javoblarni qo‘llash</button>
+              <p className="mt-1 text-[11px] leading-4" style={{ ...fontBody, color: C.inkSoft }}>Masalan: 2/3, sqrt(5), x^2. “-” qatori javobsiz qoldiradi.</p>
+            </div>
+          </div>
+          {bulkAnswerMessage && <p role="status" className="mt-2 text-xs" style={{ ...fontBody, color: C.mathDeep }}>{bulkAnswerMessage}</p>}
+        </details>
         <div className="mt-4 space-y-3">
           <fieldset disabled={saving} className="space-y-3">
             {drafts.map((question, index) => (
