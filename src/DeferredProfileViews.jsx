@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef, Suspense } from 'react';
+import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
 import { ArrowLeft, Award, BookOpen, Check, CheckCircle2, ChevronRight, Coins, Gift, ListChecks, Loader2, Lock, LogIn, LogOut, Medal, Settings, ShieldCheck, ShoppingBag, Tag, UserCircle2, Users, X } from 'lucide-react';
 import { BANNER_PRESETS, C, CollectibleThumb, EmptyState, GhostButton, LinkedUsernameText, ProfileFollowView, PublicCollectionsView, RatingBadgeCollection, SectionLoading, SectionHeading, ShareButton, SolidButton, TextField, bannerGradient, buildShareUrl, checkUsernameAvailable, collectibleFromRow, fontBody, fontDisplay, fontMono, GIFT_CONTENT, GIFT_ID, isReservedUsername, isValidUsername, normalizeUsername, profileFromRow, sbInsert, sbSelect, sbSelectAuthorContent, sbUpdate, setAuthorBadgeCache, suggestAvailableUsername, unequipOtherCollectibles, useAuthorBadge, userCollectibleFromRow, usernameChangeDaysLeft, NavContext } from './App.jsx';
 import { supabase } from './supabaseClient.js';
