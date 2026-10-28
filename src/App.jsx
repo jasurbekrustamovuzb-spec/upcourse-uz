@@ -2292,8 +2292,10 @@ function parseMathAnswer(str) {
   }
   function term() {
     let value = unary();
-    while (peek() === '*' || peek() === '/') {
-      const op = take();
+    const beginsFactor = (token) => token === '(' || /^(?:\d|\.)/.test(token || '') || ['pi', 'e', 'sqrt', 'sin', 'cos', 'tan', 'ln', 'log'].includes(token);
+    while (peek() === '*' || peek() === '/' || beginsFactor(peek())) {
+      const explicit = peek() === '*' || peek() === '/';
+      const op = explicit ? take() : '*';
       const right = unary();
       value = op === '*' ? value * right : value / right;
     }
@@ -4247,5 +4249,6 @@ export default function App() {
     </SectionLoadingProvider>
   );
 }
+
 
 

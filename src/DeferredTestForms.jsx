@@ -6,10 +6,12 @@ import { C, GhostButton, InfoHint, SectionLoading, SolidButton, TextField, Visib
 
 const MatchingTestForm = lazy(() => import('./MatchingTestForm.jsx'));
 const MathInput = lazy(() => import('./MathInput.jsx'));
+const MathPdfImport = lazy(() => import('./MathPdfImport.jsx'));
 
 function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
   const [qType, setQType] = useState(mode === 'math' ? 'open' : 'mcq');
   const [qText, setQText] = useState('');
+  const [qFormula, setQFormula] = useState('');
   const [opts, setOpts] = useState(['', '', '', '']);
   const [correct, setCorrect] = useState(0);
   const [answersText, setAnswersText] = useState('');
@@ -21,19 +23,20 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
   const imageInputRef = useRef(null);
 
   function addQuestion() {
-    if (!qText.trim()) return;
+    if (!qText.trim() && !qFormula.trim()) return;
     if (qType === 'mcq') {
       if (opts.some((o) => !o.trim())) return;
-      setQuestions([...questions, { id: uid(), type: 'mcq', text: qText.trim(), options: opts.map((o) => o.trim()), correct, imageUrl: imageUrl || undefined }]);
+      setQuestions([...questions, { id: uid(), type: 'mcq', text: qText.trim(), mathFormula: qFormula.trim() || undefined, options: opts.map((o) => o.trim()), optionsAreMath: mode === 'math' || undefined, correct, imageUrl: imageUrl || undefined }]);
       setOpts(['', '', '', '']);
       setCorrect(0);
     } else {
-      const answers = answersText.split(/[,\n]/).map((a) => a.trim()).filter(Boolean);
+      const answers = (mode === 'math' ? [answersText] : answersText.split(/[,\n]/)).map((a) => a.trim()).filter(Boolean);
       if (answers.length === 0) return;
-      setQuestions([...questions, { id: uid(), type: 'open', answerMode: mode === 'math' ? 'math' : undefined, text: qText.trim(), answers, imageUrl: imageUrl || undefined }]);
+      setQuestions([...questions, { id: uid(), type: 'open', answerMode: mode === 'math' ? 'math' : undefined, text: qText.trim(), mathFormula: qFormula.trim() || undefined, answers, imageUrl: imageUrl || undefined }]);
       setAnswersText('');
     }
     setQText('');
+    setQFormula('');
     setImageUrl('');
   }
 
@@ -93,6 +96,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                 )}
                 <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
                   <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
+                  {q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
                   {q.type === 'open' && (
                     <span className="ml-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>(yozma javob)</span>
                   )}
@@ -154,11 +158,10 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             )}
           </div>
 
-          {isMathMode ? (
-            <Suspense fallback={<div className="mb-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Maydon ochilmoqda…</div>}>
-              <MathInput label="Savol matni" value={qText} onChange={setQText} placeholder="Masala yoki formulani kiriting" rows={3} />
-            </Suspense>
-          ) : <TextField label="Savol matni" value={qText} onChange={setQText} placeholder="Savolni yozing" />}
+          <TextField label={isMathMode ? 'Masala sharti' : 'Savol matni'} value={qText} onChange={setQText} placeholder={isMathMode ? 'Masalani oddiy matnda yozing' : 'Savolni yozing'} textarea={isMathMode} rows={isMathMode ? 3 : undefined} />
+          {isMathMode && <Suspense fallback={<div className="mb-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Formula muharriri…</div>}>
+            <MathInput label="Formula yoki ifoda (ixtiyoriy)" value={qFormula} onChange={setQFormula} placeholder="Kasr, daraja yoki ildiz" />
+          </Suspense>}
 
           <div className="mb-3">
             <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
@@ -197,14 +200,14 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                     className="flex-shrink-0"
                     title="Toʻgʻri javob"
                   />
-                  <input
+                  {isMathMode ? <Suspense fallback={<div className="w-full py-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Formula maydoni…</div>}><MathInput compact value={o} onChange={(value) => { const next = [...opts]; next[i] = value; setOpts(next); }} placeholder={`Variant ${String.fromCharCode(65 + i)}`} /></Suspense> : <input
                     type="text"
                     value={o}
                     onChange={(e) => { const next = [...opts]; next[i] = e.target.value; setOpts(next); }}
                     placeholder={`Variant ${String.fromCharCode(65 + i)}`}
                     className="w-full bg-transparent outline-none py-1.5 text-[15px]"
                     style={{ ...fontBody, color: C.ink, borderBottom: `1px solid ${C.rule}` }}
-                  />
+                  />}
                 </div>
               ))}
               <div className="text-xs mb-3" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javobni radio tugma bilan belgilang.</div>
@@ -213,7 +216,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             <>
               {isMathMode ? (
                 <Suspense fallback={<div className="mb-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Maydon ochilmoqda…</div>}>
-                  <MathInput label="Toʻgʻri javob(lar)" value={answersText} onChange={setAnswersText} placeholder={'Har bir qabul qilinadigan javobni yangi qatordan yozing. Masalan:\n1/2\n0,5'} rows={2} />
+                  <MathInput label="Toʻgʻri javob" value={answersText} onChange={setAnswersText} placeholder="Kasr, ildiz yoki ifodani kiriting" />
                 </Suspense>
               ) : (
                 <TextField label="Toʻgʻri javob(lar)" value={answersText} onChange={setAnswersText} placeholder="Masalan: javob yoki boshqa qabul qilinadigan javob" textarea rows={2} />
@@ -234,6 +237,7 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
   const [questions, setQuestions] = useState([]);
   const [visibility, setVisibility] = useState('public');
   const [newId, setNewId] = useState(null);
+  const [showPdfImport, setShowPdfImport] = useState(false);
 
   if (formMode === 'matching') {
     return (
@@ -281,13 +285,21 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
       )}
       {formMode === 'math' && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-          <Calculator size={14} style={{ flexShrink: 0 }} /> Matematik test — savollarga rasm/chizma qoʻshishingiz va yozma javob (kasr, ildiz, daraja) qabul qilishingiz mumkin.
+          <Calculator size={14} style={{ flexShrink: 0 }} /> Matematik test — formulalarni ko‘rinishida yozing, PDF savollarini olib tekshiring yoki qo‘lda kiriting.
         </div>
       )}
       {!lockedCategoryId && (
         <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Sohaga nom bering" />
       )}
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
+      {formMode === 'math' && <div className="mb-4">
+        <button type="button" onClick={() => setShowPdfImport((shown) => !shown)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-sm" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, borderColor: C.mathSoft }}>
+          <FileText size={16} /> PDFdan savol olish
+        </button>
+        {showPdfImport && <Suspense fallback={<div className="mt-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>PDF o‘quvchi yuklanmoqda…</div>}>
+          <MathPdfImport onImport={(items) => { setQuestions((current) => [...current, ...items]); setShowPdfImport(false); }} onClose={() => setShowPdfImport(false)} />
+        </Suspense>}
+      </div>}
       <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
       <VisibilityToggle value={visibility} onChange={setVisibility} />
       <div className="flex gap-3">
@@ -327,4 +339,5 @@ export function EditTestForm({ test, onSave, onDone }) {
     </div>
   );
 }
+
 
