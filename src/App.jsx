@@ -2249,16 +2249,73 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
    bo'lmasa null qaytaradi (harf/so'z javoblari uchun). */
 function parseMathAnswer(str) {
   if (typeof str !== 'string') return null;
-  const s = str.trim().replace(/\s+/g, '').replace(',', '.');
+  const s = str.trim().replace(/\s+/g, '').replace(',', '.')
+    .replace(/[−–]/g, '-').replace(/×/g, '*').replace(/÷/g, '/').replace(/√\s*\(/g, 'sqrt(')
+    .replace(/π/g, 'pi');
   if (!s) return null;
-  const fracMatch = s.match(/^-?\d+(\.\d+)?\/-?\d+(\.\d+)?$/);
-  if (fracMatch) {
-    const [num, den] = s.split('/').map(Number);
-    if (den === 0 || isNaN(num) || isNaN(den)) return null;
-    return num / den;
+  const tokens = s.match(/(?:\d+(?:\.\d*)?|\.\d+)|[a-z]+|[()+\-*/^°]/g);
+  if (!tokens || tokens.join('') !== s) return null;
+  let cursor = 0;
+  const peek = () => tokens[cursor];
+  const take = () => tokens[cursor++];
+  function primary() {
+    const token = take();
+    let value;
+    if (token === '(') {
+      value = expression();
+      if (take() !== ')') throw new Error('parenthesis');
+    } else if (/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(token)) value = Number(token);
+    else if (token === 'pi') value = Math.PI;
+    else if (token === 'e') value = Math.E;
+    else if (['sqrt', 'sin', 'cos', 'tan', 'ln', 'log'].includes(token)) {
+      if (take() !== '(') throw new Error('function');
+      const argument = expression();
+      if (take() !== ')') throw new Error('parenthesis');
+      if (token === 'sqrt') value = Math.sqrt(argument);
+      else if (token === 'sin') value = Math.sin(argument);
+      else if (token === 'cos') value = Math.cos(argument);
+      else if (token === 'tan') value = Math.tan(argument);
+      else if (token === 'ln') value = Math.log(argument);
+      else value = Math.log10(argument);
+    } else throw new Error('value');
+    while (peek() === '°') { take(); value *= Math.PI / 180; }
+    return value;
   }
-  const num = Number(s);
-  return isNaN(num) ? null : num;
+  function power() {
+    const left = primary();
+    return peek() === '^' ? (take(), left ** unary()) : left;
+  }
+  function unary() {
+    if (peek() === '+') { take(); return unary(); }
+    if (peek() === '-') { take(); return -unary(); }
+    return power();
+  }
+  function term() {
+    let value = unary();
+    const beginsFactor = (token) => token === '(' || /^(?:\d|\.)/.test(token || '') || ['pi', 'e', 'sqrt', 'sin', 'cos', 'tan', 'ln', 'log'].includes(token);
+    while (peek() === '*' || peek() === '/' || beginsFactor(peek())) {
+      const explicit = peek() === '*' || peek() === '/';
+      const op = explicit ? take() : '*';
+      const right = unary();
+      value = op === '*' ? value * right : value / right;
+    }
+    return value;
+  }
+  function expression() {
+    let value = term();
+    while (peek() === '+' || peek() === '-') {
+      const op = take();
+      const right = term();
+      value = op === '+' ? value + right : value - right;
+    }
+    return value;
+  }
+  try {
+    const result = expression();
+    return cursor === tokens.length && Number.isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
 }
 
 /* Yozma javobni to'g'ri javoblar ro'yxati bilan solishtiradi.
@@ -2270,16 +2327,18 @@ function isOpenAnswerCorrect(question, userAnswer) {
   if (!userAnswer || !userAnswer.trim()) return false;
   const accepted = question.answers || [];
   const userNum = parseMathAnswer(userAnswer);
-  const userText = userAnswer.trim().toLowerCase().replace(/\s+/g, '');
+  const normalize = (value) => String(value).trim().toLowerCase().replace(/\s+/g, '').replace(/[−–]/g, '-').replace(/×/g, '*').replace(/÷/g, '/').replace(/√\s*\(/g, 'sqrt(').replace(/π/g, 'pi');
+  const userText = normalize(userAnswer);
   for (const acc of accepted) {
     const accNum = parseMathAnswer(acc);
     if (userNum !== null && accNum !== null) {
-      if (Math.abs(userNum - accNum) < 1e-9) return true;
+      if (Math.abs(userNum - accNum) <= 1e-9 * Math.max(1, Math.abs(userNum), Math.abs(accNum))) return true;
     }
-    if (String(acc).trim().toLowerCase().replace(/\s+/g, '') === userText) return true;
+    if (normalize(acc) === userText) return true;
   }
   return false;
 }
+
 
 /* Har ikki savol turi (variantli / yozma) uchun umumiy tekshiruv */
 export function isQuestionCorrect(q, userAnswer) {
@@ -4190,5 +4249,6 @@ export default function App() {
     </SectionLoadingProvider>
   );
 }
+
 
 

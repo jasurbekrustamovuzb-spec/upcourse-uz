@@ -1,6 +1,8 @@
-import { useState, useEffect, useContext, useRef, Suspense } from 'react';
+import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
 import { ArrowLeft, Award, Calculator, Check, ChevronRight, Clock3, FileText, ListChecks, Pause, Pencil, Play as Play2, RotateCcw, Settings, Share2, Trash2, Users, X } from 'lucide-react';
 import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
+const MathInput = lazy(() => import('./MathInput.jsx'));
+const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const total = test.questions.length;
   const unitTotal = getQuestionCount(test.questions);
@@ -314,15 +316,15 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
               const isCorrect = correct === total;
               return (
                 <article key={q.id} className="p-4 rounded-sm" style={{ background: isCorrect ? C.successTint : C.dangerTint, border: `1px solid ${isCorrect ? C.accent : C.red}` }}>
-                  <div className="text-sm mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>{qi + 1}. {q.text || 'Moslashtirish savoli'}</div>
+                  <div className="text-sm mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>{qi + 1}. {q.text || 'Moslashtirish savoli'}{q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}</div>
                   <div className="grid sm:grid-cols-2 gap-3 text-sm">
                     <div>
                       <div style={{ ...fontBody, color: C.inkSoft }}>Sizning javobingiz</div>
-                      <div className="mt-1 break-words" style={{ ...fontBody, color: C.ink }}>{chosenText}</div>
+                      {q.answerMode === 'math' && chosenText !== 'Javob berilmadi' ? <Suspense fallback={<div className="mt-1 break-words">{chosenText}</div>}><MathInput value={chosenText} readOnly compact /></Suspense> : <div className="mt-1 break-words" style={{ ...fontBody, color: C.ink }}>{chosenText}</div>}
                     </div>
                     <div>
                       <div style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javob</div>
-                      <div className="mt-1 break-words" style={{ ...fontBody, color: C.accent, fontWeight: 600 }}>{correctText || 'Javob kiritilmagan'}</div>
+                      {q.answerMode === 'math' && correctText ? <Suspense fallback={<div className="mt-1 break-words">{correctText}</div>}><MathInput value={correctText} readOnly compact /></Suspense> : <div className="mt-1 break-words" style={{ ...fontBody, color: C.accent, fontWeight: 600 }}>{correctText || 'Javob kiritilmagan'}</div>}
                     </div>
                   </div>
                   <div className="mt-3 text-xs" style={{ ...fontMono, color: isCorrect ? C.accent : C.red }}>
@@ -381,16 +383,22 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
               const showResult = config.immediate ? !!revealed[q.id] : finished;
               return (
                 <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className={matchingOnly ? "p-1.5 sm:p-2 rounded-xl" : "p-3 sm:p-4 rounded-sm"} style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-                  {q.type !== 'matching' && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+                  {q.type !== 'matching' && !q.pdfSourceImageOnly && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
                     <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
+                    {q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
                   </div>}
-                  {q.imageUrl && (
-                    <img src={q.imageUrl} alt="" className="max-w-full sm:max-w-md rounded-sm mb-3" style={{ border: `1px solid ${C.rule}` }} />
-                  )}
+                  {q.imageUrl && (q.pdfSourceImageOnly
+                    ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-lg bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
+                    : <img src={q.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-sm sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
                   {q.type === 'matching' ? (
                     <MatchingTestQuestion question={q} answer={answers[q.id]} onChange={(pairId, optionIndex) => selectMatching(q.id, pairId, optionIndex)} disabled={finished || paused} showResult={showResult} />
                   ) : q.type === 'open' ? (
                     <div>
+                      {q.answerMode === 'math' ? (
+                        <Suspense fallback={<div className="py-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}>
+                          <MathInput value={answers[q.id] || ''} onChange={(value) => setOpenAnswer(q.id, value)} onBlur={() => confirmOpenAnswer(q.id)} disabled={showResult} placeholder="Javobingizni kiriting" />
+                        </Suspense>
+                      ) : (
                       <input
                         type="text"
                         value={answers[q.id] || ''}
@@ -406,6 +414,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
                           border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
                         }}
                       />
+                      )}
                       {showResult && (
                         <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
                           {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
@@ -433,7 +442,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
                             style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
                           >
                             <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                            <span>{opt}</span>
+                            {q.pdfSourceImageOnly ? null : q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
                             {showResult && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
                             {showResult && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
                           </button>
@@ -840,3 +849,4 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   );
 }
 import { EditTestForm } from './DeferredTestForms.jsx';
+
