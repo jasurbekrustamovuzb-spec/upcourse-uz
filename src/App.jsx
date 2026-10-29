@@ -1918,7 +1918,7 @@ export function VisibilityToggle({ value, onChange }) {
       </div>
       <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>
         {value === 'private'
-          ? 'Faqat siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi. Tasdiqlash talab qilinmaydi.'
+          ? 'Faqat siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi.'
           : 'Ommaviy qilish uchun administrator tasdiqlashi kerak.'}
       </div>
     </div>
