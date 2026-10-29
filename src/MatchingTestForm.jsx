@@ -5,7 +5,7 @@ import { C, fontBody, fontMono, GhostButton, SolidButton } from './App';
 export default function MatchingTestForm({ initialCategoryName = '', initialTest, onSubmit, onSave, onDone, onView }) {
   const [categoryName, setCategoryName] = useState(initialCategoryName);
   const [title, setTitle] = useState(initialTest?.title || '');
-  const [visibility, setVisibility] = useState('public');
+  const [visibility, setVisibility] = useState('private');
   const [pairs, setPairs] = useState(() => {
     const rows = (initialTest?.questions || []).filter(q => q.type === 'matching').flatMap(q =>
       (q.pairs || [{ id: q.id, text: q.text, correct: q.correct }]).map(p => ({ id: p.id, left: p.text || '', right: q.options?.[p.correct] || '' }))
@@ -73,7 +73,7 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
   }
   if (newId) return <div className="mt-6 rounded-xl p-6 text-center" style={{ background: C.surface, border: '1px solid ' + C.accent }}>
     <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" /><div className="mb-1 text-base" style={{ ...fontBody, color: C.ink }}>Moslik testingiz saqlandi!</div>
-    <div className="mb-4 text-sm" style={{ ...fontBody, color: C.inkSoft }}>{visibility === 'private' ? 'Xususiy test sifatida saqlandi.' : 'Administrator tasdiqlagach hammaga koʻrinadi.'}</div>
+    <div className="mb-4 text-sm" style={{ ...fontBody, color: C.inkSoft }}>{visibility === 'private' ? 'Maxfiy test sifatida saqlandi. Siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi.' : 'Administrator tasdiqlagach hammaga koʻrinadi.'}</div>
     <div className="flex justify-center gap-3"><SolidButton onClick={() => onView(newId)} icon={Check}>Koʻrish</SolidButton><GhostButton onClick={onDone} icon={X}>Yopish</GhostButton></div>
   </div>;
   const field = { ...fontBody, color: C.ink, background: C.paper, border: '1px solid ' + C.rule };
@@ -104,7 +104,11 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
       <div className="mb-2 text-xs" style={{ ...fontMono, color: C.inkSoft }}>Oʻyin ko‘rinishi · javoblar aralashtiriladi</div>
       <div className="grid grid-cols-2 gap-2"><div className="space-y-1.5">{pairs.map((p, i) => <div key={i} className="truncate rounded-lg px-2.5 py-2 text-xs" style={{ ...fontBody, background: C.surface, color: C.ink }}>{p.left || 'Chapdagi element'}</div>)}</div><div className="space-y-1.5">{[...pairs].reverse().map((p, i) => <div key={i} className="truncate rounded-lg px-2.5 py-2 text-xs" style={{ ...fontBody, background: C.surface, color: C.ink }}>{p.right || 'Mos javob'}</div>)}</div></div>
     </div>
-    {!initialTest && <div className="mt-4"><div className="mb-1.5 text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div><div className="flex gap-2">{[['public', Users, 'Ommaviy'], ['private', Lock, 'Xususiy']].map(([value, Icon, label]) => <button key={value} type="button" onClick={() => setVisibility(value)} className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm" style={{ ...fontBody, color: visibility === value ? C.white : C.ink, background: visibility === value ? C.cover : C.surface, border: '1px solid ' + (visibility === value ? C.cover : C.rule) }}><Icon size={15} />{label}</button>)}</div></div>}
+    {!initialTest && <div className="mt-4">
+      <div className="mb-1.5 text-xs uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div>
+      <div className="flex gap-2">{[['private', Lock, 'Maxfiy'], ['public', Users, 'Ommaviy']].map(([value, Icon, label]) => <button key={value} type="button" onClick={() => setVisibility(value)} className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm" style={{ ...fontBody, color: visibility === value ? C.white : C.ink, background: visibility === value ? C.cover : C.surface, border: '1px solid ' + (visibility === value ? C.cover : C.rule) }}><Icon size={15} />{label}</button>)}</div>
+      <div className="mt-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{visibility === 'private' ? 'Faqat siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi.' : 'Ommaviy qilish uchun administrator tasdiqlashi kerak.'}</div>
+    </div>}
     {error && <div role="alert" className="mb-3 mt-3 text-sm" style={{ ...fontBody, color: C.red }}>{error}</div>}
     <div className="mt-4 flex flex-wrap gap-3"><SolidButton onClick={submit} icon={Check} disabled={!valid || busy}>{busy ? 'Saqlanmoqda…' : initialTest ? 'Moslik testini yangilash' : 'Moslik testini saqlash'}</SolidButton><GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton></div>
   </div>;

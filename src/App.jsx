@@ -802,12 +802,25 @@ function writePublicCatalogCache(categoryRows, courseRows) {
 }
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
-export const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
-
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: true, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 3, immediate: true, autoScroll: true, autoAdvanceSeconds: 2, adaptiveFeedback: false, viewMode: 'list', shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+
+export const profileFromRow = (r) => {
+  const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
+  // Older saved values were the previous defaults. Migrate just those
+  // untouched defaults so returning accounts receive the improved setup.
+  if (testPrefs && Number(testPrefs.version || 0) < 3) {
+    if (testPrefs.immediate === false) testPrefs.immediate = true;
+    if (Number(testPrefs.autoAdvanceSeconds) === 6) testPrefs.autoAdvanceSeconds = 2;
+    if (testPrefs.viewMode === 'reels') testPrefs.viewMode = 'list';
+    if (testPrefs.autoScroll === false) testPrefs.autoScroll = true;
+    if (typeof testPrefs.adaptiveFeedback !== 'boolean') testPrefs.adaptiveFeedback = false;
+    testPrefs.version = 3;
+  }
+  return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
+};
 
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
@@ -1083,7 +1096,7 @@ export function InfoHint({ text }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center justify-center w-4 h-4 rounded-full flex-shrink-0 focus-visible:outline focus-visible:outline-2"
-        style={{ background: C.mathTint, color: C.mathDeep, outlineColor: C.mathSoft }}
+        style={{ background: C.mathTint, color: C.math, outlineColor: C.mathSoft }}
         aria-label="Qoʻshimcha maʼlumot"
       >
         <Info size={11} />
@@ -1091,7 +1104,7 @@ export function InfoHint({ text }) {
       {open && (
         <div
           className="absolute left-0 top-full mt-1.5 z-30 text-xs p-2.5 rounded-lg"
-          style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, width: '230px', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}
+          style={{ ...fontBody, color: C.math, background: C.mathTint, width: '230px', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}
         >
           {text}
         </div>
@@ -1427,6 +1440,32 @@ function PaperPanel({ children, className }) {
   return (
     <div className={className}>{children}</div>
   );
+}
+
+class RouteErrorBoundary extends React.Component {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('Bo‘limni ko‘rsatishda xatolik:', error, info);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <section role="alert" className="mx-auto my-6 max-w-xl rounded-2xl border p-5 text-center" style={{ background: C.surface, borderColor: C.rule, color: C.ink }}>
+        <h2 className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Bu bo‘lim ochilmadi</h2>
+        <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Boshqa bo‘limlarga o‘tishingiz mumkin. Qayta urinish xatoni tuzatmasa, sahifani yangilang.</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => this.setState({ failed: false })} className="rounded-xl px-4 py-2 text-sm font-semibold" style={{ ...fontBody, background: C.cover, color: C.white }}>Qayta urinish</button>
+          <button type="button" onClick={this.props.onHome} className="rounded-xl border px-4 py-2 text-sm font-semibold" style={{ ...fontBody, background: C.paper, borderColor: C.rule, color: C.ink }}>Bosh sahifa</button>
+        </div>
+      </section>
+    );
+  }
 }
 
 export function SearchBox({ value, onChange, placeholder, className = '' }) {
@@ -1793,7 +1832,7 @@ export function AddCourseForm({ categories, lockedCategoryId, initialCategoryNam
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  const [visibility, setVisibility] = useState('public');
+  const [visibility, setVisibility] = useState('private');
   const [newId, setNewId] = useState(null);
 
   if (newId) {
@@ -1803,7 +1842,7 @@ export function AddCourseForm({ categories, lockedCategoryId, initialCategoryNam
         <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Mavzungiz yuborildi!</div>
         <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
           {visibility === 'private'
-            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+            ? 'Maxfiy saqlandi. Siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi.'
             : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
         </div>
         <div className="flex gap-3 justify-center">
@@ -1848,6 +1887,21 @@ export function VisibilityToggle({ value, onChange }) {
       <div className="flex gap-2">
         <button
           type="button"
+          onClick={() => onChange('private')}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          style={{
+            ...fontBody,
+            color: value === 'private' ? C.white : C.ink,
+            background: value === 'private' ? C.cover : C.surface,
+            border: `1px solid ${value === 'private' ? C.cover : C.rule}`,
+            outlineColor: C.gold,
+            fontWeight: value === 'private' ? 600 : 400,
+          }}
+        >
+          <Lock size={15} /> Maxfiy
+        </button>
+        <button
+          type="button"
           onClick={() => onChange('public')}
           className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
           style={{
@@ -1861,26 +1915,11 @@ export function VisibilityToggle({ value, onChange }) {
         >
           <Users size={15} /> Ommaviy
         </button>
-        <button
-          type="button"
-          onClick={() => onChange('private')}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
-          style={{
-            ...fontBody,
-            color: value === 'private' ? C.white : C.ink,
-            background: value === 'private' ? C.cover : C.surface,
-            border: `1px solid ${value === 'private' ? C.cover : C.rule}`,
-            outlineColor: C.gold,
-            fontWeight: value === 'private' ? 600 : 400,
-          }}
-        >
-          <Lock size={15} /> Xususiy
-        </button>
       </div>
       <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>
         {value === 'private'
-          ? 'Tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
-          : 'Administrator tasdiqlagach, hammaga ochiq boʻladi.'}
+          ? 'Faqat siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi.'
+          : 'Ommaviy qilish uchun administrator tasdiqlashi kerak.'}
       </div>
     </div>
   );
@@ -2048,7 +2087,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         )}
         {active.status === 'private' && (
           <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
-            <Lock size={13} /> Xususiy — faqat siz va havola orqali ulashganlaringiz koʻradi
+            <Lock size={13} /> Maxfiy — faqat siz va havola orqali taklif qilgan doʻstlaringiz koʻradi
           </div>
         )}
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -2688,6 +2727,7 @@ function AboutView() {
 /*  "ortga" funksiyasi chaqiriladi — sahifadan yoki hisobdan chiqib      */
 /*  ketish o'rniga.                                                      */
 export const NavContext = React.createContext({ pushNav: () => {}, back: () => {} });
+export const ThemeContext = React.createContext({ theme: 'light', toggleTheme: () => {} });
 
 function useNavStack() {
   const stackRef = useRef([]);
@@ -3085,7 +3125,7 @@ export default function App() {
   async function saveTestPrefs(prefs) {
     if (!session) return;
     try {
-      const nextPrefs = { ...prefs, pausedTests: prefs.pausedTests ?? profile?.testPrefs?.pausedTests ?? [] };
+      const nextPrefs = { ...prefs, version: 3, pausedTests: prefs.pausedTests ?? profile?.testPrefs?.pausedTests ?? [] };
       await sbUpsert('profiles', { id: session.user.id, test_prefs: nextPrefs });
       setProfile((prev) => (prev ? { ...prev, testPrefs: nextPrefs } : prev));
       return true;
@@ -3927,6 +3967,7 @@ export default function App() {
   return (
     <SectionLoadingProvider>
     <NavContext.Provider value={nav}>
+    <ThemeContext.Provider value={{ theme, toggleTheme: () => setTheme((current) => (current === 'dark' ? 'light' : 'dark')) }}>
     <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
       <style>{`
         * { box-sizing: border-box; }
@@ -4116,7 +4157,7 @@ export default function App() {
       </header>}
 
       {/* Content */}
-      <main className={tab === 'arena' ? "flex-1 w-full px-2 sm:px-4 pt-3 pb-6" : readingActive ? "flex-1 max-w-5xl mx-auto px-1 sm:px-4 pt-1 sm:pt-4 pb-3 w-full" : "flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full"}>
+      <main className={tab === 'arena' ? "flex-1 w-full px-2 sm:px-4 pt-3 pb-6" : readingActive ? "flex-1 max-w-5xl mx-auto px-4 sm:px-6 pt-3 sm:pt-4 pb-6 w-full" : "flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full"}>
         {(loading && !skipMainLoadingGate && tab !== 'kurslar') ? (
           <div aria-busy="true" aria-label="Yuklanmoqda">
             {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
@@ -4179,6 +4220,7 @@ export default function App() {
               </div>
             )}
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
+              <RouteErrorBoundary onHome={() => goTo('kurslar')}>
               {viewingUsername && (
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
@@ -4249,6 +4291,7 @@ export default function App() {
               )}
               {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} />}
               {!viewingUsername && tab === 'about' && <AboutView />}
+              </RouteErrorBoundary>
             </PaperPanel>
           </>
         )}
@@ -4321,6 +4364,7 @@ export default function App() {
         </Suspense>
       )}
     </div>
+    </ThemeContext.Provider>
     </NavContext.Provider>
     </SectionLoadingProvider>
   );

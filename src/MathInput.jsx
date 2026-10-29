@@ -6,17 +6,37 @@ import { C, fontBody } from './App.jsx';
 
 const mathKeyboardLayouts = [
   {
+    id: 'upcourse-main-math',
     label: 'Asosiy',
-    tooltip: 'Asosiy matematik belgilar',
+    tooltip: 'Kasr, ildiz, daraja va asosiy amallar',
     rows: [
-      ['\\frac{#@}{#?}', '\\sqrt{#0}', '#@^{#?}', '\\log(#0)', '\\sin(#0)', '\\cos(#0)', '\\pi', '='],
+      [
+        { label: 'a⁄b', tooltip: 'Kasr', command: ['insert', '\\,\\frac{#?}{#?}'] },
+        { label: '√x', tooltip: 'Ildiz', command: ['insert', '\\sqrt{#0}'] },
+        { label: 'xⁿ', tooltip: 'Daraja', command: ['insert', '#@^{#?}'] },
+        { label: 'log', tooltip: 'Logarifm', command: ['insert', '\\log(#0)'] },
+        { label: 'sin', tooltip: 'Sinus', command: ['insert', '\\sin(#0)'] },
+        { label: 'cos', tooltip: 'Kosinus', command: ['insert', '\\cos(#0)'] },
+        { label: 'π', latex: '\\pi', tooltip: 'Pi soni' },
+        '=',
+      ],
       ['7', '8', '9', '−', '\\times', '\\div', '(', ')'],
       ['4', '5', '6', '+', '.', ',', '<', '>'],
       ['1', '2', '3', '0', 'x', 'y', '\\le', '\\ge'],
     ],
   },
   'numeric',
-  'symbols',
+  {
+    id: 'upcourse-symbols',
+    label: 'Belgilar',
+    tooltip: 'Matematik belgilar',
+    rows: [
+      ['\\infty', '\\neq', '\\approx', '\\equiv', '\\in', '\\notin', '\\le', '\\ge'],
+      ['\\pm', '\\mp', '\\times', '\\div', '\\cdot', '\\angle', '°', '%'],
+      ['\\to', '\\Rightarrow', '\\leftrightarrow', '\\propto', '\\perp', '\\parallel', '\\emptyset', '\\cup'],
+      ['\\cap', '\\subset', '\\subseteq', '\\supset', '\\therefore', '\\because', '\\Delta', '\\sum'],
+    ],
+  },
   'greek',
 ];
 
@@ -25,7 +45,7 @@ const mathKeyboardLayouts = [
  * App state stores compact AsciiMath strings; the editor renders them as
  * structured notation and offers MathLive's touch keyboard on phones.
  */
-export default function MathInput({ value = '', onChange, onBlur, placeholder, label, disabled = false, readOnly = false, compact = false }) {
+export default function MathInput({ value = '', onChange, onBlur, placeholder, label, disabled = false, readOnly = false, compact = false, scale = 1 }) {
   const fieldRef = useRef(null);
   const emittedValueRef = useRef(value);
   const initializedRef = useRef(false);
@@ -38,7 +58,12 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     const field = fieldRef.current;
     if (!field) return;
     field.mathVirtualKeyboardPolicy = 'auto';
-    field.mathVirtualKeyboardLayouts = mathKeyboardLayouts;
+    // MathLive reads layouts from the shared virtual keyboard, not from the
+    // field element. Configure it only when a math input is actually mounted
+    // (this component is lazy-loaded, so it does not add work to the homepage).
+    if (typeof window !== 'undefined' && window.mathVirtualKeyboard) {
+      window.mathVirtualKeyboard.layouts = mathKeyboardLayouts;
+    }
     field.smartFence = true;
     field.smartMode = false;
     // MathLive's default scroll-into-view can move a long test while its
@@ -92,7 +117,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
           padding: compact ? '6px 9px' : '9px 12px', borderRadius: 10,
           color: C.ink, background: readOnly ? 'transparent' : C.surface,
           border: readOnly ? '0' : `1px solid ${C.rule}`,
-          fontSize: compact ? 16 : 19, boxSizing: 'border-box',
+          fontSize: Math.round((compact ? 16 : 19) * scale), boxSizing: 'border-box',
           opacity: disabled ? 0.7 : 1,
         }}
       />
