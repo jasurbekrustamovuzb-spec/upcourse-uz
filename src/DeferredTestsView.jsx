@@ -22,8 +22,8 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const init = initialConfig || DEFAULT_TEST_PREFS;
   const [immediate, setImmediate] = useState(!!init.immediate);
   const [autoScroll, setAutoScroll] = useState(!!init.autoScroll);
-  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState([4, 6, 8, 10, 12].includes(Number(init.autoAdvanceSeconds)) ? Number(init.autoAdvanceSeconds) : 6);
-  const [viewMode, setViewMode] = useState(init.viewMode === 'list' ? 'list' : 'reels');
+  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState([1, 2, 3, 4, 5, 6, 8, 10].includes(Number(init.autoAdvanceSeconds)) ? Number(init.autoAdvanceSeconds) : 2);
+  const [viewMode, setViewMode] = useState(init.viewMode === 'reels' ? 'reels' : 'list');
   const [shuffle, setShuffle] = useState(!!init.shuffle);
   const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | split
   const [count, setCount] = useState(Math.min(init.count || 5, total));
@@ -81,7 +81,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
         {autoScroll && <label className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}>
           <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>O‘tishdan oldin kutish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni bemalol o‘qib chiqing.</span></span>
           <select value={autoAdvanceSeconds} onChange={(event) => setAutoAdvanceSeconds(Number(event.target.value))} className="rounded-lg border px-2.5 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label="Avtomatik o‘tish kechikishi">
-            {[4, 6, 8, 10, 12].map((seconds) => <option key={seconds} value={seconds}>{seconds} soniya</option>)}
+            {[1, 2, 3, 4, 5, 6, 8, 10].map((seconds) => <option key={seconds} value={seconds}>{seconds} soniya</option>)}
           </select>
         </label>}
         <div className="flex flex-wrap gap-2 pt-1"><SettingChip active={shuffle} onClick={() => setShuffle((value) => !value)}>Savollarni aralashtirish</SettingChip></div>
@@ -153,12 +153,13 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const answersRef = useRef(initialProgress?.answers || {});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(() => Math.max(0, Math.min(questions.length - 1, Number(initialProgress?.questionIndex) || 0)));
   const [playerPrefs, setPlayerPrefs] = useState(() => ({ ...config }));
-  const viewMode = playerPrefs.viewMode === 'list' ? 'list' : 'reels';
+  const viewMode = playerPrefs.viewMode === 'reels' ? 'reels' : 'list';
   const [playerSettingsOpen, setPlayerSettingsOpen] = useState(false);
   const [questionMapOpen, setQuestionMapOpen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [reconfigureDialog, setReconfigureDialog] = useState(false);
   const [autoAdvanceNotice, setAutoAdvanceNotice] = useState('');
+  const [answerNoticeTone, setAnswerNoticeTone] = useState('correct');
   const [visibleListCount, setVisibleListCount] = useState(() => Math.min(questions.length, 20));
   const [fontScale, setFontScale] = useState(() => {
     try { return Math.max(0.95, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 1)); } catch { return 1; }
@@ -176,6 +177,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const questionRefs = useRef({});
   const resultSummaryRef = useRef(null);
   const autoScrollTimerRef = useRef(null);
+  const noticeTimerRef = useRef(null);
+  const answerStreakRef = useRef(0);
+  const streakedQuestionIdsRef = useRef(new Set());
   const autoAdvanceQuestionRef = useRef(null);
   const autoFinishTimerRef = useRef(null);
   const listContainerRef = useRef(null);
@@ -238,6 +242,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   useEffect(() => {
     if (autoAdvanceQuestionRef.current !== null && currentQuestionIndex !== autoAdvanceQuestionRef.current) {
       clearTimeout(autoScrollTimerRef.current);
+      clearTimeout(noticeTimerRef.current);
       autoAdvanceQuestionRef.current = null;
       setAutoAdvanceNotice('');
     }
@@ -261,7 +266,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     onExit();
   }
 
-  useEffect(() => () => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoFinishTimerRef.current); }, []);
+  useEffect(() => () => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoFinishTimerRef.current); clearTimeout(noticeTimerRef.current); }, []);
 
   useEffect(() => {
     if (finished) return;
@@ -357,13 +362,28 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function scheduleAutoAdvance(question, questionIndex, answer) {
     clearTimeout(autoScrollTimerRef.current);
     autoAdvanceQuestionRef.current = null;
+    clearTimeout(noticeTimerRef.current);
     setAutoAdvanceNotice('');
-    if (!playerPrefs.autoScroll) return;
     if (countAnsweredUnits([question], { [question.id]: answer }) === 0) return;
-    const delay = [4, 6, 8, 10, 12].includes(Number(playerPrefs.autoAdvanceSeconds)) ? Number(playerPrefs.autoAdvanceSeconds) : 6;
+    const delay = [1, 2, 3, 4, 5, 6, 8, 10].includes(Number(playerPrefs.autoAdvanceSeconds)) ? Number(playerPrefs.autoAdvanceSeconds) : 2;
     const correct = isQuestionCorrect(question, answer);
+    if (playerPrefs.immediate && !streakedQuestionIdsRef.current.has(question.id)) {
+      streakedQuestionIdsRef.current.add(question.id);
+      if (correct) {
+        answerStreakRef.current += 1;
+        setAnswerNoticeTone('correct');
+        setAutoAdvanceNotice(answerStreakRef.current === 1
+          ? '⚡ To‘g‘ri! Seriya boshlandi'
+          : `🔥 ${answerStreakRef.current} ta ketma-ket — zo‘r davom etyapsiz!`);
+      } else {
+        answerStreakRef.current = 0;
+        setAnswerNoticeTone('wrong');
+        setAutoAdvanceNotice('Seriya uzildi — keyingisini davom ettiring');
+      }
+      if (!playerPrefs.autoScroll) noticeTimerRef.current = setTimeout(() => setAutoAdvanceNotice(''), 1900);
+    }
+    if (!playerPrefs.autoScroll) return;
     autoAdvanceQuestionRef.current = questionIndex;
-    setAutoAdvanceNotice(`${playerPrefs.immediate ? (correct ? 'To‘g‘ri' : 'Xato') : 'Javob saqlandi'} · ${delay} soniyadan keyin ${questionIndex < questions.length - 1 ? 'keyingisiga o‘tamiz' : 'test yakunlanadi'}`);
     autoScrollTimerRef.current = setTimeout(() => {
       if (autoAdvanceQuestionRef.current !== questionIndex) return;
       autoAdvanceQuestionRef.current = null;
@@ -727,9 +747,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         <button type="button" onClick={() => setControlsVisible(true)} aria-label="Yuqori boshqaruvni ko‘rsatish" title="Boshqaruvni ko‘rsatish" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border shadow-md backdrop-blur" style={{ color: C.ink, background: C.surface, borderColor: C.rule }}><PanelTopOpen size={18} /></button>
       </div>}
 
-      {autoAdvanceNotice && <div role="status" className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-2 text-xs shadow-lg" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule, marginBottom: 'env(safe-area-inset-bottom)' }}>
+      {autoAdvanceNotice && <div role="status" className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-2 text-xs shadow-lg" style={{ ...fontBody, color: C.ink, background: answerNoticeTone === 'correct' ? C.successTint : C.dangerTint, borderColor: answerNoticeTone === 'correct' ? C.accent : C.red, marginBottom: 'env(safe-area-inset-bottom)' }}>
+        {answerNoticeTone === 'correct' ? <CheckCircle2 size={15} className="shrink-0" style={{ color: C.accent }} /> : <X size={15} className="shrink-0" style={{ color: C.red }} />}
         <span>{autoAdvanceNotice}</span>
-        <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); }} className="shrink-0 rounded-full px-2 py-1 font-semibold" style={{ color: C.cover, background: C.goldSoft }}>Bekor</button>
+        {playerPrefs.autoScroll && <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); }} className="shrink-0 rounded-full px-2 py-1 font-semibold" style={{ color: C.cover, background: C.goldSoft }}>Bekor</button>}
       </div>}
 
       {questionMapOpen && <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuestionMapOpen(false); }}>
@@ -771,7 +792,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}><Type size={17} />Matn kattaligi</div><div className="flex items-center gap-1"><button type="button" onClick={() => setQuizFontScale(fontScale - 0.1)} aria-label="Matnni kichraytirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>−</button><span className="min-w-12 text-center text-xs" style={{ ...fontMono, color: C.ink }}>{Math.round(fontScale * 100)}%</span><button type="button" onClick={() => setQuizFontScale(fontScale + 0.1)} aria-label="Matnni kattalashtirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>+</button></div></div>
             <button type="button" role="switch" aria-checked={!!playerPrefs.immediate} onClick={() => updatePlayerPrefs({ immediate: !playerPrefs.immediate })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobni darhol ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xatoni shu savolning o‘zida ko‘rib tahlil qilasiz.</span></span><span className="h-6 w-11 rounded-full p-1" style={{ background: playerPrefs.immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             <button type="button" role="switch" aria-checked={!!playerPrefs.autoScroll} onClick={() => updatePlayerPrefs({ autoScroll: !playerPrefs.autoScroll })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin avtomatik o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni ko‘rishga vaqt beradi; xato bo‘lsa ham o‘tadi.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.autoScroll ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.autoScroll ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
-            {playerPrefs.autoScroll && <label className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Kutish vaqti</span><span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘qib ulgurish uchun</span></span><select value={[4, 6, 8, 10, 12].includes(Number(playerPrefs.autoAdvanceSeconds)) ? Number(playerPrefs.autoAdvanceSeconds) : 6} onChange={(event) => updatePlayerPrefs({ autoAdvanceSeconds: Number(event.target.value) })} className="rounded-lg border px-2.5 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label="Avtomatik o‘tishdan oldingi vaqt">{[4, 6, 8, 10, 12].map((delay) => <option key={delay} value={delay}>{delay} soniya</option>)}</select></label>}
+            {playerPrefs.autoScroll && <label className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Kutish vaqti</span><span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘qib ulgurish uchun</span></span><select value={[1, 2, 3, 4, 5, 6, 8, 10].includes(Number(playerPrefs.autoAdvanceSeconds)) ? Number(playerPrefs.autoAdvanceSeconds) : 2} onChange={(event) => updatePlayerPrefs({ autoAdvanceSeconds: Number(event.target.value) })} className="rounded-lg border px-2.5 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label="Avtomatik o‘tishdan oldingi vaqt">{[1, 2, 3, 4, 5, 6, 8, 10].map((delay) => <option key={delay} value={delay}>{delay} soniya</option>)}</select></label>}
           </div>
           <button type="button" onClick={() => { setPlayerSettingsOpen(false); setReconfigureDialog(true); }} className="mt-4 w-full rounded-xl border px-3 py-3 text-sm font-semibold" style={{ ...fontBody, color: C.ink, background: C.paperSoft, borderColor: C.rule }}>Savollar soni va tartibini o‘zgartirish…</button>
         </section>
@@ -905,7 +926,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const activeCategory = categories.find((c) => c.id === categoryId);
   const inCategory = approved.filter((t) => t.categoryId === categoryId);
   const q = query.trim().toLowerCase();
-  const effectivePrefs = profile?.testPrefs || DEFAULT_TEST_PREFS;
+  const effectivePrefs = { ...DEFAULT_TEST_PREFS, ...(profile?.testPrefs || {}) };
   const onSavePrefs = session ? saveTestPrefs : undefined;
 
   /* Ulashilgan havola orqali kirilgan bo'lsa (?test=ID), shu testni
@@ -1061,7 +1082,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           <button
             onClick={goMatchingTest}
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
+            style={{ ...fontBody, color: C.math, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
           >
             <ListChecks size={14} /> Moslik testi
           </button>

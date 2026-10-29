@@ -802,12 +802,23 @@ function writePublicCatalogCache(categoryRows, courseRows) {
 }
 const newsToRow = (n) => ({ id: n.id, title: n.title, content: n.content, date: n.date });
 const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date: r.date });
-export const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs: r.test_prefs || null });
-
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: false, autoAdvanceSeconds: 6, viewMode: 'reels', shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 2, immediate: true, autoScroll: false, autoAdvanceSeconds: 2, viewMode: 'list', shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+
+export const profileFromRow = (r) => {
+  const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
+  // Older saved values were the previous defaults. Migrate just those
+  // untouched defaults so returning accounts receive the improved setup.
+  if (testPrefs && Number(testPrefs.version || 0) < 2) {
+    if (testPrefs.immediate === false) testPrefs.immediate = true;
+    if (Number(testPrefs.autoAdvanceSeconds) === 6) testPrefs.autoAdvanceSeconds = 2;
+    if (testPrefs.viewMode === 'reels') testPrefs.viewMode = 'list';
+    testPrefs.version = 2;
+  }
+  return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
+};
 
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
@@ -1083,7 +1094,7 @@ export function InfoHint({ text }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center justify-center w-4 h-4 rounded-full flex-shrink-0 focus-visible:outline focus-visible:outline-2"
-        style={{ background: C.mathTint, color: C.mathDeep, outlineColor: C.mathSoft }}
+        style={{ background: C.mathTint, color: C.math, outlineColor: C.mathSoft }}
         aria-label="Qoʻshimcha maʼlumot"
       >
         <Info size={11} />
@@ -1091,7 +1102,7 @@ export function InfoHint({ text }) {
       {open && (
         <div
           className="absolute left-0 top-full mt-1.5 z-30 text-xs p-2.5 rounded-lg"
-          style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, width: '230px', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}
+          style={{ ...fontBody, color: C.math, background: C.mathTint, width: '230px', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}
         >
           {text}
         </div>
@@ -3112,7 +3123,7 @@ export default function App() {
   async function saveTestPrefs(prefs) {
     if (!session) return;
     try {
-      const nextPrefs = { ...prefs, pausedTests: prefs.pausedTests ?? profile?.testPrefs?.pausedTests ?? [] };
+      const nextPrefs = { ...prefs, version: 2, pausedTests: prefs.pausedTests ?? profile?.testPrefs?.pausedTests ?? [] };
       await sbUpsert('profiles', { id: session.user.id, test_prefs: nextPrefs });
       setProfile((prev) => (prev ? { ...prev, testPrefs: nextPrefs } : prev));
       return true;
