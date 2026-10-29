@@ -91,7 +91,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
         )}
         {active.status === 'private' && (
           <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
-            <Lock size={13} /> Xususiy
+            <Lock size={13} /> Maxfiy
           </div>
         )}
         <h3 className="text-2xl sm:text-3xl mb-4" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
@@ -153,7 +153,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
               <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
               {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
               <AuthorLine authorId={c.authorId} authorName={c.author} className="text-xs mt-1.5" />
-              {isMine && <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : c.status === 'private' ? C.inkSoft : C.accent }}>{c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : c.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}</div>}
+              {isMine && <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: c.status === 'pending' ? C.gold : c.status === 'private' ? C.inkSoft : C.accent }}>{c.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : c.status === 'private' ? <><Lock size={12} /> Maxfiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}</div>}
             </div>
           </div>
           <div className="flex items-center flex-shrink-0 gap-1" onClick={(event) => event.stopPropagation()}>
@@ -234,7 +234,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
             {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
             <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
             <AuthorLine authorId={t.authorId} authorName={t.author} className="text-xs mt-1.5" />
-            {isMine && <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : t.status === 'private' ? C.inkSoft : C.accent }}>{t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : t.status === 'private' ? <><Lock size={12} /> Xususiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}</div>}
+            {isMine && <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : t.status === 'private' ? C.inkSoft : C.accent }}>{t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : t.status === 'private' ? <><Lock size={12} /> Maxfiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}</div>}
           </div></div>
           <div className="flex flex-col items-end gap-2 flex-shrink-0"><ItemMenu actions={[
             { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },

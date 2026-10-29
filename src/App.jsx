@@ -1832,7 +1832,7 @@ export function AddCourseForm({ categories, lockedCategoryId, initialCategoryNam
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  const [visibility, setVisibility] = useState('public');
+  const [visibility, setVisibility] = useState('private');
   const [newId, setNewId] = useState(null);
 
   if (newId) {
@@ -1842,7 +1842,7 @@ export function AddCourseForm({ categories, lockedCategoryId, initialCategoryNam
         <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Mavzungiz yuborildi!</div>
         <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
           {visibility === 'private'
-            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+            ? 'Maxfiy saqlandi. Siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi.'
             : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
         </div>
         <div className="flex gap-3 justify-center">
@@ -1887,6 +1887,21 @@ export function VisibilityToggle({ value, onChange }) {
       <div className="flex gap-2">
         <button
           type="button"
+          onClick={() => onChange('private')}
+          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          style={{
+            ...fontBody,
+            color: value === 'private' ? C.white : C.ink,
+            background: value === 'private' ? C.cover : C.surface,
+            border: `1px solid ${value === 'private' ? C.cover : C.rule}`,
+            outlineColor: C.gold,
+            fontWeight: value === 'private' ? 600 : 400,
+          }}
+        >
+          <Lock size={15} /> Maxfiy
+        </button>
+        <button
+          type="button"
           onClick={() => onChange('public')}
           className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
           style={{
@@ -1900,26 +1915,11 @@ export function VisibilityToggle({ value, onChange }) {
         >
           <Users size={15} /> Ommaviy
         </button>
-        <button
-          type="button"
-          onClick={() => onChange('private')}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
-          style={{
-            ...fontBody,
-            color: value === 'private' ? C.white : C.ink,
-            background: value === 'private' ? C.cover : C.surface,
-            border: `1px solid ${value === 'private' ? C.cover : C.rule}`,
-            outlineColor: C.gold,
-            fontWeight: value === 'private' ? 600 : 400,
-          }}
-        >
-          <Lock size={15} /> Xususiy
-        </button>
       </div>
       <div className="text-xs mt-1.5" style={{ ...fontBody, color: C.inkSoft }}>
         {value === 'private'
-          ? 'Tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
-          : 'Administrator tasdiqlagach, hammaga ochiq boʻladi.'}
+          ? 'Faqat siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi. Tasdiqlash talab qilinmaydi.'
+          : 'Ommaviy qilish uchun administrator tasdiqlashi kerak.'}
       </div>
     </div>
   );
@@ -2087,7 +2087,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         )}
         {active.status === 'private' && (
           <div className="flex items-center gap-2 text-xs mb-3 px-3 py-2 rounded-sm" style={{ ...fontMono, color: C.gold, background: C.cover, width: 'fit-content' }}>
-            <Lock size={13} /> Xususiy — faqat siz va havola orqali ulashganlaringiz koʻradi
+            <Lock size={13} /> Maxfiy — faqat siz va havola orqali taklif qilgan doʻstlaringiz koʻradi
           </div>
         )}
         <div className="flex items-start justify-between gap-3 mb-4">

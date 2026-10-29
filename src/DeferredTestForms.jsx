@@ -266,7 +266,7 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
   const [questions, setQuestions] = useState([]);
-  const [visibility, setVisibility] = useState('public');
+  const [visibility, setVisibility] = useState('private');
   const [newId, setNewId] = useState(null);
   const [showPdfImport, setShowPdfImport] = useState(false);
 
@@ -285,7 +285,7 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
         <div className="text-base mb-1" style={{ ...fontBody, color: C.ink }}>Testingiz yuborildi!</div>
         <div className="text-[15px] mb-4" style={{ ...fontBody, color: C.inkSoft }}>
           {visibility === 'private'
-            ? 'Xususiy sifatida saqlandi — tasdiqlash shart emas. Faqat siz va havola orqali ulashganlaringiz koʻra oladi.'
+            ? 'Maxfiy saqlandi. Siz va havola orqali taklif qilgan doʻstlaringiz koʻra oladi.'
             : 'Hozircha faqat sizga koʻrinadi. Administrator tekshirib tasdiqlagach, u hammaga ochiq boʻladi.'}
         </div>
         <div className="flex gap-3 justify-center">

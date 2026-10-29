@@ -661,7 +661,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         ref={(node) => { if (node) questionRefs.current[index] = node; else delete questionRefs.current[index]; }}
         data-question-index={index}
         aria-labelledby={`quiz-question-title-${index}`}
-        className={reel ? 'quiz-reel-enter flex h-full min-h-0 w-full flex-col' : 'w-full border-b py-5 last:border-b-0'}
+        className={reel ? 'quiz-reel-enter flex h-full min-h-0 w-full flex-col' : question.type === 'matching' ? 'w-full border-b pb-2 pt-0.5 last:border-b-0' : 'w-full border-b py-5 last:border-b-0'}
         style={reel ? undefined : { borderColor: C.rule, scrollMarginTop: '96px' }}
       >
         {reel ? (
@@ -670,7 +670,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
         ) : (
-          <div className="mx-auto max-w-3xl px-1 sm:px-3">
+          <div className={question.type === 'matching' ? "w-full px-0" : "mx-auto max-w-3xl px-1 sm:px-3"}>
             {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
@@ -682,7 +682,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function renderQuestionContent(question, index, answer, showResult) {
     return (
       <>
-        <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className={question.type === 'matching' ? "mb-1 flex flex-wrap items-center gap-2" : "mb-2 flex flex-wrap items-center gap-2"}>
           <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Savol {index + 1}</span>
           <span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>{question.type === 'open' ? 'Javob yozing' : question.type === 'matching' ? 'Moslikni toping' : 'To‘g‘ri variantni tanlang'}</span>
           {countAnsweredUnits([question], answers) > 0 && <span className="ml-auto inline-flex items-center gap-1 text-xs" style={{ ...fontBody, color: C.accent }}><Check size={13} /> Belgilangan</span>}
