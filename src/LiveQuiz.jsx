@@ -538,19 +538,23 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
             <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Yozma javobli savol — ishtirokchilar o'z ekranida javob yozmoqda.</div>
           ) : (
             <div className="space-y-2">
-              {currentQuestion.options.map((opt, oi) => (
+              {(Array.isArray(currentQuestion.options) ? currentQuestion.options : []).map((opt, oi) => (
                 <div key={oi} className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>
                   <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
                   {currentQuestion.pdfSourceImageOnly ? null : currentQuestion.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
                 </div>
               ))}
+              {!Array.isArray(currentQuestion.options) || currentQuestion.options.length === 0 ? <div className="text-sm" style={{ ...fontBody, color: C.red }}>Bu savolning javob variantlari topilmadi.</div> : null}
             </div>
           )}
         </div>
       )}
 
       {room.phase === 'question' && !peekLeaderboard && !currentQuestion && (
-        <SectionLoading label="Savol yuklanmoqda…" compact />
+        <div role="alert" className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="text-sm" style={{ ...fontBody, color: C.red }}>Savol tartibi sinxronlashmadi. Xona egasidan savolni qayta ochishini so‘rang.</div>
+          <button type="button" onClick={onExit} className="mt-3 rounded-full px-3 py-2 text-sm" style={{ ...fontBody, color: C.white, background: C.cover }}>Xonadan chiqish</button>
+        </div>
       )}
 
       {room.phase === 'intermission' && showingReveal && !peekLeaderboard && currentQuestion && (
@@ -601,6 +605,45 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   );
 }
 
+function useLiveTestContent(testId, test, ensureTestContent) {
+  const [status, setStatus] = useState('loading');
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const existingQuestions = test?.questions;
+    if (Array.isArray(existingQuestions)) {
+      setStatus(existingQuestions.length ? 'ready' : 'error');
+      return undefined;
+    }
+    if (!ensureTestContent) {
+      setStatus('error');
+      return undefined;
+    }
+    setStatus('loading');
+    Promise.resolve()
+      .then(() => ensureTestContent(testId))
+      .then((questions) => {
+        if (!cancelled) setStatus(Array.isArray(questions) && questions.length ? 'ready' : 'error');
+      })
+      .catch(() => { if (!cancelled) setStatus('error'); });
+    return () => { cancelled = true; };
+  }, [testId, test?.questions, ensureTestContent, attempt]);
+  return { status, retry: () => setAttempt((count) => count + 1) };
+}
+
+function LiveContentLoadState({ status, retry, onExit }) {
+  if (status === 'loading') return <SectionLoading label="Savollar yuklanmoqda…" compact />;
+  return (
+    <div role="alert" className="rounded-2xl p-4" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+      <div className="text-sm" style={{ ...fontBody, color: C.ink }}>Bu testning savollarini yuklab bo‘lmadi.</div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" onClick={retry} className="rounded-full px-3 py-2 text-sm" style={{ ...fontBody, color: C.white, background: C.cover }}>Qayta urinish</button>
+        <button type="button" onClick={onExit} className="rounded-full px-3 py-2 text-sm" style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}>Chiqish</button>
+      </div>
+    </div>
+  );
+}
+
 function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, session, onCreated, onBack, ensureTestContent }) {
   const myId = session?.user?.id;
   const myTests = tests.filter((t) => t.authorId === myId);
@@ -635,8 +678,11 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
       // Jonli xona uchun savollarning to'liq matni albatta kerak (tartibni
       // aralashtirish uchun) — hali yuklanmagan bo'lsa, shu yerda kutamiz.
       let questionsForOrder = selectedTest?.questions;
-      if (liveMode === 'sync' && questionsForOrder === undefined && ensureTestContent) {
+      if (!Array.isArray(questionsForOrder) && ensureTestContent) {
         questionsForOrder = await ensureTestContent(testId);
+      }
+      if (!Array.isArray(questionsForOrder) || questionsForOrder.length === 0) {
+        throw new Error('Tanlangan testda jonli ishlash uchun savollar topilmadi. Testni ochib, savollari saqlanganini tekshiring.');
       }
       const matchingPairs = (questionsForOrder || []).reduce((sum, question) => sum + (question.type === 'matching' ? getQuestionCount([question]) : 0), 0);
       const roomQuestionSeconds = matchingPairs ? Math.max(perQSeconds, Math.min(180, matchingPairs * 8)) : perQSeconds;
@@ -657,7 +703,8 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
       const [created] = await sbInsert('live_rooms', row);
       onCreated(liveRoomFromRow(created));
     } catch (e) {
-      setErr('Xona yaratishda xatolik yuz berdi.');
+      console.error('Jonli test xonasini yaratib boʻlmadi:', e);
+      setErr(e?.message || 'Xona yaratishda xatolik yuz berdi. Qayta urinib koʻring.');
     } finally {
       setBusy(false);
     }
@@ -814,20 +861,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const [finishError, setFinishError] = useState('');
   const finishingRef = useRef(false);
   const test = tests.find((t) => t.id === room.testId);
-
-  useEffect(() => {
-    if (test) {
-      if (test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
-      return;
-    }
-    let cancelled = false;
-    if (ensureTestContent) {
-      ensureTestContent(room.testId);
-      const t = setTimeout(() => { if (!cancelled) ensureTestContent(room.testId); }, 1500);
-      return () => { cancelled = true; clearTimeout(t); };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.testId, test, test?.questions, ensureTestContent]);
+  const testContent = useLiveTestContent(room.testId, test, ensureTestContent);
 
   useEffect(() => {
     if (room.mode === 'sync' || room.status !== 'active') return undefined;
@@ -929,11 +963,9 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
     }
   }
 
-  if ((room.status === 'active' || room.status === 'finished') && room.mode === 'sync' && test) {
-    if (test.questions === undefined) {
-      return (
-        <SectionLoading label="Test yuklanmoqda…" compact />
-      );
+  if ((room.status === 'active' || room.status === 'finished') && room.mode === 'sync') {
+    if (testContent.status !== 'ready' || !test) {
+      return <LiveContentLoadState status={testContent.status === 'ready' ? 'error' : testContent.status} retry={testContent.retry} onExit={onExit} />;
     }
     return (
       <LiveHostSyncPlay
@@ -1008,7 +1040,9 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
         ))}
         {participants.length === 0 && <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Hali hech kim qoʻshilmadi. Kodni ulashing...</div>}
       </div>
-      <SolidButton onClick={start} icon={Award} disabled={starting || participants.length === 0}>{starting ? 'Boshlanmoqda...' : 'Testni boshlash'}</SolidButton>
+      {testContent.status === 'error' && <LiveContentLoadState status={testContent.status} retry={testContent.retry} onExit={onExit} />}
+      {testContent.status === 'loading' && <div className="mb-3"><SectionLoading label="Savollar tekshirilmoqda…" compact /></div>}
+      <SolidButton onClick={start} icon={Award} disabled={starting || participants.length === 0 || testContent.status !== 'ready'}>{starting ? 'Boshlanmoqda...' : 'Testni boshlash'}</SolidButton>
     </div>
   );
 }
@@ -1181,7 +1215,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
             </div>
           ) : (
             <div className="space-y-2">
-              {currentQuestion.options.map((opt, oi) => (
+              {(Array.isArray(currentQuestion.options) ? currentQuestion.options : []).map((opt, oi) => (
                 <button
                   key={oi}
                   onClick={() => submitAnswer(oi)}
@@ -1192,6 +1226,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
                   {!currentQuestion.pdfSourceImageOnly && <span>{opt}</span>}
                 </button>
               ))}
+              {!Array.isArray(currentQuestion.options) || currentQuestion.options.length === 0 ? <div className="text-sm" style={{ ...fontBody, color: C.red }}>Bu savolning javob variantlari topilmadi.</div> : null}
             </div>
           )}
         </div>
@@ -1478,7 +1513,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
               />
             ) : (
             <div className="space-y-2">
-              {q.options.map((opt, oi) => {
+              {(Array.isArray(q.options) ? q.options : []).map((opt, oi) => {
                 const isSelected = answers[q.id] === oi;
                 return (
                   <button
@@ -1493,6 +1528,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
                   </button>
                 );
               })}
+              {!Array.isArray(q.options) || q.options.length === 0 ? <div className="text-sm" style={{ ...fontBody, color: C.red }}>Bu savolning javob variantlari topilmadi.</div> : null}
             </div>
             )}
           </div>
@@ -1532,23 +1568,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
   const [phase, setPhase] = useState(room.status === 'waiting' ? 'waiting' : 'quiz');
   const [participants, setParticipants] = useState([]);
   const test = tests.find((t) => t.id === room.testId);
-
-  useEffect(() => {
-    if (test) {
-      if (test.questions === undefined && ensureTestContent) ensureTestContent(room.testId);
-      return;
-    }
-    // Test hali umuman topilmagan bo'lsa ham — jim o'tirmasdan, uni
-    // to'g'ridan-to'g'ri so'rashga urinamiz, va topilmasa 1.5 soniyadan
-    // keyin qayta urinamiz (masalan tarmoq/vaqt sabab kechikkan bo'lsa).
-    let cancelled = false;
-    if (ensureTestContent) {
-      ensureTestContent(room.testId);
-      const t = setTimeout(() => { if (!cancelled) ensureTestContent(room.testId); }, 1500);
-      return () => { cancelled = true; clearTimeout(t); };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.testId, test, test?.questions, ensureTestContent]);
+  const testContent = useLiveTestContent(room.testId, test, ensureTestContent);
 
   useEffect(() => {
     /* MUHIM: "Hammaga bir xil" (sync) rejimida, savol boshlangach
@@ -1599,17 +1619,11 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
   }
 
   if (phase === 'quiz' && !test) {
-    return (
-      <SectionLoading label="Test yuklanmoqda…" compact />
-    );
+    return <LiveContentLoadState status={testContent.status === 'ready' ? 'error' : testContent.status} retry={testContent.retry} onExit={onExit} />;
   }
 
   if (phase === 'quiz' && test) {
-    if (test.questions === undefined) {
-      return (
-        <SectionLoading label="Savollar yuklanmoqda…" compact />
-      );
-    }
+    if (testContent.status !== 'ready') return <LiveContentLoadState status={testContent.status} retry={testContent.retry} onExit={onExit} />;
     if (room.mode === 'sync') {
       return <LiveSyncPlayer room={room} setRoom={setRoom} test={test} participant={participant} onExit={onExit} />;
     }
@@ -1625,7 +1639,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
   );
 }
 
-function LiveQuizHub({ tests, testsLoading, testsLoadError, onRetryTests, session, onExit, initialCode, restoreSession, onSessionChange, ensureTestContent }) {
+function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests, session, onExit, initialCode, restoreSession, onSessionChange, ensureTestContent }) {
   const [mode, setMode] = useState(initialCode ? 'join-form' : null);
   const [room, setRoom] = useState(null);
   const [participant, setParticipant] = useState(null);
@@ -1719,6 +1733,42 @@ function LiveQuizHub({ tests, testsLoading, testsLoadError, onRetryTests, sessio
   return null;
 }
 
+class LiveQuizErrorBoundary extends React.Component {
+  state = { error: false, mountKey: 0 };
 
-export default LiveQuizHub;
+  static getDerivedStateFromError() {
+    return { error: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('Jonli test ekranida kutilmagan xatolik:', error, info);
+  }
+
+  retry = () => this.setState((state) => ({ error: false, mountKey: state.mountKey + 1 }));
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div role="alert" className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <h2 className="text-lg mb-1" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Jonli test ekranida xatolik yuz berdi</h2>
+          <p className="text-sm mb-4" style={{ ...fontBody, color: C.inkSoft }}>Xona yoki savol ma’lumoti yangilanmay qolgan bo‘lishi mumkin. Xonadan chiqmasdan qayta urining.</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={this.retry} className="rounded-full px-3 py-2 text-sm" style={{ ...fontBody, color: C.white, background: C.cover }}>Qayta urinish</button>
+            <button type="button" onClick={this.props.onExit} className="rounded-full px-3 py-2 text-sm" style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}>Testlardan chiqish</button>
+          </div>
+        </div>
+      );
+    }
+    return <React.Fragment key={this.state.mountKey}>{this.props.children}</React.Fragment>;
+  }
+}
+
+export default function LiveQuizHub(props) {
+  return (
+    <LiveQuizErrorBoundary onExit={props.onExit}>
+      <LiveQuizHubContent {...props} />
+    </LiveQuizErrorBoundary>
+  );
+}
+
 

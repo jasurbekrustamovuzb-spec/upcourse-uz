@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BookOpen, Link2, Loader2, Search, Trash2, X } from 'lucide-react';
 import { C, fontBody, fontDisplay, fontMono, SectionLoading } from './App';
 import { supabase } from './supabaseClient';
 
 const safeLike = (value) => value.replace(/[\\%_]/g, '\\$&');
 
-export default function CourseLinkedTests({ courseId, courseAuthorId, userId, isAdmin, onOpenTest }) {
+export default function CourseLinkedTests({ courseId, categoryId, courseAuthorId, userId, isAdmin, onOpenTest }) {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
@@ -15,26 +15,47 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
   const [searching, setSearching] = useState(false);
   const [savingId, setSavingId] = useState('');
   const [error, setError] = useState('');
+  const loadSequence = useRef(0);
   const canManage = Boolean(isAdmin || (userId && courseAuthorId === userId));
-  const linkedIds = new Set(tests.map((test) => test.id));
+  const linkedIds = new Set(tests.filter((test) => test.isLinked).map((test) => test.id));
 
   async function loadLinks() {
+    const sequence = ++loadSequence.current;
     setLoading(true);
     setListError('');
-    const { data, error: requestError } = await supabase
-      .from('course_test_links')
-      .select('test_id, tests!course_test_links_test_id_fkey(id,title,description,question_count,status,author_id)')
-      .eq('course_id', courseId);
-    if (requestError) {
-      console.error('Mavzuga bogʻlangan testlarni yuklab boʻlmadi:', requestError);
-      setListError('Bogʻlangan testlarni yuklab boʻlmadi.');
-    } else {
-      setTests((data || []).map((link) => link.tests).filter((test) => test && test.status === 'approved'));
+    try {
+      const [linksResult, categoryResult] = await Promise.all([
+        supabase
+          .from('course_test_links')
+          .select('test_id, tests!course_test_links_test_id_fkey(id,title,description,question_count,status,author_id)')
+          .eq('course_id', courseId),
+        categoryId
+          ? supabase.from('tests').select('id,title,description,question_count,status,author_id').eq('category_id', categoryId).eq('status', 'approved').order('created_at', { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (linksResult.error || categoryResult.error) throw linksResult.error || categoryResult.error;
+
+      const byId = new Map();
+      (linksResult.data || []).forEach((link) => {
+        const test = link.tests;
+        if (test?.status === 'approved') byId.set(test.id, { ...test, isLinked: true });
+      });
+      (categoryResult.data || []).forEach((test) => {
+        if (!byId.has(test.id)) byId.set(test.id, { ...test, isLinked: false });
+      });
+      if (sequence === loadSequence.current) setTests([...byId.values()]);
+    } catch (requestError) {
+      console.error('Mavzuga tegishli testlarni yuklab boʻlmadi:', requestError);
+      if (sequence === loadSequence.current) setListError('Mavzuga tegishli testlarni yuklab boʻlmadi.');
+    } finally {
+      if (sequence === loadSequence.current) setLoading(false);
     }
-    setLoading(false);
   }
 
-  useEffect(() => { loadLinks(); }, [courseId]);
+  useEffect(() => {
+    loadLinks();
+    return () => { loadSequence.current += 1; };
+  }, [courseId, categoryId]);
 
   useEffect(() => {
     if (!modalOpen || query.trim().length < 2) {
@@ -119,7 +140,7 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button type="button" onClick={() => onOpenTest(test.id)} className="rounded-full px-3 py-1.5 text-xs font-medium" style={{ ...fontBody, color: C.white, background: C.cover }}>Testni ishlash</button>
-                {canManage && <button type="button" onClick={() => removeLink(test.id)} disabled={Boolean(savingId)} aria-label={`"${test.title}" testini ajratish`} title="Ajratish" className="rounded-full p-2 disabled:opacity-50" style={{ color: C.red, background: C.dangerTint }}>{savingId === test.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}</button>}
+                {canManage && test.isLinked && <button type="button" onClick={() => removeLink(test.id)} disabled={Boolean(savingId)} aria-label={`"${test.title}" testini ajratish`} title="Ajratish" className="rounded-full p-2 disabled:opacity-50" style={{ color: C.red, background: C.dangerTint }}>{savingId === test.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}</button>}
               </div>
             </article>)}
           </div>
@@ -151,3 +172,4 @@ export default function CourseLinkedTests({ courseId, courseAuthorId, userId, is
     </section>
   );
 }
+
