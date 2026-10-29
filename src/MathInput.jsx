@@ -4,6 +4,22 @@ import 'mathlive/fonts.css';
 import { convertAsciiMathToLatex } from 'mathlive';
 import { C, fontBody } from './App.jsx';
 
+const mathKeyboardLayouts = [
+  {
+    label: 'Asosiy',
+    tooltip: 'Asosiy matematik belgilar',
+    rows: [
+      ['\\frac{#@}{#?}', '\\sqrt{#0}', '#@^{#?}', '\\log(#0)', '\\sin(#0)', '\\cos(#0)', '\\pi', '='],
+      ['7', '8', '9', '−', '\\times', '\\div', '(', ')'],
+      ['4', '5', '6', '+', '.', ',', '<', '>'],
+      ['1', '2', '3', '0', 'x', 'y', '\\le', '\\ge'],
+    ],
+  },
+  'numeric',
+  'symbols',
+  'greek',
+];
+
 /**
  * MathLive is imported only by lazy-loaded math forms and math questions.
  * App state stores compact AsciiMath strings; the editor renders them as
@@ -22,9 +38,12 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     const field = fieldRef.current;
     if (!field) return;
     field.mathVirtualKeyboardPolicy = 'auto';
-    field.mathVirtualKeyboardLayouts = ['numeric', 'symbols', 'greek'];
+    field.mathVirtualKeyboardLayouts = mathKeyboardLayouts;
     field.smartFence = true;
     field.smartMode = false;
+    // MathLive's default scroll-into-view can move a long test while its
+    // virtual keyboard opens. Keep the question anchored in place instead.
+    field.onScrollIntoView = () => {};
     const syncState = (event) => {
       const ascii = event.target.getValue('ascii-math').trim();
       emittedValueRef.current = ascii;
@@ -59,7 +78,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
   }, [value]);
 
   return (
-    <div className={compact ? 'min-w-0 max-w-full' : 'mb-3 min-w-0 max-w-full'}>
+    <div className={compact ? 'min-w-0 max-w-full' : 'mb-3 min-w-0 max-w-full'} style={{ overflowAnchor: 'none' }}>
       {label && <label className="block text-xs mb-1.5" style={{ ...fontBody, color: C.inkSoft }}>{label}</label>}
       <math-field
         ref={fieldRef}
@@ -80,4 +99,5 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     </div>
   );
 }
+
 

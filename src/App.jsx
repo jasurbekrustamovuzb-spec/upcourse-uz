@@ -2069,6 +2069,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         <Suspense fallback={<SectionLoading label="Mavzuga tegishli testlar yuklanmoqda…" compact />}>
           <CourseLinkedTestsView
             courseId={active.id}
+            categoryId={active.categoryId}
             courseAuthorId={active.authorId}
             userId={session?.user?.id}
             isAdmin={isAdmin}
@@ -3225,7 +3226,19 @@ export default function App() {
         const columns = 'id,category_id,title,description,author,author_id,status,created_at,question_count';
         const [rows, testRevisionRows] = await Promise.race([
           Promise.all([
-            sbRequest('tests?select=' + columns + '&order=created_at.asc' + visQ, { signal: controller.signal }),
+            (async () => {
+              const allRows = [];
+              const pageSize = 500;
+              for (let offset = 0; ; offset += pageSize) {
+                const page = await sbRequest(
+                  'tests?select=' + columns + '&order=created_at.asc' + visQ + `&limit=${pageSize}&offset=${offset}`,
+                  { signal: controller.signal },
+                );
+                allRows.push(...page);
+                if (page.length < pageSize) break;
+              }
+              return allRows;
+            })(),
             isAdmin ? sbSelectAllContentRevisions('tests', { signal: controller.signal }) : Promise.resolve([]),
           ]),
           new Promise((_, reject) => {
@@ -4312,6 +4325,7 @@ export default function App() {
     </SectionLoadingProvider>
   );
 }
+
 
 
 

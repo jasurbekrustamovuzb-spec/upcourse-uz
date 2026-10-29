@@ -111,11 +111,19 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
 }
 
 export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTest, nextTest, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session, initialProgress, onPauseAttempt, onClearPaused, onRequireAccount }) {
-  const questions = config.questions;
+  // Older saved tests may store a single answer string or omit choices.
+  // Normalize once so scoring and the result view accept both old and new rows.
+  const questions = Array.isArray(config.questions) ? config.questions.filter(Boolean).map((question) => ({
+    ...question,
+    answers: Array.isArray(question.answers) ? question.answers : (question.answers == null || question.answers === '' ? [] : [String(question.answers)]),
+    options: Array.isArray(question.options) ? question.options : [],
+  })) : [];
   const matchingOnly = questions.length > 0 && questions.every((question) => question.type === 'matching');
   const [answers, setAnswers] = useState(() => initialProgress?.answers || {});
+  const answersRef = useRef(initialProgress?.answers || {});
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
+  const finishedRef = useRef(false);
   const [showBadgeNotice, setShowBadgeNotice] = useState(false);
   const [seconds, setSeconds] = useState(() => Math.max(0, Number(initialProgress?.seconds) || 0));
   const [leaveDialog, setLeaveDialog] = useState(false);
@@ -217,20 +225,20 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   function select(qid, idx) {
     if (finished) return;
-    setAnswers((a) => {
-      const next = { ...a, [qid]: idx };
-      scrollToNextUnanswered(qid, next);
-      return next;
-    });
+    const next = { ...answersRef.current, [qid]: idx };
+    answersRef.current = next;
+    setAnswers(next);
+    scrollToNextUnanswered(qid, next);
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
   function selectMatching(qid, pairId, optionIndex) {
     if (finished) return;
-    const nextMatching = { ...(answers[qid] || {}) };
+    const nextMatching = { ...(answersRef.current[qid] || {}) };
     if (optionIndex === undefined) delete nextMatching[pairId];
     else nextMatching[pairId] = optionIndex;
-    const next = { ...answers, [qid]: nextMatching };
+    const next = { ...answersRef.current, [qid]: nextMatching };
+    answersRef.current = next;
     setAnswers(next);
     scrollToNextUnanswered(qid, next);
     if (!matchingOnly && config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
@@ -245,26 +253,28 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   function setOpenAnswer(qid, text) {
     if (finished) return;
-    setAnswers((a) => ({ ...a, [qid]: text }));
+    const next = { ...answersRef.current, [qid]: text };
+    answersRef.current = next;
+    setAnswers(next);
   }
 
   function confirmOpenAnswer(qid) {
     if (finished) return;
-    setAnswers((a) => { scrollToNextUnanswered(qid, a); return a; });
+    scrollToNextUnanswered(qid, answersRef.current);
     if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
   }
 
-  function submit(latestAnswers = answers, allowIncomplete = false) {
-    if (!allowIncomplete && countAnsweredUnits(questions, latestAnswers) < totalCount) {
-      setLeaveDialog(false);
-      setFinishDialog(true);
-      return;
-    }
+  function finishTest(latestAnswers = answersRef.current) {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
     clearTimeout(autoFinishTimerRef.current);
     const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, latestAnswers[question.id]), 0);
     const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
+    answersRef.current = latestAnswers;
+    setAnswers(latestAnswers);
     setRevealed(Object.fromEntries(questions.map((q) => [q.id, true])));
     setFinishDialog(false);
+    setLeaveDialog(false);
     onClearPaused?.(test.id);
     setFinished(true);
     if (percent >= 70 && onTestComplete) {
@@ -273,6 +283,16 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         .then((shouldNotify) => { if (shouldNotify) setShowBadgeNotice(true); })
         .catch(() => {});
     }
+  }
+
+  function submit(latestAnswers = answersRef.current) {
+    if (finishedRef.current) return;
+    if (countAnsweredUnits(questions, latestAnswers) < totalCount) {
+      setLeaveDialog(false);
+      setFinishDialog(true);
+      return;
+    }
+    finishTest(latestAnswers);
   }
 
   if (finished) {
@@ -425,7 +445,17 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             <Clock3 size={13} /> {formatDuration(seconds)}
           </div>
           <button
-          onClick={requestLeave}
+            type="button"
+            onClick={() => submit(answersRef.current)}
+            aria-label="Testni yakunlash"
+            className="inline-flex min-h-8 items-center gap-1 rounded-sm px-2.5 py-1 text-[13px] font-medium"
+            style={{ ...fontBody, color: C.white, background: C.cover }}
+          >
+            <CheckCircle2 size={14} /> Yakunlash
+          </button>
+          <button
+            type="button"
+            onClick={requestLeave}
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-sm text-[13px]"
             style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
           >
@@ -518,7 +548,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           </div>
 
           {!matchingOnly && <div className="flex gap-3 mt-8">
-            <SolidButton onClick={() => submit()} icon={Check}>Testni yakunlash</SolidButton>
+            <SolidButton onClick={() => submit(answersRef.current)} icon={Check}>Testni yakunlash</SolidButton>
           </div>}
       </>
       {(leaveDialog || finishDialog) && (
@@ -527,21 +557,21 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 id="quiz-exit-title" className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>{finishDialog ? 'Testni yakunlaysizmi?' : 'Testni to‘xtatish'}</h3>
-                <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>{finishDialog ? `${answeredCount}/${totalCount} ta javob belgilangan. Qolgan savollar javobsiz hisoblanadi.` : 'Javoblaringizni saqlab davom ettirishingiz yoki testdan chiqishingiz mumkin.'}</p>
+                <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>{finishDialog ? `${countAnsweredUnits(questions, answersRef.current)}/${totalCount} ta javob belgilangan. Qolgan savollar javobsiz hisoblanadi.` : 'Javoblaringizni saqlab davom ettirishingiz yoki testdan chiqishingiz mumkin.'}</p>
               </div>
               <button type="button" onClick={() => { setLeaveDialog(false); setFinishDialog(false); setGuestPausePrompt(false); }} aria-label="Yopish" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: C.surface, color: C.inkSoft }}><X size={18} /></button>
             </div>
             {finishDialog ? (
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setFinishDialog(false)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-medium" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><ArrowLeft size={16} /> Davom etish</button>
-                <button type="button" onClick={() => submit(answers, true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><CheckCircle2 size={17} /> Yakunlash</button>
+                <button type="button" onClick={() => finishTest(answersRef.current)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><CheckCircle2 size={17} /> Yakunlash</button>
               </div>
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   <button type="button" disabled={pauseBusy} onClick={pauseAndExit} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><Save size={18} style={{ color: C.accent }} />Tanaffus</button>
                   <button type="button" onClick={() => { setLeaveDialog(false); exitTest(); }} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.red, background: C.surface, borderColor: C.rule }}><LogOut size={18} />Chiqish</button>
-                  <button type="button" onClick={() => submit()} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft }}><CheckCircle2 size={18} />Yakunlash</button>
+                  <button type="button" onClick={() => submit(answersRef.current)} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft }}><CheckCircle2 size={18} />Yakunlash</button>
                 </div>
                 {guestPausePrompt && <div className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.ink, background: C.goldSoft }}><div className="flex items-start gap-2"><LogIn size={17} className="mt-0.5 shrink-0" />Testni tanaffusga saqlash uchun hisobga kiring. Hisob bilan javoblaringiz keyin ham saqlanadi.</div><button type="button" onClick={() => onRequireAccount?.(createPauseSnapshot())} className="mt-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: C.white, background: C.cover }}>Hisobga kirish</button></div>}
                 {leaveError && <p role="alert" className="mt-3 text-sm" style={{ ...fontBody, color: C.red }}>{leaveError}</p>}
@@ -948,3 +978,4 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   );
 }
 import { EditTestForm } from './DeferredTestForms.jsx';
+
