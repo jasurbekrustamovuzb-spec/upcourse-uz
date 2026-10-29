@@ -21,8 +21,9 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const itemLabel = test.questions.some((question) => question.type === 'matching') ? `${unitTotal} ta moslik` : `${unitTotal} ta savol`;
   const init = initialConfig || DEFAULT_TEST_PREFS;
   const [immediate, setImmediate] = useState(!!init.immediate);
-  const [autoScroll, setAutoScroll] = useState(!!init.autoScroll);
+  const [autoScroll, setAutoScroll] = useState(init.autoScroll !== false);
   const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState([1, 2, 3, 4, 5, 6, 8, 10].includes(Number(init.autoAdvanceSeconds)) ? Number(init.autoAdvanceSeconds) : 2);
+  const [adaptiveFeedback, setAdaptiveFeedback] = useState(!!init.adaptiveFeedback);
   const [viewMode, setViewMode] = useState(init.viewMode === 'reels' ? 'reels' : 'list');
   const [shuffle, setShuffle] = useState(!!init.shuffle);
   const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | split
@@ -31,7 +32,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const [partIndex, setPartIndex] = useState(init.partIndex || 1);
 
   function start() {
-    const cfg = { immediate, autoScroll, autoAdvanceSeconds, viewMode, shuffle, mode, count, partsTotal, partIndex };
+    const cfg = { immediate, autoScroll, autoAdvanceSeconds, adaptiveFeedback, viewMode, shuffle, mode, count, partsTotal, partIndex };
     const questions = computeQuizQuestions(test, cfg);
     if (questions.length === 0) return;
     onStart({ ...cfg, questions });
@@ -77,6 +78,10 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
         <button type="button" role="switch" aria-checked={autoScroll} onClick={() => setAutoScroll((value) => !value)} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}>
           <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin keyingisiga o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Reels’da keyingi savolga suradi, ro‘yxatda pastga olib boradi.</span></span>
           <span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: autoScroll ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: autoScroll ? 'translateX(20px)' : 'translateX(0)' }} /></span>
+        </button>
+        <button type="button" role="switch" aria-checked={adaptiveFeedback} onClick={() => setAdaptiveFeedback((value) => !value)} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}>
+          <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobga mos qisqa fikrlar</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>To‘g‘ri yoki xatoga qarab ixcham izoh chiqadi. Odatiy holatda o‘chiq.</span></span>
+          <span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: adaptiveFeedback ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: adaptiveFeedback ? 'translateX(20px)' : 'translateX(0)' }} /></span>
         </button>
         {autoScroll && <label className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}>
           <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>O‘tishdan oldin kutish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni bemalol o‘qib chiqing.</span></span>
@@ -152,7 +157,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const [answers, setAnswers] = useState(() => initialProgress?.answers || {});
   const answersRef = useRef(initialProgress?.answers || {});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(() => Math.max(0, Math.min(questions.length - 1, Number(initialProgress?.questionIndex) || 0)));
-  const [playerPrefs, setPlayerPrefs] = useState(() => ({ ...config }));
+  const [playerPrefs, setPlayerPrefs] = useState(() => ({ ...DEFAULT_TEST_PREFS, ...config }));
   const viewMode = playerPrefs.viewMode === 'reels' ? 'reels' : 'list';
   const [playerSettingsOpen, setPlayerSettingsOpen] = useState(false);
   const [questionMapOpen, setQuestionMapOpen] = useState(false);
@@ -178,8 +183,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const resultSummaryRef = useRef(null);
   const autoScrollTimerRef = useRef(null);
   const noticeTimerRef = useRef(null);
-  const answerStreakRef = useRef(0);
-  const streakedQuestionIdsRef = useRef(new Set());
+  const feedbackOutcomesRef = useRef([]);
+  const feedbackQuestionIdsRef = useRef(new Set());
   const autoAdvanceQuestionRef = useRef(null);
   const autoFinishTimerRef = useRef(null);
   const listContainerRef = useRef(null);
@@ -286,6 +291,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const answeredCount = countAnsweredUnits(questions, answers);
   const totalCount = getQuestionCount(questions);
   const currentQuestion = questions[currentQuestionIndex] || null;
+  const showAdaptiveFeedback = Boolean(autoAdvanceNotice && playerPrefs.adaptiveFeedback);
 
   function updatePlayerPrefs(patch) {
     clearTimeout(autoScrollTimerRef.current);
@@ -293,6 +299,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     setAutoAdvanceNotice('');
     const next = { ...playerPrefs, ...patch };
     setPlayerPrefs(next);
+    if (patch.adaptiveFeedback === false) {
+      clearTimeout(noticeTimerRef.current);
+      setAutoAdvanceNotice('');
+    }
     const { questions: _selectedQuestions, ...savedPrefs } = next;
     onSavePrefs?.(savedPrefs);
   }
@@ -367,20 +377,24 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     if (countAnsweredUnits([question], { [question.id]: answer }) === 0) return;
     const delay = [1, 2, 3, 4, 5, 6, 8, 10].includes(Number(playerPrefs.autoAdvanceSeconds)) ? Number(playerPrefs.autoAdvanceSeconds) : 2;
     const correct = isQuestionCorrect(question, answer);
-    if (playerPrefs.immediate && !streakedQuestionIdsRef.current.has(question.id)) {
-      streakedQuestionIdsRef.current.add(question.id);
-      if (correct) {
-        answerStreakRef.current += 1;
-        setAnswerNoticeTone('correct');
-        setAutoAdvanceNotice(answerStreakRef.current === 1
-          ? '⚡ To‘g‘ri! Seriya boshlandi'
-          : `🔥 ${answerStreakRef.current} ta ketma-ket — zo‘r davom etyapsiz!`);
-      } else {
-        answerStreakRef.current = 0;
-        setAnswerNoticeTone('wrong');
-        setAutoAdvanceNotice('Seriya uzildi — keyingisini davom ettiring');
-      }
-      if (!playerPrefs.autoScroll) noticeTimerRef.current = setTimeout(() => setAutoAdvanceNotice(''), 1900);
+    if (playerPrefs.immediate && playerPrefs.adaptiveFeedback && !feedbackQuestionIdsRef.current.has(question.id)) {
+      feedbackQuestionIdsRef.current.add(question.id);
+      const previousOutcomes = feedbackOutcomesRef.current;
+      const recentOutcomes = [...previousOutcomes.slice(-2), correct];
+      const previousWasWrong = previousOutcomes.length > 0 && previousOutcomes[previousOutcomes.length - 1] === false;
+      const recentAccuracy = recentOutcomes.filter(Boolean).length / recentOutcomes.length;
+      feedbackOutcomesRef.current = [...previousOutcomes, correct];
+      setAnswerNoticeTone(correct ? 'correct' : 'wrong');
+      setAutoAdvanceNotice(correct
+        ? previousWasWrong
+          ? 'Xatoni tahlil qildingiz — bu safar to‘g‘ri.'
+          : recentOutcomes.length >= 3 && recentAccuracy >= 0.8
+            ? 'Javoblaringiz aniq. Shu diqqatni saqlang.'
+            : 'To‘g‘ri javob. Sababini ham yodda saqlang.'
+        : recentOutcomes.length >= 3 && recentAccuracy < 0.5
+          ? 'Bu mavzuni yana bir ko‘rib chiqish foydali bo‘ladi.'
+          : 'Bu safar xato. To‘g‘ri javob bilan farqini toping.');
+      if (!playerPrefs.autoScroll) noticeTimerRef.current = setTimeout(() => setAutoAdvanceNotice(''), 2400);
     }
     if (!playerPrefs.autoScroll) return;
     autoAdvanceQuestionRef.current = questionIndex;
@@ -407,7 +421,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function createPauseSnapshot() {
     const { questions: _selectedQuestions, ...prefs } = config;
     const currentAnswers = answersRef.current;
-    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceSeconds: playerPrefs.autoAdvanceSeconds, viewMode: playerPrefs.viewMode, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
+    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceSeconds: playerPrefs.autoAdvanceSeconds, adaptiveFeedback: playerPrefs.adaptiveFeedback, viewMode: playerPrefs.viewMode, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
   }
 
   async function pauseAndExit() {
@@ -651,7 +665,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         style={reel ? undefined : { borderColor: C.rule, scrollMarginTop: '96px' }}
       >
         {reel ? (
-          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? 'calc(env(safe-area-inset-top) + 112px)' : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
+          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
             {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
@@ -717,7 +731,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   return (
     <div className="fixed inset-0 z-[80] flex h-[100dvh] w-full flex-col overflow-hidden" style={{ background: C.paper, color: C.ink, paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <style>{`@keyframes quiz-reel-enter{from{opacity:.35;transform:translateY(28px) scale(.992)}to{opacity:1;transform:translateY(0) scale(1)}}.quiz-reel-enter{animation:quiz-reel-enter 320ms cubic-bezier(.2,.7,.2,1)}.quiz-control-panel{transition:transform 320ms cubic-bezier(.2,.7,.2,1),opacity 220ms ease}.quiz-control-panel[data-hidden="true"]{transform:translateY(-110%);opacity:0;pointer-events:none}@media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-control-panel{animation:none;transition:none}}`}</style>
+      <style>{`@keyframes quiz-reel-enter{from{opacity:.35;transform:translateY(28px) scale(.992)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes quiz-feedback-enter{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}.quiz-reel-enter{animation:quiz-reel-enter 320ms cubic-bezier(.2,.7,.2,1)}.quiz-feedback-enter{animation:quiz-feedback-enter 180ms ease-out}.quiz-control-panel{transition:transform 320ms cubic-bezier(.2,.7,.2,1),opacity 220ms ease}.quiz-control-panel[data-hidden="true"]{transform:translateY(-110%);opacity:0;pointer-events:none}@media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-feedback-enter,.quiz-control-panel{animation:none;transition:none}}`}</style>
       <div className="quiz-control-panel absolute inset-x-0 top-0 z-30 border-b px-3 pb-2 pt-2 sm:px-5" data-hidden={!controlsVisible} aria-hidden={!controlsVisible} style={{ background: C.paper, borderColor: C.rule, paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}>
         <div className="flex items-center gap-2">
           <button type="button" onClick={requestLeave} aria-label="Testdan chiqish amallari" title="Ortga" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><ArrowLeft size={19} /></button>
@@ -729,6 +743,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         </div>
         <div className="mt-2 flex items-center justify-between gap-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}><span>Savol {Math.min(currentQuestionIndex + 1, Math.max(questions.length, 1))} / {questions.length}</span><span>{answeredCount} / {totalCount} javob</span></div>
         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: C.rule }} role="progressbar" aria-label="Test bajarilishi" aria-valuemin={0} aria-valuemax={totalCount} aria-valuenow={answeredCount}><div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${totalCount ? Math.min(100, answeredCount / totalCount * 100) : 0}%`, background: C.accent }} /></div>
+        {showAdaptiveFeedback && controlsVisible && <div key={`${currentQuestionIndex}-${autoAdvanceNotice}`} role="status" aria-live="polite" className="quiz-feedback-enter mt-2 flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ ...fontBody, color: C.ink, background: answerNoticeTone === 'correct' ? C.successTint : C.dangerTint, border: `1px solid ${answerNoticeTone === 'correct' ? C.accent : C.red}` }}>
+          {answerNoticeTone === 'correct' ? <CheckCircle2 size={14} className="shrink-0" style={{ color: C.accent }} /> : <X size={14} className="shrink-0" style={{ color: C.red }} />}
+          <span className="min-w-0 flex-1">{autoAdvanceNotice}</span>
+          {playerPrefs.autoScroll && <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); }} className="shrink-0 rounded-md px-2 py-1 font-semibold" style={{ color: C.cover, background: C.goldSoft }}>Bekor</button>}
+        </div>}
       </div>
 
       {questions.length ? viewMode === 'reels' ? (
@@ -736,7 +755,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           {renderQuestionCard(currentQuestion, currentQuestionIndex, true)}
         </div>
       ) : (
-        <div ref={listContainerRef} onScroll={handleListScroll} className="min-h-0 w-full flex-1 overflow-y-auto overscroll-contain px-3 sm:px-6" style={{ paddingTop: controlsVisible ? 'calc(env(safe-area-inset-top) + 124px)' : 'calc(env(safe-area-inset-top) + 58px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }} aria-label="Savollar ro‘yxati">
+        <div ref={listContainerRef} onScroll={handleListScroll} className="min-h-0 w-full flex-1 overflow-y-auto overscroll-contain px-3 sm:px-6" style={{ paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 162 : 124}px)` : 'calc(env(safe-area-inset-top) + 58px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }} aria-label="Savollar ro‘yxati">
           {questions.slice(0, visibleListCount).map((question, index) => renderQuestionCard(question, index))}
           {visibleListCount < questions.length && <div className="py-4 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>Pastga suring — keyingi savollar yuklanadi…</div>}
         </div>
@@ -745,12 +764,6 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       {!controlsVisible && <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-2 px-3 pb-2 pt-2" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 7px)', background: `linear-gradient(180deg, ${C.paper} 72%, transparent)` }}>
         <div className="min-w-0 flex-1 text-xs" style={{ ...fontBody, color: C.ink }}><span className="font-semibold">{Math.min(currentQuestionIndex + 1, Math.max(questions.length, 1))}/{questions.length}</span><span className="mx-2" style={{ color: C.inkSoft }}>·</span><span style={{ color: C.inkSoft }}>{answeredCount}/{totalCount} javob</span><span className="mx-2" style={{ color: C.inkSoft }}>·</span><span className="inline-flex items-center gap-1" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</span></div>
         <button type="button" onClick={() => setControlsVisible(true)} aria-label="Yuqori boshqaruvni ko‘rsatish" title="Boshqaruvni ko‘rsatish" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border shadow-md backdrop-blur" style={{ color: C.ink, background: C.surface, borderColor: C.rule }}><PanelTopOpen size={18} /></button>
-      </div>}
-
-      {autoAdvanceNotice && <div role="status" className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-2 text-xs shadow-lg" style={{ ...fontBody, color: C.ink, background: answerNoticeTone === 'correct' ? C.successTint : C.dangerTint, borderColor: answerNoticeTone === 'correct' ? C.accent : C.red, marginBottom: 'env(safe-area-inset-bottom)' }}>
-        {answerNoticeTone === 'correct' ? <CheckCircle2 size={15} className="shrink-0" style={{ color: C.accent }} /> : <X size={15} className="shrink-0" style={{ color: C.red }} />}
-        <span>{autoAdvanceNotice}</span>
-        {playerPrefs.autoScroll && <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); }} className="shrink-0 rounded-full px-2 py-1 font-semibold" style={{ color: C.cover, background: C.goldSoft }}>Bekor</button>}
       </div>}
 
       {questionMapOpen && <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuestionMapOpen(false); }}>
@@ -792,6 +805,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}><Type size={17} />Matn kattaligi</div><div className="flex items-center gap-1"><button type="button" onClick={() => setQuizFontScale(fontScale - 0.1)} aria-label="Matnni kichraytirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>−</button><span className="min-w-12 text-center text-xs" style={{ ...fontMono, color: C.ink }}>{Math.round(fontScale * 100)}%</span><button type="button" onClick={() => setQuizFontScale(fontScale + 0.1)} aria-label="Matnni kattalashtirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>+</button></div></div>
             <button type="button" role="switch" aria-checked={!!playerPrefs.immediate} onClick={() => updatePlayerPrefs({ immediate: !playerPrefs.immediate })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobni darhol ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xatoni shu savolning o‘zida ko‘rib tahlil qilasiz.</span></span><span className="h-6 w-11 rounded-full p-1" style={{ background: playerPrefs.immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             <button type="button" role="switch" aria-checked={!!playerPrefs.autoScroll} onClick={() => updatePlayerPrefs({ autoScroll: !playerPrefs.autoScroll })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin avtomatik o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni ko‘rishga vaqt beradi; xato bo‘lsa ham o‘tadi.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.autoScroll ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.autoScroll ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
+            <button type="button" role="switch" aria-checked={!!playerPrefs.adaptiveFeedback} onClick={() => updatePlayerPrefs({ adaptiveFeedback: !playerPrefs.adaptiveFeedback })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobga mos qisqa fikrlar</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xato va to‘g‘ri javobga qarab izoh. Odatiy holatda o‘chiq.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.adaptiveFeedback ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.adaptiveFeedback ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             {playerPrefs.autoScroll && <label className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Kutish vaqti</span><span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘qib ulgurish uchun</span></span><select value={[1, 2, 3, 4, 5, 6, 8, 10].includes(Number(playerPrefs.autoAdvanceSeconds)) ? Number(playerPrefs.autoAdvanceSeconds) : 2} onChange={(event) => updatePlayerPrefs({ autoAdvanceSeconds: Number(event.target.value) })} className="rounded-lg border px-2.5 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label="Avtomatik o‘tishdan oldingi vaqt">{[1, 2, 3, 4, 5, 6, 8, 10].map((delay) => <option key={delay} value={delay}>{delay} soniya</option>)}</select></label>}
           </div>
           <button type="button" onClick={() => { setPlayerSettingsOpen(false); setReconfigureDialog(true); }} className="mt-4 w-full rounded-xl border px-3 py-3 text-sm font-semibold" style={{ ...fontBody, color: C.ink, background: C.paperSoft, borderColor: C.rule }}>Savollar soni va tartibini o‘zgartirish…</button>

@@ -805,17 +805,19 @@ const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { version: 2, immediate: true, autoScroll: false, autoAdvanceSeconds: 2, viewMode: 'list', shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 3, immediate: true, autoScroll: true, autoAdvanceSeconds: 2, adaptiveFeedback: false, viewMode: 'list', shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 export const profileFromRow = (r) => {
   const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
   // Older saved values were the previous defaults. Migrate just those
   // untouched defaults so returning accounts receive the improved setup.
-  if (testPrefs && Number(testPrefs.version || 0) < 2) {
+  if (testPrefs && Number(testPrefs.version || 0) < 3) {
     if (testPrefs.immediate === false) testPrefs.immediate = true;
     if (Number(testPrefs.autoAdvanceSeconds) === 6) testPrefs.autoAdvanceSeconds = 2;
     if (testPrefs.viewMode === 'reels') testPrefs.viewMode = 'list';
-    testPrefs.version = 2;
+    if (testPrefs.autoScroll === false) testPrefs.autoScroll = true;
+    if (typeof testPrefs.adaptiveFeedback !== 'boolean') testPrefs.adaptiveFeedback = false;
+    testPrefs.version = 3;
   }
   return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
 };
@@ -3123,7 +3125,7 @@ export default function App() {
   async function saveTestPrefs(prefs) {
     if (!session) return;
     try {
-      const nextPrefs = { ...prefs, version: 2, pausedTests: prefs.pausedTests ?? profile?.testPrefs?.pausedTests ?? [] };
+      const nextPrefs = { ...prefs, version: 3, pausedTests: prefs.pausedTests ?? profile?.testPrefs?.pausedTests ?? [] };
       await sbUpsert('profiles', { id: session.user.id, test_prefs: nextPrefs });
       setProfile((prev) => (prev ? { ...prev, testPrefs: nextPrefs } : prev));
       return true;
