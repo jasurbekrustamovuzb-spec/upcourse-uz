@@ -807,7 +807,7 @@ export const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '',
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: false, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: false, autoAdvanceSeconds: 6, viewMode: 'reels', shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi

@@ -22,6 +22,8 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const init = initialConfig || DEFAULT_TEST_PREFS;
   const [immediate, setImmediate] = useState(!!init.immediate);
   const [autoScroll, setAutoScroll] = useState(!!init.autoScroll);
+  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState([4, 6, 8, 10, 12].includes(Number(init.autoAdvanceSeconds)) ? Number(init.autoAdvanceSeconds) : 6);
+  const [viewMode, setViewMode] = useState(init.viewMode === 'list' ? 'list' : 'reels');
   const [shuffle, setShuffle] = useState(!!init.shuffle);
   const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | split
   const [count, setCount] = useState(Math.min(init.count || 5, total));
@@ -29,7 +31,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const [partIndex, setPartIndex] = useState(init.partIndex || 1);
 
   function start() {
-    const cfg = { immediate, autoScroll, shuffle, mode, count, partsTotal, partIndex };
+    const cfg = { immediate, autoScroll, autoAdvanceSeconds, viewMode, shuffle, mode, count, partsTotal, partIndex };
     const questions = computeQuizQuestions(test, cfg);
     if (questions.length === 0) return;
     onStart({ ...cfg, questions });
@@ -51,11 +53,39 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
       {test.description && <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
       <div className="text-xs mb-6" style={{ ...fontMono, color: C.gold }}>{itemLabel} mavjud</div>
 
-      <div className="flex flex-wrap gap-2 mb-5">
-        <SettingChip active={immediate} onClick={() => { const next = !immediate; setImmediate(next); if (!next) setAutoScroll(false); }}>Darhol javob koʻrsatish</SettingChip>
-        <SettingChip active={autoScroll} onClick={() => { if (!immediate) setImmediate(true); setAutoScroll((current) => !current); }}>Toʻgʻri javobdan keyin oʻtish</SettingChip>
-        <SettingChip active={shuffle} onClick={() => setShuffle((v) => !v)}>Savollarni aralashtirish</SettingChip>
-      </div>
+      <section className="mb-4 rounded-2xl border p-3 sm:p-4" style={{ background: C.surface, borderColor: C.rule }} aria-label="Test ko‘rinishini tanlash">
+        <div className="mb-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink }}>Ishlash uslubi</div>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { id: 'reels', title: 'Reels', detail: 'Yuqoriga yoki pastga suring' },
+            { id: 'list', title: 'Ro‘yxat', detail: 'Savollar ketma-ket ko‘rinadi' },
+          ].map((option) => {
+            const active = viewMode === option.id;
+            return <button key={option.id} type="button" onClick={() => setViewMode(option.id)} aria-pressed={active} className="rounded-xl border px-3 py-2.5 text-left transition-colors" style={{ ...fontBody, color: C.ink, background: active ? C.goldSoft : C.paper, borderColor: active ? C.gold : C.rule }}>
+              <span className="block text-sm font-semibold">{option.title}</span>
+              <span className="mt-0.5 block text-[11px]" style={{ color: C.inkSoft }}>{option.detail}</span>
+            </button>;
+          })}
+        </div>
+      </section>
+
+      <section className="mb-5 space-y-2" aria-label="Javob va o‘tish sozlamalari">
+        <button type="button" role="switch" aria-checked={immediate} onClick={() => setImmediate((value) => !value)} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}>
+          <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin natijani ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>To‘g‘ri javob va xatoni shu zahoti ko‘rasiz.</span></span>
+          <span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span>
+        </button>
+        <button type="button" role="switch" aria-checked={autoScroll} onClick={() => setAutoScroll((value) => !value)} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}>
+          <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin keyingisiga o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Reels’da keyingi savolga suradi, ro‘yxatda pastga olib boradi.</span></span>
+          <span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: autoScroll ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: autoScroll ? 'translateX(20px)' : 'translateX(0)' }} /></span>
+        </button>
+        {autoScroll && <label className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}>
+          <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>O‘tishdan oldin kutish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni bemalol o‘qib chiqing.</span></span>
+          <select value={autoAdvanceSeconds} onChange={(event) => setAutoAdvanceSeconds(Number(event.target.value))} className="rounded-lg border px-2.5 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label="Avtomatik o‘tish kechikishi">
+            {[4, 6, 8, 10, 12].map((seconds) => <option key={seconds} value={seconds}>{seconds} soniya</option>)}
+          </select>
+        </label>}
+        <div className="flex flex-wrap gap-2 pt-1"><SettingChip active={shuffle} onClick={() => setShuffle((value) => !value)}>Savollarni aralashtirish</SettingChip></div>
+      </section>
 
       <div className="mb-6">
         <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Savollar toʻplami</div>
@@ -123,10 +153,12 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const answersRef = useRef(initialProgress?.answers || {});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(() => Math.max(0, Math.min(questions.length - 1, Number(initialProgress?.questionIndex) || 0)));
   const [playerPrefs, setPlayerPrefs] = useState(() => ({ ...config }));
+  const viewMode = playerPrefs.viewMode === 'list' ? 'list' : 'reels';
   const [playerSettingsOpen, setPlayerSettingsOpen] = useState(false);
   const [questionMapOpen, setQuestionMapOpen] = useState(false);
   const [reconfigureDialog, setReconfigureDialog] = useState(false);
   const [autoAdvanceNotice, setAutoAdvanceNotice] = useState('');
+  const [visibleListCount, setVisibleListCount] = useState(() => Math.min(questions.length, 20));
   const [fontScale, setFontScale] = useState(() => {
     try { return Math.max(0.95, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 1)); } catch { return 1; }
   });
@@ -143,7 +175,14 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const questionRefs = useRef({});
   const resultSummaryRef = useRef(null);
   const autoScrollTimerRef = useRef(null);
+  const autoAdvanceQuestionRef = useRef(null);
   const autoFinishTimerRef = useRef(null);
+  const listContainerRef = useRef(null);
+  const reelsStageRef = useRef(null);
+  const reelsQuestionBodyRef = useRef(null);
+  const swipeStartRef = useRef(null);
+  const lastWheelAdvanceRef = useRef(0);
+  const justSwipedRef = useRef(false);
   const { registerBackGuard } = useContext(NavContext);
   const { theme, toggleTheme } = useContext(ThemeContext);
   const unregisterBackGuardRef = useRef(null);
@@ -151,6 +190,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function requestLeave() {
     setLeaveError('');
     clearTimeout(autoScrollTimerRef.current);
+    autoAdvanceQuestionRef.current = null;
     setAutoAdvanceNotice('');
     if (questionMapOpen) { setQuestionMapOpen(false); return; }
     if (playerSettingsOpen) { setPlayerSettingsOpen(false); return; }
@@ -168,6 +208,44 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     unregisterBackGuardRef.current = unregister;
     return () => { unregister?.(); unregisterBackGuardRef.current = null; };
   }, [finished, registerBackGuard]);
+
+  useEffect(() => {
+    if (finished || viewMode !== 'list' || !listContainerRef.current || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      const index = Number(visible.target.dataset.questionIndex);
+      if (Number.isInteger(index)) setCurrentQuestionIndex(index);
+    }, { root: listContainerRef.current, rootMargin: '-12% 0px -56% 0px', threshold: [0.15, 0.35, 0.6] });
+    Object.values(questionRefs.current).forEach((node) => { if (node) observer.observe(node); });
+    return () => observer.disconnect();
+  }, [finished, viewMode, visibleListCount, questions.length]);
+
+  useEffect(() => {
+    if (finished || viewMode !== 'list') return;
+    setVisibleListCount((count) => Math.max(count, Math.min(questions.length, currentQuestionIndex + 1)));
+    requestAnimationFrame(() => questionRefs.current[currentQuestionIndex]?.scrollIntoView({ behavior: 'auto', block: 'start' }));
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (autoAdvanceQuestionRef.current !== null && currentQuestionIndex !== autoAdvanceQuestionRef.current) {
+      clearTimeout(autoScrollTimerRef.current);
+      autoAdvanceQuestionRef.current = null;
+      setAutoAdvanceNotice('');
+    }
+  }, [currentQuestionIndex]);
+
+  useEffect(() => {
+    if (finished || viewMode !== 'reels') return undefined;
+    const handleKeyDown = (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.repeat || questionMapOpen || playerSettingsOpen || leaveDialog || finishDialog || reconfigureDialog) return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target?.tagName) || event.target?.isContentEditable || event.target?.closest?.('math-field')) return;
+      if (event.key === 'ArrowDown' || event.key === 'PageDown') { event.preventDefault(); goToQuestion(currentQuestionIndex + 1); }
+      else if (event.key === 'ArrowUp' || event.key === 'PageUp') { event.preventDefault(); goToQuestion(currentQuestionIndex - 1); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [finished, viewMode, currentQuestionIndex, questionMapOpen, playerSettingsOpen, leaveDialog, finishDialog, reconfigureDialog]);
 
   function exitTest() {
     unregisterBackGuardRef.current?.();
@@ -197,6 +275,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const currentQuestion = questions[currentQuestionIndex] || null;
 
   function updatePlayerPrefs(patch) {
+    clearTimeout(autoScrollTimerRef.current);
+    autoAdvanceQuestionRef.current = null;
+    setAutoAdvanceNotice('');
     const next = { ...playerPrefs, ...patch };
     setPlayerPrefs(next);
     const { questions: _selectedQuestions, ...savedPrefs } = next;
@@ -211,28 +292,95 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   function goToQuestion(index) {
     clearTimeout(autoScrollTimerRef.current);
+    autoAdvanceQuestionRef.current = null;
     setAutoAdvanceNotice('');
-    setCurrentQuestionIndex(Math.max(0, Math.min(questions.length - 1, index)));
+    const nextIndex = Math.max(0, Math.min(questions.length - 1, index));
+    setCurrentQuestionIndex(nextIndex);
     setQuestionMapOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    if (viewMode === 'list') {
+      setVisibleListCount((count) => Math.max(count, Math.min(questions.length, nextIndex + 1)));
+      requestAnimationFrame(() => questionRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    } else {
+      if (reelsQuestionBodyRef.current) reelsQuestionBodyRef.current.scrollTop = 0;
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
   }
 
-  function scheduleAutoAdvance(question, answer) {
+  function handleListScroll() {
+    const container = listContainerRef.current;
+    if (!container || visibleListCount >= questions.length) return;
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 420) {
+      setVisibleListCount((count) => Math.min(questions.length, count + 20));
+    }
+  }
+
+  function handleReelsTouchStart(event) {
+    if (event.target?.closest?.('input, textarea, select, math-field, [contenteditable="true"]')) return;
+    const touch = event.touches?.[0];
+    if (touch) swipeStartRef.current = { y: touch.clientY, scrollTop: reelsQuestionBodyRef.current?.scrollTop || 0 };
+  }
+
+  function handleReelsTouchEnd(event) {
+    const start = swipeStartRef.current;
+    const touch = event.changedTouches?.[0];
+    swipeStartRef.current = null;
+    if (!start || !touch) return;
+    const delta = start.y - touch.clientY;
+    const body = reelsQuestionBodyRef.current;
+    if (Math.abs(delta) < 56 || Math.abs((body?.scrollTop || 0) - start.scrollTop) > 6) return;
+    justSwipedRef.current = true;
+    window.setTimeout(() => { justSwipedRef.current = false; }, 450);
+    goToQuestion(currentQuestionIndex + (delta > 0 ? 1 : -1));
+  }
+
+  function handleReelsWheel(event) {
+    if (Math.abs(event.deltaY) < 36) return;
+    const body = reelsQuestionBodyRef.current;
+    const canScrollDown = body && body.scrollHeight > body.clientHeight + 4 && body.scrollTop + body.clientHeight < body.scrollHeight - 4;
+    const canScrollUp = body && body.scrollTop > 4;
+    if (event.deltaY > 0 && canScrollDown) return;
+    if (event.deltaY < 0 && canScrollUp) return;
+    const now = Date.now();
+    if (now - lastWheelAdvanceRef.current < 420) return;
+    lastWheelAdvanceRef.current = now;
+    event.preventDefault();
+    goToQuestion(currentQuestionIndex + (event.deltaY > 0 ? 1 : -1));
+  }
+
+  function scheduleAutoAdvance(question, questionIndex, answer) {
     clearTimeout(autoScrollTimerRef.current);
+    autoAdvanceQuestionRef.current = null;
     setAutoAdvanceNotice('');
-    if (!playerPrefs.autoScroll || !playerPrefs.immediate || !isQuestionCorrect(question, answer) || currentQuestionIndex >= questions.length - 1) return;
-    setAutoAdvanceNotice('To‘g‘ri! Keyingisiga o‘tish uchun biroz kuting.');
+    if (!playerPrefs.autoScroll) return;
+    if (countAnsweredUnits([question], { [question.id]: answer }) === 0) return;
+    const delay = [4, 6, 8, 10, 12].includes(Number(playerPrefs.autoAdvanceSeconds)) ? Number(playerPrefs.autoAdvanceSeconds) : 6;
+    const correct = isQuestionCorrect(question, answer);
+    autoAdvanceQuestionRef.current = questionIndex;
+    setAutoAdvanceNotice(`${playerPrefs.immediate ? (correct ? 'To‘g‘ri' : 'Xato') : 'Javob saqlandi'} · ${delay} soniyadan keyin ${questionIndex < questions.length - 1 ? 'keyingisiga o‘tamiz' : 'test yakunlanadi'}`);
     autoScrollTimerRef.current = setTimeout(() => {
-      setCurrentQuestionIndex((index) => Math.min(questions.length - 1, index + 1));
+      if (autoAdvanceQuestionRef.current !== questionIndex) return;
+      autoAdvanceQuestionRef.current = null;
       setAutoAdvanceNotice('');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 3000);
+      const nextIndex = questionIndex + 1;
+      if (nextIndex >= questions.length) {
+        submit(answersRef.current);
+        return;
+      }
+      if (viewMode === 'list') {
+        setVisibleListCount((count) => Math.max(count, Math.min(questions.length, nextIndex + 1)));
+        setCurrentQuestionIndex(nextIndex);
+        requestAnimationFrame(() => questionRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      } else {
+        setCurrentQuestionIndex(nextIndex);
+        if (reelsQuestionBodyRef.current) reelsQuestionBodyRef.current.scrollTop = 0;
+      }
+    }, delay * 1000);
   }
 
   function createPauseSnapshot() {
     const { questions: _selectedQuestions, ...prefs } = config;
     const currentAnswers = answersRef.current;
-    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
+    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceSeconds: playerPrefs.autoAdvanceSeconds, viewMode: playerPrefs.viewMode, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
   }
 
   async function pauseAndExit() {
@@ -259,7 +407,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     setAnswers(next);
     if (playerPrefs.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
     const question = questions.find((item) => item.id === qid);
-    if (question) scheduleAutoAdvance(question, idx);
+    if (question) scheduleAutoAdvance(question, questions.findIndex((item) => item.id === qid), idx);
   }
 
   function selectMatching(qid, pairId, optionIndex) {
@@ -271,10 +419,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     answersRef.current = next;
     setAnswers(next);
     const question = questions.find((q) => q.id === qid);
-    if (!matchingOnly && playerPrefs.immediate && (question?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
+    const matchingComplete = (question?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined);
+    if (!matchingOnly && playerPrefs.immediate && matchingComplete) {
       setRevealed((revealedAnswers) => ({ ...revealedAnswers, [qid]: true }));
-      if (question) scheduleAutoAdvance(question, nextMatching);
     }
+    if (question && matchingComplete) scheduleAutoAdvance(question, questions.findIndex((item) => item.id === qid), nextMatching);
     if (matchingOnly) {
       const allCorrect = questions.every((question) => getQuestionScore(question, next[question.id]) === getQuestionCount([question]));
       clearTimeout(autoFinishTimerRef.current);
@@ -293,7 +442,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     if (finished) return;
     if (playerPrefs.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
     const question = questions.find((item) => item.id === qid);
-    if (question) scheduleAutoAdvance(question, answersRef.current[qid]);
+    if (question) scheduleAutoAdvance(question, questions.findIndex((item) => item.id === qid), answersRef.current[qid]);
   }
 
   function finishTest(latestAnswers = answersRef.current) {
@@ -319,6 +468,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   function submit(latestAnswers = answersRef.current) {
     if (finishedRef.current) return;
+    clearTimeout(autoScrollTimerRef.current);
+    autoAdvanceQuestionRef.current = null;
+    setAutoAdvanceNotice('');
     if (countAnsweredUnits(questions, latestAnswers) < totalCount) {
       setLeaveDialog(false);
       setFinishDialog(true);
@@ -459,95 +611,112 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     );
   }
 
+  const renderQuestionCard = (question, index, reel = false) => {
+    const answer = answers[question.id];
+    const showResult = playerPrefs.immediate && !!revealed[question.id];
+    return (
+      <article
+        key={question.id}
+        ref={(node) => { if (node) questionRefs.current[index] = node; else delete questionRefs.current[index]; }}
+        data-question-index={index}
+        aria-labelledby={`quiz-question-title-${index}`}
+        className={reel ? 'quiz-reel-enter flex h-full min-h-0 w-full flex-col' : 'w-full border-b py-5 last:border-b-0'}
+        style={reel ? undefined : { borderColor: C.rule, scrollMarginTop: '96px' }}
+      >
+        {reel ? (
+          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 sm:px-5 sm:pb-5" style={{ touchAction: 'pan-y' }}>
+            {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+            {renderQuestionContent(question, index, answer, showResult)}
+          </div>
+        ) : (
+          <div className="mx-auto max-w-3xl px-1 sm:px-3">
+            {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+            {renderQuestionContent(question, index, answer, showResult)}
+          </div>
+        )}
+      </article>
+    );
+  };
+
+  function renderQuestionContent(question, index, answer, showResult) {
+    return (
+      <>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Savol {index + 1}</span>
+          <span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>{question.type === 'open' ? 'Javob yozing' : question.type === 'matching' ? 'Moslikni toping' : 'To‘g‘ri variantni tanlang'}</span>
+          {countAnsweredUnits([question], answers) > 0 && <span className="ml-auto inline-flex items-center gap-1 text-xs" style={{ ...fontBody, color: C.accent }}><Check size={13} /> Belgilangan</span>}
+        </div>
+        {question.type !== 'matching' && !question.pdfSourceImageOnly && <h2 id={`quiz-question-title-${index}`} className="mb-3 max-w-3xl font-medium leading-snug" style={{ ...fontBody, color: C.ink, fontSize: `${Math.round(18 * fontScale)}px` }}>
+          {question.text}
+          {question.mathFormula && <Suspense fallback={null}><MathInput value={question.mathFormula} readOnly compact scale={fontScale} /></Suspense>}
+        </h2>}
+        {question.type === 'matching' && <h2 id={`quiz-question-title-${index}`} className="sr-only">{question.text || `Moslik savoli ${index + 1}`}</h2>}
+        {question.pdfSourceImageOnly && <h2 id={`quiz-question-title-${index}`} className="sr-only">{question.text || `Savol ${index + 1}`}</h2>}
+        {question.imageUrl && (question.pdfSourceImageOnly
+          ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-xl" style={{ background: C.rule }} />}><PdfQuestionImage src={question.imageUrl} alt={question.text || 'PDFdagi savol'} /></Suspense>
+          : <img src={question.imageUrl} alt="Savolga tegishli rasm" loading="lazy" decoding="async" className="mb-3 max-h-[34dvh] max-w-full rounded-xl object-contain" style={{ border: `1px solid ${C.rule}` }} />)}
+        {question.type === 'matching' ? (
+          <MatchingTestQuestion question={question} answer={answer} onChange={(pairId, optionIndex) => selectMatching(question.id, pairId, optionIndex)} disabled={finished} showResult={showResult} fontScale={fontScale} />
+        ) : question.type === 'open' ? (
+          <div>
+            {question.answerMode === 'math' ? (
+              <Suspense fallback={<div className="py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}><MathInput value={answer || ''} onChange={(value) => setOpenAnswer(question.id, value)} onBlur={() => confirmOpenAnswer(question.id)} disabled={showResult} placeholder="Javobingiz" scale={fontScale} /></Suspense>
+            ) : (
+              <input type="text" value={answer || ''} onChange={(event) => setOpenAnswer(question.id, event.target.value)} onBlur={() => confirmOpenAnswer(question.id)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} disabled={showResult} placeholder="Javobingizni kiriting" className="w-full min-h-12 rounded-xl px-4 py-2.5 outline-none" style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, fontSize: `${Math.round(17 * fontScale)}px` }} />
+            )}
+            {showResult && <div className="mt-2 flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm" style={{ ...fontBody, color: isQuestionCorrect(question, answer) ? C.accent : C.red, background: isQuestionCorrect(question, answer) ? C.successTint : C.dangerTint }}>
+              {isQuestionCorrect(question, answer) ? <Check size={17} className="mt-0.5 shrink-0" /> : <X size={17} className="mt-0.5 shrink-0" />}<span>To‘g‘ri javob: {(question.answers || []).join(' yoki ') || 'Javob kaliti kiritilmagan'}</span>
+            </div>}
+          </div>
+        ) : (
+          <div className="space-y-2" role="group" aria-label="Javob variantlari">
+            {question.options.map((option, optionIndex) => {
+              const selected = answer === optionIndex;
+              const correct = showResult && optionIndex === question.correct;
+              const wrong = showResult && selected && optionIndex !== question.correct;
+              const background = correct ? C.successTint : wrong ? C.dangerTint : selected ? C.selectedTint : C.surface;
+              const border = correct ? C.accent : wrong ? C.red : selected ? C.gold : C.rule;
+              return <button key={optionIndex} type="button" onClick={() => select(question.id, optionIndex)} disabled={showResult} aria-pressed={selected} className="flex min-h-12 w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 disabled:cursor-default" style={{ ...fontBody, color: C.ink, background, borderColor: border, outlineColor: C.gold, fontSize: `${Math.round(16 * fontScale)}px` }}>
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold" style={{ ...fontMono, color: selected || correct || wrong ? C.cover : C.inkSoft, background: C.paper }}>{String.fromCharCode(65 + optionIndex)}</span>
+                {question.pdfSourceImageOnly ? null : <span className="min-w-0 flex-1 pt-0.5">{question.optionsAreMath ? <Suspense fallback={<span>{option}</span>}><MathInput value={option} readOnly compact scale={fontScale} /></Suspense> : option}</span>}
+                {correct && <Check size={18} className="mt-1 shrink-0" style={{ color: C.accent }} />}{wrong && <X size={18} className="mt-1 shrink-0" style={{ color: C.red }} />}
+              </button>;
+            })}
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-4xl">
+      <style>{`@keyframes quiz-reel-enter{from{opacity:.45;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}.quiz-reel-enter{animation:quiz-reel-enter 220ms ease-out}@media(prefers-reduced-motion:reduce){.quiz-reel-enter{animation:none}}`}</style>
       <div className="sticky top-0 z-20 -mx-4 border-b px-4 py-2 sm:-mx-6 sm:px-6" style={{ background: C.paper, borderColor: C.rule }}>
         <div className="flex items-center gap-2">
           <button type="button" onClick={requestLeave} aria-label="Testdan chiqish amallari" title="Ortga" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><ArrowLeft size={19} /></button>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{test.title}</div>
-            <div className="flex items-center gap-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</div>
-          </div>
-          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); setAutoAdvanceNotice(''); setQuestionMapOpen(true); }} aria-label="Savollar ro‘yxati" title="Savollar ro‘yxati" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.cover, background: C.successTint, border: `1px solid ${C.rule}` }}><ListChecks size={18} /></button>
-          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); setAutoAdvanceNotice(''); setPlayerSettingsOpen(true); }} aria-label="Test sozlamalari" title="Test sozlamalari" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><Settings size={18} /></button>
+          <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{test.title}</div><div className="flex items-center gap-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</div></div>
+          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); setQuestionMapOpen(true); }} aria-label="Savollar ro‘yxati" title="Savollar ro‘yxati" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.cover, background: C.successTint, border: `1px solid ${C.rule}` }}><ListChecks size={18} /></button>
+          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); setPlayerSettingsOpen(true); }} aria-label="Test sozlamalari" title="Test sozlamalari" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><Settings size={18} /></button>
           <button type="button" onClick={() => submit(answersRef.current)} aria-label="Testni yakunlash" className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><CheckCircle2 size={16} /><span className="hidden sm:inline">Yakunlash</span></button>
         </div>
-        <div className="mt-2 flex items-center justify-between gap-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
-          <span>Savol {Math.min(currentQuestionIndex + 1, Math.max(questions.length, 1))} / {questions.length}</span>
-          <span>{answeredCount} / {totalCount} javob</span>
-        </div>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: C.rule }} role="progressbar" aria-label="Test bajarilishi" aria-valuemin={0} aria-valuemax={totalCount} aria-valuenow={answeredCount}>
-          <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${totalCount ? Math.min(100, answeredCount / totalCount * 100) : 0}%`, background: C.accent }} />
-        </div>
+        <div className="mt-2 flex items-center justify-between gap-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}><span>{viewMode === 'reels' ? 'Reels' : 'Ro‘yxat'} · {Math.min(currentQuestionIndex + 1, Math.max(questions.length, 1))} / {questions.length}</span><span>{answeredCount} / {totalCount} javob</span></div>
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: C.rule }} role="progressbar" aria-label="Test bajarilishi" aria-valuemin={0} aria-valuemax={totalCount} aria-valuenow={answeredCount}><div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${totalCount ? Math.min(100, answeredCount / totalCount * 100) : 0}%`, background: C.accent }} /></div>
       </div>
 
-      {currentQuestion ? (
-        <article key={currentQuestion.id} className="mx-auto mt-5 w-full max-w-3xl pb-5" aria-labelledby="active-question-title">
-          {test.description && currentQuestionIndex === 0 && <p className="mb-4 text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Savol {currentQuestionIndex + 1}</span>
-            <span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>{currentQuestion.type === 'open' ? 'Javob yozing' : currentQuestion.type === 'matching' ? 'Moslikni toping' : 'To‘g‘ri variantni tanlang'}</span>
-            {countAnsweredUnits([currentQuestion], answers) > 0 && <span className="ml-auto inline-flex items-center gap-1 text-xs" style={{ ...fontBody, color: C.accent }}><Check size={13} /> Belgilangan</span>}
-          </div>
-
-          {currentQuestion.type !== 'matching' && !currentQuestion.pdfSourceImageOnly && <h2 id="active-question-title" className="mb-5 max-w-3xl font-medium leading-relaxed" style={{ ...fontBody, color: C.ink, fontSize: `${Math.round(19 * fontScale)}px` }}>
-            {currentQuestion.text}
-            {currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact scale={fontScale} /></Suspense>}
-          </h2>}
-          {currentQuestion.type === 'matching' && <h2 id="active-question-title" className="sr-only">{currentQuestion.text || `Moslik savoli ${currentQuestionIndex + 1}`}</h2>}
-          {currentQuestion.pdfSourceImageOnly && <h2 id="active-question-title" className="sr-only">{currentQuestion.text || `Savol ${currentQuestionIndex + 1}`}</h2>}
-          {currentQuestion.imageUrl && (currentQuestion.pdfSourceImageOnly
-            ? <Suspense fallback={<div className="mb-5 h-32 animate-pulse rounded-xl" style={{ background: C.rule }} />}><PdfQuestionImage src={currentQuestion.imageUrl} alt={currentQuestion.text || 'PDFdagi savol'} /></Suspense>
-            : <img src={currentQuestion.imageUrl} alt="Savolga tegishli rasm" loading="lazy" decoding="async" className="mb-5 max-h-[65vh] max-w-full rounded-xl object-contain" style={{ border: `1px solid ${C.rule}` }} />)}
-
-          {currentQuestion.type === 'matching' ? (
-            <MatchingTestQuestion question={currentQuestion} answer={answers[currentQuestion.id]} onChange={(pairId, optionIndex) => selectMatching(currentQuestion.id, pairId, optionIndex)} disabled={finished} showResult={playerPrefs.immediate && !!revealed[currentQuestion.id]} fontScale={fontScale} />
-          ) : currentQuestion.type === 'open' ? (
-            <div>
-              {currentQuestion.answerMode === 'math' ? (
-                <Suspense fallback={<div className="py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}>
-                  <MathInput value={answers[currentQuestion.id] || ''} onChange={(value) => setOpenAnswer(currentQuestion.id, value)} onBlur={() => confirmOpenAnswer(currentQuestion.id)} disabled={playerPrefs.immediate && !!revealed[currentQuestion.id]} placeholder="Javobingiz" scale={fontScale} />
-                </Suspense>
-              ) : (
-                <input type="text" value={answers[currentQuestion.id] || ''} onChange={(event) => setOpenAnswer(currentQuestion.id, event.target.value)} onBlur={() => confirmOpenAnswer(currentQuestion.id)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} disabled={playerPrefs.immediate && !!revealed[currentQuestion.id]} placeholder="Javobingizni kiriting" className="w-full min-h-14 rounded-xl px-4 py-3 outline-none" style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, fontSize: `${Math.round(17 * fontScale)}px` }} />
-              )}
-              {playerPrefs.immediate && revealed[currentQuestion.id] && <div className="mt-3 flex items-start gap-2 rounded-xl px-3 py-3 text-sm" style={{ ...fontBody, color: isQuestionCorrect(currentQuestion, answers[currentQuestion.id]) ? C.accent : C.red, background: isQuestionCorrect(currentQuestion, answers[currentQuestion.id]) ? C.successTint : C.dangerTint }}>
-                {isQuestionCorrect(currentQuestion, answers[currentQuestion.id]) ? <Check size={17} className="mt-0.5 shrink-0" /> : <X size={17} className="mt-0.5 shrink-0" />}
-                <span>To‘g‘ri javob: {(currentQuestion.answers || []).join(' yoki ') || 'Javob kaliti kiritilmagan'}</span>
-              </div>}
-            </div>
-          ) : (
-            <div className="space-y-3" role="group" aria-label="Javob variantlari">
-              {currentQuestion.options.map((option, optionIndex) => {
-                const selected = answers[currentQuestion.id] === optionIndex;
-                const showResult = playerPrefs.immediate && !!revealed[currentQuestion.id];
-                const correct = showResult && optionIndex === currentQuestion.correct;
-                const wrong = showResult && selected && optionIndex !== currentQuestion.correct;
-                const background = correct ? C.successTint : wrong ? C.dangerTint : selected ? C.selectedTint : C.surface;
-                const border = correct ? C.accent : wrong ? C.red : selected ? C.gold : C.rule;
-                return <button key={optionIndex} type="button" onClick={() => select(currentQuestion.id, optionIndex)} disabled={showResult} aria-pressed={selected} className="flex min-h-14 w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 disabled:cursor-default" style={{ ...fontBody, color: C.ink, background, borderColor: border, outlineColor: C.gold, fontSize: `${Math.round(17 * fontScale)}px` }}>
-                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold" style={{ ...fontMono, color: selected || correct || wrong ? C.cover : C.inkSoft, background: C.paper }}>{String.fromCharCode(65 + optionIndex)}</span>
-                  {currentQuestion.pdfSourceImageOnly ? null : <span className="min-w-0 flex-1 pt-0.5">{currentQuestion.optionsAreMath ? <Suspense fallback={<span>{option}</span>}><MathInput value={option} readOnly compact scale={fontScale} /></Suspense> : option}</span>}
-                  {correct && <Check size={18} className="mt-1 shrink-0" style={{ color: C.accent }} />}
-                  {wrong && <X size={18} className="mt-1 shrink-0" style={{ color: C.red }} />}
-                </button>;
-              })}
-            </div>
-          )}
-          {autoAdvanceNotice && <p role="status" className="mt-4 text-center text-sm" style={{ ...fontBody, color: C.accent }}>{autoAdvanceNotice}</p>}
-        </article>
-      ) : (
-        <div className="my-12 rounded-2xl border p-5 text-center" style={{ ...fontBody, color: C.inkSoft, background: C.surface, borderColor: C.rule }}>Bu testda ishlash uchun savollar topilmadi.</div>
-      )}
-
-      <div className="sticky bottom-0 z-20 -mx-4 mt-5 border-t px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:-mx-6 sm:px-6" style={{ background: C.paper, borderColor: C.rule }}>
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
-          <button type="button" onClick={() => goToQuestion(currentQuestionIndex - 1)} disabled={currentQuestionIndex === 0} className="inline-flex min-h-12 items-center gap-2 rounded-xl border px-4 text-sm font-semibold disabled:opacity-40" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><ChevronRight size={18} className="rotate-180" /><span>Oldingi</span></button>
-          <button type="button" onClick={() => setQuestionMapOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium" style={{ ...fontBody, color: C.inkSoft, background: C.successTint }}><ListChecks size={17} />{currentQuestionIndex + 1}/{questions.length}</button>
-          {currentQuestionIndex < questions.length - 1
-            ? <button type="button" onClick={() => goToQuestion(currentQuestionIndex + 1)} className="inline-flex min-h-12 items-center gap-2 rounded-xl px-4 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><span>Keyingi</span><ChevronRight size={18} /></button>
-            : <button type="button" onClick={() => submit(answersRef.current)} className="inline-flex min-h-12 items-center gap-2 rounded-xl px-4 text-sm font-semibold" style={{ ...fontBody, color: C.coverDeep, background: C.goldSoft }}><CheckCircle2 size={17} /><span>Yakunlash</span></button>}
+      {questions.length ? viewMode === 'reels' ? (
+        <div ref={reelsStageRef} className="mx-auto mt-2 w-full max-w-3xl overflow-hidden rounded-2xl border" style={{ height: 'clamp(250px, calc(100dvh - 275px), 800px)', background: C.surface, borderColor: C.rule, touchAction: 'pan-y' }} onTouchStart={handleReelsTouchStart} onTouchEnd={handleReelsTouchEnd} onWheel={handleReelsWheel} onClickCapture={(event) => { if (justSwipedRef.current) { event.preventDefault(); event.stopPropagation(); justSwipedRef.current = false; } }} aria-label="Reels uslubidagi savollar">
+          {renderQuestionCard(currentQuestion, currentQuestionIndex, true)}
         </div>
+      ) : (
+        <div ref={listContainerRef} onScroll={handleListScroll} className="mx-auto mt-2 w-full max-w-3xl overflow-y-auto overscroll-contain px-2 sm:px-3" style={{ height: 'clamp(280px, calc(100dvh - 270px), 850px)' }} aria-label="Savollar ro‘yxati">
+          {questions.slice(0, visibleListCount).map((question, index) => renderQuestionCard(question, index))}
+          {visibleListCount < questions.length && <div className="py-4 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>Pastga suring — keyingi savollar yuklanadi…</div>}
+        </div>
+      ) : <div className="my-8 rounded-2xl border p-5 text-center" style={{ ...fontBody, color: C.inkSoft, background: C.surface, borderColor: C.rule }}>Bu testda ishlash uchun savollar topilmadi.</div>}
+
+      <div className="mt-2 flex min-h-8 items-center justify-between gap-2 px-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+        <span>{autoAdvanceNotice || (viewMode === 'reels' ? 'Keyingi savol uchun tepaga yoki pastga suring' : 'Savollarni ro‘yxat bo‘ylab ko‘ring')}</span>
+        {autoAdvanceNotice && <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); }} className="shrink-0 rounded-full px-2.5 py-1 font-semibold" style={{ color: C.cover, background: C.goldSoft }}>Kutishni bekor qilish</button>}
       </div>
 
       {questionMapOpen && <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuestionMapOpen(false); }}>
@@ -573,13 +742,23 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       </div>}
 
       {playerSettingsOpen && <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlayerSettingsOpen(false); }}>
-        <section role="dialog" aria-modal="true" aria-labelledby="quiz-settings-title" className="w-full max-w-md rounded-t-2xl p-4 shadow-2xl sm:rounded-2xl sm:p-5" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="quiz-settings-title" className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-2xl p-4 shadow-2xl sm:rounded-2xl sm:p-5" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
           <div className="mb-4 flex items-center justify-between gap-3"><div><h3 id="quiz-settings-title" className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Test sozlamalari</h3><p className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘qish va ishlash uslubini hozir o‘zgartiring.</p></div><button type="button" onClick={() => setPlayerSettingsOpen(false)} aria-label="Yopish" className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: C.ink, background: C.surface }}><X size={18} /></button></div>
           <div className="space-y-2">
+            <div className="rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}>
+              <div className="mb-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Ishlash uslubi</div>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ id: 'reels', title: 'Reels', detail: 'Vertikal surish' }, { id: 'list', title: 'Ro‘yxat', detail: 'Barcha savollar' }].map((option) => {
+                  const active = viewMode === option.id;
+                  return <button key={option.id} type="button" aria-pressed={active} onClick={() => updatePlayerPrefs({ viewMode: option.id })} className="rounded-lg border px-3 py-2 text-left" style={{ ...fontBody, color: C.ink, background: active ? C.goldSoft : C.paper, borderColor: active ? C.gold : C.rule }}><span className="block text-sm font-semibold">{option.title}</span><span className="text-[11px]" style={{ color: C.inkSoft }}>{option.detail}</span></button>;
+                })}
+              </div>
+            </div>
             <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}>{theme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}{theme === 'dark' ? 'Tungi rejim' : 'Kunduzgi rejim'}</div><button type="button" onClick={toggleTheme} aria-label="Rang rejimini almashtirish" className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ ...fontBody, color: C.cover, background: C.goldSoft }}>Almashtirish</button></div>
             <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}><Type size={17} />Matn kattaligi</div><div className="flex items-center gap-1"><button type="button" onClick={() => setQuizFontScale(fontScale - 0.1)} aria-label="Matnni kichraytirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>−</button><span className="min-w-12 text-center text-xs" style={{ ...fontMono, color: C.ink }}>{Math.round(fontScale * 100)}%</span><button type="button" onClick={() => setQuizFontScale(fontScale + 0.1)} aria-label="Matnni kattalashtirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>+</button></div></div>
             <button type="button" role="switch" aria-checked={!!playerPrefs.immediate} onClick={() => updatePlayerPrefs({ immediate: !playerPrefs.immediate })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobni darhol ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xatoni shu savolning o‘zida ko‘rib tahlil qilasiz.</span></span><span className="h-6 w-11 rounded-full p-1" style={{ background: playerPrefs.immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
-            <button type="button" role="switch" aria-checked={!!playerPrefs.autoScroll} disabled={!playerPrefs.immediate} onClick={() => updatePlayerPrefs({ autoScroll: !playerPrefs.autoScroll })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left disabled:opacity-50" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>To‘g‘ri javobdan keyin o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xato javobda savol joyida qoladi; to‘g‘ri javobdan keyin 3 soniya kutadi.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.autoScroll && playerPrefs.immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.autoScroll && playerPrefs.immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
+            <button type="button" role="switch" aria-checked={!!playerPrefs.autoScroll} onClick={() => updatePlayerPrefs({ autoScroll: !playerPrefs.autoScroll })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin avtomatik o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni ko‘rishga vaqt beradi; xato bo‘lsa ham o‘tadi.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.autoScroll ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.autoScroll ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
+            {playerPrefs.autoScroll && <label className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Kutish vaqti</span><span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘qib ulgurish uchun</span></span><select value={[4, 6, 8, 10, 12].includes(Number(playerPrefs.autoAdvanceSeconds)) ? Number(playerPrefs.autoAdvanceSeconds) : 6} onChange={(event) => updatePlayerPrefs({ autoAdvanceSeconds: Number(event.target.value) })} className="rounded-lg border px-2.5 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label="Avtomatik o‘tishdan oldingi vaqt">{[4, 6, 8, 10, 12].map((delay) => <option key={delay} value={delay}>{delay} soniya</option>)}</select></label>}
           </div>
           <button type="button" onClick={() => { setPlayerSettingsOpen(false); setReconfigureDialog(true); }} className="mt-4 w-full rounded-xl border px-3 py-3 text-sm font-semibold" style={{ ...fontBody, color: C.ink, background: C.paperSoft, borderColor: C.rule }}>Savollar soni va tartibini o‘zgartirish…</button>
         </section>
