@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronRight, Clock3, FileText, ListChecks, LogIn, LogOut, Pause, Pencil, RotateCcw, Save, Settings, Share2, Trash2, Users, X } from 'lucide-react';
-import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
+import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronRight, Clock3, FileText, ListChecks, LogIn, LogOut, Moon, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sun, Trash2, Type, Users, X } from 'lucide-react';
+import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
 const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 
@@ -52,8 +52,8 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
       <div className="text-xs mb-6" style={{ ...fontMono, color: C.gold }}>{itemLabel} mavjud</div>
 
       <div className="flex flex-wrap gap-2 mb-5">
-        <SettingChip active={immediate} onClick={() => setImmediate((v) => !v)}>Darhol javob koʻrsatish</SettingChip>
-        <SettingChip active={autoScroll} onClick={() => setAutoScroll((v) => !v)}>Keyingi savolga avtomatik oʻtish</SettingChip>
+        <SettingChip active={immediate} onClick={() => { const next = !immediate; setImmediate(next); if (!next) setAutoScroll(false); }}>Darhol javob koʻrsatish</SettingChip>
+        <SettingChip active={autoScroll} onClick={() => { if (!immediate) setImmediate(true); setAutoScroll((current) => !current); }}>Toʻgʻri javobdan keyin oʻtish</SettingChip>
         <SettingChip active={shuffle} onClick={() => setShuffle((v) => !v)}>Savollarni aralashtirish</SettingChip>
       </div>
 
@@ -110,7 +110,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   );
 }
 
-export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTest, nextTest, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session, initialProgress, onPauseAttempt, onClearPaused, onRequireAccount }) {
+export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTest, nextTest, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session, initialProgress, onPauseAttempt, onClearPaused, onRequireAccount, onReconfigure }) {
   // Older saved tests may store a single answer string or omit choices.
   // Normalize once so scoring and the result view accept both old and new rows.
   const questions = Array.isArray(config.questions) ? config.questions.filter(Boolean).map((question) => ({
@@ -121,6 +121,15 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const matchingOnly = questions.length > 0 && questions.every((question) => question.type === 'matching');
   const [answers, setAnswers] = useState(() => initialProgress?.answers || {});
   const answersRef = useRef(initialProgress?.answers || {});
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(() => Math.max(0, Math.min(questions.length - 1, Number(initialProgress?.questionIndex) || 0)));
+  const [playerPrefs, setPlayerPrefs] = useState(() => ({ ...config }));
+  const [playerSettingsOpen, setPlayerSettingsOpen] = useState(false);
+  const [questionMapOpen, setQuestionMapOpen] = useState(false);
+  const [reconfigureDialog, setReconfigureDialog] = useState(false);
+  const [autoAdvanceNotice, setAutoAdvanceNotice] = useState('');
+  const [fontScale, setFontScale] = useState(() => {
+    try { return Math.max(0.95, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 1)); } catch { return 1; }
+  });
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
   const finishedRef = useRef(false);
@@ -136,10 +145,16 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const autoScrollTimerRef = useRef(null);
   const autoFinishTimerRef = useRef(null);
   const { registerBackGuard } = useContext(NavContext);
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const unregisterBackGuardRef = useRef(null);
 
   function requestLeave() {
     setLeaveError('');
+    clearTimeout(autoScrollTimerRef.current);
+    setAutoAdvanceNotice('');
+    if (questionMapOpen) { setQuestionMapOpen(false); return; }
+    if (playerSettingsOpen) { setPlayerSettingsOpen(false); return; }
+    if (reconfigureDialog) { setReconfigureDialog(false); return; }
     // Orqaga qaytish avval ochiq yakunlash ogohlantirishini yopadi.
     if (finishDialog) { setFinishDialog(false); return; }
     setLeaveDialog(true);
@@ -179,10 +194,45 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   const answeredCount = countAnsweredUnits(questions, answers);
   const totalCount = getQuestionCount(questions);
+  const currentQuestion = questions[currentQuestionIndex] || null;
+
+  function updatePlayerPrefs(patch) {
+    const next = { ...playerPrefs, ...patch };
+    setPlayerPrefs(next);
+    const { questions: _selectedQuestions, ...savedPrefs } = next;
+    onSavePrefs?.(savedPrefs);
+  }
+
+  function setQuizFontScale(value) {
+    const next = Math.max(0.95, Math.min(1.3, value));
+    setFontScale(next);
+    try { localStorage.setItem('upcourse-quiz-font-scale', String(next)); } catch {}
+  }
+
+  function goToQuestion(index) {
+    clearTimeout(autoScrollTimerRef.current);
+    setAutoAdvanceNotice('');
+    setCurrentQuestionIndex(Math.max(0, Math.min(questions.length - 1, index)));
+    setQuestionMapOpen(false);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  function scheduleAutoAdvance(question, answer) {
+    clearTimeout(autoScrollTimerRef.current);
+    setAutoAdvanceNotice('');
+    if (!playerPrefs.autoScroll || !playerPrefs.immediate || !isQuestionCorrect(question, answer) || currentQuestionIndex >= questions.length - 1) return;
+    setAutoAdvanceNotice('To‘g‘ri! Keyingisiga o‘tish uchun biroz kuting.');
+    autoScrollTimerRef.current = setTimeout(() => {
+      setCurrentQuestionIndex((index) => Math.min(questions.length - 1, index + 1));
+      setAutoAdvanceNotice('');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 3000);
+  }
 
   function createPauseSnapshot() {
     const { questions: _selectedQuestions, ...prefs } = config;
-    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), prefs, answers, seconds, answeredCount, totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
+    const currentAnswers = answersRef.current;
+    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
   }
 
   async function pauseAndExit() {
@@ -202,34 +252,14 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     }
   }
 
-  /* Keyingi javobsiz savolga brauzerning native scroll animatsiyasi bilan oʻtamiz.
-     Bu har kadrda JavaScript hisoblashni talab qilmaydi va sekin qurilmalarda yengilroq. */
-  function scrollToNextUnanswered(fromQid, latestAnswers) {
-    if (!config.autoScroll) return;
-    const fromIndex = questions.findIndex((q) => q.id === fromQid);
-    const next = questions.slice(fromIndex + 1).find((q) => {
-      const a = latestAnswers[q.id];
-      if (q.type === 'matching') return Array.isArray(q.pairs) ? !q.pairs.every((pair) => a?.[pair.id] !== undefined) : a === undefined;
-      return q.type === 'open' ? !(typeof a === 'string' && a.trim().length > 0) : a === undefined;
-    });
-    if (!next) return;
-    const el = questionRefs.current[next.id];
-    if (!el) return;
-
-    clearTimeout(autoScrollTimerRef.current);
-    autoScrollTimerRef.current = setTimeout(() => {
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'center' });
-    }, 160);
-  }
-
   function select(qid, idx) {
     if (finished) return;
     const next = { ...answersRef.current, [qid]: idx };
     answersRef.current = next;
     setAnswers(next);
-    scrollToNextUnanswered(qid, next);
-    if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+    if (playerPrefs.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+    const question = questions.find((item) => item.id === qid);
+    if (question) scheduleAutoAdvance(question, idx);
   }
 
   function selectMatching(qid, pairId, optionIndex) {
@@ -240,9 +270,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     const next = { ...answersRef.current, [qid]: nextMatching };
     answersRef.current = next;
     setAnswers(next);
-    scrollToNextUnanswered(qid, next);
-    if (!matchingOnly && config.immediate && (questions.find((q) => q.id === qid)?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
+    const question = questions.find((q) => q.id === qid);
+    if (!matchingOnly && playerPrefs.immediate && (question?.pairs || []).every((pair) => nextMatching[pair.id] !== undefined)) {
       setRevealed((revealedAnswers) => ({ ...revealedAnswers, [qid]: true }));
+      if (question) scheduleAutoAdvance(question, nextMatching);
     }
     if (matchingOnly) {
       const allCorrect = questions.every((question) => getQuestionScore(question, next[question.id]) === getQuestionCount([question]));
@@ -260,8 +291,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   function confirmOpenAnswer(qid) {
     if (finished) return;
-    scrollToNextUnanswered(qid, answersRef.current);
-    if (config.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+    if (playerPrefs.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
+    const question = questions.find((item) => item.id === qid);
+    if (question) scheduleAutoAdvance(question, answersRef.current[qid]);
   }
 
   function finishTest(latestAnswers = answersRef.current) {
@@ -301,7 +333,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     const resultAnsweredCount = countAnsweredUnits(questions, answers);
     const incorrectCount = Math.max(0, resultAnsweredCount - correctCount);
     const unansweredCount = Math.max(0, totalCount - resultAnsweredCount);
-    const percent = Math.round((correctCount / totalCount) * 100);
+    const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
     return (
       <div>
         <button
@@ -312,7 +344,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           <ArrowLeft size={15} /> Barcha testlar
         </button>
 
-        <section ref={resultSummaryRef} aria-labelledby="quiz-result-title" className="max-w-2xl rounded-xl border p-4 sm:p-5 mb-3" style={{ background: C.surface, borderColor: C.rule, scrollMarginTop: '5rem' }}>
+        <section ref={resultSummaryRef} aria-labelledby="quiz-result-title" className="max-w-3xl rounded-xl border p-4 sm:p-5 mb-3" style={{ background: C.surface, borderColor: C.rule, scrollMarginTop: '5rem' }}>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[.16em]" style={{ ...fontBody, color: C.inkSoft }}>Test yakunlandi</div>
@@ -428,129 +460,135 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   }
 
   return (
-    <div className={matchingOnly ? "w-full space-y-2" : ""}>
-      <div className={matchingOnly ? "flex items-center gap-2 mb-1" : "flex items-center justify-between gap-3 mb-1 flex-wrap"}>
-        <button
-          onClick={requestLeave}
-          className={matchingOnly ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2" : "inline-flex items-center gap-1 text-[15px] focus-visible:outline focus-visible:outline-2"}
-          aria-label={matchingOnly ? "Barcha testlar" : undefined}
-          title="Testdan chiqish amallari"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} />{!matchingOnly && " Barcha testlar"}
-        </button>
-        <div className="ml-auto flex items-center gap-1.5">
-          {matchingOnly && <span className="max-w-[36vw] truncate text-xs font-medium sm:max-w-none" style={{ ...fontBody, color: C.ink }}>{test.title}</span>}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[13px]" style={{ ...fontMono, color: C.gold, background: C.cover }}>
-            <Clock3 size={13} /> {formatDuration(seconds)}
+    <div className="mx-auto w-full max-w-4xl">
+      <div className="sticky top-0 z-20 -mx-4 border-b px-4 py-2 sm:-mx-6 sm:px-6" style={{ background: C.paper, borderColor: C.rule }}>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={requestLeave} aria-label="Testdan chiqish amallari" title="Ortga" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><ArrowLeft size={19} /></button>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{test.title}</div>
+            <div className="flex items-center gap-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</div>
           </div>
-          <button
-            type="button"
-            onClick={() => submit(answersRef.current)}
-            aria-label="Testni yakunlash"
-            className="inline-flex min-h-8 items-center gap-1 rounded-sm px-2.5 py-1 text-[13px] font-medium"
-            style={{ ...fontBody, color: C.white, background: C.cover }}
-          >
-            <CheckCircle2 size={14} /> Yakunlash
-          </button>
-          <button
-            type="button"
-            onClick={requestLeave}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-sm text-[13px]"
-            style={{ ...fontBody, color: C.ink, border: `1px solid ${C.rule}` }}
-          >
-            <Pause size={13} /> Saqlash
-          </button>
+          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); setAutoAdvanceNotice(''); setQuestionMapOpen(true); }} aria-label="Savollar ro‘yxati" title="Savollar ro‘yxati" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.cover, background: C.successTint, border: `1px solid ${C.rule}` }}><ListChecks size={18} /></button>
+          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); setAutoAdvanceNotice(''); setPlayerSettingsOpen(true); }} aria-label="Test sozlamalari" title="Test sozlamalari" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><Settings size={18} /></button>
+          <button type="button" onClick={() => submit(answersRef.current)} aria-label="Testni yakunlash" className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><CheckCircle2 size={16} /><span className="hidden sm:inline">Yakunlash</span></button>
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+          <span>Savol {Math.min(currentQuestionIndex + 1, Math.max(questions.length, 1))} / {questions.length}</span>
+          <span>{answeredCount} / {totalCount} javob</span>
+        </div>
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: C.rule }} role="progressbar" aria-label="Test bajarilishi" aria-valuemin={0} aria-valuemax={totalCount} aria-valuenow={answeredCount}>
+          <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${totalCount ? Math.min(100, answeredCount / totalCount * 100) : 0}%`, background: C.accent }} />
         </div>
       </div>
 
-      {!matchingOnly && <>
-        <h3 className="text-2xl sm:text-3xl mb-1 mt-3" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
-        {test.description && <p className="text-[15px] mb-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
-      </>}
-
-      <>
-          <div className={matchingOnly ? "w-full space-y-2" : "space-y-4 max-w-2xl"}>
-            {questions.map((q, qi) => {
-              const showResult = config.immediate ? !!revealed[q.id] : finished;
-              return (
-                <article key={q.id} ref={(el) => { questionRefs.current[q.id] = el; }} className={matchingOnly ? "p-1.5 sm:p-2 rounded-xl" : "p-3 sm:p-4 rounded-sm"} style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-                  {q.type !== 'matching' && !q.pdfSourceImageOnly && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
-                    <span style={{ ...fontMono, color: C.gold }}>{qi + 1}.</span> {q.text}
-                    {q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
-                  </div>}
-                  {q.imageUrl && (q.pdfSourceImageOnly
-                    ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-lg bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
-                    : <img src={q.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-sm sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
-                  {q.type === 'matching' ? (
-                    <MatchingTestQuestion question={q} answer={answers[q.id]} onChange={(pairId, optionIndex) => selectMatching(q.id, pairId, optionIndex)} disabled={finished} showResult={showResult} />
-                  ) : q.type === 'open' ? (
-                    <div>
-                      {q.answerMode === 'math' ? (
-                        <Suspense fallback={<div className="py-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}>
-                          <MathInput value={answers[q.id] || ''} onChange={(value) => setOpenAnswer(q.id, value)} onBlur={() => confirmOpenAnswer(q.id)} disabled={showResult} placeholder="Javobingiz" />
-                        </Suspense>
-                      ) : (
-                      <input
-                        type="text"
-                        value={answers[q.id] || ''}
-                        onChange={(e) => setOpenAnswer(q.id, e.target.value)}
-                        onBlur={() => confirmOpenAnswer(q.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
-                        disabled={showResult}
-                        placeholder="Javobingiz"
-                        className="w-full min-w-0 px-4 py-2.5 rounded-sm text-[15px] outline-none"
-                        style={{
-                          ...fontBody, color: C.ink,
-                          background: showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.successTint : C.dangerTint) : C.surface,
-                          border: `1px solid ${showResult ? (isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red) : C.rule}`,
-                        }}
-                      />
-                      )}
-                      {showResult && (
-                        <div className="flex items-center gap-1.5 mt-2 text-sm" style={{ ...fontBody, color: isQuestionCorrect(q, answers[q.id]) ? C.accent : C.red }}>
-                          {isQuestionCorrect(q, answers[q.id]) ? <Check size={14} /> : <X size={14} />}
-                          Toʻgʻri javob: {(q.answers || []).join(' yoki ')}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {q.options.map((opt, oi) => {
-                        const isSelected = answers[q.id] === oi;
-                        let bg = C.surface, border = C.rule;
-                        if (showResult) {
-                          if (oi === q.correct) { bg = C.successTint; border = C.accent; }
-                          else if (isSelected && oi !== q.correct) { bg = C.dangerTint; border = C.red; }
-                        } else if (isSelected) {
-                          border = C.gold; bg = C.selectedTint;
-                        }
-                        return (
-                          <button
-                            key={oi}
-                            onClick={() => select(q.id, oi)}
-                            disabled={showResult}
-                            className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-sm text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
-                            style={{ ...fontBody, background: bg, border: `1px solid ${border}`, color: C.ink, outlineColor: C.gold }}
-                          >
-                            <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                            {q.pdfSourceImageOnly ? null : q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
-                            {showResult && oi === q.correct && <Check size={15} className="ml-auto flex-shrink-0" style={{ color: C.accent }} />}
-                            {showResult && isSelected && oi !== q.correct && <X size={15} className="ml-auto flex-shrink-0" style={{ color: C.red }} />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+      {currentQuestion ? (
+        <article key={currentQuestion.id} className="mx-auto mt-5 w-full max-w-3xl pb-5" aria-labelledby="active-question-title">
+          {test.description && currentQuestionIndex === 0 && <p className="mb-4 text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Savol {currentQuestionIndex + 1}</span>
+            <span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>{currentQuestion.type === 'open' ? 'Javob yozing' : currentQuestion.type === 'matching' ? 'Moslikni toping' : 'To‘g‘ri variantni tanlang'}</span>
+            {countAnsweredUnits([currentQuestion], answers) > 0 && <span className="ml-auto inline-flex items-center gap-1 text-xs" style={{ ...fontBody, color: C.accent }}><Check size={13} /> Belgilangan</span>}
           </div>
 
-          {!matchingOnly && <div className="flex gap-3 mt-8">
-            <SolidButton onClick={() => submit(answersRef.current)} icon={Check}>Testni yakunlash</SolidButton>
-          </div>}
-      </>
+          {currentQuestion.type !== 'matching' && !currentQuestion.pdfSourceImageOnly && <h2 id="active-question-title" className="mb-5 max-w-3xl font-medium leading-relaxed" style={{ ...fontBody, color: C.ink, fontSize: `${Math.round(19 * fontScale)}px` }}>
+            {currentQuestion.text}
+            {currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact scale={fontScale} /></Suspense>}
+          </h2>}
+          {currentQuestion.type === 'matching' && <h2 id="active-question-title" className="sr-only">{currentQuestion.text || `Moslik savoli ${currentQuestionIndex + 1}`}</h2>}
+          {currentQuestion.pdfSourceImageOnly && <h2 id="active-question-title" className="sr-only">{currentQuestion.text || `Savol ${currentQuestionIndex + 1}`}</h2>}
+          {currentQuestion.imageUrl && (currentQuestion.pdfSourceImageOnly
+            ? <Suspense fallback={<div className="mb-5 h-32 animate-pulse rounded-xl" style={{ background: C.rule }} />}><PdfQuestionImage src={currentQuestion.imageUrl} alt={currentQuestion.text || 'PDFdagi savol'} /></Suspense>
+            : <img src={currentQuestion.imageUrl} alt="Savolga tegishli rasm" loading="lazy" decoding="async" className="mb-5 max-h-[65vh] max-w-full rounded-xl object-contain" style={{ border: `1px solid ${C.rule}` }} />)}
+
+          {currentQuestion.type === 'matching' ? (
+            <MatchingTestQuestion question={currentQuestion} answer={answers[currentQuestion.id]} onChange={(pairId, optionIndex) => selectMatching(currentQuestion.id, pairId, optionIndex)} disabled={finished} showResult={playerPrefs.immediate && !!revealed[currentQuestion.id]} fontScale={fontScale} />
+          ) : currentQuestion.type === 'open' ? (
+            <div>
+              {currentQuestion.answerMode === 'math' ? (
+                <Suspense fallback={<div className="py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}>
+                  <MathInput value={answers[currentQuestion.id] || ''} onChange={(value) => setOpenAnswer(currentQuestion.id, value)} onBlur={() => confirmOpenAnswer(currentQuestion.id)} disabled={playerPrefs.immediate && !!revealed[currentQuestion.id]} placeholder="Javobingiz" scale={fontScale} />
+                </Suspense>
+              ) : (
+                <input type="text" value={answers[currentQuestion.id] || ''} onChange={(event) => setOpenAnswer(currentQuestion.id, event.target.value)} onBlur={() => confirmOpenAnswer(currentQuestion.id)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} disabled={playerPrefs.immediate && !!revealed[currentQuestion.id]} placeholder="Javobingizni kiriting" className="w-full min-h-14 rounded-xl px-4 py-3 outline-none" style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, fontSize: `${Math.round(17 * fontScale)}px` }} />
+              )}
+              {playerPrefs.immediate && revealed[currentQuestion.id] && <div className="mt-3 flex items-start gap-2 rounded-xl px-3 py-3 text-sm" style={{ ...fontBody, color: isQuestionCorrect(currentQuestion, answers[currentQuestion.id]) ? C.accent : C.red, background: isQuestionCorrect(currentQuestion, answers[currentQuestion.id]) ? C.successTint : C.dangerTint }}>
+                {isQuestionCorrect(currentQuestion, answers[currentQuestion.id]) ? <Check size={17} className="mt-0.5 shrink-0" /> : <X size={17} className="mt-0.5 shrink-0" />}
+                <span>To‘g‘ri javob: {(currentQuestion.answers || []).join(' yoki ') || 'Javob kaliti kiritilmagan'}</span>
+              </div>}
+            </div>
+          ) : (
+            <div className="space-y-3" role="group" aria-label="Javob variantlari">
+              {currentQuestion.options.map((option, optionIndex) => {
+                const selected = answers[currentQuestion.id] === optionIndex;
+                const showResult = playerPrefs.immediate && !!revealed[currentQuestion.id];
+                const correct = showResult && optionIndex === currentQuestion.correct;
+                const wrong = showResult && selected && optionIndex !== currentQuestion.correct;
+                const background = correct ? C.successTint : wrong ? C.dangerTint : selected ? C.selectedTint : C.surface;
+                const border = correct ? C.accent : wrong ? C.red : selected ? C.gold : C.rule;
+                return <button key={optionIndex} type="button" onClick={() => select(currentQuestion.id, optionIndex)} disabled={showResult} aria-pressed={selected} className="flex min-h-14 w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 disabled:cursor-default" style={{ ...fontBody, color: C.ink, background, borderColor: border, outlineColor: C.gold, fontSize: `${Math.round(17 * fontScale)}px` }}>
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold" style={{ ...fontMono, color: selected || correct || wrong ? C.cover : C.inkSoft, background: C.paper }}>{String.fromCharCode(65 + optionIndex)}</span>
+                  {currentQuestion.pdfSourceImageOnly ? null : <span className="min-w-0 flex-1 pt-0.5">{currentQuestion.optionsAreMath ? <Suspense fallback={<span>{option}</span>}><MathInput value={option} readOnly compact scale={fontScale} /></Suspense> : option}</span>}
+                  {correct && <Check size={18} className="mt-1 shrink-0" style={{ color: C.accent }} />}
+                  {wrong && <X size={18} className="mt-1 shrink-0" style={{ color: C.red }} />}
+                </button>;
+              })}
+            </div>
+          )}
+          {autoAdvanceNotice && <p role="status" className="mt-4 text-center text-sm" style={{ ...fontBody, color: C.accent }}>{autoAdvanceNotice}</p>}
+        </article>
+      ) : (
+        <div className="my-12 rounded-2xl border p-5 text-center" style={{ ...fontBody, color: C.inkSoft, background: C.surface, borderColor: C.rule }}>Bu testda ishlash uchun savollar topilmadi.</div>
+      )}
+
+      <div className="sticky bottom-0 z-20 -mx-4 mt-5 border-t px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:-mx-6 sm:px-6" style={{ background: C.paper, borderColor: C.rule }}>
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+          <button type="button" onClick={() => goToQuestion(currentQuestionIndex - 1)} disabled={currentQuestionIndex === 0} className="inline-flex min-h-12 items-center gap-2 rounded-xl border px-4 text-sm font-semibold disabled:opacity-40" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><ChevronRight size={18} className="rotate-180" /><span>Oldingi</span></button>
+          <button type="button" onClick={() => setQuestionMapOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium" style={{ ...fontBody, color: C.inkSoft, background: C.successTint }}><ListChecks size={17} />{currentQuestionIndex + 1}/{questions.length}</button>
+          {currentQuestionIndex < questions.length - 1
+            ? <button type="button" onClick={() => goToQuestion(currentQuestionIndex + 1)} className="inline-flex min-h-12 items-center gap-2 rounded-xl px-4 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><span>Keyingi</span><ChevronRight size={18} /></button>
+            : <button type="button" onClick={() => submit(answersRef.current)} className="inline-flex min-h-12 items-center gap-2 rounded-xl px-4 text-sm font-semibold" style={{ ...fontBody, color: C.coverDeep, background: C.goldSoft }}><CheckCircle2 size={17} /><span>Yakunlash</span></button>}
+        </div>
+      </div>
+
+      {questionMapOpen && <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuestionMapOpen(false); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="question-map-title" className="w-full max-w-xl rounded-t-2xl p-4 shadow-2xl sm:rounded-2xl" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div><h3 id="question-map-title" className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Savollar</h3><p className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>{answeredCount}/{totalCount} javob belgilangan</p></div>
+            <button type="button" onClick={() => setQuestionMapOpen(false)} aria-label="Yopish" className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: C.ink, background: C.surface }}><X size={18} /></button>
+          </div>
+          <div className="grid max-h-[55dvh] grid-cols-6 gap-2 overflow-y-auto overscroll-contain p-1 sm:grid-cols-8">
+            {questions.map((question, index) => {
+              const units = countAnsweredUnits([question], answers);
+              const unitTotal = getQuestionCount([question]);
+              const complete = units >= unitTotal;
+              const partial = units > 0 && !complete;
+              const current = index === currentQuestionIndex;
+              return <button key={question.id} type="button" onClick={() => goToQuestion(index)} aria-label={`Savol ${index + 1}${complete ? ', javob berilgan' : partial ? ', qisman javob berilgan' : ', javobsiz'}`} className="relative flex h-11 items-center justify-center rounded-xl border text-sm font-semibold" style={{ ...fontMono, color: current ? C.coverDeep : complete ? C.accent : C.ink, background: current ? C.goldSoft : complete ? C.successTint : C.surface, borderColor: current ? C.gold : partial ? C.gold : C.rule }}>
+                {index + 1}{partial && <span className="absolute bottom-1 h-1 w-1 rounded-full" style={{ background: C.gold }} />}
+              </button>;
+            })}
+          </div>
+          <div className="mt-3 flex items-center gap-4 text-xs" style={{ ...fontBody, color: C.inkSoft }}><span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm" style={{ background: C.successTint, border: `1px solid ${C.rule}` }} />Javob bor</span><span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm" style={{ background: C.goldSoft }} />Hozirgi</span></div>
+        </section>
+      </div>}
+
+      {playerSettingsOpen && <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlayerSettingsOpen(false); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="quiz-settings-title" className="w-full max-w-md rounded-t-2xl p-4 shadow-2xl sm:rounded-2xl sm:p-5" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
+          <div className="mb-4 flex items-center justify-between gap-3"><div><h3 id="quiz-settings-title" className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Test sozlamalari</h3><p className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>O‘qish va ishlash uslubini hozir o‘zgartiring.</p></div><button type="button" onClick={() => setPlayerSettingsOpen(false)} aria-label="Yopish" className="flex h-9 w-9 items-center justify-center rounded-full" style={{ color: C.ink, background: C.surface }}><X size={18} /></button></div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}>{theme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}{theme === 'dark' ? 'Tungi rejim' : 'Kunduzgi rejim'}</div><button type="button" onClick={toggleTheme} aria-label="Rang rejimini almashtirish" className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ ...fontBody, color: C.cover, background: C.goldSoft }}>Almashtirish</button></div>
+            <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}><Type size={17} />Matn kattaligi</div><div className="flex items-center gap-1"><button type="button" onClick={() => setQuizFontScale(fontScale - 0.1)} aria-label="Matnni kichraytirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>−</button><span className="min-w-12 text-center text-xs" style={{ ...fontMono, color: C.ink }}>{Math.round(fontScale * 100)}%</span><button type="button" onClick={() => setQuizFontScale(fontScale + 0.1)} aria-label="Matnni kattalashtirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>+</button></div></div>
+            <button type="button" role="switch" aria-checked={!!playerPrefs.immediate} onClick={() => updatePlayerPrefs({ immediate: !playerPrefs.immediate })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobni darhol ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xatoni shu savolning o‘zida ko‘rib tahlil qilasiz.</span></span><span className="h-6 w-11 rounded-full p-1" style={{ background: playerPrefs.immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
+            <button type="button" role="switch" aria-checked={!!playerPrefs.autoScroll} disabled={!playerPrefs.immediate} onClick={() => updatePlayerPrefs({ autoScroll: !playerPrefs.autoScroll })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left disabled:opacity-50" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>To‘g‘ri javobdan keyin o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xato javobda savol joyida qoladi; to‘g‘ri javobdan keyin 3 soniya kutadi.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.autoScroll && playerPrefs.immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.autoScroll && playerPrefs.immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
+          </div>
+          <button type="button" onClick={() => { setPlayerSettingsOpen(false); setReconfigureDialog(true); }} className="mt-4 w-full rounded-xl border px-3 py-3 text-sm font-semibold" style={{ ...fontBody, color: C.ink, background: C.paperSoft, borderColor: C.rule }}>Savollar soni va tartibini o‘zgartirish…</button>
+        </section>
+      </div>}
+
+      {reconfigureDialog && <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/50 p-3 sm:items-center" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setReconfigureDialog(false); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="reconfigure-title" className="w-full max-w-md rounded-2xl p-4 shadow-2xl" style={{ background: C.paper, border: `1px solid ${C.rule}` }}><h3 id="reconfigure-title" className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Testni qayta sozlaysizmi?</h3><p className="mt-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Savollar soni yoki aralashish tartibini o‘zgartirish uchun test qayta boshlanadi. Hozirgi javoblaringiz tozalanadi.</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => setReconfigureDialog(false)} className="min-h-11 rounded-xl border text-sm font-semibold" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}>Davom etish</button><button type="button" onClick={() => { setReconfigureDialog(false); onReconfigure?.(playerPrefs); }} className="min-h-11 rounded-xl text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}>Qayta sozlash</button></div></section>
+      </div>}
+
       {(leaveDialog || finishDialog) && (
         <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setLeaveDialog(false); setFinishDialog(false); setGuestPausePrompt(false); } }}>
           <section role="dialog" aria-modal="true" aria-labelledby="quiz-exit-title" className="w-full max-w-md rounded-2xl p-4 shadow-2xl sm:p-5" style={{ background: C.paper, border: `1px solid ${C.rule}` }}>
@@ -603,6 +641,20 @@ export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, f
     if (onSavePrefs) onSavePrefs(rest);
   }
 
+  function savePlayerPrefs(nextPrefs) {
+    setLastConfig(nextPrefs);
+    setConfig((current) => current ? { ...current, ...nextPrefs } : current);
+    onSavePrefs?.(nextPrefs);
+  }
+
+  function handleReconfigure(nextPrefs) {
+    onClearPaused?.(test.id);
+    setLastConfig(nextPrefs);
+    setResumeProgress(null);
+    setConfig(null);
+    setAttemptKey((key) => key + 1);
+  }
+
   function handleRetry() {
     onClearPaused?.(test.id);
     setResumeProgress(null);
@@ -613,7 +665,7 @@ export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, f
   if (!config) {
     return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
   }
-  return <QuizPlayer key={attemptKey} test={test} config={config} initialProgress={resumeProgress} onExit={onExit} onRestart={() => { onClearPaused?.(test.id); setResumeProgress(null); setConfig(null); }} onRetry={handleRetry} onNextTest={onNextTest} nextTest={nextTest} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} />;
+  return <QuizPlayer key={attemptKey} test={test} config={config} initialProgress={resumeProgress} onExit={onExit} onRestart={() => { onClearPaused?.(test.id); setResumeProgress(null); setConfig(null); }} onRetry={handleRetry} onNextTest={onNextTest} nextTest={nextTest} onSavePrefs={savePlayerPrefs} onReconfigure={handleReconfigure} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} />;
 }
 
 export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount }) {

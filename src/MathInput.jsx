@@ -25,7 +25,7 @@ const mathKeyboardLayouts = [
  * App state stores compact AsciiMath strings; the editor renders them as
  * structured notation and offers MathLive's touch keyboard on phones.
  */
-export default function MathInput({ value = '', onChange, onBlur, placeholder, label, disabled = false, readOnly = false, compact = false }) {
+export default function MathInput({ value = '', onChange, onBlur, placeholder, label, disabled = false, readOnly = false, compact = false, scale = 1 }) {
   const fieldRef = useRef(null);
   const emittedValueRef = useRef(value);
   const initializedRef = useRef(false);
@@ -92,7 +92,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
           padding: compact ? '6px 9px' : '9px 12px', borderRadius: 10,
           color: C.ink, background: readOnly ? 'transparent' : C.surface,
           border: readOnly ? '0' : `1px solid ${C.rule}`,
-          fontSize: compact ? 16 : 19, boxSizing: 'border-box',
+          fontSize: Math.round((compact ? 16 : 19) * scale), boxSizing: 'border-box',
           opacity: disabled ? 0.7 : 1,
         }}
       />

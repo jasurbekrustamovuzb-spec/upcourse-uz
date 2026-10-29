@@ -807,7 +807,7 @@ export const profileFromRow = (r) => ({ id: r.id, firstName: r.first_name || '',
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: true, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { immediate: false, autoScroll: false, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 /* Instagram uslubidagi profil banneri uchun tayyor rang to'plami —
    hozircha rasm yuklash tizimi yo'q, shuning uchun foydalanuvchi
@@ -1427,6 +1427,32 @@ function PaperPanel({ children, className }) {
   return (
     <div className={className}>{children}</div>
   );
+}
+
+class RouteErrorBoundary extends React.Component {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('Bo‘limni ko‘rsatishda xatolik:', error, info);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <section role="alert" className="mx-auto my-6 max-w-xl rounded-2xl border p-5 text-center" style={{ background: C.surface, borderColor: C.rule, color: C.ink }}>
+        <h2 className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Bu bo‘lim ochilmadi</h2>
+        <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Boshqa bo‘limlarga o‘tishingiz mumkin. Qayta urinish xatoni tuzatmasa, sahifani yangilang.</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => this.setState({ failed: false })} className="rounded-xl px-4 py-2 text-sm font-semibold" style={{ ...fontBody, background: C.cover, color: C.white }}>Qayta urinish</button>
+          <button type="button" onClick={this.props.onHome} className="rounded-xl border px-4 py-2 text-sm font-semibold" style={{ ...fontBody, background: C.paper, borderColor: C.rule, color: C.ink }}>Bosh sahifa</button>
+        </div>
+      </section>
+    );
+  }
 }
 
 export function SearchBox({ value, onChange, placeholder, className = '' }) {
@@ -2688,6 +2714,7 @@ function AboutView() {
 /*  "ortga" funksiyasi chaqiriladi — sahifadan yoki hisobdan chiqib      */
 /*  ketish o'rniga.                                                      */
 export const NavContext = React.createContext({ pushNav: () => {}, back: () => {} });
+export const ThemeContext = React.createContext({ theme: 'light', toggleTheme: () => {} });
 
 function useNavStack() {
   const stackRef = useRef([]);
@@ -3927,6 +3954,7 @@ export default function App() {
   return (
     <SectionLoadingProvider>
     <NavContext.Provider value={nav}>
+    <ThemeContext.Provider value={{ theme, toggleTheme: () => setTheme((current) => (current === 'dark' ? 'light' : 'dark')) }}>
     <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
       <style>{`
         * { box-sizing: border-box; }
@@ -4116,7 +4144,7 @@ export default function App() {
       </header>}
 
       {/* Content */}
-      <main className={tab === 'arena' ? "flex-1 w-full px-2 sm:px-4 pt-3 pb-6" : readingActive ? "flex-1 max-w-5xl mx-auto px-1 sm:px-4 pt-1 sm:pt-4 pb-3 w-full" : "flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full"}>
+      <main className={tab === 'arena' ? "flex-1 w-full px-2 sm:px-4 pt-3 pb-6" : readingActive ? "flex-1 max-w-5xl mx-auto px-4 sm:px-6 pt-3 sm:pt-4 pb-6 w-full" : "flex-1 max-w-5xl mx-auto px-5 sm:px-8 pt-4 pb-8 w-full"}>
         {(loading && !skipMainLoadingGate && tab !== 'kurslar') ? (
           <div aria-busy="true" aria-label="Yuklanmoqda">
             {/* Sarlavha (masalan "6 ta soha" / "Kurslar") oʻrnidagi skelet */}
@@ -4179,6 +4207,7 @@ export default function App() {
               </div>
             )}
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
+              <RouteErrorBoundary onHome={() => goTo('kurslar')}>
               {viewingUsername && (
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
@@ -4249,6 +4278,7 @@ export default function App() {
               )}
               {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} />}
               {!viewingUsername && tab === 'about' && <AboutView />}
+              </RouteErrorBoundary>
             </PaperPanel>
           </>
         )}
@@ -4321,6 +4351,7 @@ export default function App() {
         </Suspense>
       )}
     </div>
+    </ThemeContext.Provider>
     </NavContext.Provider>
     </SectionLoadingProvider>
   );
