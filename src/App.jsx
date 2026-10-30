@@ -3201,11 +3201,45 @@ export default function App() {
 
   const pausedTests = Array.isArray(profile?.testPrefs?.pausedTests) ? profile.testPrefs.pausedTests : [];
   async function savePausedTest(snapshot) {
-    if (!session?.user?.id || !snapshot?.testId) return false;
-    const current = testPrefsStoreRef.current.userId === session.user.id ? testPrefsStoreRef.current.prefs : profile?.testPrefs;
-    const existing = Array.isArray(current?.pausedTests) ? current.pausedTests : pausedTests;
+    if (!snapshot?.testId) return false;
+    let userId = session?.user?.id;
+    if (!userId) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        userId = data?.session?.user?.id || null;
+      } catch {}
+    }
+    if (!userId) return false;
+    let store = testPrefsStoreRef.current;
+    let current = store.userId === userId && store.hydrated ? store.prefs : profile?.id === userId ? profile.testPrefs : null;
+    if (!current) {
+      try {
+        const rows = await sbSelect('profiles', `id=eq.${userId}`);
+        current = rows[0] ? profileFromRow(rows[0]).testPrefs : DEFAULT_TEST_PREFS;
+      } catch {
+        return false;
+      }
+    }
+    const existing = Array.isArray(current?.pausedTests) ? current.pausedTests : [];
     const next = [...existing.filter((attempt) => attempt.testId !== snapshot.testId), snapshot].slice(-10);
-    return await saveTestPrefs({ pausedTests: next });
+    const nextPrefs = { ...DEFAULT_TEST_PREFS, ...current, pausedTests: next, version: 4 };
+    if (store.userId !== userId || !store.hydrated) {
+      store = { userId, prefs: current, queue: Promise.resolve(), hydrated: true };
+      testPrefsStoreRef.current = store;
+    }
+    const write = store.queue.catch(() => {}).then(async () => {
+      await sbUpsert('profiles', { id: userId, test_prefs: nextPrefs });
+      return true;
+    });
+    store.prefs = nextPrefs;
+    store.queue = write;
+    try {
+      await write;
+      if (session?.user?.id === userId) setProfile((previous) => previous?.id === userId ? { ...previous, testPrefs: nextPrefs } : previous);
+      return true;
+    } catch {
+      return false;
+    }
   }
   async function clearPausedTest(testId) {
     if (!session?.user?.id || !testId) return false;
@@ -3228,7 +3262,14 @@ export default function App() {
   }
   async function requireAccountForPausedTest(snapshot) {
     if (!snapshot?.testId) return { error: new Error('Missing paused test snapshot') };
-    if (session?.user?.id) {
+    let userId = session?.user?.id;
+    if (!userId) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        userId = data?.session?.user?.id || null;
+      } catch {}
+    }
+    if (userId) {
       const saved = await savePausedTest(snapshot);
       return saved ? { ok: true } : { error: new Error('Could not save paused test') };
     }
