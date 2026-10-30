@@ -6,37 +6,41 @@ import { C, fontBody } from './App.jsx';
 
 const mathKeyboardLayouts = [
   {
-    id: 'upcourse-main-math',
-    label: 'Asosiy',
-    tooltip: 'Kasr, ildiz, daraja va asosiy amallar',
+    id: 'upcourse-numeric',
+    label: '123',
+    labelClass: 'MLK__tex-math',
+    tooltip: 'keyboard.tooltip.numeric',
     rows: [
       [
-        { label: 'a⁄b', tooltip: 'Kasr', command: ['insert', '\\,\\frac{#?}{#?}'] },
-        { label: '√x', tooltip: 'Ildiz', command: ['insert', '\\sqrt{#0}'] },
-        { label: 'xⁿ', tooltip: 'Daraja', command: ['insert', '#@^{#?}'] },
-        { label: 'log', tooltip: 'Logarifm', command: ['insert', '\\log(#0)'] },
-        { label: 'sin', tooltip: 'Sinus', command: ['insert', '\\sin(#0)'] },
-        { label: 'cos', tooltip: 'Kosinus', command: ['insert', '\\cos(#0)'] },
-        { label: 'π', latex: '\\pi', tooltip: 'Pi soni' },
-        '=',
+        { latex: 'x', shift: 'y', variants: ['y', 'z', 't', 'r', 'x^2', 'x^n', 'x^{#?}', 'x_n', 'x_i', 'x_{#?}'] },
+        { latex: 'n', shift: 'a', variants: ['i', 'j', 'p', 'k', 'a', 'u'] },
+        '[separator-5]', '[7]', '[8]', '[9]', '[/]', '[separator-5]',
+        { latex: '\\exponentialE', shift: '\\ln', variants: ['\\exp', '\\times 10^{#?}', '\\ln', '\\log_{10}', '\\log'] },
+        { latex: '\\imaginaryI', variants: ['\\Re', '\\Im', '\\imaginaryJ'] },
+        { latex: '\\pi', shift: '\\sin', variants: ['\\prod', '\\theta', '\\rho', '\\tau', '\\sin', '\\cos', '\\tan'] },
       ],
-      ['7', '8', '9', '−', '\\times', '\\div', '(', ')'],
-      ['4', '5', '6', '+', '.', ',', '<', '>'],
-      ['1', '2', '3', '0', 'x', 'y', '\\le', '\\ge'],
+      [
+        { label: '<', latex: '<', class: 'hide-shift', shift: { latex: '\\le', label: '≤' } },
+        { label: '>', latex: '>', class: 'hide-shift', shift: { latex: '\\ge', label: '≥' } },
+        '[separator-5]', '[4]', '[5]', '[6]', '[*]', '[separator-5]',
+        { class: 'hide-shift', latex: '#@^2}', shift: '#@^{\\prime}}' },
+        { latex: '#@^{#0}}', class: 'hide-shift', shift: '#@_{#?}' },
+        { class: 'hide-shift', latex: '\\sqrt{#0}', shift: { latex: '\\sqrt[#0]{#?}}' } },
+      ],
+      [
+        '[(]', '[)]', '[separator-5]', '[1]', '[2]', '[3]', '[-]',
+        { label: 'a⁄b', class: 'small', insert: '\\frac{#?}{#?}', tooltip: 'Kasr' },
+        { latex: '\\int^{\\infty}_{0}\\!#?\\,\\mathrm{d}x', class: 'small hide-shift', shift: '\\int', variants: [{ latex: '\\int_{#?}^{#?}', class: 'small' }, { latex: '\\iint', class: 'small' }, { latex: '\\oint', class: 'small' }, '\\partial'] },
+        { label: '≈', latex: '\\approx', class: 'hide-shift' },
+        { label: '[backspace]', width: 1 },
+      ],
+      [
+        { label: '[shift]', width: 2 }, '[separator-5]', '[0]', '[.]', '[=]', '[+]', '[separator-5]', '[left]', '[right]', { label: '[action]', width: 1 },
+      ],
     ],
   },
-  'numeric',
-  {
-    id: 'upcourse-symbols',
-    label: 'Belgilar',
-    tooltip: 'Matematik belgilar',
-    rows: [
-      ['\\infty', '\\neq', '\\approx', '\\equiv', '\\in', '\\notin', '\\le', '\\ge'],
-      ['\\pm', '\\mp', '\\times', '\\div', '\\cdot', '\\angle', '°', '%'],
-      ['\\to', '\\Rightarrow', '\\leftrightarrow', '\\propto', '\\perp', '\\parallel', '\\emptyset', '\\cup'],
-      ['\\cap', '\\subset', '\\subseteq', '\\supset', '\\therefore', '\\because', '\\Delta', '\\sum'],
-    ],
-  },
+  'symbols',
+  'alphabetic',
   'greek',
 ];
 
