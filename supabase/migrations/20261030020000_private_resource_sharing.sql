@@ -26,7 +26,7 @@ create index if not exists profile_shared_resources_recipient_saved_idx
 alter table public.profile_shared_resources enable row level security;
 revoke all on table public.profile_shared_resources from anon, authenticated;
 
-drop function if exists public.profile_shared_resource_send(text, text, uuid[]);
+drop function if exists public.profile_shared_resource_send(text, uuid, uuid[]);
 
 create or replace function public.profile_shared_resource_send(
   p_resource_type text,
@@ -226,10 +226,10 @@ begin
 end;
 $$;
 
-revoke all on function public.profile_shared_resource_send(text, uuid, uuid[]) from public, anon;
+revoke all on function public.profile_shared_resource_send(text, text, uuid[]) from public, anon;
 revoke all on function public.profile_shared_resources_list(text, integer) from public, anon;
 revoke all on function public.profile_shared_resource_save(uuid, boolean) from public, anon;
-grant execute on function public.profile_shared_resource_send(text, uuid, uuid[]) to authenticated;
+grant execute on function public.profile_shared_resource_send(text, text, uuid[]) to authenticated;
 grant execute on function public.profile_shared_resources_list(text, integer) to authenticated;
 grant execute on function public.profile_shared_resource_save(uuid, boolean) to authenticated;
 
