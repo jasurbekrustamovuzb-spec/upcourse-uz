@@ -40,9 +40,9 @@ function makeCelebrationParticles(style) {
 function makeTransitionFragments(effect) {
   if (!['shatter', 'dissolve'].includes(effect)) return [];
   const colors = ['#c58a35', '#e5c78d', '#527d68', '#7c6bb1', '#d86e58', '#61a4a1'];
-  return Array.from({ length: effect === 'shatter' ? 14 : 18 }, (_, index) => {
-    const angle = (Math.PI * 2 * index) / (effect === 'shatter' ? 14 : 18) + (Math.random() - 0.5) * 0.45;
-    const distance = 70 + Math.random() * 190;
+  return Array.from({ length: effect === 'shatter' ? 24 : 30 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / (effect === 'shatter' ? 24 : 30) + (Math.random() - 0.5) * 0.45;
+    const distance = 145 + Math.random() * 270;
     return {
       id: `${Date.now()}-${Math.random()}-${index}`,
       x: `${Math.round(Math.cos(angle) * distance)}px`,
@@ -50,7 +50,8 @@ function makeTransitionFragments(effect) {
       rotate: `${Math.round((Math.random() - 0.5) * 600)}deg`,
       delay: `${Math.round(Math.random() * 90)}ms`,
       color: colors[Math.floor(Math.random() * colors.length)],
-      size: `${10 + Math.round(Math.random() * 12)}px`,
+      size: `${12 + Math.round(Math.random() * 18)}px`,
+      shape: Math.random() > 0.55 ? 'circle' : 'shard',
     };
   });
 }
@@ -559,7 +560,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       autoExitTimerRef.current = setTimeout(() => {
         if (autoAdvanceQuestionRef.current !== questionIndex) return;
         setTransitioningQuestion({ questionId: question.id, effect: exitEffect, fragments: makeTransitionFragments(exitEffect) });
-      }, Math.max(0, delay * 1000 - 360));
+      }, Math.max(0, delay * 1000 - 620));
     }
     autoScrollTimerRef.current = setTimeout(() => {
       if (autoAdvanceQuestionRef.current !== questionIndex) return;
@@ -874,6 +875,13 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         className={`relative ${reel ? 'quiz-reel-enter flex h-full min-h-0 w-full flex-col' : question.type === 'matching' ? 'w-full border-b pb-2 pt-0.5 last:border-b-0' : 'w-full border-b py-5 last:border-b-0'} ${resultClass} ${exitEffect && exitEffect !== 'none' ? `quiz-exit-${exitEffect}` : ''}`}
         style={reel ? undefined : { borderColor: C.rule, scrollMarginTop: '96px' }}
       >
+        {exitEffect && transitioningQuestion?.questionId === question.id && transitioningQuestion.fragments?.length > 0 && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-20 overflow-visible">
+            {transitioningQuestion.fragments.map((fragment) => (
+              <span key={fragment.id} className="quiz-transition-fragment" style={{ left: '50%', top: '50%', width: fragment.size, height: fragment.size, background: fragment.color, borderRadius: fragment.shape === 'circle' ? '50%' : '2px', clipPath: fragment.shape === 'shard' ? 'polygon(50% 0,100% 100%,0 82%)' : undefined, '--dx': fragment.x, '--dy': fragment.y, '--turn': fragment.rotate, '--delay': fragment.delay }} />
+            ))}
+          </div>
+        )}
         {reel ? (
           <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
             {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
@@ -941,7 +949,44 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   return (
     <div className="fixed inset-0 z-[80] flex h-[100dvh] w-full flex-col overflow-hidden" style={{ background: C.paper, color: C.ink, paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <style>{`@keyframes quiz-reel-enter{from{opacity:.35;transform:translateY(28px) scale(.992)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes quiz-feedback-enter{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}@keyframes quiz-result-pop{0%{transform:scale(.985)}55%{transform:scale(1.012)}100%{transform:scale(1)}}@keyframes quiz-result-glow{0%,100%{filter:brightness(1)}45%{filter:brightness(1.08)}}@keyframes quiz-result-slide{0%{transform:translateX(-7px);opacity:.78}100%{transform:translateX(0);opacity:1}}@keyframes quiz-result-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(4px)}}@keyframes quiz-result-nudge{0%{transform:translateY(4px);opacity:.8}100%{transform:translateY(0);opacity:1}}@keyframes quiz-result-flash{0%,100%{filter:brightness(1)}35%{filter:brightness(1.12)}}@keyframes quiz-celebrate-burst{0%{opacity:0;transform:translate(-50%,-50%) scale(.35) rotate(0)}14%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.7) rotate(var(--turn))}}@keyframes quiz-transition-shard{0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(0)}18%{opacity:.95}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.35) rotate(var(--turn))}}@keyframes quiz-exit-shatter{0%{opacity:1;transform:scale(1);filter:none}45%{opacity:.8;clip-path:polygon(0 0,34% 0,48% 16%,62% 0,100% 0,100% 30%,82% 42%,100% 55%,100% 100%,58% 100%,43% 82%,27% 100%,0 100%,0 61%,17% 48%,0 36%)}100%{opacity:0;transform:scale(.94) translateY(-10px);filter:blur(5px);clip-path:polygon(18% 19%,37% 22%,48% 35%,61% 18%,81% 25%,76% 43%,88% 56%,65% 63%,58% 84%,41% 72%,26% 83%,30% 61%,12% 49%)}}@keyframes quiz-exit-dissolve{to{opacity:0;transform:scale(.96);filter:blur(9px)}}@keyframes quiz-exit-fly{to{opacity:0;transform:translate3d(0,-52vh,0) rotate(-2deg)}}@keyframes quiz-exit-fade{to{opacity:0;transform:scale(.985)}}@keyframes quiz-exit-slide{to{opacity:0;transform:translate3d(-90vw,0,0) rotate(-1deg)}}.quiz-reel-enter{animation:quiz-reel-enter 320ms cubic-bezier(.2,.7,.2,1)}.quiz-feedback-enter{animation:quiz-feedback-enter 180ms ease-out}.quiz-result-pop{animation:quiz-result-pop 420ms cubic-bezier(.2,.7,.2,1)}.quiz-result-glow{animation:quiz-result-glow 650ms ease-out}.quiz-result-slide{animation:quiz-result-slide 330ms ease-out}.quiz-result-shake{animation:quiz-result-shake 360ms ease-in-out}.quiz-result-nudge{animation:quiz-result-nudge 300ms ease-out}.quiz-result-flash{animation:quiz-result-flash 480ms ease-out}.quiz-celebration-particle{position:absolute;left:50%;top:44%;opacity:0;animation:quiz-celebrate-burst var(--duration) cubic-bezier(.16,.72,.25,1) var(--delay) forwards;will-change:transform,opacity}.quiz-transition-fragment{position:absolute;left:50%;top:50%;width:var(--size);height:var(--size);opacity:0;animation:quiz-transition-shard 390ms ease-out var(--delay) forwards;will-change:transform,opacity}.quiz-exit-shatter{animation:quiz-exit-shatter 360ms cubic-bezier(.5,0,.8,.25) forwards;pointer-events:none}.quiz-exit-dissolve{animation:quiz-exit-dissolve 360ms ease-in forwards;pointer-events:none}.quiz-exit-fly{animation:quiz-exit-fly 360ms cubic-bezier(.4,0,.8,.4) forwards;pointer-events:none}.quiz-exit-fade{animation:quiz-exit-fade 360ms ease-in forwards;pointer-events:none}.quiz-exit-slide{animation:quiz-exit-slide 360ms ease-in forwards;pointer-events:none}.quiz-control-panel{transition:transform 320ms cubic-bezier(.2,.7,.2,1),opacity 220ms ease}.quiz-control-panel[data-hidden="true"]{transform:translateY(-110%);opacity:0;pointer-events:none}@media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-feedback-enter,.quiz-result-pop,.quiz-result-glow,.quiz-result-slide,.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash,.quiz-celebration-particle,.quiz-transition-fragment,.quiz-exit-shatter,.quiz-exit-dissolve,.quiz-exit-fly,.quiz-exit-fade,.quiz-exit-slide,.quiz-control-panel{animation:none;transition:none;will-change:auto}}`}</style>
+      <style>{`
+@keyframes quiz-reel-enter{from{opacity:.35;transform:translateY(34px) scale(.975)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes quiz-feedback-enter{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes quiz-result-pop{0%{transform:scale(1)}28%{transform:scale(1.045)}58%{transform:scale(.99)}100%{transform:scale(1);box-shadow:0 0 0 3px rgba(46,130,84,.35),0 14px 32px rgba(46,130,84,.18)}}
+@keyframes quiz-result-glow{0%{box-shadow:0 0 0 0 rgba(52,160,104,0);filter:brightness(1)}38%{box-shadow:0 0 0 7px rgba(52,160,104,.36),0 0 35px rgba(52,160,104,.5);filter:brightness(1.12)}100%{box-shadow:0 0 0 3px rgba(52,160,104,.24),0 0 20px rgba(52,160,104,.18);filter:brightness(1)}}
+@keyframes quiz-result-slide{0%{transform:translateX(20px);opacity:.68}55%{transform:translateX(-4px)}100%{transform:translateX(0);opacity:1}}
+@keyframes quiz-result-shake{0%,100%{transform:translateX(0)}18%{transform:translateX(-11px)}38%{transform:translateX(9px)}58%{transform:translateX(-6px)}78%{transform:translateX(4px)}}
+@keyframes quiz-result-nudge{0%,100%{transform:translateY(0)}35%{transform:translateY(-8px)}65%{transform:translateY(3px)}}
+@keyframes quiz-result-flash{0%,100%{background-color:inherit;box-shadow:0 0 0 0 rgba(205,66,55,0)}30%{background-color:rgba(205,66,55,.14);box-shadow:0 0 0 6px rgba(205,66,55,.22),0 0 24px rgba(205,66,55,.24)}}
+@keyframes quiz-celebrate-burst{0%{opacity:0;transform:translate(-50%,-50%) scale(.28) rotate(0)}12%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.1) rotate(var(--turn))}}
+@keyframes quiz-transition-shard{0%{opacity:0;transform:translate(-50%,-50%) scale(1) rotate(0)}12%{opacity:1}65%{opacity:.94}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.12) rotate(var(--turn))}}
+@keyframes quiz-exit-shatter{0%{opacity:1;transform:scale(1);filter:none;clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}35%{opacity:.94;transform:scale(1.025);clip-path:polygon(0 0,34% 0,48% 16%,62% 0,100% 0,100% 30%,82% 42%,100% 55%,100% 100%,58% 100%,43% 82%,27% 100%,0 100%,0 61%,17% 48%,0 36%)}100%{opacity:0;transform:scale(.88) translateY(-20px);filter:blur(2px);clip-path:polygon(18% 19%,37% 22%,48% 35%,61% 18%,81% 25%,76% 43%,88% 56%,65% 63%,58% 84%,41% 72%,26% 83%,30% 61%,12% 49%)}}
+@keyframes quiz-exit-dissolve{0%{opacity:1;filter:none;transform:scale(1)}35%{opacity:.92;filter:saturate(1.35) blur(1px);transform:scale(1.015)}100%{opacity:0;transform:scale(.82) translateY(-12px);filter:blur(8px) saturate(.7)}}
+@keyframes quiz-exit-fly{to{opacity:0;transform:translate3d(0,-72vh,0) rotate(-4deg) scale(.9)}}
+@keyframes quiz-exit-fade{to{opacity:0;transform:scale(.94) translateY(-10px)}}
+@keyframes quiz-exit-slide{to{opacity:0;transform:translate3d(-110vw,0,0) rotate(-2deg) scale(.94)}}
+.quiz-reel-enter{animation:quiz-reel-enter 380ms cubic-bezier(.2,.7,.2,1)}
+.quiz-feedback-enter{animation:quiz-feedback-enter 180ms ease-out}
+.quiz-result-pop{animation:quiz-result-pop 700ms cubic-bezier(.2,.7,.2,1)}
+.quiz-result-glow{animation:quiz-result-glow 900ms ease-out}
+.quiz-result-slide{animation:quiz-result-slide 520ms cubic-bezier(.2,.7,.2,1)}
+.quiz-result-shake{animation:quiz-result-shake 560ms ease-in-out}
+.quiz-result-nudge{animation:quiz-result-nudge 520ms cubic-bezier(.2,.7,.2,1)}
+.quiz-result-flash{animation:quiz-result-flash 720ms ease-out}
+.quiz-result-slide{border-left:5px solid #37875b}
+.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash{outline:2px solid rgba(205,66,55,.34);outline-offset:2px}
+.quiz-result-pop,.quiz-result-glow{outline:2px solid rgba(52,160,104,.28);outline-offset:2px}
+.quiz-celebration-particle{position:absolute;left:50%;top:44%;opacity:0;animation:quiz-celebrate-burst var(--duration) cubic-bezier(.16,.72,.25,1) var(--delay) forwards;will-change:transform,opacity}
+.quiz-transition-fragment{position:absolute;left:50%;top:50%;opacity:0;animation:quiz-transition-shard 620ms cubic-bezier(.16,.72,.25,1) var(--delay) forwards;will-change:transform,opacity;box-shadow:0 3px 9px rgba(15,35,25,.28)}
+.quiz-exit-shatter{animation:quiz-exit-shatter 620ms cubic-bezier(.35,0,.7,.25) forwards;pointer-events:none;will-change:transform,opacity,clip-path}
+.quiz-exit-dissolve{animation:quiz-exit-dissolve 620ms ease-in forwards;pointer-events:none;will-change:transform,opacity,filter}
+.quiz-exit-fly{animation:quiz-exit-fly 620ms cubic-bezier(.4,0,.8,.4) forwards;pointer-events:none}
+.quiz-exit-fade{animation:quiz-exit-fade 620ms ease-in forwards;pointer-events:none}
+.quiz-exit-slide{animation:quiz-exit-slide 620ms ease-in forwards;pointer-events:none}
+.quiz-control-panel{transition:transform 320ms cubic-bezier(.2,.7,.2,1),opacity 220ms ease}
+.quiz-control-panel[data-hidden="true"]{transform:translateY(-110%);opacity:0;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-feedback-enter,.quiz-result-pop,.quiz-result-glow,.quiz-result-slide,.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash,.quiz-celebration-particle,.quiz-transition-fragment,.quiz-exit-shatter,.quiz-exit-dissolve,.quiz-exit-fly,.quiz-exit-fade,.quiz-exit-slide,.quiz-control-panel{animation:none;transition:none;will-change:auto}}
+`}</style>
       {celebrationParticles && <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[100] overflow-hidden">{celebrationParticles.map((particle) => <span key={particle.id} className="quiz-celebration-particle" style={{ '--dx': particle.x, '--dy': particle.y, '--turn': particle.rotate, '--delay': particle.delay, '--duration': particle.duration, fontSize: particle.size, filter: 'drop-shadow(0 2px 5px rgba(18,38,27,.22))' }}>{particle.symbol}</span>)}</div>}
       <div className="quiz-control-panel absolute inset-x-0 top-0 z-30 border-b px-3 pb-2 pt-2 sm:px-5" data-hidden={!controlsVisible} aria-hidden={!controlsVisible} style={{ background: C.paper, borderColor: C.rule, paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}>
         <div className="flex items-center gap-2">
