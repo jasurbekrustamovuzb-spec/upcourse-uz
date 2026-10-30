@@ -221,7 +221,7 @@ export function PublicProfileView({ username, courses, tests, onBack, onOpenItem
   );
 }
 
-export function ProfileView({ session, profile, authLoading, pausedTests, onResumePausedTest, onPausedTestVisibilityChange, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
+export function ProfileView({ session, profile, authLoading, pausedTests, onResumePausedTest, onPausedTestVisibilityChange, saveTestPrefs, onPauseAttempt, onClearPaused, onRequireAccount, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -387,6 +387,16 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
         prefillCategory={prefillCategory}
         formMode={testFormMode}
         ensureTestContent={ensureTestContent}
+        session={session}
+        effectivePrefs={profile?.testPrefs}
+        onSavePrefs={session ? saveTestPrefs : undefined}
+        onPauseAttempt={onPauseAttempt}
+        onClearPaused={onClearPaused}
+        onRequireAccount={onRequireAccount}
+        onTestComplete={onTestComplete}
+        onBadgeClaim={onBadgeClaim}
+        badgeClaimBusy={badgeClaimBusy}
+        badgeClaimError={badgeClaimError}
       />
     );
   }

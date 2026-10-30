@@ -195,7 +195,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
     </div>
   );
 }
-export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, updateTest, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent }) {
+export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, updateTest, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent, session, effectivePrefs, onSavePrefs, onPauseAttempt, onClearPaused, onRequireAccount, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
   const [categoryId, setCategoryId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [renaming, setRenaming] = useState(null);
@@ -273,7 +273,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
         <SectionLoading label="Test yuklanmoqda…" compact />
       );
     }
-    return <QuizView test={active} onExit={back} />;
+    return <QuizView test={active} onExit={back} session={session} effectivePrefs={effectivePrefs} onSavePrefs={onSavePrefs} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} />;
   }
 
   if (!categoryId) {
