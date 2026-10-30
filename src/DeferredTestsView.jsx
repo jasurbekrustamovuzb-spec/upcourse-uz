@@ -94,17 +94,7 @@ function QuizAnimationSettings({ open, onToggle, prefs, onChange }) {
   );
 }
 
-function countAnsweredUnits(questions, answers) {
-  return questions.reduce((count, question) => {
-    const answer = answers?.[question.id];
-    if (question.type === 'matching') {
-      const pairs = question.pairs || [];
-      return count + (pairs.length ? pairs.filter((pair) => answer?.[pair.id] !== undefined).length : (answer === undefined ? 0 : 1));
-    }
-    if (question.type === 'open') return count + (typeof answer === 'string' && answer.trim() ? 1 : 0);
-    return count + (answer === undefined ? 0 : 1);
-  }, 0);
-}
+
 function countAnsweredUnits(questions, answers) {
   return questions.reduce((count, question) => {
     const answer = answers?.[question.id];
