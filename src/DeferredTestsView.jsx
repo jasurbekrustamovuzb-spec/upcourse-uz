@@ -1150,7 +1150,19 @@ export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, f
   return <QuizPlayer key={attemptKey} test={test} config={config} initialProgress={resumeProgress} onExit={onExit} onRestart={() => { onClearPaused?.(test.id); setResumeProgress(null); setConfig(null); }} onRetry={handleRetry} onNextTest={onNextTest} nextTest={nextTest} onSavePrefs={savePlayerPrefs} onReconfigure={handleReconfigure} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} />;
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount }) {
+function LiveEntryLoading() {
+  return (
+    <div role="status" aria-live="polite" style={{ minHeight: '65vh', display: 'grid', placeItems: 'center', padding: '24px 12px' }}>
+      <div style={{ width: 'min(100%, 380px)', padding: '28px 24px', borderRadius: 22, textAlign: 'center', background: '#FBFAF3', border: '1px solid #B7C4AE', boxShadow: '0 16px 44px rgba(31,61,43,.08)' }}>
+        <div style={{ width: 48, height: 48, margin: '0 auto 14px', borderRadius: 16, display: 'grid', placeItems: 'center', color: '#1F3D2B', background: '#DCC28F', fontSize: 23 }} aria-hidden="true">◉</div>
+        <div style={{ font: "700 20px Georgia, 'Times New Roman', serif", color: '#1F3D2B' }}>Jonli testga ulanish</div>
+        <div style={{ marginTop: 8, color: '#5C6152', font: '14px/1.5 system-ui, sans-serif' }}>Xona tayyorlanmoqda. Bir oz kuting.</div>
+      </div>
+    </div>
+  );
+}
+
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onExitInitialLive }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
@@ -1167,6 +1179,10 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const [liveSession, setLiveSession] = useState(initialLiveSession || null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
+  const exitInitialLiveRoute = () => {
+    onExitInitialLive?.();
+    setLiveOpen(false);
+  };
   /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
      oldin sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash")
      saqlangan/andoza sozlamalar bilan darhol boshlanadi. */
@@ -1213,7 +1229,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
       setOpeningInitialTest(false);
     }
     else if (initialCategoryId) goCategory(initialCategoryId);
-    if (initialLiveCode) pushNav(() => setLiveOpen(false));
+    if (initialLiveCode) pushNav(exitInitialLiveRoute);
     else if (initialLiveSession) { setLiveSession(initialLiveSession); setLiveOpen(true); pushNav(() => setLiveOpen(false)); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1245,9 +1261,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
 
   useEffect(() => {
-    if (onReadingChange) onReadingChange(!!active);
+    if (onReadingChange) onReadingChange(!!active || (Boolean(initialLiveCode) && liveOpen));
     return () => { if (onReadingChange) onReadingChange(false); };
-  }, [active, onReadingChange]);
+  }, [active, initialLiveCode, liveOpen, onReadingChange]);
 
   if (active) {
     if (active.questions === undefined) {
@@ -1276,7 +1292,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   }
 
   if (liveOpen) return (
-    <Suspense fallback={<SectionLoading label="Jonli test yuklanmoqda…" />}>
+    <Suspense fallback={initialLiveCode ? <LiveEntryLoading /> : <SectionLoading label="Jonli test yuklanmoqda…" />}>
       <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={back} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
     </Suspense>
   );

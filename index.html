@@ -15,7 +15,8 @@
       (function () {
         if (location.pathname !== '/' || location.search || location.hash) return;
         var controller = new AbortController();
-        var timeout = setTimeout(function () { controller.abort(); }, 5000);
+        // Fall back to the direct catalog request sooner on a cold/slow edge.
+        var timeout = setTimeout(function () { controller.abort(); }, 2200);
         window.__upcourseInitialCatalogPromise = fetch('/api/public-catalog', {
           signal: controller.signal,
           headers: { Accept: 'application/json' },
@@ -25,6 +26,12 @@
           return response.json();
         }).catch(function () { return null; }).finally(function () { clearTimeout(timeout); });
       })();
+      // A shared live-room URL should not start with the home skeleton.
+      try {
+        if (new URLSearchParams(location.search).has('live')) {
+          document.documentElement.setAttribute('data-entry', 'live');
+        }
+      } catch (e) {}
     </script>
 
     <!-- ==== Asosiy SEO teglar ==== -->
@@ -229,6 +236,7 @@
         box-shadow: 0 -6px 20px rgba(15,61,46,0.25);
       }
       .ucs-nb { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 16px; color: rgba(251,250,243,0.65); }
+      #upcourse-splash button { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; cursor: default; }
       .ucs-nb.active { background: #B8863B; color: #1F3D2B; }
       .ucs-nb span { font-size: 10px; }
       .ucs-nb-center {
@@ -255,6 +263,28 @@
       html[data-theme="dark"] .ucs-card-icon,
       html[data-theme="dark"] .ucs-card-lines div,
       html[data-theme="dark"] .ucs-card-right span { background: #485047; }
+      .ucs-live-main { display: none; }
+      html[data-entry="live"] #upcourse-splash .ucs-aside,
+      html[data-entry="live"] #upcourse-splash .ucs-header,
+      html[data-entry="live"] #upcourse-splash .ucs-bottomnav,
+      html[data-entry="live"] #upcourse-splash .ucs-main { display: none; }
+      html[data-entry="live"] #upcourse-splash .ucs-live-main {
+        display: grid; min-height: 100dvh; place-content: center; padding: 28px 22px 48px; text-align: center;
+      }
+      .ucs-live-card {
+        width: min(100%, 380px); padding: 28px 24px; border: 1px solid #B7C4AE;
+        border-radius: 22px; background: #FBFAF3; box-shadow: 0 16px 44px rgba(31,61,43,.08);
+      }
+      .ucs-live-mark { display: grid; place-items: center; width: 54px; height: 54px; margin: 0 auto 16px; border-radius: 18px; color: #1F3D2B; background: #DCC28F; }
+      .ucs-live-title { margin: 0; color: #1F3D2B; font: 700 21px Georgia, 'Times New Roman', serif; }
+      .ucs-live-copy { margin: 8px 0 18px; color: #5C6152; font-size: 14px; line-height: 1.5; }
+      .ucs-live-track { height: 4px; overflow: hidden; border-radius: 99px; background: #E9E5D8; }
+      .ucs-live-track::after { content: ""; display: block; width: 38%; height: 100%; border-radius: inherit; background: #B8863B; animation: ucsLiveProgress 1.5s ease-in-out infinite; }
+      @keyframes ucsLiveProgress { 0% { transform: translateX(-110%); } 100% { transform: translateX(290%); } }
+      html[data-theme="dark"] .ucs-live-card { background: #2A3029; border-color: #485047; }
+      html[data-theme="dark"] .ucs-live-title { color: #F4F1E7; }
+      html[data-theme="dark"] .ucs-live-copy { color: #C8CCBF; }
+      html[data-theme="dark"] .ucs-live-track { background: #485047; }
     </style>
   </head>
   <body>
@@ -306,6 +336,16 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B7C4AE" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
               </div>
               <div class="ucs-cards" id="ucsCards"></div>
+            </main>
+            <main class="ucs-live-main" role="status" aria-live="polite">
+              <section class="ucs-live-card">
+                <div class="ucs-live-mark" aria-hidden="true">
+                  <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6.5a4 4 0 0 1 8 0v1.8a4 4 0 0 1-8 0z"/><path d="M5 9a7 7 0 1 0 14 0M12 16v4m-4 0h8"/></svg>
+                </div>
+                <h1 class="ucs-live-title">Jonli testga ulanish</h1>
+                <p class="ucs-live-copy">Xona tayyorlanmoqda. Bir oz kuting.</p>
+                <div class="ucs-live-track" aria-hidden="true"></div>
+              </section>
             </main>
           </div>
         </div>

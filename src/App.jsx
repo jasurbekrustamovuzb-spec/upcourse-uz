@@ -33,6 +33,29 @@ const DeferredProfileView = lazy(() => import('./DeferredProfileViews.jsx').then
 const DeferredPublicProfileView = lazy(() => import('./DeferredProfileViews.jsx').then((module) => ({ default: module.PublicProfileView })));
 const DeferredGiftModal = lazy(() => import('./DeferredProfileViews.jsx').then((module) => ({ default: module.GiftModal })));
 
+// A shared live-room link has a narrow first screen (join by code). Warm its
+// two route chunks together so it does not wait for TestsView, then LiveQuiz.
+const isLiveRoomEntry = (() => {
+  try { return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('live'); }
+  catch { return false; }
+})();
+if (isLiveRoomEntry) {
+  void import('./DeferredTestsView.jsx').catch(() => {});
+  void import('./LiveQuiz.jsx').catch(() => {});
+}
+
+function LiveEntryLoading() {
+  return (
+    <div role="status" aria-live="polite" style={{ minHeight: '65vh', display: 'grid', placeItems: 'center', padding: '24px 12px' }}>
+      <div style={{ width: 'min(100%, 380px)', padding: '28px 24px', borderRadius: 22, textAlign: 'center', background: '#FBFAF3', border: '1px solid #B7C4AE', boxShadow: '0 16px 44px rgba(31,61,43,.08)' }}>
+        <div style={{ width: 48, height: 48, margin: '0 auto 14px', borderRadius: 16, display: 'grid', placeItems: 'center', color: '#1F3D2B', background: '#DCC28F', fontSize: 23 }} aria-hidden="true">◉</div>
+        <div style={{ font: "700 20px Georgia, 'Times New Roman', serif", color: '#1F3D2B' }}>Jonli testga ulanish</div>
+        <div style={{ marginTop: 8, color: '#5C6152', font: '14px/1.5 system-ui, sans-serif' }}>Xona tayyorlanmoqda. Bir oz kuting.</div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Shriftlarni erta va bloklamaydigan holda yuklash.                  */
 /*  Bu kod modul yuklanishi bilanoq (React render boshlanishidan       */
@@ -2912,7 +2935,8 @@ export default function App() {
      pardasini (va fon rejimidagi xatolik ekranini) chetlab o'tamiz —
      foydalanuvchi darhol qo'shilish ekranini ko'radi, kurslar/testlar
      ma'lumoti esa fonda, sekin-asta yuklanaveradi (kerak bo'lsa). */
-  const skipMainLoadingGate = initialDeepLink?.type === 'live' || initialDeepLink?.type === 'battle';
+  const [liveEntryActive, setLiveEntryActive] = useState(initialDeepLink?.type === 'live');
+  const skipMainLoadingGate = liveEntryActive || initialDeepLink?.type === 'battle';
   const initialTab = (() => {
     if (initialDeepLink) {
       if (initialDeepLink.type === 'course' || initialDeepLink.type === 'courseCategory') return 'kurslar';
@@ -2949,7 +2973,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('upcourse-theme') === 'dark' ? 'dark' : 'light'; } catch { return 'light'; }
   });
-  const [readingActive, setReadingActive] = useState(false);
+  const [readingActive, setReadingActive] = useState(initialDeepLink?.type === 'live');
   const [viewingUsername, setViewingUsername] = useState(null);
   const activeViewKey = viewingUsername ? 'profile:' + viewingUsername : 'section:' + tab;
   const activeViewKeyRef = useRef(null);
@@ -3598,6 +3622,7 @@ export default function App() {
       const courseListCols = 'id,category_id,title,summary,video_url,author,author_id,status,created_at';
       const initialDataController = new AbortController();
       let initialDataTimeoutId;
+      let fallbackCatalogTimer;
       let catRows;
       let courseRows;
       let courseRevisionRows = [];
@@ -3610,13 +3635,20 @@ export default function App() {
         ? window.__upcourseInitialCatalogPromise
         : null;
       const initialCatalogPromise = earlyCatalogPromise
-        ? Promise.resolve(earlyCatalogPromise).then((catalog) => {
-            if (catalog && Array.isArray(catalog.categoryRows) && Array.isArray(catalog.courseRows)) {
-              return [catalog.categoryRows, catalog.courseRows, []];
-            }
-            // Erta so‘rov xato bersa, odatdagi so‘rovlar bilan qayta urinib ko‘ramiz.
-            return requestCatalog();
-          })
+        ? Promise.any([
+            Promise.resolve(earlyCatalogPromise).then((catalog) => {
+              if (catalog && Array.isArray(catalog.categoryRows) && Array.isArray(catalog.courseRows)) {
+                return [catalog.categoryRows, catalog.courseRows, []];
+              }
+              throw new Error('Tezkor katalog mavjud emas.');
+            }),
+            // Keep the edge request as the first path, but start the direct
+            // Supabase fallback after a short grace period instead of waiting
+            // for the edge timeout. The first successful response wins.
+            new Promise((resolve) => {
+              fallbackCatalogTimer = setTimeout(resolve, 1400);
+            }).then(requestCatalog),
+          ])
         : requestCatalog();
       try {
         [catRows, courseRows, courseRevisionRows] = await Promise.race([
@@ -3630,6 +3662,7 @@ export default function App() {
         ]);
       } finally {
         clearTimeout(initialDataTimeoutId);
+        clearTimeout(fallbackCatalogTimer);
         if (!initialDataController.signal.aborted) initialDataController.abort();
       }
 
@@ -3676,6 +3709,16 @@ export default function App() {
     if (!silent) setLoading(false);
     return succeeded;
   }, [isAdmin, session?.user?.id]);
+
+  const finishLiveEntry = useCallback(() => {
+    if (!liveEntryActive) return;
+    setLiveEntryActive(false);
+    setReadingActive(false);
+    if (!initialFetchRef.current) {
+      initialFetchRef.current = true;
+      void loadAppData();
+    }
+  }, [liveEntryActive, loadAppData]);
 
   // Yangiliklar kurslar sahifasining birinchi chizilishiga kerak emas.
   // So‘rovni faqat Yangiliklar yoki Admin bo‘limi ochilganda yuboramiz.
@@ -3747,6 +3790,9 @@ export default function App() {
      autentifikatsiya zanjirini kutib turmaydi. */
   useEffect(() => {
     if (initialFetchRef.current) return;
+    // Joining a shared live room only needs its code and participant form.
+    // Defer the course catalog until the visitor leaves the live entry.
+    if (initialDeepLink?.type === 'live') return;
     initialFetchRef.current = true;
     loadAppData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3754,10 +3800,10 @@ export default function App() {
 
   /* Testlar ro‘yxati faqat uni ishlatadigan bo‘limlar ochilganda olinadi. */
   useEffect(() => {
-    const testsNeeded = tab === 'testlar' || tab === 'profil' || (tab === 'admin' && isAdmin);
+    const testsNeeded = !liveEntryActive && (tab === 'testlar' || tab === 'profil' || (tab === 'admin' && isAdmin));
     if (!testsNeeded || authLoading) return;
     loadTests();
-  }, [tab, viewingUsername, authLoading, isAdmin, loadTests]);
+  }, [tab, viewingUsername, authLoading, isAdmin, loadTests, liveEntryActive]);
 
   useEffect(() => {
     if (authLoading || loading) return;
@@ -4473,7 +4519,7 @@ export default function App() {
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
+              {!viewingUsername && tab === 'testlar' && <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onExitInitialLive={finishLiveEntry} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />

@@ -1630,15 +1630,33 @@ function LiveJoinForm({ initialCode, onJoined, onBack, session }) {
   }
 
   return (
-    <div>
-      <button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Ortga</button>
-      <SectionHeading eyebrow="Xonaga qoʻshilish" title="Kod va ismingizni kiriting" />
-      <div className="max-w-xs">
-        <TextField label="Xona kodi" value={code} onChange={(v) => setCode(v.toUpperCase())} placeholder="MASALAN: A1B2C3" />
-        <TextField label="Ismingiz" value={name} onChange={setName} placeholder="Ismingiz" />
-        {err && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{err}</div>}
-        <SolidButton onClick={join} icon={Check} disabled={busy || !code.trim() || !name.trim()}>{busy ? 'Qoʻshilmoqda...' : 'Qoʻshilish'}</SolidButton>
-      </div>
+    <div style={{ width: '100%', maxWidth: 520, margin: '0 auto', padding: '8px 0 24px' }}>
+      <button type="button" onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 40, marginBottom: 14, padding: '0 12px', border: `1px solid ${C.rule}`, borderRadius: 12, color: C.inkSoft, background: C.surface, font: `500 14px ${fontBody.fontFamily}`, cursor: 'pointer' }}><ArrowLeft size={16} /> Ortga</button>
+      <section style={{ padding: 'clamp(20px, 5vw, 30px)', borderRadius: 24, background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 14px 40px rgba(31,61,43,.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
+          <span style={{ width: 46, height: 46, flex: '0 0 auto', display: 'grid', placeItems: 'center', borderRadius: 15, color: C.cover, background: C.goldSoft }} aria-hidden="true"><Users size={22} /></span>
+          <div>
+            <div style={{ ...fontMono, color: C.gold, fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase' }}>Jonli test</div>
+            <h1 style={{ ...fontDisplay, margin: '3px 0 0', color: C.ink, fontWeight: 600, fontSize: 'clamp(21px, 5vw, 27px)', lineHeight: 1.2 }}>Xonaga qoʻshilish</h1>
+          </div>
+        </div>
+        <p style={{ ...fontBody, margin: '0 0 22px', color: C.inkSoft, fontSize: 14, lineHeight: 1.55 }}>Xona kodi va ismingizni kiriting. Hisob ochish shart emas.</p>
+        <form onSubmit={(event) => { event.preventDefault(); void join(); }}>
+          <label style={{ display: 'block', marginBottom: 16 }}>
+            <span style={{ ...fontMono, display: 'block', marginBottom: 6, color: C.inkSoft, fontSize: 11, letterSpacing: '.08em' }}>XONA KODI</span>
+            <input type="text" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="MASALAN: A1B2C3" autoCapitalize="characters" autoComplete="off" spellCheck="false" style={{ boxSizing: 'border-box', width: '100%', minHeight: 50, padding: '0 14px', border: `1px solid ${C.rule}`, borderRadius: 12, outlineColor: C.gold, color: C.ink, background: C.paperSoft, font: `600 16px ${fontMono.fontFamily}`, letterSpacing: '.08em' }} />
+          </label>
+          <label style={{ display: 'block', marginBottom: 16 }}>
+            <span style={{ ...fontMono, display: 'block', marginBottom: 6, color: C.inkSoft, fontSize: 11, letterSpacing: '.08em' }}>ISMINGIZ</span>
+            <input type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder="Ismingiz" autoComplete="name" maxLength={40} style={{ boxSizing: 'border-box', width: '100%', minHeight: 50, padding: '0 14px', border: `1px solid ${C.rule}`, borderRadius: 12, outlineColor: C.gold, color: C.ink, background: C.paperSoft, font: `16px ${fontBody.fontFamily}` }} />
+          </label>
+          {err && <div role="alert" style={{ ...fontBody, marginBottom: 14, padding: '10px 12px', borderRadius: 10, color: C.red, background: C.dangerTint, fontSize: 13 }}>{err}</div>}
+          <button type="submit" disabled={busy || !code.trim() || !name.trim()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, width: '100%', minHeight: 50, padding: '0 16px', border: 0, borderRadius: 13, color: C.white, background: C.cover, opacity: busy || !code.trim() || !name.trim() ? .55 : 1, font: `600 15px ${fontBody.fontFamily}`, cursor: busy ? 'wait' : 'pointer' }}>
+            {busy ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+            {busy ? 'Qoʻshilmoqda…' : 'Xonaga qoʻshilish'}
+          </button>
+        </form>
+      </section>
     </div>
   );
 }
