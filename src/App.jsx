@@ -633,12 +633,19 @@ export function getDeviceKey() {
     return uid() + uid();
   }
 }
-export const liveRoomFromRow = (r) => ({
-  id: r.id, code: r.code, testId: r.test_id, hostId: r.host_id, hostName: r.host_name || '',
-  status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, scheduledAt: r.scheduled_at || null, createdAt: r.created_at,
-  mode: r.mode || 'free', perQuestionSeconds: r.per_question_seconds || 20, phase: r.phase || 'lobby',
-  currentIndex: r.current_index || 0, phaseStartedAt: r.phase_started_at, questionOrder: r.question_order || null,
-});
+export const liveRoomFromRow = (r) => {
+  const questionOrder = Array.isArray(r.question_order) ? r.question_order : null;
+  return {
+    id: r.id, code: r.code, testId: r.test_id, hostId: r.host_id, hostName: r.host_name || '',
+    status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, scheduledAt: r.scheduled_at || null, createdAt: r.created_at,
+    mode: r.mode || 'free', perQuestionSeconds: r.per_question_seconds || 30, phase: r.phase || 'lobby',
+    currentIndex: r.current_index || 0, phaseStartedAt: r.phase_started_at, questionOrder,
+    // Old rooms have no shuffle columns; their stored sequence is already the
+    // shared room order and their options keep the historical order.
+    shuffleQuestions: r.shuffle_questions ?? Boolean(questionOrder),
+    shuffleOptions: r.shuffle_options ?? false,
+  };
+};
 export const liveParticipantFromRow = (r) => ({ id: r.id, roomId: r.room_id, name: r.name, deviceKey: r.device_key, score: r.score, total: r.total, submittedAt: r.submitted_at, joinedAt: r.joined_at, answers: r.answers || {} });
 export async function sbFindRoomByCode(code) {
   const rows = await sbRequest(`live_rooms?select=*&code=eq.${encodeURIComponent(code)}`);
@@ -687,7 +694,7 @@ export async function sbFindParticipantByDevice(roomId, deviceKey) {
    bilan) tegishli o'zgarishlarni oladi — boshqa xonalarning trafigini
    olmaydi. Qaytaradi: tozalash (unsubscribe) funksiyasi — komponent
    yopilganda albatta shuni chaqirish kerak. */
-export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, pollFallbackMs = 2000 } = {}) {
+export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, onPresence, presence = null, pollFallbackMs = 2000 } = {}) {
   let closed = false;
   let fallbackTimer = null;
   let fallbackActive = false;
@@ -712,8 +719,11 @@ export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, pollFallba
     if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null; }
   }
 
+  const channelOptions = presence?.participantId
+    ? { config: { presence: { key: String(presence.participantId) } } }
+    : undefined;
   const channel = supabase
-    .channel(`live-room-${roomId}`)
+    .channel(`live-room-${roomId}`, channelOptions)
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'live_rooms', filter: `id=eq.${roomId}` },
@@ -740,8 +750,21 @@ export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, pollFallba
         });
       }
     )
+    .on('presence', { event: 'sync' }, () => {
+      if (onPresence) onPresence(channel.presenceState());
+    })
     .subscribe((status) => {
-      if (status === 'SUBSCRIBED') stopFallbackPolling();
+      if (status === 'SUBSCRIBED') {
+        stopFallbackPolling();
+        if (onPresence) onPresence(channel.presenceState());
+        if (presence?.participantId) {
+          channel.track({
+            participantId: String(presence.participantId),
+            role: 'participant',
+            name: String(presence.name || ''),
+          }).catch(() => { /* Realtime presence ixtiyoriy; vaqt cheklovi zaxira bo'lib qoladi */ });
+        }
+      }
       else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') startFallbackPolling();
     });
 
@@ -769,9 +792,21 @@ export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, pollFallba
    hech qanday qatorga tegmaydi va xatosiz, shunchaki boʻsh natija bilan
    qaytadi — ikki marta oldinga surilib ketish (savol talvasa oʻtkazib
    yuborish) imkonsiz boʻladi. */
-export async function advanceSyncPhase(room, totalQuestions) {
+export async function advanceSyncPhase(room, totalQuestions, { skipIntermission = false } = {}) {
   try {
     if (room.phase === 'question') {
+      if (skipIntermission) {
+        const nextIndex = Math.min(room.currentIndex + 1, totalQuestions);
+        const isLast = room.currentIndex >= totalQuestions - 1 || nextIndex >= totalQuestions;
+        const patch = isLast
+          ? { phase: 'finished', status: 'finished' }
+          : { phase: 'question', current_index: nextIndex, phase_started_at: new Date().toISOString() };
+        const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.question&current_index=eq.${room.currentIndex}`;
+        const rows = await sbRequest(`live_rooms?${filter}`, {
+          method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch),
+        });
+        return rows && rows[0] ? liveRoomFromRow(rows[0]) : null;
+      }
       const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.question&current_index=eq.${room.currentIndex}`;
       const rows = await sbRequest(`live_rooms?${filter}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' },
@@ -4608,6 +4643,7 @@ export default function App() {
     </SectionLoadingProvider>
   );
 }
+
 
 
 
