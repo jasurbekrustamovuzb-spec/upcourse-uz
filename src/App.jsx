@@ -827,7 +827,7 @@ const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { version: 5, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 1.5, autoAdvanceWrongSeconds: 2, correctAnimation: 'pop', wrongAnimation: 'shake', adaptiveFeedback: false, viewMode: 'list', fontScale: 1, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 6, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 1.5, autoAdvanceWrongSeconds: 2, correctAnimation: 'pop', wrongAnimation: 'shake', celebrationStyle: 'mixed', correctTransition: 'shatter', wrongTransition: 'fade', adaptiveFeedback: false, viewMode: 'list', fontScale: 1, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 export const profileFromRow = (r) => {
   const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
@@ -860,6 +860,12 @@ export const profileFromRow = (r) => {
     testPrefs.partIndex = 1;
     delete testPrefs.autoAdvanceSeconds;
     testPrefs.version = 5;
+  }
+  if (testPrefs && Number(testPrefs.version || 0) < 6) {
+    if (!['mixed', 'confetti', 'stars', 'badges', 'none'].includes(testPrefs.celebrationStyle)) testPrefs.celebrationStyle = 'mixed';
+    if (!['shatter', 'dissolve', 'fly', 'fade', 'none'].includes(testPrefs.correctTransition)) testPrefs.correctTransition = 'shatter';
+    if (!['fade', 'slide', 'shatter', 'none'].includes(testPrefs.wrongTransition)) testPrefs.wrongTransition = 'fade';
+    testPrefs.version = 6;
   }
   return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
 };
@@ -3236,7 +3242,7 @@ export default function App() {
       ...basePrefs,
       ...persistentPatch,
       mode: 'all', count: DEFAULT_TEST_PREFS.count, partsTotal: DEFAULT_TEST_PREFS.partsTotal, partIndex: DEFAULT_TEST_PREFS.partIndex,
-      version: 5,
+      version: 6,
       pausedTests: patch.pausedTests ?? basePrefs.pausedTests ?? [],
     };
     store.prefs = nextPrefs;
