@@ -461,8 +461,18 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       if (!saved) throw new Error('save-failed');
       setLeaveDialog(false);
       exitTest();
-    } catch {
-      setLeaveError('Javoblarni saqlab bo‘lmadi. Internetni tekshirib, yana urinib ko‘ring.');
+    } catch (error) {
+      console.error('Testni tanaffusga saqlash muvaffaqiyatsiz:', error);
+      const message = String(error?.message || '');
+      if (/row-level security|permission denied|403/i.test(message)) {
+        setLeaveError('Hisob profilingizga yozish ruxsati berilmadi. Sahifani yangilab, qayta urinib ko‘ring.');
+      } else if (/profil.*yangilanmadi|profile.*not found/i.test(message)) {
+        setLeaveError('Hisob profilingiz topilmadi yoki yangilanmadi. Profilga qayta kirib, yana urinib ko‘ring.');
+      } else if (/sessiya|session/i.test(message)) {
+        setLeaveError('Kirish muddati tugagan. Sahifani yangilang va qayta kiring.');
+      } else {
+        setLeaveError('Javoblarni saqlab bo‘lmadi. Internetni tekshirib, yana urinib ko‘ring.');
+      }
     } finally {
       setPauseBusy(false);
     }
@@ -892,7 +902,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
               <>
                 <div className="mt-4 grid grid-cols-3 gap-2">
                   <button type="button" onClick={() => { setLeaveDialog(false); exitTest(); }} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.red, background: C.surface, borderColor: C.rule }}><LogOut size={18} />Chiqish</button>
-                  <button type="button" disabled={pauseBusy} onClick={pauseAndExit} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><Save size={18} style={{ color: C.accent }} />Tanaffus</button>
+                  <button type="button" disabled={pauseBusy} onClick={pauseAndExit} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><Save size={18} style={{ color: C.accent }} />{pauseBusy ? 'Saqlanmoqda…' : 'Tanaffus'}</button>
                   <button type="button" onClick={() => submit(answersRef.current)} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft }}><CheckCircle2 size={18} />Yakunlash</button>
                 </div>
                 {guestPausePrompt && !session?.user?.id && <div className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.ink, background: C.goldSoft }}><div className="flex items-start gap-2"><LogIn size={17} className="mt-0.5 shrink-0" />Testni tanaffusga saqlash uchun hisobga kiring. Kirgach javoblaringiz saqlanadi va testni davom ettira olasiz.</div><button type="button" disabled={accountSignInBusy} onClick={signInToSavePause} className="mt-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-wait disabled:opacity-70" style={{ color: C.white, background: C.cover }}><LogIn size={15} />{accountSignInBusy ? 'Kirilmoqda…' : 'Hisobga kirish'}</button></div>}
