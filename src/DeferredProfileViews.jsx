@@ -1,11 +1,12 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, BookOpen, Check, CheckCircle2, ChevronRight, Coins, Gift, ListChecks, Loader2, Lock, LogIn, LogOut, Medal, Settings, ShieldCheck, ShoppingBag, Tag, UserCircle2, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, Check, CheckCircle2, ChevronRight, Coins, Gift, Inbox, ListChecks, Loader2, Lock, LogIn, LogOut, Medal, Settings, ShieldCheck, ShoppingBag, Tag, UserCircle2, Users, X } from 'lucide-react';
 import { BANNER_PRESETS, C, CollectibleThumb, EmptyState, GhostButton, LinkedUsernameText, ProfileFollowView, PublicCollectionsView, RatingBadgeCollection, SectionLoading, SectionHeading, ShareButton, SolidButton, TextField, bannerGradient, buildShareUrl, checkUsernameAvailable, collectibleFromRow, fontBody, fontDisplay, fontMono, GIFT_CONTENT, GIFT_ID, isReservedUsername, isValidUsername, normalizeUsername, profileFromRow, sbInsert, sbSelect, sbSelectAuthorContent, sbUpdate, setAuthorBadgeCache, suggestAvailableUsername, unequipOtherCollectibles, useAuthorBadge, userCollectibleFromRow, usernameChangeDaysLeft, NavContext } from './App.jsx';
 import { supabase } from './supabaseClient.js';
 import { signInWithGoogle, switchGoogleAccount } from './supabaseClient.js';
 import TeamBattleLibrary from './TeamBattleLibrary.jsx';
 
 const PausedTestsPanel = lazy(() => import('./PausedTestsPanel.jsx'));
+const SharedResourcesPanel = lazy(() => import('./DeferredSharedResources.jsx').then((module) => ({ default: module.SharedResourcesPanel })));
 export function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, session }) {
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
@@ -221,7 +222,7 @@ export function PublicProfileView({ username, courses, tests, onBack, onOpenItem
   );
 }
 
-export function ProfileView({ session, profile, authLoading, pausedTests, onResumePausedTest, onPausedTestVisibilityChange, saveTestPrefs, onPauseAttempt, onClearPaused, onRequireAccount, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena }) {
+export function ProfileView({ session, profile, authLoading, pausedTests, onResumePausedTest, onPausedTestVisibilityChange, saveTestPrefs, onPauseAttempt, onClearPaused, onRequireAccount, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena, onShareToFollowers, onOpenSharedResource }) {
   const [subTab, setSubTab] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
@@ -343,6 +344,9 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
     ...tests.filter((item) => item.authorId === session.user.id).map((item) => [item.id, item]),
   ]).values());
 
+  if (subTab === 'shared') {
+    return <Suspense fallback={<SectionLoading label="Ulashilganlar yuklanmoqda…" compact />}><SharedResourcesPanel session={session} scope="profile" onBack={() => setSubTab(null)} onOpenResource={onOpenSharedResource} /></Suspense>;
+  }
   if (subTab === 'kurslar') {
     return (
       <CommunityCoursesView
@@ -363,6 +367,7 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
         onCloseForm={() => setCourseFormOpen(false)}
         prefillCategory={prefillCategory}
         ensureCourseContent={ensureCourseContent}
+        onShareToFollowers={onShareToFollowers}
       />
     );
   }
@@ -387,6 +392,7 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
         prefillCategory={prefillCategory}
         formMode={testFormMode}
         ensureTestContent={ensureTestContent}
+        onShareToFollowers={onShareToFollowers}
         session={session}
         effectivePrefs={profile?.testPrefs}
         onSavePrefs={session ? saveTestPrefs : undefined}
@@ -510,6 +516,16 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
             <div>
               <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Mening testlarim</div>
               <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{myTests.length} ta</div>
+            </div>
+          </div>
+          <ChevronRight size={16} style={{ color: C.gold }} />
+        </button>
+        <button onClick={() => goSubTab('shared')} className="flex items-center justify-between p-5 rounded-sm text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="flex items-center gap-3">
+            <Inbox size={20} style={{ color: C.gold }} />
+            <div>
+              <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>Do‘stlar ulashganlari</div>
+              <div className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>Kelgan mavzu va testlar</div>
             </div>
           </div>
           <ChevronRight size={16} style={{ color: C.gold }} />
