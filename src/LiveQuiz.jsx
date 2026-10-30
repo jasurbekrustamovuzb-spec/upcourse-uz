@@ -647,6 +647,7 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
   const [liveMode, setLiveMode] = useState('sync');
   const [perQSeconds, setPerQSeconds] = useState(20);
   const [scheduledLocal, setScheduledLocal] = useState('');
+  const [showSchedule, setShowSchedule] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -854,16 +855,38 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
             <div className="text-xs -mt-2 mb-4" style={{ ...fontBody, color: C.inkSoft }}>Vaqt test boshlanganda yuradi. Chiqib qaytsangiz ham shu muddat davom etadi.</div>
           </>
         )}
-        <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Boshlanish vaqti (ixtiyoriy)</label>
-        <input
-          type="datetime-local"
-          value={scheduledLocal}
-          min={(() => { const d = new Date(Date.now() + 60000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })()}
-          onChange={(e) => setScheduledLocal(e.target.value)}
-          className="w-full mb-2 px-3 py-2.5 rounded-2xl text-[15px] outline-none"
-          style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
-        />
-        <div className="text-xs mb-4" style={{ ...fontBody, color: C.inkSoft }}>Vaqt tanlasangiz, qatnashchilar oldindan kutish zaliga kiradi va belgilangan paytda test avtomatik boshlanadi.</div>
+        <div className="mb-3">
+          <button
+            type="button"
+            onClick={() => setShowSchedule((open) => !open)}
+            aria-expanded={showSchedule}
+            className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left"
+            style={{ ...fontBody, color: C.ink, background: C.paperSoft, border: `1px solid ${C.rule}` }}
+          >
+            <span className="inline-flex min-w-0 items-center gap-2">
+              <Clock3 size={16} className="shrink-0" style={{ color: C.gold }} />
+              <span className="truncate">{scheduledLocal ? `Boshlanish: ${new Date(scheduledLocal).toLocaleString()}` : 'Boshlanish vaqtini rejalashtirish'}</span>
+            </span>
+            <span aria-hidden="true" className="text-lg leading-none" style={{ color: C.inkSoft }}>{showSchedule ? '−' : '+'}</span>
+          </button>
+          {showSchedule && (
+            <div className="mt-2">
+              <label className="mb-1.5 block text-xs" style={{ ...fontMono, color: C.inkSoft }}>Boshlanish vaqti (ixtiyoriy)</label>
+              <input
+                type="datetime-local"
+                value={scheduledLocal}
+                min={(() => { const d = new Date(Date.now() + 60000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })()}
+                onChange={(e) => setScheduledLocal(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-2xl text-[15px] outline-none"
+                style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
+              />
+              <div className="mt-1.5 flex items-start justify-between gap-3">
+                <div className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Vaqt tanlansa, qatnashchilar kutish zaliga kiradi va test shu vaqtda boshlanadi.</div>
+                {scheduledLocal && <button type="button" onClick={() => setScheduledLocal('')} className="shrink-0 text-xs underline" style={{ ...fontBody, color: C.inkSoft }}>Olib tashlash</button>}
+              </div>
+            </div>
+          )}
+        </div>
         {err && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{err}</div>}
         <SolidButton onClick={create} icon={Users} disabled={busy || !testId}>{busy ? 'Yaratilmoqda...' : 'Xona yaratish'}</SolidButton>
       </div>

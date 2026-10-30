@@ -2941,6 +2941,7 @@ export default function App() {
   const contentOwnerRef = useRef(null);
   const activeUserIdRef = useRef(null);
   const testPrefsStoreRef = useRef({ userId: null, prefs: null, queue: Promise.resolve(), hydrated: false });
+  const testSubmitInFlightRef = useRef(false);
 
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
@@ -3911,25 +3912,33 @@ export default function App() {
 
   async function submitTest(data) {
     if (!session) { setActionError('Test qoʻshish uchun avval Google orqali kiring.'); return null; }
-    const authorName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : '';
-    let categoryId = data.categoryId;
-    if (!categoryId && data.categoryName) {
+    // Bir necha marta tez bosish yoki takroriy submit event ikki qator
+    // yaratmasin. Forma ichidagi tugma ham alohida qulflanadi.
+    if (testSubmitInFlightRef.current) return null;
+    testSubmitInFlightRef.current = true;
+    try {
+      const authorName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : '';
+      let categoryId = data.categoryId;
+      if (!categoryId && data.categoryName) {
+        try {
+          categoryId = await resolveCategoryId(data.categoryName, session.user.id, authorName);
+        } catch (e) {
+          setActionError('Sohani yaratishda xatolik yuz berdi.');
+          return null;
+        }
+      }
+      const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, questionCount: getQuestionCount(data.questions), author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
       try {
-        categoryId = await resolveCategoryId(data.categoryName, session.user.id, authorName);
+        await sbInsert('tests', testToRow(row));
+        setTests((previous) => [row, ...previous.filter((item) => item.id !== row.id)]);
+        setActionError(null);
+        return row.id;
       } catch (e) {
-        setActionError('Sohani yaratishda xatolik yuz berdi.');
+        setActionError('Testni saqlashda xatolik yuz berdi.');
         return null;
       }
-    }
-    const row = { id: uid(), categoryId, title: data.title, description: data.description, questions: data.questions, questionCount: getQuestionCount(data.questions), author: authorName, authorId: session.user.id, status: data.visibility === 'private' ? 'private' : 'pending' };
-    try {
-      await sbInsert('tests', testToRow(row));
-      setTests((previous) => [row, ...previous.filter((item) => item.id !== row.id)]);
-      setActionError(null);
-      return row.id;
-    } catch (e) {
-      setActionError('Testni saqlashda xatolik yuz berdi.');
-      return null;
+    } finally {
+      testSubmitInFlightRef.current = false;
     }
   }
   async function approveTest(id, title) {
