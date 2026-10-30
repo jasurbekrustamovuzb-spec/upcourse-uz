@@ -3226,9 +3226,23 @@ export default function App() {
     setViewingUsername(null);
     setTab('testlar');
   }
-  function requireAccountForPausedTest(snapshot) {
-    try { sessionStorage.setItem('upcourse-pending-test-pause', JSON.stringify(snapshot)); } catch {}
-    setTab('profil');
+  async function requireAccountForPausedTest(snapshot) {
+    if (!snapshot?.testId) return { error: new Error('Missing paused test snapshot') };
+    if (session?.user?.id) {
+      const saved = await savePausedTest(snapshot);
+      return saved ? { ok: true } : { error: new Error('Could not save paused test') };
+    }
+    try {
+      sessionStorage.setItem('upcourse-pending-test-pause', JSON.stringify(snapshot));
+    } catch {
+      return { error: new Error('Could not preserve paused test') };
+    }
+    const { error } = await signInWithGoogle();
+    if (error) {
+      try { sessionStorage.removeItem('upcourse-pending-test-pause'); } catch {}
+      return { error };
+    }
+    return { ok: true };
   }
 
   useEffect(() => {
