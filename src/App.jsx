@@ -314,7 +314,10 @@ const POSITION_KEY = 'upcourse_last_position';
 function readPosition() {
   try {
     const raw = sessionStorage.getItem(POSITION_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const position = raw ? JSON.parse(raw) : {};
+    if (position?.testlar?.live?.code) return position;
+    const live = localStorage.getItem('upcourse_live_session');
+    return live ? { ...position, testlar: { ...(position.testlar || {}), live: JSON.parse(live) } } : position;
   } catch (e) {
     return {};
   }
@@ -326,7 +329,12 @@ function readPosition() {
 export function writePosition(patch) {
   try {
     const current = readPosition();
-    sessionStorage.setItem(POSITION_KEY, JSON.stringify({ ...current, ...patch }));
+    const next = { ...current, ...patch };
+    sessionStorage.setItem(POSITION_KEY, JSON.stringify(next));
+    if (Object.prototype.hasOwnProperty.call(patch.testlar || {}, 'live')) {
+      if (patch.testlar.live?.code) localStorage.setItem('upcourse_live_session', JSON.stringify(patch.testlar.live));
+      else localStorage.removeItem('upcourse_live_session');
+    }
   } catch (e) { /* xotira yo'q yoki to'lgan bo'lsa e'tiborsiz qoldiriladi */ }
 }
 
@@ -625,7 +633,7 @@ export function getDeviceKey() {
 }
 export const liveRoomFromRow = (r) => ({
   id: r.id, code: r.code, testId: r.test_id, hostId: r.host_id, hostName: r.host_name || '',
-  status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, createdAt: r.created_at,
+  status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, scheduledAt: r.scheduled_at || null, createdAt: r.created_at,
   mode: r.mode || 'free', perQuestionSeconds: r.per_question_seconds || 20, phase: r.phase || 'lobby',
   currentIndex: r.current_index || 0, phaseStartedAt: r.phase_started_at, questionOrder: r.question_order || null,
 });
@@ -637,6 +645,19 @@ export async function sbFindRoomByCode(code) {
 export async function sbGetRoom(id) {
   const rows = await sbRequest(`live_rooms?select=*&id=eq.${encodeURIComponent(id)}`);
   return rows.length ? liveRoomFromRow(rows[0]) : null;
+}
+export async function startScheduledLiveRoom(room) {
+  if (!room?.scheduledAt || room.status !== 'waiting' || new Date(room.scheduledAt).getTime() > Date.now()) return null;
+  const now = new Date().toISOString();
+  const filter = `id=eq.${encodeURIComponent(room.id)}&status=eq.waiting&scheduled_at=lte.${encodeURIComponent(now)}`;
+  const patch = {
+    status: 'active', starts_at: now, scheduled_at: null,
+    ...(room.mode === 'sync' ? { phase: 'question', current_index: 0, phase_started_at: now } : {}),
+  };
+  const rows = await sbRequest(`live_rooms?${filter}`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch),
+  });
+  return rows?.[0] ? liveRoomFromRow(rows[0]) : null;
 }
 export async function sbSelectParticipants(roomId) {
   const rows = await sbRequest(`live_participants?select=*&room_id=eq.${encodeURIComponent(roomId)}&order=joined_at.asc`);
@@ -752,14 +773,15 @@ export async function advanceSyncPhase(room, totalQuestions) {
       const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.question&current_index=eq.${room.currentIndex}`;
       const rows = await sbRequest(`live_rooms?${filter}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ phase: 'intermission' }),
+        body: JSON.stringify({ phase: 'intermission', phase_started_at: new Date().toISOString() }),
       });
       return rows && rows[0] ? liveRoomFromRow(rows[0]) : null;
     }
     if (room.phase === 'intermission') {
       const nextIndex = Math.min(room.currentIndex + 1, totalQuestions);
       const isLast = room.currentIndex >= totalQuestions - 1 || nextIndex >= totalQuestions;
-      const patch = isLast ? { phase: 'finished', status: 'finished' } : { phase: 'question', current_index: nextIndex };
+      const now = new Date().toISOString();
+      const patch = isLast ? { phase: 'finished', status: 'finished' } : { phase: 'question', current_index: nextIndex, phase_started_at: now };
       const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.intermission&current_index=eq.${room.currentIndex}`;
       const rows = await sbRequest(`live_rooms?${filter}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' },
