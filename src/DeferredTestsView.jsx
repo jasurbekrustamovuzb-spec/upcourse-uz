@@ -195,6 +195,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const [finishDialog, setFinishDialog] = useState(!!initialProgress?.finishOnResume);
   const [guestPausePrompt, setGuestPausePrompt] = useState(false);
   const [pauseBusy, setPauseBusy] = useState(false);
+  const [accountSignInBusy, setAccountSignInBusy] = useState(false);
   const [leaveError, setLeaveError] = useState('');
   const questionRefs = useRef({});
   const resultSummaryRef = useRef(null);
@@ -443,7 +444,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   }
 
   async function pauseAndExit() {
-    if (!session) { setGuestPausePrompt(true); return; }
+    if (!session?.user?.id) { setGuestPausePrompt(true); return; }
     if (!onPauseAttempt) { setLeaveError('Testni saqlab bo‘lmadi. Qayta urinib ko‘ring.'); return; }
     setPauseBusy(true);
     setLeaveError('');
@@ -456,6 +457,24 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       setLeaveError('Javoblarni saqlab bo‘lmadi. Internetni tekshirib, yana urinib ko‘ring.');
     } finally {
       setPauseBusy(false);
+    }
+  }
+
+  async function signInToSavePause() {
+    if (session?.user?.id || accountSignInBusy) return;
+    if (!onRequireAccount) {
+      setLeaveError('Kirish amali ulanmagan. Sahifani yangilab, yana urinib ko‘ring.');
+      return;
+    }
+    setAccountSignInBusy(true);
+    setLeaveError('');
+    try {
+      const result = await onRequireAccount(createPauseSnapshot());
+      if (result?.error) setLeaveError('Google orqali kirish oynasini ochib bo‘lmadi. Qayta urinib ko‘ring.');
+    } catch {
+      setLeaveError('Google orqali kirish oynasini ochib bo‘lmadi. Qayta urinib ko‘ring.');
+    } finally {
+      setAccountSignInBusy(false);
     }
   }
 
@@ -849,7 +868,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
                   <button type="button" onClick={() => { setLeaveDialog(false); exitTest(); }} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.red, background: C.surface, borderColor: C.rule }}><LogOut size={18} />Chiqish</button>
                   <button type="button" onClick={() => submit(answersRef.current)} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft }}><CheckCircle2 size={18} />Yakunlash</button>
                 </div>
-                {guestPausePrompt && <div className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.ink, background: C.goldSoft }}><div className="flex items-start gap-2"><LogIn size={17} className="mt-0.5 shrink-0" />Testni tanaffusga saqlash uchun hisobga kiring. Hisob bilan javoblaringiz keyin ham saqlanadi.</div><button type="button" onClick={() => onRequireAccount?.(createPauseSnapshot())} className="mt-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: C.white, background: C.cover }}>Hisobga kirish</button></div>}
+                {guestPausePrompt && !session?.user?.id && <div className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.ink, background: C.goldSoft }}><div className="flex items-start gap-2"><LogIn size={17} className="mt-0.5 shrink-0" />Testni tanaffusga saqlash uchun hisobga kiring. Kirgach javoblaringiz saqlanadi va testni davom ettira olasiz.</div><button type="button" disabled={accountSignInBusy} onClick={signInToSavePause} className="mt-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-wait disabled:opacity-70" style={{ color: C.white, background: C.cover }}><LogIn size={15} />{accountSignInBusy ? 'Kirilmoqda…' : 'Hisobga kirish'}</button></div>}
                 {leaveError && <p role="alert" className="mt-3 text-sm" style={{ ...fontBody, color: C.red }}>{leaveError}</p>}
               </>
             )}
