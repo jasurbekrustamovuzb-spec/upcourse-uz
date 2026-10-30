@@ -3148,12 +3148,32 @@ export default function App() {
     }
   }
 
-  /* Test boshlash sozlamalarini akkauntga saqlaydi — faqat login qilgan
-     foydalanuvchi uchun (QuizView shu funksiyani faqat session mavjud
-     bo'lganda uzatadi). Profildagi boshqa ustunlarga tegmaydi (merge-
-     duplicates upsert faqat berilgan ustunni yangilaydi). Jim tarzda
-     ishlaydi — xatolik bo'lsa ham foydalanuvchi testni davom ettiraveradi,
-     shunchaki keyingi safar qayta so'raladi. */
+  async function persistTestPrefs(userId, prefs) {
+    // Public reads use a cached bearer token for a fast first load. For
+    // authenticated writes, ask Supabase for the current (refreshed) session.
+    const { data: authData, error: authError } = await supabase.auth.getSession();
+    if (authError) throw authError;
+    const authSession = authData?.session;
+    if (!authSession?.user?.id) throw new Error('Kirish sessiyasi topilmadi. Qayta kirib urinib ko‘ring.');
+    if (authSession.user.id !== userId) throw new Error('Hisob o‘zgargan. Sahifani yangilab qayta urinib ko‘ring.');
+    if (authSession.access_token) setCachedAccessToken(authSession.access_token);
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ test_prefs: prefs })
+      .eq('id', userId)
+      .select('id');
+    if (error) throw error;
+    // RLS may return HTTP 200 but filter out the UPDATE; do not call that saved.
+    if (!Array.isArray(data) || !data.some((row) => row.id === userId)) {
+      throw new Error('Profil sozlamalari yangilanmadi. Hisob profilingizni qayta yuklab urinib ko‘ring.');
+    }
+    return true;
+  }
+
+  /* Test boshlash sozlamalarini akkauntga saqlaydi. Profildagi boshqa
+     ustunlarga tegmaydi. Xatolik bo‘lsa, test davom etadi; sozlamani
+     keyingi tanlovda qayta saqlash mumkin. */
   async function saveTestPrefs(patch) {
     const userId = session?.user?.id;
     if (!userId || !patch || typeof patch !== 'object') return false;
@@ -3169,7 +3189,6 @@ export default function App() {
       };
       testPrefsStoreRef.current = store;
     }
-    // If the profile read failed, do not replace saved account settings with defaults.
     if (!store.hydrated) return false;
 
     const basePrefs = store.prefs || profile?.testPrefs || DEFAULT_TEST_PREFS;
@@ -3183,18 +3202,16 @@ export default function App() {
     store.prefs = nextPrefs;
     setProfile((prev) => prev?.id === userId ? { ...prev, testPrefs: nextPrefs } : prev);
 
-    // Serialize rapid setting changes so an earlier, slower request cannot
-    // finish last and overwrite a newer choice (or a pause snapshot).
+    // Serialize writes so an earlier request cannot overwrite a newer choice.
     const write = store.queue.catch(() => {}).then(async () => {
       if (activeUserIdRef.current !== userId) return false;
-      await sbUpsert('profiles', { id: userId, test_prefs: nextPrefs });
-      return true;
+      return await persistTestPrefs(userId, nextPrefs);
     });
     store.queue = write;
     try {
       return await write;
-    } catch (e) {
-      console.error('Test sozlamalarini saqlashda xatolik:', e);
+    } catch (error) {
+      console.error('Test sozlamalarini saqlashda xatolik:', error);
       return false;
     }
   }
@@ -3202,23 +3219,20 @@ export default function App() {
   const pausedTests = Array.isArray(profile?.testPrefs?.pausedTests) ? profile.testPrefs.pausedTests : [];
   async function savePausedTest(snapshot) {
     if (!snapshot?.testId) return false;
-    let userId = session?.user?.id;
-    if (!userId) {
-      try {
-        const { data } = await supabase.auth.getSession();
-        userId = data?.session?.user?.id || null;
-      } catch {}
-    }
-    if (!userId) return false;
+    const { data: authData, error: authError } = await supabase.auth.getSession();
+    if (authError) throw authError;
+    const authSession = authData?.session || null;
+    const userId = authSession?.user?.id || null;
+    if (!userId) throw new Error('Kirish sessiyasi topilmadi. Sahifani yangilang va qayta kiring.');
+    if (session?.user?.id && session.user.id !== userId) throw new Error('Hisob o‘zgargan. Sahifani yangilab qayta urinib ko‘ring.');
+    if (authSession.access_token) setCachedAccessToken(authSession.access_token);
+
     let store = testPrefsStoreRef.current;
     let current = store.userId === userId && store.hydrated ? store.prefs : profile?.id === userId ? profile.testPrefs : null;
     if (!current) {
-      try {
-        const rows = await sbSelect('profiles', `id=eq.${userId}`);
-        current = rows[0] ? profileFromRow(rows[0]).testPrefs : DEFAULT_TEST_PREFS;
-      } catch {
-        return false;
-      }
+      const { data: row, error } = await supabase.from('profiles').select('test_prefs').eq('id', userId).maybeSingle();
+      if (error) throw error;
+      current = row?.test_prefs && typeof row.test_prefs === 'object' ? row.test_prefs : DEFAULT_TEST_PREFS;
     }
     const existing = Array.isArray(current?.pausedTests) ? current.pausedTests : [];
     const next = [...existing.filter((attempt) => attempt.testId !== snapshot.testId), snapshot].slice(-10);
@@ -3227,18 +3241,16 @@ export default function App() {
       store = { userId, prefs: current, queue: Promise.resolve(), hydrated: true };
       testPrefsStoreRef.current = store;
     }
-    const write = store.queue.catch(() => {}).then(async () => {
-      await sbUpsert('profiles', { id: userId, test_prefs: nextPrefs });
-      return true;
-    });
+    const write = store.queue.catch(() => {}).then(() => persistTestPrefs(userId, nextPrefs));
     store.prefs = nextPrefs;
     store.queue = write;
     try {
       await write;
       if (session?.user?.id === userId) setProfile((previous) => previous?.id === userId ? { ...previous, testPrefs: nextPrefs } : previous);
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      console.error('Test pauzasini saqlashda xatolik:', error);
+      throw error;
     }
   }
   async function clearPausedTest(testId) {
