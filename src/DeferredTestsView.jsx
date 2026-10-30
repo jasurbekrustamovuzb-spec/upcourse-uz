@@ -883,7 +883,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           </div>
         )}
         {reel ? (
-          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
+          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
             {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
@@ -988,7 +988,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 @media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-feedback-enter,.quiz-result-pop,.quiz-result-glow,.quiz-result-slide,.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash,.quiz-celebration-particle,.quiz-transition-fragment,.quiz-exit-shatter,.quiz-exit-dissolve,.quiz-exit-fly,.quiz-exit-fade,.quiz-exit-slide,.quiz-control-panel{animation:none;transition:none;will-change:auto}}
 `}</style>
       {celebrationParticles && <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[100] overflow-hidden">{celebrationParticles.map((particle) => <span key={particle.id} className="quiz-celebration-particle" style={{ '--dx': particle.x, '--dy': particle.y, '--turn': particle.rotate, '--delay': particle.delay, '--duration': particle.duration, fontSize: particle.size, filter: 'drop-shadow(0 2px 5px rgba(18,38,27,.22))' }}>{particle.symbol}</span>)}</div>}
-      <div className="quiz-control-panel absolute inset-x-0 top-0 z-30 border-b px-3 pb-2 pt-2 sm:px-5" data-hidden={!controlsVisible} aria-hidden={!controlsVisible} style={{ background: C.paper, borderColor: C.rule, paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}>
+      <div className="quiz-control-panel absolute inset-x-0 top-0 z-30 border-b px-4 pb-2 pt-2 sm:px-5" data-hidden={!controlsVisible} aria-hidden={!controlsVisible} style={{ background: C.paper, borderColor: C.rule, paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}>
         <div className="flex items-center gap-2">
           <button type="button" onClick={requestLeave} aria-label="Testdan chiqish amallari" title="Ortga" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><ArrowLeft size={19} /></button>
           <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{test.title}</div><div className="flex items-center gap-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</div></div>
@@ -1011,13 +1011,13 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           {renderQuestionCard(currentQuestion, currentQuestionIndex, true)}
         </div>
       ) : (
-        <div ref={listContainerRef} onScroll={handleListScroll} className="min-h-0 w-full flex-1 overflow-y-auto overscroll-contain px-3 sm:px-6" style={{ paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 162 : 124}px)` : 'calc(env(safe-area-inset-top) + 58px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }} aria-label="Savollar ro‘yxati">
+        <div ref={listContainerRef} onScroll={handleListScroll} className="min-h-0 w-full flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6" style={{ paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 162 : 124}px)` : 'calc(env(safe-area-inset-top) + 58px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }} aria-label="Savollar ro‘yxati">
           {questions.slice(0, visibleListCount).map((question, index) => renderQuestionCard(question, index))}
           {visibleListCount < questions.length && <div className="py-4 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>Pastga suring — keyingi savollar yuklanadi…</div>}
         </div>
       ) : <div className="my-8 rounded-2xl border p-5 text-center" style={{ ...fontBody, color: C.inkSoft, background: C.surface, borderColor: C.rule }}>Bu testda ishlash uchun savollar topilmadi.</div>}
 
-      {!controlsVisible && <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-2 px-3 pb-2 pt-2" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 7px)', background: `linear-gradient(180deg, ${C.paper} 72%, transparent)` }}>
+      {!controlsVisible && <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-2 px-4 pb-2 pt-2" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 7px)', background: `linear-gradient(180deg, ${C.paper} 72%, transparent)` }}>
         <div className="min-w-0 flex-1 text-xs" style={{ ...fontBody, color: C.ink }}><span className="font-semibold">{Math.min(currentQuestionIndex + 1, Math.max(questions.length, 1))}/{questions.length}</span><span className="mx-2" style={{ color: C.inkSoft }}>·</span><span style={{ color: C.inkSoft }}>{answeredCount}/{totalCount} javob</span><span className="mx-2" style={{ color: C.inkSoft }}>·</span><span className="inline-flex items-center gap-1" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</span></div>
         <button type="button" onClick={() => setControlsVisible(true)} aria-label="Yuqori boshqaruvni ko‘rsatish" title="Boshqaruvni ko‘rsatish" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border shadow-md backdrop-blur" style={{ color: C.ink, background: C.surface, borderColor: C.rule }}><PanelTopOpen size={18} /></button>
       </div>}
