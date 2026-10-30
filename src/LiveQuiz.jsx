@@ -6,9 +6,9 @@ import {
   C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField, SectionLoading,
   MatchingTestQuestion, getQuestionCount, getQuestionScore,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
-  sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants, sbFindParticipantByDevice, sbClaimLiveParticipantDevice,
+  sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants, sbFindParticipantByDevice,
   sbInsert, sbUpdate, sbDelete, computeSyncScore, startScheduledLiveRoom,
-  getDeviceKey, estimatedServerNow, advanceSyncPhase,
+  estimatedServerNow, advanceSyncPhase,
 } from './App';
 
 const MathInput = lazy(() => import('./MathInput.jsx'));
@@ -378,10 +378,33 @@ function LiveLeaderboardList({ participants, showAsPoints }) {
   );
 }
 
+let transientGuestParticipantKey = null;
+
+function getLiveGuestParticipantKey() {
+  // localStorage incognito oynalari va bir brauzerdagi tablar orasida umumiy.
+  // Har bir tabga alohida sessionStorage kaliti beramiz: bir qurilmadan
+  // bir nechta mehmon qatnashsa ham bir-birining ismini/javobini egallamaydi.
+  try {
+    let key = sessionStorage.getItem('upcourse_live_guest_key');
+    if (!key) {
+      const random = globalThis.crypto?.randomUUID?.()
+        || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+      key = `guest-tab:${random}`;
+      sessionStorage.setItem('upcourse_live_guest_key', key);
+    }
+    return key;
+  } catch (error) {
+    // sessionStorage bloklangan bo'lsa tab ichidagi xotira bilan davom etamiz.
+    if (!transientGuestParticipantKey) {
+      transientGuestParticipantKey = `guest-tab:${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+    }
+    return transientGuestParticipantKey;
+  }
+}
+
 function liveParticipantKey(session) {
-  // Bir xil brauzerda turli akkauntlar qatnashsa ham har biri alohida
-  // qatnashchi bo'lib qoladi. Mehmonlarda avvalgi qurilma kaliti saqlanadi.
-  return session?.user?.id ? `account:${session.user.id}` : getDeviceKey();
+  // Akkauntlarda identity akkauntga, mehmonlarda esa joriy tabga bog'liq.
+  return session?.user?.id ? `account:${session.user.id}` : getLiveGuestParticipantKey();
 }
 
 async function findOrClaimLiveParticipant(roomId, session, preferredKey = null) {
@@ -391,27 +414,8 @@ async function findOrClaimLiveParticipant(roomId, session, preferredKey = null) 
   const participantKey = session?.user?.id
     ? liveParticipantKey(session)
     : (preferredKey || liveParticipantKey(session));
-  let existing = await sbFindParticipantByDevice(roomId, participantKey);
+  const existing = await sbFindParticipantByDevice(roomId, participantKey);
   if (existing) return { participant: existing, participantKey };
-
-  // Eski build umumiy device_key yozgan bo'lsa, shu qatorni shartli va
-  // atomar tarzda bir akkauntga ko'chiramiz. Keyingi akkaunt o'z qatorini oladi.
-  if (session?.user?.id) {
-    const legacyKey = getDeviceKey();
-    if (legacyKey !== participantKey) {
-      const legacy = await sbFindParticipantByDevice(roomId, legacyKey);
-      if (legacy) {
-        try {
-          const claimed = await sbClaimLiveParticipantDevice(roomId, legacy.id, legacyKey, participantKey);
-          if (claimed) return { participant: claimed, participantKey };
-        } catch (error) {
-          // Claim ruxsat etilmasa, yangi akkaunt kaliti bilan alohida qator ochamiz.
-        }
-        existing = await sbFindParticipantByDevice(roomId, participantKey);
-        if (existing) return { participant: existing, participantKey };
-      }
-    }
-  }
   return { participant: null, participantKey };
 }
 
@@ -1590,11 +1594,14 @@ function LiveJoinForm({ initialCode, onJoined, onBack, session }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const joiningRef = useRef(false);
 
   async function join() {
+    if (joiningRef.current) return;
     const c = code.trim().toUpperCase();
     const n = name.trim();
     if (!c || !n) return;
+    joiningRef.current = true;
     setBusy(true);
     setErr(null);
     try {
@@ -1617,6 +1624,7 @@ function LiveJoinForm({ initialCode, onJoined, onBack, session }) {
     } catch (e) {
       setErr('Qoʻshilishda xatolik yuz berdi.');
     } finally {
+      joiningRef.current = false;
       setBusy(false);
     }
   }

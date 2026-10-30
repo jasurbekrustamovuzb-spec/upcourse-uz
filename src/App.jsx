@@ -680,20 +680,6 @@ export async function sbFindParticipantByDevice(roomId, deviceKey) {
   const rows = await sbRequest(`live_participants?select=*&room_id=eq.${encodeURIComponent(roomId)}&device_key=eq.${encodeURIComponent(deviceKey)}`);
   return rows.length ? liveParticipantFromRow(rows[0]) : null;
 }
-/* Eski jonli testlarda bir qurilma kaliti bir nechta akkauntga umumiy
-   bo'lib qolgan bo'lishi mumkin. Kalitni faqat qator hanuz eski kalitga
-   teng bo'lsa almashtiramiz: parallel qo'shilishlarda bir akkauntning
-   boshqa akkaunt qatorini egallab olishini oldini oladi. */
-export async function sbClaimLiveParticipantDevice(roomId, participantId, oldDeviceKey, newDeviceKey) {
-  const filter = `id=eq.${encodeURIComponent(participantId)}&room_id=eq.${encodeURIComponent(roomId)}&device_key=eq.${encodeURIComponent(oldDeviceKey)}`;
-  const rows = await sbRequest(`live_participants?${filter}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({ device_key: newDeviceKey }),
-  });
-  return rows?.[0] ? liveParticipantFromRow(rows[0]) : null;
-}
-
 /* Jonli test xonasini kuzatish — WebSocket (Realtime) orqali.
    Oldin: har bir qurilma xona holatini "so'rab turardi" (REST so'rov,
    har 1.5-3 soniyada). Endi: server o'zgarishni o'zi "itarib" yuboradi,
