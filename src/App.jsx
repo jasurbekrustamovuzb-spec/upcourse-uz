@@ -314,7 +314,10 @@ const POSITION_KEY = 'upcourse_last_position';
 function readPosition() {
   try {
     const raw = sessionStorage.getItem(POSITION_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const position = raw ? JSON.parse(raw) : {};
+    if (position?.testlar?.live?.code) return position;
+    const live = localStorage.getItem('upcourse_live_session');
+    return live ? { ...position, testlar: { ...(position.testlar || {}), live: JSON.parse(live) } } : position;
   } catch (e) {
     return {};
   }
@@ -326,7 +329,12 @@ function readPosition() {
 export function writePosition(patch) {
   try {
     const current = readPosition();
-    sessionStorage.setItem(POSITION_KEY, JSON.stringify({ ...current, ...patch }));
+    const next = { ...current, ...patch };
+    sessionStorage.setItem(POSITION_KEY, JSON.stringify(next));
+    if (Object.prototype.hasOwnProperty.call(patch.testlar || {}, 'live')) {
+      if (patch.testlar.live?.code) localStorage.setItem('upcourse_live_session', JSON.stringify(patch.testlar.live));
+      else localStorage.removeItem('upcourse_live_session');
+    }
   } catch (e) { /* xotira yo'q yoki to'lgan bo'lsa e'tiborsiz qoldiriladi */ }
 }
 
@@ -625,7 +633,7 @@ export function getDeviceKey() {
 }
 export const liveRoomFromRow = (r) => ({
   id: r.id, code: r.code, testId: r.test_id, hostId: r.host_id, hostName: r.host_name || '',
-  status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, createdAt: r.created_at,
+  status: r.status, durationSeconds: r.duration_seconds, startsAt: r.starts_at, scheduledAt: r.scheduled_at || null, createdAt: r.created_at,
   mode: r.mode || 'free', perQuestionSeconds: r.per_question_seconds || 20, phase: r.phase || 'lobby',
   currentIndex: r.current_index || 0, phaseStartedAt: r.phase_started_at, questionOrder: r.question_order || null,
 });
@@ -637,6 +645,19 @@ export async function sbFindRoomByCode(code) {
 export async function sbGetRoom(id) {
   const rows = await sbRequest(`live_rooms?select=*&id=eq.${encodeURIComponent(id)}`);
   return rows.length ? liveRoomFromRow(rows[0]) : null;
+}
+export async function startScheduledLiveRoom(room) {
+  if (!room?.scheduledAt || room.status !== 'waiting' || new Date(room.scheduledAt).getTime() > Date.now()) return null;
+  const now = new Date().toISOString();
+  const filter = `id=eq.${encodeURIComponent(room.id)}&status=eq.waiting&scheduled_at=lte.${encodeURIComponent(now)}`;
+  const patch = {
+    status: 'active', starts_at: now, scheduled_at: null,
+    ...(room.mode === 'sync' ? { phase: 'question', current_index: 0, phase_started_at: now } : {}),
+  };
+  const rows = await sbRequest(`live_rooms?${filter}`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch),
+  });
+  return rows?.[0] ? liveRoomFromRow(rows[0]) : null;
 }
 export async function sbSelectParticipants(roomId) {
   const rows = await sbRequest(`live_participants?select=*&room_id=eq.${encodeURIComponent(roomId)}&order=joined_at.asc`);
@@ -752,14 +773,15 @@ export async function advanceSyncPhase(room, totalQuestions) {
       const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.question&current_index=eq.${room.currentIndex}`;
       const rows = await sbRequest(`live_rooms?${filter}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ phase: 'intermission' }),
+        body: JSON.stringify({ phase: 'intermission', phase_started_at: new Date().toISOString() }),
       });
       return rows && rows[0] ? liveRoomFromRow(rows[0]) : null;
     }
     if (room.phase === 'intermission') {
       const nextIndex = Math.min(room.currentIndex + 1, totalQuestions);
       const isLast = room.currentIndex >= totalQuestions - 1 || nextIndex >= totalQuestions;
-      const patch = isLast ? { phase: 'finished', status: 'finished' } : { phase: 'question', current_index: nextIndex };
+      const now = new Date().toISOString();
+      const patch = isLast ? { phase: 'finished', status: 'finished' } : { phase: 'question', current_index: nextIndex, phase_started_at: now };
       const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.intermission&current_index=eq.${room.currentIndex}`;
       const rows = await sbRequest(`live_rooms?${filter}`, {
         method: 'PATCH', headers: { Prefer: 'return=representation' },
@@ -805,7 +827,7 @@ const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { version: 3, immediate: true, autoScroll: true, autoAdvanceSeconds: 2, adaptiveFeedback: false, viewMode: 'list', shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 4, immediate: true, autoScroll: true, autoAdvanceSeconds: 2, adaptiveFeedback: false, viewMode: 'list', fontScale: 1, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 export const profileFromRow = (r) => {
   const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
@@ -818,6 +840,11 @@ export const profileFromRow = (r) => {
     if (testPrefs.autoScroll === false) testPrefs.autoScroll = true;
     if (typeof testPrefs.adaptiveFeedback !== 'boolean') testPrefs.adaptiveFeedback = false;
     testPrefs.version = 3;
+  }
+  if (testPrefs && Number(testPrefs.version || 0) < 4) {
+    const fontScale = Number(testPrefs.fontScale);
+    testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.9, Math.min(1.3, fontScale)) : 1;
+    testPrefs.version = 4;
   }
   return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
 };
@@ -2913,6 +2940,7 @@ export default function App() {
   const adminContentLoadedRef = useRef(false);
   const contentOwnerRef = useRef(null);
   const activeUserIdRef = useRef(null);
+  const testPrefsStoreRef = useRef({ userId: null, prefs: null, queue: Promise.resolve(), hydrated: false });
 
   const isAdmin = !!profile?.isAdmin;
   const nav = useNavStack();
@@ -3010,6 +3038,19 @@ export default function App() {
     try { localStorage.setItem('upcourse-theme', theme); } catch {}
   }, [theme]);
 
+  useEffect(() => {
+    if (profile?.id !== session?.user?.id) return;
+    if (profile?.testPrefs?.theme === 'dark' || profile?.testPrefs?.theme === 'light') {
+      setTheme(profile.testPrefs.theme);
+    }
+  }, [profile?.id, profile?.testPrefs?.theme, session?.user?.id]);
+
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    if (session?.user?.id && profile?.id === session.user.id) saveTestPrefs({ theme: next });
+  }
+
   /* Google orqali kirish holatini kuzatish va profil qatorini yuklash.
      Ommaviy bosh sahifa so‘rovlari auth holatidan mustaqil; auth kelganda
      katta kurs/test ro‘yxatlarini qayta so‘ramaymiz. */
@@ -3021,13 +3062,25 @@ export default function App() {
       lastLoadedUid = uid;
       try {
         const rows = await sbSelect('profiles', `id=eq.${uid}`);
-        if (!cancelled) {
+        if (!cancelled && activeUserIdRef.current === uid) {
           const nextProfile = rows[0] ? profileFromRow(rows[0]) : null;
+          if (testPrefsStoreRef.current.userId !== uid || !testPrefsStoreRef.current.hydrated) {
+            const sameUser = testPrefsStoreRef.current.userId === uid;
+            testPrefsStoreRef.current = {
+              userId: uid,
+              prefs: { ...DEFAULT_TEST_PREFS, ...(nextProfile?.testPrefs || {}) },
+              queue: sameUser ? testPrefsStoreRef.current.queue : Promise.resolve(),
+              hydrated: true,
+            };
+          }
           if (nextProfile?.username) setAuthorUsernameCache(uid, nextProfile.username);
           setProfile(nextProfile);
         }
       } catch (e) {
-        if (!cancelled) setProfile(null);
+        if (!cancelled && activeUserIdRef.current === uid) {
+          setProfile(null);
+          testPrefsStoreRef.current = { userId: uid, prefs: null, queue: Promise.resolve(), hydrated: false };
+        }
         lastLoadedUid = null; // xatolik bo'lsa keyinroq qayta urinib ko'rish imkoni qolsin
       }
     }
@@ -3048,6 +3101,7 @@ export default function App() {
         await loadProfile(newSession.user.id);
       } else {
         setProfile(null);
+        testPrefsStoreRef.current = { userId: null, prefs: null, queue: Promise.resolve(), hydrated: false };
         lastLoadedUid = null;
       }
       if (!cancelled) setAuthLoading(false);
@@ -3122,13 +3176,45 @@ export default function App() {
      duplicates upsert faqat berilgan ustunni yangilaydi). Jim tarzda
      ishlaydi — xatolik bo'lsa ham foydalanuvchi testni davom ettiraveradi,
      shunchaki keyingi safar qayta so'raladi. */
-  async function saveTestPrefs(prefs) {
-    if (!session) return;
-    try {
-      const nextPrefs = { ...prefs, version: 3, pausedTests: prefs.pausedTests ?? profile?.testPrefs?.pausedTests ?? [] };
-      await sbUpsert('profiles', { id: session.user.id, test_prefs: nextPrefs });
-      setProfile((prev) => (prev ? { ...prev, testPrefs: nextPrefs } : prev));
+  async function saveTestPrefs(patch) {
+    const userId = session?.user?.id;
+    if (!userId || !patch || typeof patch !== 'object') return false;
+
+    let store = testPrefsStoreRef.current;
+    if (store.userId !== userId) {
+      if (profile?.id !== userId) return false;
+      store = {
+        userId,
+        prefs: { ...DEFAULT_TEST_PREFS, ...(profile?.testPrefs || {}) },
+        queue: Promise.resolve(),
+        hydrated: true,
+      };
+      testPrefsStoreRef.current = store;
+    }
+    // If the profile read failed, do not replace saved account settings with defaults.
+    if (!store.hydrated) return false;
+
+    const basePrefs = store.prefs || profile?.testPrefs || DEFAULT_TEST_PREFS;
+    const nextPrefs = {
+      ...DEFAULT_TEST_PREFS,
+      ...basePrefs,
+      ...patch,
+      version: 4,
+      pausedTests: patch.pausedTests ?? basePrefs.pausedTests ?? [],
+    };
+    store.prefs = nextPrefs;
+    setProfile((prev) => prev?.id === userId ? { ...prev, testPrefs: nextPrefs } : prev);
+
+    // Serialize rapid setting changes so an earlier, slower request cannot
+    // finish last and overwrite a newer choice (or a pause snapshot).
+    const write = store.queue.catch(() => {}).then(async () => {
+      if (activeUserIdRef.current !== userId) return false;
+      await sbUpsert('profiles', { id: userId, test_prefs: nextPrefs });
       return true;
+    });
+    store.queue = write;
+    try {
+      return await write;
     } catch (e) {
       console.error('Test sozlamalarini saqlashda xatolik:', e);
       return false;
@@ -3138,18 +3224,24 @@ export default function App() {
   const pausedTests = Array.isArray(profile?.testPrefs?.pausedTests) ? profile.testPrefs.pausedTests : [];
   async function savePausedTest(snapshot) {
     if (!session?.user?.id || !snapshot?.testId) return false;
-    const next = [...pausedTests.filter((attempt) => attempt.testId !== snapshot.testId), snapshot].slice(-10);
-    return await saveTestPrefs({ ...(profile?.testPrefs || DEFAULT_TEST_PREFS), pausedTests: next });
+    const current = testPrefsStoreRef.current.userId === session.user.id ? testPrefsStoreRef.current.prefs : profile?.testPrefs;
+    const existing = Array.isArray(current?.pausedTests) ? current.pausedTests : pausedTests;
+    const next = [...existing.filter((attempt) => attempt.testId !== snapshot.testId), snapshot].slice(-10);
+    return await saveTestPrefs({ pausedTests: next });
   }
   async function clearPausedTest(testId) {
     if (!session?.user?.id || !testId) return false;
-    const next = pausedTests.filter((attempt) => attempt.testId !== testId);
-    return await saveTestPrefs({ ...(profile?.testPrefs || DEFAULT_TEST_PREFS), pausedTests: next });
+    const current = testPrefsStoreRef.current.userId === session.user.id ? testPrefsStoreRef.current.prefs : profile?.testPrefs;
+    const existing = Array.isArray(current?.pausedTests) ? current.pausedTests : pausedTests;
+    const next = existing.filter((attempt) => attempt.testId !== testId);
+    return await saveTestPrefs({ pausedTests: next });
   }
   async function setPausedTestHomeVisibility(testId, hiddenOnHome) {
     if (!session?.user?.id || !testId) return false;
-    const next = pausedTests.map((attempt) => attempt.testId === testId ? { ...attempt, hiddenOnHome: !!hiddenOnHome } : attempt);
-    return await saveTestPrefs({ ...(profile?.testPrefs || DEFAULT_TEST_PREFS), pausedTests: next });
+    const current = testPrefsStoreRef.current.userId === session.user.id ? testPrefsStoreRef.current.prefs : profile?.testPrefs;
+    const existing = Array.isArray(current?.pausedTests) ? current.pausedTests : pausedTests;
+    const next = existing.map((attempt) => attempt.testId === testId ? { ...attempt, hiddenOnHome: !!hiddenOnHome } : attempt);
+    return await saveTestPrefs({ pausedTests: next });
   }
   function resumePausedTest(attempt, finishOnResume = false) {
     setTestOpenRequest({ id: attempt.testId, resumeState: { ...attempt, finishOnResume }, requestId: ++testOpenRequestSeq.current });
@@ -3168,9 +3260,10 @@ export default function App() {
       pending = JSON.parse(sessionStorage.getItem('upcourse-pending-test-pause') || 'null');
     } catch {}
     if (!pending?.testId) return;
-    const current = Array.isArray(profile?.testPrefs?.pausedTests) ? profile.testPrefs.pausedTests : [];
+    const currentPrefs = testPrefsStoreRef.current.userId === session.user.id ? testPrefsStoreRef.current.prefs : profile?.testPrefs;
+    const current = Array.isArray(currentPrefs?.pausedTests) ? currentPrefs.pausedTests : [];
     const next = [...current.filter((attempt) => attempt.testId !== pending.testId), pending].slice(-10);
-    saveTestPrefs({ ...(profile?.testPrefs || DEFAULT_TEST_PREFS), pausedTests: next }).then((saved) => {
+    saveTestPrefs({ pausedTests: next }).then((saved) => {
       if (saved) { try { sessionStorage.removeItem('upcourse-pending-test-pause'); } catch {} }
     });
   }, [session?.user?.id, profile?.id]);
@@ -3179,6 +3272,7 @@ export default function App() {
     await sbSignOut();
     setSession(null);
     setProfile(null);
+    testPrefsStoreRef.current = { userId: null, prefs: null, queue: Promise.resolve(), hydrated: false };
     setTab('kurslar');
   }
 
@@ -3546,12 +3640,9 @@ export default function App() {
   }, [tab, authLoading, loading, isAdmin, session?.user?.id, loadNews, loadOwnPrivateContent, loadAppData]);
 
   /* Ulashilgan havola orqali kirilganda (?course=ID yoki ?test=ID),
-     lekin o'sha narsa "xususiy" bo'lgani uchun oddiy ro'yxatga
-     yuklanmagan bo'lsa — shu bitta elementni alohida, ID boʻyicha soʻrab
-     olamiz. Faqat "xususiy" yoki "tasdiqlangan" holatdagilar shu yoʻl
-     bilan koʻrsatiladi — hali tasdiqlanmagan (pending) begona kontent
-     bu orqali chetlab oʻtilmaydi. Faqat havola bilan kirganda ishga
-     tushadi — umumiy yuklanish tezligiga taʼsir qilmaydi. */
+     oddiy roʻyxatga kirmagan elementni alohida ID boʻyicha yuklaymiz.
+     Pending testlar faqat tizimga kirgan foydalanuvchiga havola orqali
+     ochiladi; bu soʻrov umumiy sahifa yuklanishiga qoʻshilmaydi. */
   useEffect(() => {
     if (loading || authLoading || !initialDeepLink) return;
     let cancelled = false;
@@ -3566,8 +3657,11 @@ export default function App() {
         } else if (initialDeepLink.type === 'test') {
           const rows = await sbSelect('tests', `id=eq.${initialDeepLink.value}`);
           const row = rows[0];
-          if (!cancelled && row && (row.status === 'private' || row.status === 'approved')) {
-            setTests((prev) => (prev.some((t) => t.id === row.id) ? prev : [...prev, testFromRow(row)]));
+          if (!cancelled && row && (row.status === 'private' || row.status === 'approved' || (session?.user?.id && row.status === 'pending'))) {
+            const linkedTest = testFromRow(row);
+            setTests((prev) => (prev.some((t) => t.id === row.id)
+              ? prev.map((test) => test.id === row.id ? { ...test, ...linkedTest } : test)
+              : [...prev, linkedTest]));
           }
         }
       } catch (e) {
@@ -3575,7 +3669,7 @@ export default function App() {
       }
     })();
     return () => { cancelled = true; };
-  }, [loading, authLoading, initialDeepLink]);
+  }, [loading, authLoading, initialDeepLink, session?.user?.id]);
 
   async function addCategory(data) {
     if (!isAdmin) { setActionError('Bu amal faqat administrator uchun.'); return false; }
@@ -3967,7 +4061,7 @@ export default function App() {
   return (
     <SectionLoadingProvider>
     <NavContext.Provider value={nav}>
-    <ThemeContext.Provider value={{ theme, toggleTheme: () => setTheme((current) => (current === 'dark' ? 'light' : 'dark')) }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
     <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
       <style>{`
         * { box-sizing: border-box; }
@@ -4107,7 +4201,7 @@ export default function App() {
               Biz haqimizda
             </button>
             <button
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              onClick={toggleTheme}
               className="nav-btn flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px]"
               style={{ ...fontBody, color: 'rgba(251,250,243,0.8)' }}
             >
@@ -4145,7 +4239,7 @@ export default function App() {
           </button>
           {!readingActive && (
             <button
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              onClick={toggleTheme}
               aria-label={theme === 'dark' ? 'Kunduzgi rejimga oʻtish' : 'Tungi rejimga oʻtish'}
               className="md:hidden w-8 h-8 flex items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 flex-shrink-0"
               style={{ border: `1px solid ${C.coverLine}`, color: C.goldSoft, outlineColor: C.gold }}
@@ -4369,6 +4463,7 @@ export default function App() {
     </SectionLoadingProvider>
   );
 }
+
 
 
 

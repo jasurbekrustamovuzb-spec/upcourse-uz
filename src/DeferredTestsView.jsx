@@ -15,7 +15,7 @@ function countAnsweredUnits(questions, answers) {
     return count + (answer === undefined ? 0 : 1);
   }, 0);
 }
-export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
+export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePrefs }) {
   const total = test.questions.length;
   const unitTotal = getQuestionCount(test.questions);
   const itemLabel = test.questions.some((question) => question.type === 'matching') ? `${unitTotal} ta moslik` : `${unitTotal} ta savol`;
@@ -30,9 +30,24 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
   const [count, setCount] = useState(Math.min(init.count || 5, total));
   const [partsTotal, setPartsTotal] = useState(init.partsTotal || 2);
   const [partIndex, setPartIndex] = useState(init.partIndex || 1);
+  const [fontScale] = useState(() => {
+    const value = Number(init.fontScale);
+    return Number.isFinite(value) && value > 0 ? Math.max(0.9, Math.min(1.3, value)) : 1;
+  });
+  const lastSavedSetupPrefsRef = useRef(null);
+
+  useEffect(() => {
+    if (!onSavePrefs) return;
+    const next = { immediate, autoScroll, autoAdvanceSeconds, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex };
+    const serialized = JSON.stringify(next);
+    if (lastSavedSetupPrefsRef.current === serialized) return;
+    const changed = lastSavedSetupPrefsRef.current !== null;
+    lastSavedSetupPrefsRef.current = serialized;
+    if (changed) onSavePrefs(next);
+  }, [onSavePrefs, immediate, autoScroll, autoAdvanceSeconds, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex]);
 
   function start() {
-    const cfg = { immediate, autoScroll, autoAdvanceSeconds, adaptiveFeedback, viewMode, shuffle, mode, count, partsTotal, partIndex };
+    const cfg = { immediate, autoScroll, autoAdvanceSeconds, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex };
     const questions = computeQuizQuestions(test, cfg);
     if (questions.length === 0) return;
     onStart({ ...cfg, questions });
@@ -72,7 +87,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig }) {
 
       <section className="mb-5 space-y-2" aria-label="Javob va o‘tish sozlamalari">
         <button type="button" role="switch" aria-checked={immediate} onClick={() => setImmediate((value) => !value)} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}>
-          <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin natijani ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>To‘g‘ri javob va xatoni shu zahoti ko‘rasiz.</span></span>
+          <span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin natijani ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Faqat variantli savollarda javobni darhol ko‘rsatadi.</span></span>
           <span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span>
         </button>
         <button type="button" role="switch" aria-checked={autoScroll} onClick={() => setAutoScroll((value) => !value)} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}>
@@ -167,7 +182,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const [answerNoticeTone, setAnswerNoticeTone] = useState('correct');
   const [visibleListCount, setVisibleListCount] = useState(() => Math.min(questions.length, 20));
   const [fontScale, setFontScale] = useState(() => {
-    try { return Math.max(0.95, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 1)); } catch { return 1; }
+    const saved = Number(config.fontScale);
+    if (Number.isFinite(saved) && saved > 0) return Math.max(0.9, Math.min(1.3, saved));
+    try { return Math.max(0.9, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 1)); } catch { return 1; }
   });
   const [revealed, setRevealed] = useState({});
   const [finished, setFinished] = useState(false);
@@ -308,9 +325,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   }
 
   function setQuizFontScale(value) {
-    const next = Math.max(0.95, Math.min(1.3, value));
+    const next = Math.max(0.9, Math.min(1.3, value));
     setFontScale(next);
     try { localStorage.setItem('upcourse-quiz-font-scale', String(next)); } catch {}
+    updatePlayerPrefs({ fontScale: next });
   }
 
   function goToQuestion(index) {
@@ -421,7 +439,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function createPauseSnapshot() {
     const { questions: _selectedQuestions, ...prefs } = config;
     const currentAnswers = answersRef.current;
-    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceSeconds: playerPrefs.autoAdvanceSeconds, adaptiveFeedback: playerPrefs.adaptiveFeedback, viewMode: playerPrefs.viewMode, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
+    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceSeconds: playerPrefs.autoAdvanceSeconds, adaptiveFeedback: playerPrefs.adaptiveFeedback, viewMode: playerPrefs.viewMode, fontScale, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
   }
 
   async function pauseAndExit() {
@@ -477,13 +495,6 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     const next = { ...answersRef.current, [qid]: text };
     answersRef.current = next;
     setAnswers(next);
-  }
-
-  function confirmOpenAnswer(qid) {
-    if (finished) return;
-    if (playerPrefs.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
-    const question = questions.find((item) => item.id === qid);
-    if (question) scheduleAutoAdvance(question, questions.findIndex((item) => item.id === qid), answersRef.current[qid]);
   }
 
   function finishTest(latestAnswers = answersRef.current) {
@@ -654,7 +665,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   const renderQuestionCard = (question, index, reel = false) => {
     const answer = answers[question.id];
-    const showResult = playerPrefs.immediate && !!revealed[question.id];
+    const showResult = playerPrefs.immediate && question.type !== 'open' && !!revealed[question.id];
     return (
       <article
         key={question.id}
@@ -701,9 +712,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         ) : question.type === 'open' ? (
           <div>
             {question.answerMode === 'math' ? (
-              <Suspense fallback={<div className="py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}><MathInput value={answer || ''} onChange={(value) => setOpenAnswer(question.id, value)} onBlur={() => confirmOpenAnswer(question.id)} disabled={showResult} placeholder="Javobingiz" scale={fontScale} /></Suspense>
+              <Suspense fallback={<div className="py-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javob maydoni…</div>}><MathInput value={answer || ''} onChange={(value) => setOpenAnswer(question.id, value)} disabled={finished} placeholder="Javobingiz" scale={fontScale} /></Suspense>
             ) : (
-              <input type="text" value={answer || ''} onChange={(event) => setOpenAnswer(question.id, event.target.value)} onBlur={() => confirmOpenAnswer(question.id)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} disabled={showResult} placeholder="Javobingizni kiriting" className="w-full min-h-12 rounded-xl px-4 py-2.5 outline-none" style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, fontSize: `${Math.round(17 * fontScale)}px` }} />
+              <input type="text" value={answer || ''} onChange={(event) => setOpenAnswer(question.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} disabled={finished} placeholder="Javobingizni kiriting" className="w-full min-h-12 rounded-xl px-4 py-2.5 outline-none" style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, fontSize: `${Math.round(17 * fontScale)}px` }} />
             )}
             {showResult && <div className="mt-2 flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm" style={{ ...fontBody, color: isQuestionCorrect(question, answer) ? C.accent : C.red, background: isQuestionCorrect(question, answer) ? C.successTint : C.dangerTint }}>
               {isQuestionCorrect(question, answer) ? <Check size={17} className="mt-0.5 shrink-0" /> : <X size={17} className="mt-0.5 shrink-0" />}<span>To‘g‘ri javob: {(question.answers || []).join(' yoki ') || 'Javob kaliti kiritilmagan'}</span>
@@ -871,7 +882,7 @@ export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, f
   function savePlayerPrefs(nextPrefs) {
     setLastConfig(nextPrefs);
     setConfig((current) => current ? { ...current, ...nextPrefs } : current);
-    onSavePrefs?.(nextPrefs);
+    return onSavePrefs?.(nextPrefs);
   }
 
   function handleReconfigure(nextPrefs) {
@@ -890,7 +901,7 @@ export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, f
   }
 
   if (!config) {
-    return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} />;
+    return <QuizSetupPanel test={test} onExit={onExit} onStart={handleStart} initialConfig={lastConfig} onSavePrefs={onSavePrefs} />;
   }
   return <QuizPlayer key={attemptKey} test={test} config={config} initialProgress={resumeProgress} onExit={onExit} onRestart={() => { onClearPaused?.(test.id); setResumeProgress(null); setConfig(null); }} onRetry={handleRetry} onNextTest={onNextTest} nextTest={nextTest} onSavePrefs={savePlayerPrefs} onReconfigure={handleReconfigure} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} />;
 }
@@ -904,12 +915,12 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
-  const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
+  const [liveOpen, setLiveOpen] = useState(Boolean(initialLiveCode || initialLiveSession));
   const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken));
   /* Jonli xona holati (xona ochgan/qo'shilgan bo'lsa) — LiveQuizHub
      shuni o'zgarganda xabar beradi, biz esa sessionStorage'ga yozamiz,
      shu tufayli refresh qilinganda xonaga qaytib kirish mumkin. */
-  const [liveSession, setLiveSession] = useState(null);
+  const [liveSession, setLiveSession] = useState(initialLiveSession || null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
@@ -980,7 +991,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
      o'chirilgan bo'lsa, "active" topilmay qoladi va sahifa oddiy
      ro'yxatga qaytadi — xatolik chiqmaydi. */
   useEffect(() => {
-    writePosition({ testlar: { openId: activeId, categoryId, live: liveOpen ? liveSession : null } });
+    writePosition({ testlar: { openId: activeId, categoryId, live: liveSession } });
   }, [activeId, categoryId, liveOpen, liveSession]);
 
 
@@ -1257,3 +1268,4 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   );
 }
 import { EditTestForm } from './DeferredTestForms.jsx';
+

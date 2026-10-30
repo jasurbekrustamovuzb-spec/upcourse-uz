@@ -7,7 +7,7 @@ import {
   MatchingTestQuestion, getQuestionCount, getQuestionScore,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
   sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants, sbFindParticipantByDevice,
-  sbInsert, sbUpdate, sbDelete, computeSyncScore,
+  sbInsert, sbUpdate, sbDelete, computeSyncScore, startScheduledLiveRoom,
   getDeviceKey, estimatedServerNow, advanceSyncPhase,
 } from './App';
 
@@ -568,20 +568,11 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
                   : currentQuestion.options?.[currentQuestion.correct] ?? ''
                 : currentQuestion.options?.[currentQuestion.correct] ?? '';
             const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
-            const myResult = myAnswers[currentQuestion.id];
-            const rawAnswer = myResult?.answer;
-            const myAnswerText = currentQuestion.type === 'open'
-              ? (typeof rawAnswer === 'string' && rawAnswer.trim() ? rawAnswer : 'Javob berilmadi')
-              : currentQuestion.type === 'matching'
-                ? (currentQuestion.pairs || []).map((pair, index) => `${index + 1}${rawAnswer?.[pair.id] === undefined ? '—' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[rawAnswer[pair.id]]}`).join(', ')
-                : currentQuestion.options?.[rawAnswer] ?? 'Javob berilmadi';
-            const isCorrect = !!myResult?.correct;
             return (
-              <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: isCorrect ? C.successTint : C.dangerTint, border: `1px solid ${isCorrect ? C.accent : C.red}`, color: C.ink }}>
-                <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: isCorrect ? C.accent : C.red }}>
-                  {isCorrect ? <Check size={18} /> : <X size={18} />} {isCorrect ? 'Toʻgʻri javob berdingiz' : 'Bu safar notoʻgʻri'}
+              <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.successTint, border: `1px solid ${C.accent}`, color: C.ink }}>
+                <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: C.accent }}>
+                  <Check size={18} /> Toʻgʻri javob
                 </div>
-                <div className="text-sm"><span style={{ color: C.inkSoft }}>Sizning javobingiz: </span>{myAnswerText}</div>
                 <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span><strong>{correctText || 'Javob kiritilmagan'}</strong></div>
                 <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{participants.length} ishtirokchi toʻgʻri topdi</div>
               </div>
@@ -611,24 +602,26 @@ function useLiveTestContent(testId, test, ensureTestContent) {
   useEffect(() => {
     let cancelled = false;
     const existingQuestions = test?.questions;
-    if (Array.isArray(existingQuestions)) {
-      setStatus(existingQuestions.length ? 'ready' : 'error');
+    if (Array.isArray(existingQuestions) && existingQuestions.length > 0) {
+      setStatus('ready');
       return undefined;
     }
-    if (!ensureTestContent) {
+    if (!ensureTestContent || !testId) {
       setStatus('error');
       return undefined;
     }
     setStatus('loading');
     Promise.resolve()
-      .then(() => ensureTestContent(testId))
+      // Metadata-only lists sometimes contain an empty placeholder array. Force
+      // one fresh read in that case, so a live room does not fail on stale data.
+      .then(() => ensureTestContent(testId, attempt > 0 || Array.isArray(existingQuestions)))
       .then((questions) => {
         if (!cancelled) setStatus(Array.isArray(questions) && questions.length ? 'ready' : 'error');
       })
       .catch(() => { if (!cancelled) setStatus('error'); });
     return () => { cancelled = true; };
   }, [testId, test?.questions, ensureTestContent, attempt]);
-  return { status, retry: () => setAttempt((count) => count + 1) };
+  return { status, retry: () => { setStatus('loading'); setAttempt((count) => count + 1); } };
 }
 
 function LiveContentLoadState({ status, retry, onExit }) {
@@ -653,6 +646,7 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
   const [duration, setDuration] = useState(300);
   const [liveMode, setLiveMode] = useState('sync');
   const [perQSeconds, setPerQSeconds] = useState(20);
+  const [scheduledLocal, setScheduledLocal] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -678,11 +672,17 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
       // Jonli xona uchun savollarning to'liq matni albatta kerak (tartibni
       // aralashtirish uchun) — hali yuklanmagan bo'lsa, shu yerda kutamiz.
       let questionsForOrder = selectedTest?.questions;
-      if (!Array.isArray(questionsForOrder) && ensureTestContent) {
-        questionsForOrder = await ensureTestContent(testId);
+      if ((!Array.isArray(questionsForOrder) || questionsForOrder.length === 0) && ensureTestContent) {
+        // Older catalog rows can carry [] as a placeholder even though the
+        // database has question content. Force a fetch for that stale value.
+        questionsForOrder = await ensureTestContent(testId, Array.isArray(questionsForOrder));
       }
       if (!Array.isArray(questionsForOrder) || questionsForOrder.length === 0) {
         throw new Error('Tanlangan testda jonli ishlash uchun savollar topilmadi. Testni ochib, savollari saqlanganini tekshiring.');
+      }
+      const scheduledAt = scheduledLocal ? new Date(scheduledLocal) : null;
+      if (scheduledAt && (!Number.isFinite(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now())) {
+        throw new Error('Boshlanish vaqti hozirgi vaqtdan keyin bo‘lishi kerak.');
       }
       const matchingPairs = (questionsForOrder || []).reduce((sum, question) => sum + (question.type === 'matching' ? getQuestionCount([question]) : 0), 0);
       const roomQuestionSeconds = matchingPairs ? Math.max(perQSeconds, Math.min(180, matchingPairs * 8)) : perQSeconds;
@@ -700,6 +700,7 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
         mode: liveMode, per_question_seconds: roomQuestionSeconds, phase: 'lobby', current_index: 0,
         question_order: liveMode === 'sync' && questionsForOrder ? shuffledIndices(questionsForOrder.length) : null,
       };
+      if (scheduledAt) row.scheduled_at = scheduledAt.toISOString();
       const [created] = await sbInsert('live_rooms', row);
       onCreated(liveRoomFromRow(created));
     } catch (e) {
@@ -825,6 +826,8 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
               <option value={60}>60 soniya</option>
               <option value={120}>120 soniya</option>
               <option value={180}>180 soniya</option>
+              <option value={240}>4 daqiqa</option>
+              <option value={300}>5 daqiqa</option>
             </select>
             <div className="text-xs -mt-2 mb-4" style={{ ...fontBody, color: C.inkSoft }}>Moslik topshiriqlarida juftliklar soniga qarab vaqt avtomatik uzaytiriladi.</div>
           </>
@@ -842,9 +845,25 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
               <option value={600}>10 daqiqa</option>
               <option value={900}>15 daqiqa</option>
               <option value={1200}>20 daqiqa</option>
+              <option value={1800}>30 daqiqa</option>
+              <option value={2700}>45 daqiqa</option>
+              <option value={3600}>1 soat</option>
+              <option value={5400}>1 soat 30 daqiqa</option>
+              <option value={7200}>2 soat</option>
             </select>
+            <div className="text-xs -mt-2 mb-4" style={{ ...fontBody, color: C.inkSoft }}>Vaqt test boshlanganda yuradi. Chiqib qaytsangiz ham shu muddat davom etadi.</div>
           </>
         )}
+        <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Boshlanish vaqti (ixtiyoriy)</label>
+        <input
+          type="datetime-local"
+          value={scheduledLocal}
+          min={(() => { const d = new Date(Date.now() + 60000); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })()}
+          onChange={(e) => setScheduledLocal(e.target.value)}
+          className="w-full mb-2 px-3 py-2.5 rounded-2xl text-[15px] outline-none"
+          style={{ ...fontBody, border: `1px solid ${C.rule}`, background: C.paperSoft, color: C.ink }}
+        />
+        <div className="text-xs mb-4" style={{ ...fontBody, color: C.inkSoft }}>Vaqt tanlasangiz, qatnashchilar oldindan kutish zaliga kiradi va belgilangan paytda test avtomatik boshlanadi.</div>
         {err && <div className="text-xs mb-3" style={{ ...fontBody, color: C.red }}>{err}</div>}
         <SolidButton onClick={create} icon={Users} disabled={busy || !testId}>{busy ? 'Yaratilmoqda...' : 'Xona yaratish'}</SolidButton>
       </div>
@@ -862,6 +881,18 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const finishingRef = useRef(false);
   const test = tests.find((t) => t.id === room.testId);
   const testContent = useLiveTestContent(room.testId, test, ensureTestContent);
+
+  useEffect(() => {
+    if (room.status !== 'waiting' || !room.scheduledAt) return undefined;
+    const checkStart = async () => {
+      const updated = await startScheduledLiveRoom(room);
+      if (updated) setRoom(updated);
+    };
+    checkStart();
+    const timer = setInterval(checkStart, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.id, room.status, room.scheduledAt]);
 
   useEffect(() => {
     if (room.mode === 'sync' || room.status !== 'active') return undefined;
@@ -902,6 +933,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
     setStarting(true);
     try {
       const patch = { status: 'active', starts_at: new Date().toISOString() };
+      if (room.scheduledAt) patch.scheduled_at = null;
       if (room.mode === 'sync') {
         patch.phase = 'question';
         patch.current_index = 0;
@@ -1018,6 +1050,11 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
           <ShareButton url={buildShareUrl({ live: room.code })} title="Jonli testga qoʻshiling" small />
         </div>
       </div>
+      {room.scheduledAt && room.status === 'waiting' && (
+        <div className="max-w-sm rounded-2xl p-3 mb-4 text-sm" style={{ ...fontBody, color: C.ink, background: C.liveTint, border: `1px solid ${C.rule}` }}>
+          Rejalashtirilgan start: <strong>{new Date(room.scheduledAt).toLocaleString()}</strong>. Belgilangan paytda xona avtomatik ochiladi.
+        </div>
+      )}
       <p className="text-[13px] mb-4 max-w-sm" style={{ ...fontBody, color: C.inkSoft }}>
         Havolani Telegram yoki boshqa ilovaga yuboring — bosgan odam toʻgʻridan-toʻgʻri shu xonaga tushadi, kod kiritish shart emas.
       </p>
@@ -1042,7 +1079,7 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
       </div>
       {testContent.status === 'error' && <LiveContentLoadState status={testContent.status} retry={testContent.retry} onExit={onExit} />}
       {testContent.status === 'loading' && <div className="mb-3"><SectionLoading label="Savollar tekshirilmoqda…" compact /></div>}
-      <SolidButton onClick={start} icon={Award} disabled={starting || participants.length === 0 || testContent.status !== 'ready'}>{starting ? 'Boshlanmoqda...' : 'Testni boshlash'}</SolidButton>
+      <SolidButton onClick={start} icon={Award} disabled={starting || participants.length === 0 || testContent.status !== 'ready'}>{starting ? 'Boshlanmoqda...' : room.scheduledAt ? 'Hozir boshlash' : 'Testni boshlash'}</SolidButton>
     </div>
   );
 }
@@ -1051,12 +1088,19 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
    Har bir savol serverdan kelgan vaqt bo'yicha hammada bir xil
    chiqadi; javob bergan zahoti ball hisoblanadi (tezroq — ko'proq). */
 function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
-  const [myAnswers, setMyAnswers] = useState({});
+  const draftKey = `upcourse_live_sync_drafts:${room.id}:${participant.id}`;
+  const [myAnswers, setMyAnswers] = useState(() => participant.answers || {});
   const [matchingDraft, setMatchingDraft] = useState({});
   const [openText, setOpenText] = useState('');
+  const [drafts, setDrafts] = useState(() => {
+    try { const stored = JSON.parse(localStorage.getItem(draftKey) || '{}'); return stored && typeof stored === 'object' ? stored : {}; }
+    catch (e) { return {}; }
+  });
   const [now, setNow] = useState(estimatedServerNow());
   const [participants, setParticipants] = useState([]);
   const scoreRef = useRef(participant.score || 0);
+  const draftsRef = useRef(drafts);
+  const matchingDraftRef = useRef(matchingDraft);
   const submittingRef = useRef(false);
   const advancingRef = useRef(false);
 
@@ -1067,6 +1111,38 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const INTERMISSION_SECONDS = 6;
   const REVEAL_SECONDS = 3; // birinchi 3s — to'g'ri/xato javob, keyingi 3s — reyting
   const totalQuestions = test.questions.length;
+
+  function saveDraft(questionId, patch) {
+    const next = { ...draftsRef.current, [questionId]: { ...(draftsRef.current[questionId] || {}), ...patch } };
+    draftsRef.current = next;
+    setDrafts(next);
+    try { localStorage.setItem(draftKey, JSON.stringify(next)); } catch (e) { /* qurilma xotirasi ixtiyoriy zaxira */ }
+  }
+
+  function clearDraft(questionId) {
+    const next = { ...draftsRef.current };
+    delete next[questionId];
+    draftsRef.current = next;
+    setDrafts(next);
+    try { if (Object.keys(next).length) localStorage.setItem(draftKey, JSON.stringify(next)); else localStorage.removeItem(draftKey); }
+    catch (e) { /* serverda javob saqlangan bo'lsa, mahalliy nusxa shart emas */ }
+  }
+
+  function changeOpenText(value) {
+    setOpenText(value);
+    if (currentQuestion) saveDraft(currentQuestion.id, { openText: value });
+  }
+
+  function changeMatchingDraft(pairId, optionIndex) {
+    if (!currentQuestion) return;
+    const qid = currentQuestion.id;
+    const next = { ...matchingDraftRef.current, [qid]: { ...(matchingDraftRef.current[qid] || {}) } };
+    if (optionIndex === undefined) delete next[qid][pairId];
+    else next[qid][pairId] = optionIndex;
+    matchingDraftRef.current = next;
+    setMatchingDraft(next);
+    saveDraft(qid, { matching: next[qid] });
+  }
 
   /* Taymer endi serverda yozilgan haqiqiy boshlanish vaqtidan
      (room.phaseStartedAt) hisoblanadi — tuzuvchi ekranidagi bilan bir xil. */
@@ -1107,8 +1183,16 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   }, []);
 
   useEffect(() => {
-    setOpenText('');
-  }, [room.currentIndex]);
+    if (!currentQuestion) return;
+    const qid = currentQuestion.id;
+    const saved = myAnswers[qid]?.answer;
+    const draft = draftsRef.current[qid] || {};
+    setOpenText(typeof saved === 'string' ? saved : typeof draft.openText === 'string' ? draft.openText : '');
+    const matching = saved && typeof saved === 'object' ? saved : draft.matching || matchingDraftRef.current[qid] || {};
+    const next = { ...matchingDraftRef.current, [qid]: matching };
+    matchingDraftRef.current = next;
+    setMatchingDraft(next);
+  }, [room.currentIndex, currentQuestion?.id]);
 
   async function submitAnswer(answerValue) {
     if (!currentQuestion || submittingRef.current) return;
@@ -1126,6 +1210,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
       const newScore = scoreRef.current + points;
       scoreRef.current = newScore;
       await sbUpdate('live_participants', participant.id, { score: newScore, total: getQuestionCount(test.questions), answers: newAnswers });
+      clearDraft(currentQuestion.id);
     } catch (e) { /* keyingi savolda qayta urinish mumkin */ }
     submittingRef.current = false;
   }
@@ -1190,22 +1275,17 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
               <MatchingTestQuestion
                 question={currentQuestion}
                 answer={matchingDraft[currentQuestion.id] || {}}
-                onChange={(pairId, optionIndex) => setMatchingDraft((prev) => {
-                  const next = { ...prev, [currentQuestion.id]: { ...(prev[currentQuestion.id] || {}) } };
-                  if (optionIndex === undefined) delete next[currentQuestion.id][pairId];
-                  else next[currentQuestion.id][pairId] = optionIndex;
-                  return next;
-                })}
+                onChange={changeMatchingDraft}
                 accent="live"
               />
               <div className="mt-4"><SolidButton onClick={() => submitAnswer(matchingDraft[currentQuestion.id] || {})} icon={Check} disabled={(currentQuestion.pairs || []).some((pair) => matchingDraft[currentQuestion.id]?.[pair.id] === undefined)}>Javoblarni yuborish</SolidButton></div>
             </>
           ) : currentQuestion.type === 'open' ? (
             <div className="flex items-center gap-2">
-              {currentQuestion.answerMode === 'math' ? <div className="min-w-0 flex-1"><Suspense fallback={<div className="py-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Formula maydoni…</div>}><MathInput value={openText} onChange={setOpenText} disabled={hasAnswered} placeholder="Javobingizni formulada kiriting" /></Suspense></div> : <input
+              {currentQuestion.answerMode === 'math' ? <div className="min-w-0 flex-1"><Suspense fallback={<div className="py-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Formula maydoni…</div>}><MathInput value={openText} onChange={changeOpenText} disabled={hasAnswered} placeholder="Javobingizni formulada kiriting" /></Suspense></div> : <input
                 type="text"
                 value={openText}
-                onChange={(e) => setOpenText(e.target.value)}
+                onChange={(e) => changeOpenText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && openText.trim()) submitAnswer(openText); }}
                 placeholder="Javobingizni yozing"
                 className="flex-1 min-w-0 px-4 py-2.5 rounded-2xl text-[15px] outline-none"
@@ -1223,7 +1303,9 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
                   style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink, outlineColor: C.live }}
                 >
                   <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                  {!currentQuestion.pdfSourceImageOnly && <span>{opt}</span>}
+                  {!currentQuestion.pdfSourceImageOnly && (currentQuestion.optionsAreMath
+                    ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense>
+                    : <span>{opt}</span>)}
                 </button>
               ))}
               {!Array.isArray(currentQuestion.options) || currentQuestion.options.length === 0 ? <div className="text-sm" style={{ ...fontBody, color: C.red }}>Bu savolning javob variantlari topilmadi.</div> : null}
@@ -1265,8 +1347,8 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
                 <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: wasCorrect ? C.accent : C.red }}>
                   {wasCorrect ? <Check size={18} /> : <X size={18} />} {wasCorrect ? 'Toʻgʻri javob!' : hasMatchingCredit ? 'Qisman toʻgʻri' : 'Xato javob'}
                 </div>
-                <div className="text-sm"><span style={{ color: C.inkSoft }}>Sizning javobingiz: </span>{myAnswerText}</div>
-                <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span><strong>{correctText || 'Javob kiritilmagan'}</strong></div>
+                <div className="text-sm"><span style={{ color: C.inkSoft }}>Sizning javobingiz: </span>{currentQuestion.type === 'open' && currentQuestion.answerMode === 'math' && myAnswerText !== 'Javob berilmadi' ? <Suspense fallback={<span>{myAnswerText}</span>}><MathInput value={myAnswerText} readOnly compact /></Suspense> : myAnswerText}</div>
+                <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span>{currentQuestion.type === 'open' && currentQuestion.answerMode === 'math' && correctText ? <Suspense fallback={<strong>{correctText}</strong>}><MathInput value={correctText} readOnly compact /></Suspense> : currentQuestion.optionsAreMath && currentQuestion.type !== 'matching' && correctText ? <Suspense fallback={<strong>{correctText}</strong>}><MathInput value={correctText} readOnly compact /></Suspense> : <strong>{correctText || 'Javob kiritilmagan'}</strong>}</div>
                 {myAnswer?.points > 0 && (
                   <div className="text-sm mt-2" style={{ ...fontMono, color: C.inkSoft }}>+{myAnswer.points} ball</div>
                 )}
@@ -1330,6 +1412,16 @@ function LiveJoinForm({ initialCode, onJoined, onBack }) {
       if (!room) { setErr('Bunday kodli xona topilmadi.'); setBusy(false); return; }
       if (room.status === 'finished') { setErr('Bu test allaqachon yakunlangan.'); setBusy(false); return; }
       const deviceKey = getDeviceKey();
+      const existing = await sbFindParticipantByDevice(room.id, deviceKey);
+      if (existing) {
+        let restored = existing;
+        if (existing.name !== n) {
+          const [updated] = await sbUpdate('live_participants', existing.id, { name: n });
+          if (updated) restored = liveParticipantFromRow(updated);
+        }
+        onJoined(room, restored);
+        return;
+      }
       const row = { room_id: room.id, name: n, device_key: deviceKey };
       const [created] = await sbInsert('live_participants', row);
       onJoined(room, liveParticipantFromRow(created));
@@ -1355,11 +1447,21 @@ function LiveJoinForm({ initialCode, onJoined, onBack }) {
 }
 
 function LiveQuizPlayer({ room, test, participant, onDone }) {
-  const [answers, setAnswers] = useState({});
-  const [submitted, setSubmitted] = useState(false);
+  const draftKey = `upcourse_live_answers:${room.id}:${participant.id}`;
+  const [answers, setAnswers] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(draftKey) || '{}');
+      return { ...(participant.answers || {}), ...(saved && typeof saved === 'object' ? saved : {}) };
+    } catch (e) { return participant.answers || {}; }
+  });
+  const answersRef = useRef(answers);
+  const [submitted, setSubmitted] = useState(Boolean(participant.submittedAt));
   const [confirmIncomplete, setConfirmIncomplete] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [remaining, setRemaining] = useState(9999);
   const submittingRef = useRef(false);
+  const persistTimerRef = useRef(null);
+  const persistChainRef = useRef(Promise.resolve());
 
   const roomStartMs = room.startsAt ? new Date(room.startsAt).getTime() : 0;
   const participantJoinMs = participant.joinedAt ? new Date(participant.joinedAt).getTime() : 0;
@@ -1376,18 +1478,46 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     .map((question, index) => isQuestionAnswered(question, answers[question.id]) ? null : index + 1)
     .filter((number) => number !== null);
 
+  function queueAnswerSave(nextAnswers) {
+    answersRef.current = nextAnswers;
+    setAnswers(nextAnswers);
+    try { localStorage.setItem(draftKey, JSON.stringify(nextAnswers)); } catch (e) { /* local zaxira ixtiyoriy */ }
+    clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      persistChainRef.current = persistChainRef.current.catch(() => {}).then(() =>
+        sbUpdate('live_participants', participant.id, { answers: nextAnswers })
+      ).catch(() => {});
+    }, 350);
+  }
+
+  useEffect(() => () => clearTimeout(persistTimerRef.current), []);
+
   async function submit(currentAnswers) {
-    if (submittingRef.current) return;
+    if (submittingRef.current || submitted) return;
     submittingRef.current = true;
     setSubmitted(true);
+    setSubmitError('');
+    answersRef.current = currentAnswers;
+    clearTimeout(persistTimerRef.current);
     const score = test.questions.reduce((s, q) => s + getQuestionScore(q, currentAnswers[q.id]), 0);
     try {
-      await sbUpdate('live_participants', participant.id, { score, total: getQuestionCount(test.questions), submitted_at: new Date().toISOString() });
+      persistChainRef.current = persistChainRef.current.catch(() => {}).then(() =>
+        sbUpdate('live_participants', participant.id, {
+          answers: currentAnswers, score, total: getQuestionCount(test.questions), submitted_at: new Date().toISOString(),
+        })
+      );
+      await persistChainRef.current;
+      try { localStorage.removeItem(draftKey); } catch (e) { /* ixtiyoriy zaxira */ }
       const latestParticipants = await sbSelectParticipants(room.id);
       if (latestParticipants.length > 0 && latestParticipants.every((p) => !!p.submittedAt)) {
         await sbUpdate('live_rooms', room.id, { status: 'finished' });
       }
-    } catch (e) { /* tarmoq uzilsa, xona egasining kuzatuvi natijani baribir yakunlaydi */ }
+    } catch (e) {
+      setSubmitted(false);
+      setSubmitError('Javoblarni saqlab bo‘lmadi. Internetni tekshirib, yana yuboring.');
+    } finally {
+      submittingRef.current = false;
+    }
   }
 
   useEffect(() => {
@@ -1410,22 +1540,20 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 
   function select(qid, idx) {
     if (submitted) return;
-    setAnswers((a) => ({ ...a, [qid]: idx }));
+    queueAnswerSave({ ...answersRef.current, [qid]: idx });
   }
 
   function setOpenAnswer(qid, text) {
     if (submitted) return;
-    setAnswers((a) => ({ ...a, [qid]: text }));
+    queueAnswerSave({ ...answersRef.current, [qid]: text });
   }
 
   function setMatchingAnswer(qid, pairId, optionIndex) {
     if (submitted) return;
-    setAnswers((prev) => {
-      const next = { ...prev, [qid]: { ...(prev[qid] || {}) } };
-      if (optionIndex === undefined) delete next[qid][pairId];
-      else next[qid][pairId] = optionIndex;
-      return next;
-    });
+    const next = { ...answersRef.current, [qid]: { ...(answersRef.current[qid] || {}) } };
+    if (optionIndex === undefined) delete next[qid][pairId];
+    else next[qid][pairId] = optionIndex;
+    queueAnswerSave(next);
   }
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, '0');
@@ -1437,6 +1565,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     return (
       <div>
         <SectionHeading eyebrow="Natijalar" title={`${score} / ${total} ball`} />
+        {submitError && <div role="alert" className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.red, background: C.dangerTint }}>{submitError}</div>}
         <div className="space-y-4 max-w-2xl mt-5">
           {test.questions.map((q, qi) => {
             const userAnswer = answers[q.id];
@@ -1535,6 +1664,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
         ))}
       </div>
       <div className="mt-8">
+        {submitError && <div role="alert" className="mb-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.red, background: C.dangerTint }}>{submitError}</div>}
         {unansweredNumbers.length > 0 && (
           <div className="mb-3 px-4 py-3 rounded-2xl text-sm" style={{ ...fontBody, color: C.red, background: C.dangerTint, border: `1px solid ${C.red}` }}>
             {unansweredNumbers.length} ta savol javobsiz: {unansweredNumbers.join(', ')}.
@@ -1564,11 +1694,40 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
   );
 }
 
-function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTestContent }) {
+function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionChange, ensureTestContent }) {
   const [phase, setPhase] = useState(room.status === 'waiting' ? 'waiting' : 'quiz');
   const [participants, setParticipants] = useState([]);
+  const [notificationPermission, setNotificationPermission] = useState(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
+  const previousStatusRef = useRef(room.status);
   const test = tests.find((t) => t.id === room.testId);
   const testContent = useLiveTestContent(room.testId, test, ensureTestContent);
+
+  useEffect(() => {
+    if (previousStatusRef.current === 'waiting' && room.status === 'active' && notificationPermission === 'granted') {
+      try {
+        new Notification('Jonli test boshlandi', { body: `${test?.title || 'Jonli test'} — qatnashishingiz mumkin.` });
+      } catch (e) { /* brauzer bildirishnomani ko'rsata olmasa, sahifa baribir davom etadi */ }
+    }
+    previousStatusRef.current = room.status;
+  }, [room.status, notificationPermission, test?.title]);
+
+  useEffect(() => {
+    if (room.status !== 'waiting' || !room.scheduledAt) return undefined;
+    const checkStart = async () => {
+      const updated = await startScheduledLiveRoom(room);
+      if (updated) setRoom(updated);
+    };
+    checkStart();
+    const timer = setInterval(checkStart, 5000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.id, room.status, room.scheduledAt]);
+
+  async function enableStartNotification() {
+    if (typeof Notification === 'undefined') return;
+    try { setNotificationPermission(await Notification.requestPermission()); }
+    catch (e) { setNotificationPermission('denied'); }
+  }
 
   useEffect(() => {
     /* MUHIM: "Hammaga bir xil" (sync) rejimida, savol boshlangach
@@ -1612,8 +1771,14 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
         <SectionHeading eyebrow="Xonadasiz" title={`Xona: ${room.code}`} />
         <div className="flex items-center gap-2 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>
           <Loader2 className="animate-spin" size={16} />
-          Boshqaruvchi testni boshlashini kuting...
+          {room.scheduledAt ? `Test ${new Date(room.scheduledAt).toLocaleString()} da boshlanadi.` : 'Boshqaruvchi testni boshlashini kuting...'}
         </div>
+        {room.scheduledAt && notificationPermission !== 'unsupported' && notificationPermission !== 'granted' && (
+          <button type="button" onClick={enableStartNotification} className="mt-4 rounded-xl px-4 py-2 text-sm" style={{ ...fontBody, color: C.ink, background: C.liveTint, border: `1px solid ${C.rule}` }}>
+            Boshlanganda bildirishnoma yuborilsin
+          </button>
+        )}
+        {room.scheduledAt && notificationPermission === 'granted' && <div className="mt-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Boshlanish haqida bildirishnoma yoqilgan.</div>}
       </div>
     );
   }
@@ -1627,7 +1792,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, ensureTest
     if (room.mode === 'sync') {
       return <LiveSyncPlayer room={room} setRoom={setRoom} test={test} participant={participant} onExit={onExit} />;
     }
-    return <LiveQuizPlayer room={room} test={test} participant={participant} onDone={() => setPhase('results')} />;
+    return <LiveQuizPlayer room={room} test={test} participant={participant} onDone={() => { if (onSessionChange) onSessionChange(null); setPhase('results'); }} />;
   }
 
   return (
@@ -1722,13 +1887,13 @@ function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests,
     return <LiveHostSetup tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); if (onSessionChange) onSessionChange({ role: 'host', code: r.code }); }} onBack={() => setMode(null)} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'host-lobby' && room) {
-    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); if (onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
+    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); if (room.status === 'finished' && onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'join-form') {
     return <LiveJoinForm initialCode={initialCode} onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); if (onSessionChange) onSessionChange({ role: 'participant', code: r.code }); }} onBack={() => setMode(null)} />;
   }
   if (mode === 'participant' && room && participant) {
-    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); if (onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
+    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); if (room.status === 'finished' && onSessionChange) onSessionChange(null); }} onSessionChange={onSessionChange} ensureTestContent={ensureTestContent} />;
   }
   return null;
 }
