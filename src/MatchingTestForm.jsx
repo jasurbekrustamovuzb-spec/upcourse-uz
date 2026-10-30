@@ -13,6 +13,7 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
     return rows.length ? rows : [{ left: '', right: '' }, { left: '', right: '' }];
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [newId, setNewId] = useState(null);
+  const submitLockRef = useRef(false);
   const [importMessage, setImportMessage] = useState('');
   const fileInput = useRef(null);
   function change(index, key, value) { setPairs(rows => rows.map((row, i) => i === index ? { ...row, [key]: value } : row)); }
@@ -56,7 +57,8 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
   }
   const valid = (initialTest || categoryName.trim()) && title.trim() && pairs.length >= 2 && pairs.every(p => p.left.trim() && p.right.trim());
   async function submit() {
-    if (!valid || busy) return;
+    if (!valid || submitLockRef.current) return;
+    submitLockRef.current = true;
     setBusy(true); setError('');
     const options = pairs.map(p => p.right.trim());
     const questions = [{ id: 'match-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), type: 'matching', text: '', options, pairs: pairs.map((p, i) => ({ id: p.id || 'pair-' + Date.now() + '-' + i, text: p.left.trim(), correct: i })) }];
@@ -69,7 +71,7 @@ export default function MatchingTestForm({ initialCategoryName = '', initialTest
         if (id) setNewId(id); else setError('Testni saqlashda xatolik yuz berdi. Qayta urinib koʻring.');
       }
     } catch { setError('Saqlashda xatolik yuz berdi. Qayta urinib koʻring.'); }
-    finally { setBusy(false); }
+    finally { submitLockRef.current = false; setBusy(false); }
   }
   if (newId) return <div className="mt-6 rounded-xl p-6 text-center" style={{ background: C.surface, border: '1px solid ' + C.accent }}>
     <Check size={22} style={{ color: C.accent }} className="mx-auto mb-2" /><div className="mb-1 text-base" style={{ ...fontBody, color: C.ink }}>Moslik testingiz saqlandi!</div>

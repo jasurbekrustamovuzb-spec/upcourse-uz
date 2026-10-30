@@ -971,12 +971,12 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
-  const [liveOpen, setLiveOpen] = useState(!!initialLiveCode);
+  const [liveOpen, setLiveOpen] = useState(Boolean(initialLiveCode || initialLiveSession));
   const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken));
   /* Jonli xona holati (xona ochgan/qo'shilgan bo'lsa) — LiveQuizHub
      shuni o'zgarganda xabar beradi, biz esa sessionStorage'ga yozamiz,
      shu tufayli refresh qilinganda xonaga qaytib kirish mumkin. */
-  const [liveSession, setLiveSession] = useState(null);
+  const [liveSession, setLiveSession] = useState(initialLiveSession || null);
   const { pushNav, back } = useContext(NavContext);
   const goCategory = (id) => { setCategoryId(id); pushNav(() => setCategoryId(null)); };
   /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
@@ -1047,7 +1047,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
      o'chirilgan bo'lsa, "active" topilmay qoladi va sahifa oddiy
      ro'yxatga qaytadi — xatolik chiqmaydi. */
   useEffect(() => {
-    writePosition({ testlar: { openId: activeId, categoryId, live: liveOpen ? liveSession : null } });
+    writePosition({ testlar: { openId: activeId, categoryId, live: liveSession } });
   }, [activeId, categoryId, liveOpen, liveSession]);
 
 

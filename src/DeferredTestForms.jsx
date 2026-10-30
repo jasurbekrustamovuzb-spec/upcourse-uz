@@ -268,6 +268,8 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
   const [questions, setQuestions] = useState([]);
   const [visibility, setVisibility] = useState('private');
   const [newId, setNewId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
   const [showPdfImport, setShowPdfImport] = useState(false);
 
   if (formMode === 'matching') {
@@ -299,14 +301,25 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
   const canSubmit = title.trim() && questions.length > 0 && (lockedCategoryId || categoryName.trim());
 
   async function submit() {
-    if (!canSubmit) return;
-    const payload = lockedCategoryId
-      ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions, visibility }
-      : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions, visibility };
-    const id = await onSubmit(payload);
-    if (id) setNewId(id);
+    if (!canSubmit || submitLockRef.current) return;
+    submitLockRef.current = true;
+    setSubmitting(true);
+    let created = false;
+    try {
+      const payload = lockedCategoryId
+        ? { categoryId: lockedCategoryId, title: title.trim(), description: '', questions, visibility }
+        : { categoryName: categoryName.trim(), title: title.trim(), description: '', questions, visibility };
+      const id = await onSubmit(payload);
+      if (id) { created = true; setNewId(id); }
+    } catch (error) {
+      console.error('Test yaratishda xatolik:', error);
+    } finally {
+      if (!created) {
+        submitLockRef.current = false;
+        setSubmitting(false);
+      }
+    }
   }
-
   return (
     <div className={formMode === 'math' ? "math-test-form mt-4 w-full min-w-0" : "mt-6 p-5 rounded-sm"} style={formMode === 'math' ? undefined : { background: C.surface, border: `1px solid ${C.rule}` }}>
       {formMode === 'txt' && (
@@ -334,7 +347,7 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
       <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
       <VisibilityToggle value={visibility} onChange={setVisibility} />
       <div className="flex gap-3">
-        <SolidButton onClick={submit} icon={Check} disabled={!canSubmit}>Yuborish</SolidButton>
+        <SolidButton onClick={submit} icon={Check} disabled={!canSubmit || submitting}>{submitting ? "Saqlanmoqda…" : "Yuborish"}</SolidButton>
         <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
       </div>
     </div>
