@@ -827,7 +827,7 @@ const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { version: 4, immediate: true, autoScroll: true, autoAdvanceSeconds: 2, adaptiveFeedback: false, viewMode: 'list', fontScale: 1, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 5, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 1.5, autoAdvanceWrongSeconds: 2, correctAnimation: 'pop', wrongAnimation: 'shake', adaptiveFeedback: false, viewMode: 'list', fontScale: 1, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 export const profileFromRow = (r) => {
   const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
@@ -845,6 +845,21 @@ export const profileFromRow = (r) => {
     const fontScale = Number(testPrefs.fontScale);
     testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.9, Math.min(1.3, fontScale)) : 1;
     testPrefs.version = 4;
+  }
+  if (testPrefs && Number(testPrefs.version || 0) < 5) {
+    const legacyDelay = Number(testPrefs.autoAdvanceSeconds);
+    const validDelays = [1, 1.5, 2, 3, 4, 5, 6, 8, 10];
+    const legacyCustomDelay = validDelays.includes(legacyDelay) && legacyDelay !== 2 ? legacyDelay : null;
+    testPrefs.autoAdvanceCorrectSeconds = validDelays.includes(Number(testPrefs.autoAdvanceCorrectSeconds)) ? Number(testPrefs.autoAdvanceCorrectSeconds) : (legacyCustomDelay ?? 1.5);
+    testPrefs.autoAdvanceWrongSeconds = validDelays.includes(Number(testPrefs.autoAdvanceWrongSeconds)) ? Number(testPrefs.autoAdvanceWrongSeconds) : (legacyCustomDelay ?? 2);
+    if (!['none', 'pop', 'glow', 'slide'].includes(testPrefs.correctAnimation)) testPrefs.correctAnimation = 'pop';
+    if (!['none', 'shake', 'nudge', 'flash'].includes(testPrefs.wrongAnimation)) testPrefs.wrongAnimation = 'shake';
+    testPrefs.mode = 'all';
+    testPrefs.count = 5;
+    testPrefs.partsTotal = 2;
+    testPrefs.partIndex = 1;
+    delete testPrefs.autoAdvanceSeconds;
+    testPrefs.version = 5;
   }
   return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
 };
@@ -3215,11 +3230,13 @@ export default function App() {
     if (!store.hydrated) return false;
 
     const basePrefs = store.prefs || profile?.testPrefs || DEFAULT_TEST_PREFS;
+    const { mode: _mode, count: _count, partsTotal: _partsTotal, partIndex: _partIndex, autoAdvanceSeconds: _legacyDelay, ...persistentPatch } = patch;
     const nextPrefs = {
       ...DEFAULT_TEST_PREFS,
       ...basePrefs,
-      ...patch,
-      version: 4,
+      ...persistentPatch,
+      mode: 'all', count: DEFAULT_TEST_PREFS.count, partsTotal: DEFAULT_TEST_PREFS.partsTotal, partIndex: DEFAULT_TEST_PREFS.partIndex,
+      version: 5,
       pausedTests: patch.pausedTests ?? basePrefs.pausedTests ?? [],
     };
     store.prefs = nextPrefs;
