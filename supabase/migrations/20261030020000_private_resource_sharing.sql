@@ -12,6 +12,11 @@ create table if not exists public.profile_shared_resources (
   constraint profile_shared_resources_unique unique (sender_id, recipient_id, resource_type, resource_id)
 );
 
+-- App-generated course and test IDs are text slugs/nano IDs, not always UUIDs.
+-- Keep old UUID-backed rows readable by converting their IDs to text.
+alter table public.profile_shared_resources
+  alter column resource_id type text using resource_id::text;
+
 create index if not exists profile_shared_resources_recipient_shared_idx
   on public.profile_shared_resources(recipient_id, shared_at desc);
 create index if not exists profile_shared_resources_recipient_saved_idx
@@ -21,9 +26,11 @@ create index if not exists profile_shared_resources_recipient_saved_idx
 alter table public.profile_shared_resources enable row level security;
 revoke all on table public.profile_shared_resources from anon, authenticated;
 
+drop function if exists public.profile_shared_resource_send(text, text, uuid[]);
+
 create or replace function public.profile_shared_resource_send(
   p_resource_type text,
-  p_resource_id uuid,
+  p_resource_id text,
   p_recipient_ids uuid[]
 )
 returns jsonb
@@ -59,7 +66,7 @@ begin
     select exists (
       select 1
       from public.courses c
-      where c.id = p_resource_id
+      where c.id::text = p_resource_id
         and (
           c.author_id = v_sender
           or (
@@ -82,7 +89,7 @@ begin
     select exists (
       select 1
       from public.tests t
-      where t.id = p_resource_id
+      where t.id::text = p_resource_id
         and (
           t.author_id = v_sender
           or (
@@ -183,8 +190,8 @@ begin
       ) as row_data
     from public.profile_shared_resources s
     join public.profiles sender on sender.id = s.sender_id
-    left join public.courses c on s.resource_type = 'course' and c.id = s.resource_id
-    left join public.tests t on s.resource_type = 'test' and t.id = s.resource_id
+    left join public.courses c on s.resource_type = 'course' and c.id::text = s.resource_id
+    left join public.tests t on s.resource_type = 'test' and t.id::text = s.resource_id
     where s.recipient_id = v_user
       and (coalesce(p_scope, 'all') <> 'saved' or s.saved_at is not null)
     order by s.shared_at desc
