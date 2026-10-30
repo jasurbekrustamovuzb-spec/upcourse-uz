@@ -33,7 +33,7 @@ set search_path = public, pg_temp
 as $$
 declare
   v_sender uuid := auth.uid();
-  v_status text;
+  v_owned boolean := false;
   v_recipients uuid[];
   v_followers bigint;
 begin
@@ -53,17 +53,57 @@ begin
     raise exception 'INVALID_RECIPIENT_COUNT';
   end if;
 
+  -- Also recognize legacy rows that the profile already identifies as owned
+  -- by matching the current username or exact display name.
   if p_resource_type = 'course' then
-    select status into v_status
-    from public.courses
-    where id = p_resource_id and author_id = v_sender;
+    select exists (
+      select 1
+      from public.courses c
+      where c.id = p_resource_id
+        and (
+          c.author_id = v_sender
+          or (
+            c.author_id is null
+            and exists (
+              select 1
+              from public.profiles p
+              where p.id = v_sender
+                and nullif(btrim(c.author), '') is not null
+                and lower(btrim(c.author)) in (
+                  lower(btrim(p.username)),
+                  lower('@' || btrim(p.username)),
+                  lower(btrim(concat_ws(' ', p.first_name, p.last_name)))
+                )
+            )
+          )
+        )
+    ) into v_owned;
   else
-    select status into v_status
-    from public.tests
-    where id = p_resource_id and author_id = v_sender;
+    select exists (
+      select 1
+      from public.tests t
+      where t.id = p_resource_id
+        and (
+          t.author_id = v_sender
+          or (
+            t.author_id is null
+            and exists (
+              select 1
+              from public.profiles p
+              where p.id = v_sender
+                and nullif(btrim(t.author), '') is not null
+                and lower(btrim(t.author)) in (
+                  lower(btrim(p.username)),
+                  lower('@' || btrim(p.username)),
+                  lower(btrim(concat_ws(' ', p.first_name, p.last_name)))
+                )
+            )
+          )
+        )
+    ) into v_owned;
   end if;
 
-  if v_status is null then
+  if not v_owned then
     raise exception 'RESOURCE_NOT_OWNED';
   end if;
 
@@ -185,3 +225,5 @@ revoke all on function public.profile_shared_resource_save(uuid, boolean) from p
 grant execute on function public.profile_shared_resource_send(text, uuid, uuid[]) to authenticated;
 grant execute on function public.profile_shared_resources_list(text, integer) to authenticated;
 grant execute on function public.profile_shared_resource_save(uuid, boolean) to authenticated;
+
+notify pgrst, 'reload schema';
