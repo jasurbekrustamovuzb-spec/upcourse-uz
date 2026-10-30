@@ -4408,6 +4408,14 @@ export default function App() {
                   pausedTests={pausedTests}
                   onResumePausedTest={resumePausedTest}
                   onPausedTestVisibilityChange={setPausedTestHomeVisibility}
+                  saveTestPrefs={saveTestPrefs}
+                  onPauseAttempt={savePausedTest}
+                  onClearPaused={clearPausedTest}
+                  onRequireAccount={requireAccountForPausedTest}
+                  onTestComplete={handleTestCompletion}
+                  onBadgeClaim={claimLearningBadge}
+                  badgeClaimBusy={learningBadgeBusy}
+                  badgeClaimError={learningBadgeError}
                   authLoading={authLoading}
                   onSaveProfile={saveProfile}
                   onSignOut={handleSignOut}
