@@ -1,8 +1,8 @@
 import { useState, useContext } from 'react';
-import { ArrowLeft, Award, CheckCircle2, ChevronRight, Clock3, Lock, Pencil, Plus, Share2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Award, CheckCircle2, ChevronRight, Clock3, Lock, Pencil, Plus, Share2, Trash2, Users } from 'lucide-react';
 import { AddCourseForm, AuthorLine, C, EditCourseForm, EmptyState, EntryNumber, GhostButton, ItemMenu, NavContext, PreviousItemsDisclosure, RenameCategoryModal, SectionHeading, SectionLoading, buildShareUrl, fontBody, fontDisplay, fontMono, shareItem } from './App.jsx';
 import { QuizView } from './DeferredTestsView.jsx';
-export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, updateCourse, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent }) {
+export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, updateCourse, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent, onShareToFollowers }) {
   const [categoryId, setCategoryId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [renaming, setRenaming] = useState(null);
@@ -159,6 +159,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
           <div className="flex items-center flex-shrink-0 gap-1" onClick={(event) => event.stopPropagation()}>
             <ItemMenu actions={[
               { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ course: c.id }), c.title) },
+              ...(isMine && onShareToFollowers ? [{ label: 'Kuzatuvchilarga yuborish', icon: Users, onClick: () => onShareToFollowers('course', c) }] : []),
               ...(updateCourse ? [{ label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(c.id) }] : []),
               ...(approveCourse && c.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveCourse(c.id, c.title) }] : []),
               ...(!isMine || c.status === 'pending' || c.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) }] : []),
@@ -195,7 +196,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
     </div>
   );
 }
-export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, updateTest, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent, session, effectivePrefs, onSavePrefs, onPauseAttempt, onClearPaused, onRequireAccount, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
+export function CommunityTestsView({ tests, categories, openId, setOpenId, onBack, submitTest, approveTest, deleteTest, updateTest, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', formMode, ensureTestContent, session, onShareToFollowers, effectivePrefs, onSavePrefs, onPauseAttempt, onClearPaused, onRequireAccount, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError }) {
   const [categoryId, setCategoryId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [renaming, setRenaming] = useState(null);
@@ -238,6 +239,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
           </div></div>
           <div className="flex flex-col items-end gap-2 flex-shrink-0"><ItemMenu actions={[
             { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
+            ...(isMine && onShareToFollowers ? [{ label: 'Kuzatuvchilarga yuborish', icon: Users, onClick: () => onShareToFollowers('test', t) }] : []),
             ...(updateTest ? [{ label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) }] : []),
             ...(approveTest && t.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
             ...(!isMine || t.status === 'pending' || t.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),

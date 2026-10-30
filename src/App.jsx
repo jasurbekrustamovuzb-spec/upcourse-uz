@@ -22,6 +22,8 @@ export const TeamBattleHub = lazy(() => import('./TeamBattle.jsx'));
 const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
 export const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
+const DeferredSharedResourcesPanel = lazy(() => import('./DeferredSharedResources.jsx').then((module) => ({ default: module.SharedResourcesPanel })));
+const DeferredFollowerShareDialog = lazy(() => import('./DeferredSharedResources.jsx').then((module) => ({ default: module.FollowerShareDialog })));
 export const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
 const CourseLinkedTestsView = lazy(() => import('./CourseLinkedTests.jsx'));
 const LearningTasksModal = lazy(() => import('./LearningTasks.jsx'));
@@ -1639,10 +1641,12 @@ export function SectionHeading({ eyebrow, title }) {
    Qurilmada Web Share qo'llab-quvvatlansa (mobil brauzerlarning
    aksariyati) — tizim ulashish oynasini ochadi (Telegram, WhatsApp va h.k.
    to'g'ridan-to'g'ri chiqadi). Aks holda havola clipboard'ga nusxalanadi. */
-export function ShareButton({ url, title, small }) {
+export function ShareButton({ url, title, small, onShareToFollowers }) {
   const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  async function share() {
+  async function shareExternal() {
+    setOpen(false);
     if (!url) return;
     if (navigator.share) {
       try {
@@ -1658,15 +1662,25 @@ export function ShareButton({ url, title, small }) {
   }
 
   return (
-    <button
-      onClick={share}
-      aria-label="Havolani ulashish"
-      className={`inline-flex items-center gap-1.5 rounded-full focus-visible:outline focus-visible:outline-2 ${small ? 'text-xs px-2.5 py-1.5' : 'text-[13px] px-3 py-1.5'}`}
-      style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-    >
-      <Share2 size={small ? 12 : 13} />
-      {copied ? 'Nusxalandi ✓' : 'Ulashish'}
-    </button>
+    <div className="relative inline-flex">
+      <button
+        type="button"
+        onClick={onShareToFollowers ? () => setOpen((value) => !value) : shareExternal}
+        aria-label="Havolani ulashish"
+        aria-expanded={onShareToFollowers ? open : undefined}
+        className={`inline-flex items-center gap-1.5 rounded-full focus-visible:outline focus-visible:outline-2 ${small ? 'text-xs px-2.5 py-1.5' : 'text-[13px] px-3 py-1.5'}`}
+        style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+      >
+        <Share2 size={small ? 12 : 13} />
+        {copied ? 'Nusxalandi ✓' : 'Ulashish'}
+      </button>
+      {open && onShareToFollowers && (
+        <div className="absolute right-0 top-full z-30 mt-2 min-w-48 overflow-hidden rounded-xl border p-1.5 shadow-xl" style={{ background: C.surface, borderColor: C.rule }}>
+          <button type="button" onClick={shareExternal} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm" style={{ ...fontBody, color: C.ink }}>Havolani ulashish</button>
+          <button type="button" onClick={() => { setOpen(false); onShareToFollowers(); }} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm" style={{ ...fontBody, color: C.ink }}>Kuzatuvchilarga yuborish</button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2008,7 +2022,7 @@ export function PinnedAddButton({ icon: Icon, label, onClick }) {
   );
 }
 
-function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, onRequireAccount, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete, pausedTests, onResumePausedTest, onPausedTestVisibilityChange }) {
+function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, onRequireAccount, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete, pausedTests, onResumePausedTest, onPausedTestVisibilityChange, onShareToFollowers }) {
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2141,7 +2155,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         <div className="flex items-start justify-between gap-3 mb-4">
           <h3 className="text-2xl sm:text-3xl min-w-0" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{active.title}</h3>
           <div className="flex-shrink-0 mt-1">
-            <ShareButton url={buildShareUrl({ course: active.id })} title={active.title} />
+            <ShareButton url={buildShareUrl({ course: active.id })} title={active.title} onShareToFollowers={isMine && onShareToFollowers ? () => onShareToFollowers('course', active) : undefined} />
           </div>
         </div>
         {active.content === undefined ? (
@@ -2710,7 +2724,7 @@ export function AddNewsForm({ onAdd, onDone }) {
   );
 }
 
-function NewsView({ news, isLoading }) {
+function NewsView({ news, isLoading, session, onOpenSharedResource }) {
   const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   return (
@@ -2734,6 +2748,7 @@ function NewsView({ news, isLoading }) {
           ))}
         </div>
       )}
+      {session?.user?.id && <Suspense fallback={<SectionLoading label="Ulashilganlar yuklanmoqda…" compact />}><DeferredSharedResourcesPanel session={session} scope="news" onOpenResource={onOpenSharedResource} /></Suspense>}
     </div>
   );
 }
@@ -2896,6 +2911,7 @@ export default function App() {
   const testsLoadRef = useRef({ generation: 0, loadedKey: null, requestKey: null, promise: null });
   const [news, setNews] = useState([]);
   const [newsLoading, setNewsLoading] = useState(false);
+  const [followerShareResource, setFollowerShareResource] = useState(null);
   const newsLoadRef = useRef({ loaded: false, promise: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -4136,6 +4152,19 @@ export default function App() {
     setTestOpenRequest((request) => request?.requestId === requestId ? null : request);
   }
 
+  function openSharedResource(type, resource) {
+    if (!resource?.id) return;
+    if (type === 'course') {
+      const item = { id: resource.id, categoryId: resource.category_id || null, title: resource.title || 'Mavzu', summary: resource.summary || '', content: resource.content || '', videoUrl: resource.video_url || '', author: resource.author || '', authorId: resource.author_id || null, status: resource.status || 'private', sharedWithMe: true };
+      setCourses((current) => [...current.filter((row) => row.id !== item.id), item]);
+      openFromProfile('kurslar', item.id);
+    } else {
+      const item = { id: resource.id, categoryId: resource.category_id || null, title: resource.title || 'Test', description: resource.description || '', questions: Array.isArray(resource.questions) ? resource.questions : [], author: resource.author || '', authorId: resource.author_id || null, status: resource.status || 'private', sharedWithMe: true, questionCount: Array.isArray(resource.questions) ? resource.questions.length : 0 };
+      setTests((current) => [...current.filter((row) => row.id !== item.id), item]);
+      openFromProfile('testlar', item.id);
+    }
+  }
+
   function openSearchProfile(username) {
     openPublicProfile(username, 'kurslar');
   }
@@ -4417,7 +4446,7 @@ export default function App() {
               {viewingUsername && (
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && <Suspense fallback={<SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
@@ -4463,6 +4492,8 @@ export default function App() {
                   onOpenAdmin={() => goTo('admin')}
                   onOpenProfile={openSearchProfile}
                   onOpenArena={() => goTo('arena')}
+                  onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })}
+                  onOpenSharedResource={openSharedResource}
                 /></Suspense>
               )}
               {!viewingUsername && tab === 'admin' && isAdmin && (
@@ -4490,7 +4521,7 @@ export default function App() {
                   />
                 </Suspense>
               )}
-              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} />}
+              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} session={session} onOpenSharedResource={openSharedResource} />}
               {!viewingUsername && tab === 'about' && <AboutView />}
               </RouteErrorBoundary>
             </PaperPanel>
@@ -4530,6 +4561,8 @@ export default function App() {
           })}
         </nav>
       )}
+
+      {followerShareResource && <Suspense fallback={null}><DeferredFollowerShareDialog resource={followerShareResource} session={session} onClose={() => setFollowerShareResource(null)} /></Suspense>}
 
       {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
         <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} />
