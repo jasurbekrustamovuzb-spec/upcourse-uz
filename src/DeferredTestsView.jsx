@@ -7,8 +7,104 @@ const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 const AUTO_ADVANCE_DELAYS = [1, 1.5, 2, 3, 4, 5, 6, 8, 10];
 const CORRECT_ANIMATION_OPTIONS = [{ id: 'pop', title: 'Yengil sakrash' }, { id: 'glow', title: 'Yorqin belgi' }, { id: 'slide', title: 'Silliq siljish' }, { id: 'none', title: 'Animatsiyasiz' }];
 const WRONG_ANIMATION_OPTIONS = [{ id: 'shake', title: 'Yengil tebranish' }, { id: 'nudge', title: 'Qisqa siljish' }, { id: 'flash', title: 'Yumshoq chaqnash' }, { id: 'none', title: 'Animatsiyasiz' }];
+const CELEBRATION_STYLE_OPTIONS = [{ id: 'mixed', title: 'Aralash bayram', symbol: '🎉' }, { id: 'confetti', title: 'Konfetti', symbol: '🎊' }, { id: 'stars', title: 'Yulduzlar', symbol: '✨' }, { id: 'badges', title: 'Nishonlar', symbol: '🏅' }, { id: 'none', title: 'O‘chiq', symbol: '○' }];
+const CORRECT_TRANSITION_OPTIONS = [{ id: 'shatter', title: 'Parchalanib uchish', symbol: '✦' }, { id: 'dissolve', title: 'Maydalanib erish', symbol: '✧' }, { id: 'fly', title: 'Yuqoriga uchish', symbol: '↗' }, { id: 'fade', title: 'Sekin so‘nish', symbol: '◌' }, { id: 'none', title: 'Oddiy o‘tish', symbol: '→' }];
+const WRONG_TRANSITION_OPTIONS = [{ id: 'fade', title: 'Sekin so‘nish', symbol: '◌' }, { id: 'slide', title: 'Yon tomonga', symbol: '↗' }, { id: 'shatter', title: 'Mayda bo‘laklar', symbol: '✧' }, { id: 'none', title: 'Oddiy o‘tish', symbol: '→' }];
+const CELEBRATION_SYMBOLS = {
+  confetti: ['🎉', '🎊', '✨', '✦', '🟡', '🟢', '🔷', '🎈'],
+  stars: ['✨', '⭐', '🌟', '✦', '💫', '✧'],
+  badges: ['🏅', '🏆', '🎖️', '⭐', '✨', '🥇'],
+};
 const normalizedDelay = (value, fallback) => AUTO_ADVANCE_DELAYS.includes(Number(value)) ? Number(value) : fallback;
 
+function makeCelebrationParticles(style) {
+  const variants = style === 'mixed' ? ['confetti', 'stars', 'badges'] : [style];
+  const selected = variants[Math.floor(Math.random() * variants.length)] || 'confetti';
+  const symbols = CELEBRATION_SYMBOLS[selected] || CELEBRATION_SYMBOLS.confetti;
+  return Array.from({ length: 20 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 20 + (Math.random() - 0.5) * 0.32;
+    const distance = 95 + Math.random() * 190;
+    return {
+      id: `${Date.now()}-${Math.random()}-${index}`,
+      symbol: symbols[Math.floor(Math.random() * symbols.length)],
+      x: `${Math.round(Math.cos(angle) * distance)}px`,
+      y: `${Math.round(Math.sin(angle) * distance - 24)}px`,
+      rotate: `${Math.round((Math.random() - 0.5) * 520)}deg`,
+      delay: `${Math.round(Math.random() * 140)}ms`,
+      duration: `${Math.round(650 + Math.random() * 450)}ms`,
+      size: `${18 + Math.round(Math.random() * 12)}px`,
+    };
+  });
+}
+
+function makeTransitionFragments(effect) {
+  if (!['shatter', 'dissolve'].includes(effect)) return [];
+  const colors = ['#c58a35', '#e5c78d', '#527d68', '#7c6bb1', '#d86e58', '#61a4a1'];
+  return Array.from({ length: effect === 'shatter' ? 14 : 18 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / (effect === 'shatter' ? 14 : 18) + (Math.random() - 0.5) * 0.45;
+    const distance = 70 + Math.random() * 190;
+    return {
+      id: `${Date.now()}-${Math.random()}-${index}`,
+      x: `${Math.round(Math.cos(angle) * distance)}px`,
+      y: `${Math.round(Math.sin(angle) * distance - 26)}px`,
+      rotate: `${Math.round((Math.random() - 0.5) * 600)}deg`,
+      delay: `${Math.round(Math.random() * 90)}ms`,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: `${10 + Math.round(Math.random() * 12)}px`,
+    };
+  });
+}
+
+function AnimationChoiceGroup({ label, description, value, options, onChange }) {
+  return (
+    <div>
+      <div className="mb-1 text-xs font-semibold" style={{ ...fontBody, color: C.ink }}>{label}</div>
+      {description && <p className="mb-2 text-[11px] leading-4" style={{ ...fontBody, color: C.inkSoft }}>{description}</p>}
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        {options.map((option) => {
+          const active = value === option.id;
+          return <button key={option.id} type="button" aria-pressed={active} onClick={() => onChange(option.id)} className="flex min-h-10 items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors" style={{ ...fontBody, color: C.ink, background: active ? C.goldSoft : C.paper, borderColor: active ? C.gold : C.rule }}>
+            <span aria-hidden="true" className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-base" style={{ background: active ? C.surface : C.paperSoft }}>{option.symbol || (option.id === 'none' ? '○' : '✦')}</span>
+            <span className="text-[11px] font-medium leading-tight">{option.title}</span>
+          </button>;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function QuizAnimationSettings({ open, onToggle, prefs, onChange }) {
+  return (
+    <section className="overflow-hidden rounded-xl border" style={{ background: C.surface, borderColor: C.rule }}>
+      <button type="button" aria-expanded={open} onClick={onToggle} className="flex w-full items-center justify-between gap-3 p-3 text-left" style={{ ...fontBody, color: C.ink }}>
+        <span className="flex items-center gap-2 text-sm font-medium"><Sparkles size={17} style={{ color: C.gold }} />Javob va o‘tish effektlari</span>
+        <ChevronDown size={17} style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 180ms ease' }} />
+      </button>
+      {open && <div className="space-y-4 border-t p-3" style={{ borderColor: C.rule }}>
+        <AnimationChoiceGroup label="To‘g‘ri javob belgisi" description="Javob to‘g‘ri bo‘lsa, tanlagan effekt ko‘rinadi." value={prefs.correctAnimation} options={CORRECT_ANIMATION_OPTIONS} onChange={(value) => onChange({ correctAnimation: value })} />
+        <AnimationChoiceGroup label="Rangli tabrik" description="To‘g‘ri javobda yulduzlar, konfetti yoki nishonlar sochiladi." value={prefs.celebrationStyle || 'mixed'} options={CELEBRATION_STYLE_OPTIONS} onChange={(value) => onChange({ celebrationStyle: value })} />
+        <AnimationChoiceGroup label="Xato javob belgisi" description="Xatoni muloyim ko‘rsatadi, savol matnini berkitmaydi." value={prefs.wrongAnimation} options={WRONG_ANIMATION_OPTIONS} onChange={(value) => onChange({ wrongAnimation: value })} />
+        <div className="space-y-3 rounded-lg border p-2.5" style={{ borderColor: C.rule, background: C.paperSoft }}>
+          <div><div className="text-xs font-semibold" style={{ ...fontBody, color: C.ink }}>Keyingi savolga o‘tish</div><p className="mt-0.5 text-[11px] leading-4" style={{ ...fontBody, color: C.inkSoft }}>Reels ko‘rinishida joriy savol tanlangan uslubda yo‘qoladi. Ro‘yxatda oldingi savollar joyida qoladi.</p></div>
+          <AnimationChoiceGroup label="To‘g‘ri javobdan keyin" value={prefs.correctTransition || 'shatter'} options={CORRECT_TRANSITION_OPTIONS} onChange={(value) => onChange({ correctTransition: value })} />
+          <AnimationChoiceGroup label="Xato javobdan keyin" value={prefs.wrongTransition || 'fade'} options={WRONG_TRANSITION_OPTIONS} onChange={(value) => onChange({ wrongTransition: value })} />
+        </div>
+      </div>}
+    </section>
+  );
+}
+
+function countAnsweredUnits(questions, answers) {
+  return questions.reduce((count, question) => {
+    const answer = answers?.[question.id];
+    if (question.type === 'matching') {
+      const pairs = question.pairs || [];
+      return count + (pairs.length ? pairs.filter((pair) => answer?.[pair.id] !== undefined).length : (answer === undefined ? 0 : 1));
+    }
+    if (question.type === 'open') return count + (typeof answer === 'string' && answer.trim() ? 1 : 0);
+    return count + (answer === undefined ? 0 : 1);
+  }, 0);
+}
 function countAnsweredUnits(questions, answers) {
   return questions.reduce((count, question) => {
     const answer = answers?.[question.id];
@@ -31,6 +127,9 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
   const [autoAdvanceWrongSeconds, setAutoAdvanceWrongSeconds] = useState(normalizedDelay(init.autoAdvanceWrongSeconds, 2));
   const [correctAnimation, setCorrectAnimation] = useState(CORRECT_ANIMATION_OPTIONS.some((option) => option.id === init.correctAnimation) ? init.correctAnimation : 'pop');
   const [wrongAnimation, setWrongAnimation] = useState(WRONG_ANIMATION_OPTIONS.some((option) => option.id === init.wrongAnimation) ? init.wrongAnimation : 'shake');
+  const [celebrationStyle, setCelebrationStyle] = useState(CELEBRATION_STYLE_OPTIONS.some((option) => option.id === init.celebrationStyle) ? init.celebrationStyle : 'mixed');
+  const [correctTransition, setCorrectTransition] = useState(CORRECT_TRANSITION_OPTIONS.some((option) => option.id === init.correctTransition) ? init.correctTransition : 'shatter');
+  const [wrongTransition, setWrongTransition] = useState(WRONG_TRANSITION_OPTIONS.some((option) => option.id === init.wrongTransition) ? init.wrongTransition : 'fade');
   const [animationsOpen, setAnimationsOpen] = useState(false);
   const [adaptiveFeedback, setAdaptiveFeedback] = useState(!!init.adaptiveFeedback);
   const [viewMode, setViewMode] = useState(init.viewMode === 'reels' ? 'reels' : 'list');
@@ -48,16 +147,16 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
 
   useEffect(() => {
     if (!onSavePrefs) return;
-    const next = { immediate, autoScroll, autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds, correctAnimation, wrongAnimation, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex };
+    const next = { immediate, autoScroll, autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds, correctAnimation, wrongAnimation, celebrationStyle, correctTransition, wrongTransition, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex };
     const serialized = JSON.stringify(next);
     if (lastSavedSetupPrefsRef.current === serialized) return;
     const changed = lastSavedSetupPrefsRef.current !== null;
     lastSavedSetupPrefsRef.current = serialized;
     if (changed) onSavePrefs(next);
-  }, [onSavePrefs, immediate, autoScroll, autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds, correctAnimation, wrongAnimation, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex]);
+  }, [onSavePrefs, immediate, autoScroll, autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds, correctAnimation, wrongAnimation, celebrationStyle, correctTransition, wrongTransition, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex]);
 
   function start() {
-    const cfg = { immediate, autoScroll, autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds, correctAnimation, wrongAnimation, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex };
+    const cfg = { immediate, autoScroll, autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds, correctAnimation, wrongAnimation, celebrationStyle, correctTransition, wrongTransition, adaptiveFeedback, viewMode, fontScale, shuffle, mode, count, partsTotal, partIndex };
     const questions = computeQuizQuestions(test, cfg);
     if (questions.length === 0) return;
     onStart({ ...cfg, questions });
@@ -114,12 +213,13 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
             {[['To‘g‘ri javob', autoAdvanceCorrectSeconds, setAutoAdvanceCorrectSeconds], ['Xato javob', autoAdvanceWrongSeconds, setAutoAdvanceWrongSeconds]].map(([label, value, setValue]) => <label key={label} className="min-w-0 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{label}<select value={value} onChange={(event) => setValue(Number(event.target.value))} className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label={`${label}dan keyin kutish`}>{AUTO_ADVANCE_DELAYS.map((seconds) => <option key={seconds} value={seconds}>{seconds} soniya</option>)}</select></label>)}
           </div>
         </section>}
-        <section className="overflow-hidden rounded-xl border" style={{ background: C.surface, borderColor: C.rule }}>
-          <button type="button" aria-expanded={animationsOpen} onClick={() => setAnimationsOpen((open) => !open)} className="flex w-full items-center justify-between gap-3 p-3 text-left" style={{ ...fontBody, color: C.ink }}><span className="flex items-center gap-2 text-sm font-medium"><Sparkles size={17} style={{ color: C.gold }} />Javob animatsiyalari</span><ChevronDown size={17} style={{ transform: animationsOpen ? 'rotate(180deg)' : undefined, transition: 'transform 180ms ease' }} /></button>
-          {animationsOpen && <div className="grid grid-cols-2 gap-2 border-t p-3" style={{ borderColor: C.rule }}>
-            {[['To‘g‘ri javob', correctAnimation, setCorrectAnimation, CORRECT_ANIMATION_OPTIONS], ['Xato javob', wrongAnimation, setWrongAnimation, WRONG_ANIMATION_OPTIONS]].map(([label, value, setValue, options]) => <label key={label} className="min-w-0 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{label}<select value={value} onChange={(event) => setValue(event.target.value)} className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" style={{ ...fontBody, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label={`${label} animatsiyasi`}>{options.map((option) => <option key={option.id} value={option.id}>{option.title}</option>)}</select></label>)}
-          </div>}
-        </section>
+        <QuizAnimationSettings open={animationsOpen} onToggle={() => setAnimationsOpen((open) => !open)} prefs={{ correctAnimation, wrongAnimation, celebrationStyle, correctTransition, wrongTransition }} onChange={(patch) => {
+          if (patch.correctAnimation) setCorrectAnimation(patch.correctAnimation);
+          if (patch.wrongAnimation) setWrongAnimation(patch.wrongAnimation);
+          if (patch.celebrationStyle) setCelebrationStyle(patch.celebrationStyle);
+          if (patch.correctTransition) setCorrectTransition(patch.correctTransition);
+          if (patch.wrongTransition) setWrongTransition(patch.wrongTransition);
+        }} />
         <div className="flex flex-wrap gap-2 pt-1"><SettingChip active={shuffle} onClick={() => setShuffle((value) => !value)}>Savollarni aralashtirish</SettingChip></div>
       </section>
 
@@ -209,6 +309,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     try { return Math.max(0.9, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 1)); } catch { return 1; }
   });
   const [revealed, setRevealed] = useState({});
+  const [celebrationParticles, setCelebrationParticles] = useState(null);
+  const [transitioningQuestion, setTransitioningQuestion] = useState(null);
   const [finished, setFinished] = useState(false);
   const finishedRef = useRef(false);
   const [showBadgeNotice, setShowBadgeNotice] = useState(false);
@@ -222,6 +324,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const questionRefs = useRef({});
   const resultSummaryRef = useRef(null);
   const autoScrollTimerRef = useRef(null);
+  const autoExitTimerRef = useRef(null);
+  const celebrationTimerRef = useRef(null);
   const noticeTimerRef = useRef(null);
   const feedbackOutcomesRef = useRef([]);
   const feedbackQuestionIdsRef = useRef(new Set());
@@ -240,6 +344,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function requestLeave() {
     setLeaveError('');
     clearTimeout(autoScrollTimerRef.current);
+    clearTimeout(autoExitTimerRef.current);
+    setTransitioningQuestion(null);
     autoAdvanceQuestionRef.current = null;
     setAutoAdvanceNotice('');
     if (questionMapOpen) { setQuestionMapOpen(false); return; }
@@ -287,7 +393,9 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   useEffect(() => {
     if (autoAdvanceQuestionRef.current !== null && currentQuestionIndex !== autoAdvanceQuestionRef.current) {
       clearTimeout(autoScrollTimerRef.current);
+      clearTimeout(autoExitTimerRef.current);
       clearTimeout(noticeTimerRef.current);
+      setTransitioningQuestion(null);
       autoAdvanceQuestionRef.current = null;
       setAutoAdvanceNotice('');
     }
@@ -311,7 +419,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     onExit();
   }
 
-  useEffect(() => () => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoFinishTimerRef.current); clearTimeout(noticeTimerRef.current); }, []);
+  useEffect(() => () => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoExitTimerRef.current); clearTimeout(celebrationTimerRef.current); clearTimeout(autoFinishTimerRef.current); clearTimeout(noticeTimerRef.current); }, []);
 
   useEffect(() => {
     if (finished) return;
@@ -335,6 +443,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   function updatePlayerPrefs(patch) {
     clearTimeout(autoScrollTimerRef.current);
+    clearTimeout(autoExitTimerRef.current);
+    setTransitioningQuestion(null);
     autoAdvanceQuestionRef.current = null;
     setAutoAdvanceNotice('');
     const next = { ...playerPrefs, ...patch };
@@ -347,6 +457,16 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     onSavePrefs?.(savedPrefs);
   }
 
+  function triggerCorrectCelebration(question, answer) {
+    clearTimeout(celebrationTimerRef.current);
+    if (!playerPrefs.immediate || question?.type === 'open' || !isQuestionCorrect(question, answer) || playerPrefs.celebrationStyle === 'none') {
+      setCelebrationParticles(null);
+      return;
+    }
+    setCelebrationParticles(makeCelebrationParticles(playerPrefs.celebrationStyle || 'mixed'));
+    celebrationTimerRef.current = setTimeout(() => setCelebrationParticles(null), 1200);
+  }
+
   function setQuizFontScale(value) {
     const next = Math.max(0.9, Math.min(1.3, value));
     setFontScale(next);
@@ -356,6 +476,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   function goToQuestion(index) {
     clearTimeout(autoScrollTimerRef.current);
+    clearTimeout(autoExitTimerRef.current);
+    setTransitioningQuestion(null);
     autoAdvanceQuestionRef.current = null;
     setAutoAdvanceNotice('');
     const nextIndex = Math.max(0, Math.min(questions.length - 1, index));
@@ -412,6 +534,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   function scheduleAutoAdvance(question, questionIndex, answer) {
     clearTimeout(autoScrollTimerRef.current);
+    clearTimeout(autoExitTimerRef.current);
+    setTransitioningQuestion(null);
     autoAdvanceQuestionRef.current = null;
     clearTimeout(noticeTimerRef.current);
     setAutoAdvanceNotice('');
@@ -439,9 +563,19 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     }
     if (!playerPrefs.autoScroll) return;
     autoAdvanceQuestionRef.current = questionIndex;
+    const nextIndex = questionIndex + 1;
+    const exitEffect = correct ? (playerPrefs.correctTransition || 'shatter') : (playerPrefs.wrongTransition || 'fade');
+    if (viewMode === 'reels' && nextIndex < questions.length && exitEffect !== 'none') {
+      autoExitTimerRef.current = setTimeout(() => {
+        if (autoAdvanceQuestionRef.current !== questionIndex) return;
+        setTransitioningQuestion({ questionId: question.id, effect: exitEffect, fragments: makeTransitionFragments(exitEffect) });
+      }, Math.max(0, delay * 1000 - 360));
+    }
     autoScrollTimerRef.current = setTimeout(() => {
       if (autoAdvanceQuestionRef.current !== questionIndex) return;
       autoAdvanceQuestionRef.current = null;
+      clearTimeout(autoExitTimerRef.current);
+      setTransitioningQuestion(null);
       setAutoAdvanceNotice('');
       const nextIndex = questionIndex + 1;
       if (nextIndex >= questions.length) {
@@ -462,18 +596,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function createPauseSnapshot() {
     const { questions: _selectedQuestions, ...prefs } = config;
     const currentAnswers = answersRef.current;
-    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceCorrectSeconds: playerPrefs.autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds: playerPrefs.autoAdvanceWrongSeconds, correctAnimation: playerPrefs.correctAnimation, wrongAnimation: playerPrefs.wrongAnimation, adaptiveFeedback: playerPrefs.adaptiveFeedback, viewMode: playerPrefs.viewMode, fontScale, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
+    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceCorrectSeconds: playerPrefs.autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds: playerPrefs.autoAdvanceWrongSeconds, correctAnimation: playerPrefs.correctAnimation, wrongAnimation: playerPrefs.wrongAnimation, celebrationStyle: playerPrefs.celebrationStyle, correctTransition: playerPrefs.correctTransition, wrongTransition: playerPrefs.wrongTransition, adaptiveFeedback: playerPrefs.adaptiveFeedback, viewMode: playerPrefs.viewMode, fontScale, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
   }
 
   async function pauseAndExit() {
-    let currentSession = session;
-    if (!currentSession?.user?.id) {
-      try {
-        const { data } = await supabase.auth.getSession();
-        currentSession = data?.session || null;
-      } catch {}
-    }
-    if (!currentSession?.user?.id) { setGuestPausePrompt(true); return; }
+    if (!session) { setGuestPausePrompt(true); return; }
     if (!onPauseAttempt) { setLeaveError('Testni saqlab bo‘lmadi. Qayta urinib ko‘ring.'); return; }
     setPauseBusy(true);
     setLeaveError('');
@@ -482,18 +609,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       if (!saved) throw new Error('save-failed');
       setLeaveDialog(false);
       exitTest();
-    } catch (error) {
-      console.error('Testni tanaffusga saqlash muvaffaqiyatsiz:', error);
-      const message = String(error?.message || '');
-      if (/row-level security|permission denied|403/i.test(message)) {
-        setLeaveError('Hisob profilingizga yozish ruxsati berilmadi. Sahifani yangilab, qayta urinib ko‘ring.');
-      } else if (/profil.*yangilanmadi|profile.*not found/i.test(message)) {
-        setLeaveError('Hisob profilingiz topilmadi yoki yangilanmadi. Profilga qayta kirib, yana urinib ko‘ring.');
-      } else if (/sessiya|session/i.test(message)) {
-        setLeaveError('Kirish muddati tugagan. Sahifani yangilang va qayta kiring.');
-      } else {
-        setLeaveError('Javoblarni saqlab bo‘lmadi. Internetni tekshirib, yana urinib ko‘ring.');
-      }
+    } catch {
+      setLeaveError('Javoblarni saqlab bo‘lmadi. Internetni tekshirib, yana urinib ko‘ring.');
     } finally {
       setPauseBusy(false);
     }
@@ -543,7 +660,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     setAnswers(next);
     if (playerPrefs.immediate) setRevealed((r) => ({ ...r, [qid]: true }));
     const question = questions.find((item) => item.id === qid);
-    if (question) scheduleAutoAdvance(question, questions.findIndex((item) => item.id === qid), idx);
+    if (question) {
+      triggerCorrectCelebration(question, idx);
+      scheduleAutoAdvance(question, questions.findIndex((item) => item.id === qid), idx);
+    }
   }
 
   function selectMatching(qid, pairId, optionIndex) {
@@ -559,7 +679,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     if (!matchingOnly && playerPrefs.immediate && matchingComplete) {
       setRevealed((revealedAnswers) => ({ ...revealedAnswers, [qid]: true }));
     }
-    if (question && matchingComplete) scheduleAutoAdvance(question, questions.findIndex((item) => item.id === qid), nextMatching);
+    if (question && matchingComplete) {
+      triggerCorrectCelebration(question, nextMatching);
+      scheduleAutoAdvance(question, questions.findIndex((item) => item.id === qid), nextMatching);
+    }
     if (matchingOnly) {
       const allCorrect = questions.every((question) => getQuestionScore(question, next[question.id]) === getQuestionCount([question]));
       clearTimeout(autoFinishTimerRef.current);
@@ -578,6 +701,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     if (finishedRef.current) return;
     finishedRef.current = true;
     clearTimeout(autoFinishTimerRef.current);
+    clearTimeout(autoExitTimerRef.current);
+    setTransitioningQuestion(null);
     const correctCount = questions.reduce((s, question) => s + getQuestionScore(question, latestAnswers[question.id]), 0);
     const percent = totalCount ? Math.round((correctCount / totalCount) * 100) : 0;
     answersRef.current = latestAnswers;
@@ -598,6 +723,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function submit(latestAnswers = answersRef.current) {
     if (finishedRef.current) return;
     clearTimeout(autoScrollTimerRef.current);
+    clearTimeout(autoExitTimerRef.current);
+    setTransitioningQuestion(null);
     autoAdvanceQuestionRef.current = null;
     setAutoAdvanceNotice('');
     if (countAnsweredUnits(questions, latestAnswers) < totalCount) {
@@ -747,13 +874,14 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       ? isQuestionCorrect(question, answer) ? playerPrefs.correctAnimation : playerPrefs.wrongAnimation
       : 'none';
     const resultClass = resultAnimation && resultAnimation !== 'none' ? `quiz-result-${resultAnimation}` : '';
+    const exitEffect = reel && transitioningQuestion?.questionId === question.id ? transitioningQuestion.effect : null;
     return (
       <article
         key={question.id}
         ref={(node) => { if (node) questionRefs.current[index] = node; else delete questionRefs.current[index]; }}
         data-question-index={index}
         aria-labelledby={`quiz-question-title-${index}`}
-        className={`${reel ? 'quiz-reel-enter flex h-full min-h-0 w-full flex-col' : question.type === 'matching' ? 'w-full border-b pb-2 pt-0.5 last:border-b-0' : 'w-full border-b py-5 last:border-b-0'} ${resultClass}`}
+        className={`relative ${reel ? 'quiz-reel-enter flex h-full min-h-0 w-full flex-col' : question.type === 'matching' ? 'w-full border-b pb-2 pt-0.5 last:border-b-0' : 'w-full border-b py-5 last:border-b-0'} ${resultClass} ${exitEffect && exitEffect !== 'none' ? `quiz-exit-${exitEffect}` : ''}`}
         style={reel ? undefined : { borderColor: C.rule, scrollMarginTop: '96px' }}
       >
         {reel ? (
@@ -823,13 +951,14 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 
   return (
     <div className="fixed inset-0 z-[80] flex h-[100dvh] w-full flex-col overflow-hidden" style={{ background: C.paper, color: C.ink, paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <style>{`@keyframes quiz-reel-enter{from{opacity:.35;transform:translateY(28px) scale(.992)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes quiz-feedback-enter{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}@keyframes quiz-result-pop{0%{transform:scale(.985)}55%{transform:scale(1.012)}100%{transform:scale(1)}}@keyframes quiz-result-glow{0%,100%{filter:brightness(1)}45%{filter:brightness(1.08)}}@keyframes quiz-result-slide{0%{transform:translateX(-7px);opacity:.78}100%{transform:translateX(0);opacity:1}}@keyframes quiz-result-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(4px)}}@keyframes quiz-result-nudge{0%{transform:translateY(4px);opacity:.8}100%{transform:translateY(0);opacity:1}}@keyframes quiz-result-flash{0%,100%{filter:brightness(1)}35%{filter:brightness(1.12)}}.quiz-reel-enter{animation:quiz-reel-enter 320ms cubic-bezier(.2,.7,.2,1)}.quiz-feedback-enter{animation:quiz-feedback-enter 180ms ease-out}.quiz-result-pop{animation:quiz-result-pop 420ms cubic-bezier(.2,.7,.2,1)}.quiz-result-glow{animation:quiz-result-glow 650ms ease-out}.quiz-result-slide{animation:quiz-result-slide 330ms ease-out}.quiz-result-shake{animation:quiz-result-shake 360ms ease-in-out}.quiz-result-nudge{animation:quiz-result-nudge 300ms ease-out}.quiz-result-flash{animation:quiz-result-flash 480ms ease-out}.quiz-control-panel{transition:transform 320ms cubic-bezier(.2,.7,.2,1),opacity 220ms ease}.quiz-control-panel[data-hidden="true"]{transform:translateY(-110%);opacity:0;pointer-events:none}@media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-feedback-enter,.quiz-result-pop,.quiz-result-glow,.quiz-result-slide,.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash,.quiz-control-panel{animation:none;transition:none}}`}</style>
+      <style>{`@keyframes quiz-reel-enter{from{opacity:.35;transform:translateY(28px) scale(.992)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes quiz-feedback-enter{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}@keyframes quiz-result-pop{0%{transform:scale(.985)}55%{transform:scale(1.012)}100%{transform:scale(1)}}@keyframes quiz-result-glow{0%,100%{filter:brightness(1)}45%{filter:brightness(1.08)}}@keyframes quiz-result-slide{0%{transform:translateX(-7px);opacity:.78}100%{transform:translateX(0);opacity:1}}@keyframes quiz-result-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(4px)}}@keyframes quiz-result-nudge{0%{transform:translateY(4px);opacity:.8}100%{transform:translateY(0);opacity:1}}@keyframes quiz-result-flash{0%,100%{filter:brightness(1)}35%{filter:brightness(1.12)}}@keyframes quiz-celebrate-burst{0%{opacity:0;transform:translate(-50%,-50%) scale(.35) rotate(0)}14%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.7) rotate(var(--turn))}}@keyframes quiz-transition-shard{0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(0)}18%{opacity:.95}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.35) rotate(var(--turn))}}@keyframes quiz-exit-shatter{0%{opacity:1;transform:scale(1);filter:none}45%{opacity:.8;clip-path:polygon(0 0,34% 0,48% 16%,62% 0,100% 0,100% 30%,82% 42%,100% 55%,100% 100%,58% 100%,43% 82%,27% 100%,0 100%,0 61%,17% 48%,0 36%)}100%{opacity:0;transform:scale(.94) translateY(-10px);filter:blur(5px);clip-path:polygon(18% 19%,37% 22%,48% 35%,61% 18%,81% 25%,76% 43%,88% 56%,65% 63%,58% 84%,41% 72%,26% 83%,30% 61%,12% 49%)}}@keyframes quiz-exit-dissolve{to{opacity:0;transform:scale(.96);filter:blur(9px)}}@keyframes quiz-exit-fly{to{opacity:0;transform:translate3d(0,-52vh,0) rotate(-2deg)}}@keyframes quiz-exit-fade{to{opacity:0;transform:scale(.985)}}@keyframes quiz-exit-slide{to{opacity:0;transform:translate3d(-90vw,0,0) rotate(-1deg)}}.quiz-reel-enter{animation:quiz-reel-enter 320ms cubic-bezier(.2,.7,.2,1)}.quiz-feedback-enter{animation:quiz-feedback-enter 180ms ease-out}.quiz-result-pop{animation:quiz-result-pop 420ms cubic-bezier(.2,.7,.2,1)}.quiz-result-glow{animation:quiz-result-glow 650ms ease-out}.quiz-result-slide{animation:quiz-result-slide 330ms ease-out}.quiz-result-shake{animation:quiz-result-shake 360ms ease-in-out}.quiz-result-nudge{animation:quiz-result-nudge 300ms ease-out}.quiz-result-flash{animation:quiz-result-flash 480ms ease-out}.quiz-celebration-particle{position:absolute;left:50%;top:44%;opacity:0;animation:quiz-celebrate-burst var(--duration) cubic-bezier(.16,.72,.25,1) var(--delay) forwards;will-change:transform,opacity}.quiz-transition-fragment{position:absolute;left:50%;top:50%;width:var(--size);height:var(--size);opacity:0;animation:quiz-transition-shard 390ms ease-out var(--delay) forwards;will-change:transform,opacity}.quiz-exit-shatter{animation:quiz-exit-shatter 360ms cubic-bezier(.5,0,.8,.25) forwards;pointer-events:none}.quiz-exit-dissolve{animation:quiz-exit-dissolve 360ms ease-in forwards;pointer-events:none}.quiz-exit-fly{animation:quiz-exit-fly 360ms cubic-bezier(.4,0,.8,.4) forwards;pointer-events:none}.quiz-exit-fade{animation:quiz-exit-fade 360ms ease-in forwards;pointer-events:none}.quiz-exit-slide{animation:quiz-exit-slide 360ms ease-in forwards;pointer-events:none}.quiz-control-panel{transition:transform 320ms cubic-bezier(.2,.7,.2,1),opacity 220ms ease}.quiz-control-panel[data-hidden="true"]{transform:translateY(-110%);opacity:0;pointer-events:none}@media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-feedback-enter,.quiz-result-pop,.quiz-result-glow,.quiz-result-slide,.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash,.quiz-celebration-particle,.quiz-transition-fragment,.quiz-exit-shatter,.quiz-exit-dissolve,.quiz-exit-fly,.quiz-exit-fade,.quiz-exit-slide,.quiz-control-panel{animation:none;transition:none;will-change:auto}}`}</style>
+      {celebrationParticles && <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[100] overflow-hidden">{celebrationParticles.map((particle) => <span key={particle.id} className="quiz-celebration-particle" style={{ '--dx': particle.x, '--dy': particle.y, '--turn': particle.rotate, '--delay': particle.delay, '--duration': particle.duration, fontSize: particle.size, filter: 'drop-shadow(0 2px 5px rgba(18,38,27,.22))' }}>{particle.symbol}</span>)}</div>}
       <div className="quiz-control-panel absolute inset-x-0 top-0 z-30 border-b px-3 pb-2 pt-2 sm:px-5" data-hidden={!controlsVisible} aria-hidden={!controlsVisible} style={{ background: C.paper, borderColor: C.rule, paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}>
         <div className="flex items-center gap-2">
           <button type="button" onClick={requestLeave} aria-label="Testdan chiqish amallari" title="Ortga" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><ArrowLeft size={19} /></button>
           <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{test.title}</div><div className="flex items-center gap-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</div></div>
-          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); setQuestionMapOpen(true); }} aria-label="Savollar ro‘yxati" title="Savollar ro‘yxati" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.cover, background: C.successTint, border: `1px solid ${C.rule}` }}><ListChecks size={18} /></button>
-          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); setPlayerSettingsOpen(true); }} aria-label="Test sozlamalari" title="Test sozlamalari" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><Settings size={18} /></button>
+          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoExitTimerRef.current); autoAdvanceQuestionRef.current = null; setTransitioningQuestion(null); setAutoAdvanceNotice(''); setQuestionMapOpen(true); }} aria-label="Savollar ro‘yxati" title="Savollar ro‘yxati" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.cover, background: C.successTint, border: `1px solid ${C.rule}` }}><ListChecks size={18} /></button>
+          <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoExitTimerRef.current); autoAdvanceQuestionRef.current = null; setTransitioningQuestion(null); setAutoAdvanceNotice(''); setPlayerSettingsOpen(true); }} aria-label="Test sozlamalari" title="Test sozlamalari" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><Settings size={18} /></button>
           <button type="button" onClick={() => submit(answersRef.current)} aria-label="Testni yakunlash" className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><CheckCircle2 size={16} /><span className="hidden sm:inline">Yakunlash</span></button>
           <button type="button" onClick={() => setControlsVisible(false)} aria-label="Yuqori boshqaruvni yashirish" title="Boshqaruvni yig‘ish" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><PanelTopClose size={18} /></button>
         </div>
@@ -838,7 +967,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         {showAdaptiveFeedback && controlsVisible && <div key={`${currentQuestionIndex}-${autoAdvanceNotice}`} role="status" aria-live="polite" className="quiz-feedback-enter mt-2 flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ ...fontBody, color: C.ink, background: answerNoticeTone === 'correct' ? C.successTint : C.dangerTint, border: `1px solid ${answerNoticeTone === 'correct' ? C.accent : C.red}` }}>
           {answerNoticeTone === 'correct' ? <CheckCircle2 size={14} className="shrink-0" style={{ color: C.accent }} /> : <X size={14} className="shrink-0" style={{ color: C.red }} />}
           <span className="min-w-0 flex-1">{autoAdvanceNotice}</span>
-          {playerPrefs.autoScroll && <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); autoAdvanceQuestionRef.current = null; setAutoAdvanceNotice(''); }} className="shrink-0 rounded-md px-2 py-1 font-semibold" style={{ color: C.cover, background: C.goldSoft }}>Bekor</button>}
+          {playerPrefs.autoScroll && <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoExitTimerRef.current); autoAdvanceQuestionRef.current = null; setTransitioningQuestion(null); setAutoAdvanceNotice(''); }} className="shrink-0 rounded-md px-2 py-1 font-semibold" style={{ color: C.cover, background: C.goldSoft }}>Bekor</button>}
         </div>}
       </div>
 
@@ -899,7 +1028,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             <button type="button" role="switch" aria-checked={!!playerPrefs.autoScroll} onClick={() => updatePlayerPrefs({ autoScroll: !playerPrefs.autoScroll })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin avtomatik o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni ko‘rishga vaqt beradi; xato bo‘lsa ham o‘tadi.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.autoScroll ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.autoScroll ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             <button type="button" role="switch" aria-checked={!!playerPrefs.adaptiveFeedback} onClick={() => updatePlayerPrefs({ adaptiveFeedback: !playerPrefs.adaptiveFeedback })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobga mos qisqa fikrlar</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xato va to‘g‘ri javobga qarab izoh. Odatiy holatda o‘chiq.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.adaptiveFeedback ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.adaptiveFeedback ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             {playerPrefs.autoScroll && <section className="rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }} aria-label="Avtomatik o‘tish vaqti"><div className="mb-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Keyingisiga o‘tish vaqti</div><div className="grid grid-cols-2 gap-2">{[['To‘g‘ri javob', 'autoAdvanceCorrectSeconds', 1.5], ['Xato javob', 'autoAdvanceWrongSeconds', 2]].map(([label, key, fallback]) => <label key={key} className="min-w-0 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{label}<select value={normalizedDelay(playerPrefs[key], fallback)} onChange={(event) => updatePlayerPrefs({ [key]: Number(event.target.value) })} className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label={`${label}dan keyin kutish`}>{AUTO_ADVANCE_DELAYS.map((delay) => <option key={delay} value={delay}>{delay} soniya</option>)}</select></label>)}</div></section>}
-            <section className="overflow-hidden rounded-xl border" style={{ background: C.surface, borderColor: C.rule }}><button type="button" aria-expanded={playerAnimationsOpen} onClick={() => setPlayerAnimationsOpen((open) => !open)} className="flex w-full items-center justify-between gap-3 p-3 text-left" style={{ ...fontBody, color: C.ink }}><span className="flex items-center gap-2 text-sm font-medium"><Sparkles size={17} style={{ color: C.gold }} />Javob animatsiyalari</span><ChevronDown size={17} style={{ transform: playerAnimationsOpen ? 'rotate(180deg)' : undefined, transition: 'transform 180ms ease' }} /></button>{playerAnimationsOpen && <div className="grid grid-cols-2 gap-2 border-t p-3" style={{ borderColor: C.rule }}>{[['To‘g‘ri javob', 'correctAnimation', CORRECT_ANIMATION_OPTIONS], ['Xato javob', 'wrongAnimation', WRONG_ANIMATION_OPTIONS]].map(([label, key, options]) => <label key={key} className="min-w-0 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{label}<select value={playerPrefs[key] || options[0].id} onChange={(event) => updatePlayerPrefs({ [key]: event.target.value })} className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" style={{ ...fontBody, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label={`${label} animatsiyasi`}>{options.map((option) => <option key={option.id} value={option.id}>{option.title}</option>)}</select></label>)}</div>}</section>
+            <QuizAnimationSettings open={playerAnimationsOpen} onToggle={() => setPlayerAnimationsOpen((open) => !open)} prefs={playerPrefs} onChange={updatePlayerPrefs} />
           </div>
           <button type="button" onClick={() => { setPlayerSettingsOpen(false); setReconfigureDialog(true); }} className="mt-4 w-full rounded-xl border px-3 py-3 text-sm font-semibold" style={{ ...fontBody, color: C.ink, background: C.paperSoft, borderColor: C.rule }}>Savollar soni va tartibini o‘zgartirish…</button>
         </section>
@@ -927,11 +1056,12 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-3 gap-2">
+                  <button type="button" disabled={pauseBusy} onClick={pauseAndExit} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><Save size={18} style={{ color: C.accent }} />Tanaffus</button>
                   <button type="button" onClick={() => { setLeaveDialog(false); exitTest(); }} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.red, background: C.surface, borderColor: C.rule }}><LogOut size={18} />Chiqish</button>
                   <button type="button" disabled={pauseBusy} onClick={pauseAndExit} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><Save size={18} style={{ color: C.accent }} />{pauseBusy ? 'Saqlanmoqda…' : 'Tanaffus'}</button>
                   <button type="button" onClick={() => submit(answersRef.current)} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft }}><CheckCircle2 size={18} />Yakunlash</button>
                 </div>
-                {guestPausePrompt && !session?.user?.id && <div className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.ink, background: C.goldSoft }}><div className="flex items-start gap-2"><LogIn size={17} className="mt-0.5 shrink-0" />Testni tanaffusga saqlash uchun hisobga kiring. Kirgach javoblaringiz saqlanadi va testni davom ettira olasiz.</div><button type="button" disabled={accountSignInBusy} onClick={signInToSavePause} className="mt-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-wait disabled:opacity-70" style={{ color: C.white, background: C.cover }}><LogIn size={15} />{accountSignInBusy ? 'Kirilmoqda…' : 'Hisobga kirish'}</button></div>}
+                {guestPausePrompt && <div className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.ink, background: C.goldSoft }}><div className="flex items-start gap-2"><LogIn size={17} className="mt-0.5 shrink-0" />Testni tanaffusga saqlash uchun hisobga kiring. Hisob bilan javoblaringiz keyin ham saqlanadi.</div><button type="button" onClick={() => onRequireAccount?.(createPauseSnapshot())} className="mt-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: C.white, background: C.cover }}>Hisobga kirish</button></div>}
                 {leaveError && <p role="alert" className="mt-3 text-sm" style={{ ...fontBody, color: C.red }}>{leaveError}</p>}
               </>
             )}
