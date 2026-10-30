@@ -6,7 +6,7 @@ import {
   C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField, SectionLoading,
   MatchingTestQuestion, getQuestionCount, getQuestionScore,
   ShareButton, buildShareUrl, randomRoomCode, liveRoomFromRow, liveParticipantFromRow,
-  sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants, sbFindParticipantByDevice,
+  sbFindRoomByCode, sbGetRoom, subscribeToLiveRoom, sbSelectParticipants, sbFindParticipantByDevice, sbClaimLiveParticipantDevice,
   sbInsert, sbUpdate, sbDelete, computeSyncScore, startScheduledLiveRoom,
   getDeviceKey, estimatedServerNow, advanceSyncPhase,
 } from './App';
@@ -378,28 +378,41 @@ function LiveLeaderboardList({ participants, showAsPoints }) {
   );
 }
 
-function livePresenceParticipantIds(state) {
-  const ids = new Set();
-  Object.values(state || {}).forEach((entries) => {
-    (Array.isArray(entries) ? entries : []).forEach((entry) => {
-      if (entry?.role === 'participant' && entry.participantId) ids.add(String(entry.participantId));
-    });
-  });
-  return [...ids];
+function liveParticipantKey(session) {
+  // Bir xil brauzerda turli akkauntlar qatnashsa ham har biri alohida
+  // qatnashchi bo'lib qoladi. Mehmonlarda avvalgi qurilma kaliti saqlanadi.
+  return session?.user?.id ? `account:${session.user.id}` : getDeviceKey();
 }
 
-function liveActiveParticipants(participants, activeIds, presenceReady, nowMs) {
-  if (!presenceReady) return participants;
-  const active = new Set(activeIds.map(String));
-  return participants.filter((participant) => {
-    if (active.has(String(participant.id))) return true;
-    // A newly joined participant may reach the participant table a moment
-    // before Realtime Presence has synchronized. Give that join a short grace
-    // window so the room cannot skip their first question prematurely.
-    const joinedAt = Date.parse(participant.joinedAt || '');
-    const ageMs = nowMs - joinedAt;
-    return Number.isFinite(joinedAt) && ageMs >= -15000 && ageMs <= 8000;
-  });
+async function findOrClaimLiveParticipant(roomId, session, preferredKey = null) {
+  // Kirilgan akkauntning identifikatori doim joriy auth user'dan olinadi.
+  // Oldingi akkauntdan qolgan tiklash kaliti boshqa foydalanuvchini
+  // tasodifan shu qatnashchi deb ko'rsatmasligi kerak.
+  const participantKey = session?.user?.id
+    ? liveParticipantKey(session)
+    : (preferredKey || liveParticipantKey(session));
+  let existing = await sbFindParticipantByDevice(roomId, participantKey);
+  if (existing) return { participant: existing, participantKey };
+
+  // Eski build umumiy device_key yozgan bo'lsa, shu qatorni shartli va
+  // atomar tarzda bir akkauntga ko'chiramiz. Keyingi akkaunt o'z qatorini oladi.
+  if (session?.user?.id) {
+    const legacyKey = getDeviceKey();
+    if (legacyKey !== participantKey) {
+      const legacy = await sbFindParticipantByDevice(roomId, legacyKey);
+      if (legacy) {
+        try {
+          const claimed = await sbClaimLiveParticipantDevice(roomId, legacy.id, legacyKey, participantKey);
+          if (claimed) return { participant: claimed, participantKey };
+        } catch (error) {
+          // Claim ruxsat etilmasa, yangi akkaunt kaliti bilan alohida qator ochamiz.
+        }
+        existing = await sbFindParticipantByDevice(roomId, participantKey);
+        if (existing) return { participant: existing, participantKey };
+      }
+    }
+  }
+  return { participant: null, participantKey };
 }
 
 function liveShuffledOptionIndices(question, roomId, participantId, questionKey = '') {
@@ -443,7 +456,7 @@ function liveShuffledOptionIndices(question, roomId, participantId, questionKey 
 /* "Barchaga bir xil" (Kahoot uslubi) rejimida tuzuvchi ekrani —
    savol/reyting almashtirish, avtomatik keyingi savolga o'tish,
    yakunda podium (3-2-1 o'rin) ko'rsatish. */
-function LiveHostSyncPlay({ room, setRoom, test, participants, activeParticipantIds, presenceReady, onExit }) {
+function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const [peekLeaderboard, setPeekLeaderboard] = useState(false);
   const [manualAdvancing, setManualAdvancing] = useState(false);
   const [now, setNow] = useState(estimatedServerNow());
@@ -473,11 +486,13 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, activeParticipant
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
   const showingReveal = room.phase === 'intermission' && elapsedMs < REVEAL_SECONDS * 1000;
 
-  const activeParticipants = liveActiveParticipants(participants, activeParticipantIds, presenceReady, now);
   const answeredCount = currentQuestion
-    ? activeParticipants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
+    ? participants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
     : 0;
-  const allAnswered = activeParticipants.length > 0 && answeredCount >= activeParticipants.length;
+  const waitingAnswerCount = Math.max(0, participants.length - answeredCount);
+  // Presence bir lahza uzilishi odamni javoblar sonidan chiqarib yubormasligi
+  // kerak. Faqat bazadagi barcha qatnashchilar javob bersa yoki taymer tugasa o'tamiz.
+  const allAnswered = participants.length > 0 && answeredCount >= participants.length;
 
   async function advanceNow() {
     if (advancingRef.current || room.status === 'finished') return;
@@ -599,7 +614,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, activeParticipant
           <GhostButton onClick={() => setPeekLeaderboard((v) => !v)} icon={peekLeaderboard ? BookOpen : Trophy}>
             {peekLeaderboard ? 'Savolni koʻrsatish' : 'Reytingni koʻrish'}
           </GhostButton>
-          <span className="ml-3 text-sm" style={{ ...fontMono, color: C.inkSoft }}>{answeredCount}/{activeParticipants.length} faol qatnashchi javob berdi</span>
+          <span className="ml-3 text-sm" style={{ ...fontMono, color: C.inkSoft }}>{answeredCount}/{participants.length} javob berdi{waitingAnswerCount > 0 ? ` · ${waitingAnswerCount} javob kutilyapti` : ''}</span>
           <button type="button" onClick={advanceNow} disabled={manualAdvancing} className="ml-3 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>
             <SkipForward size={15} /> {manualAdvancing ? 'Oʻtilmoqda…' : 'Keyingi savol'}
           </button>
@@ -656,14 +671,14 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, activeParticipant
                   ? currentQuestion.pairs.map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
                   : currentQuestion.options?.[currentQuestion.correct] ?? ''
                 : currentQuestion.options?.[currentQuestion.correct] ?? '';
-            const correctCount = activeParticipants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
+            const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
             return (
               <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.successTint, border: `1px solid ${C.accent}`, color: C.ink }}>
                 <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: C.accent }}>
                   <Check size={18} /> Toʻgʻri javob
                 </div>
                 <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span><strong>{correctText || 'Javob kiritilmagan'}</strong></div>
-                <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{activeParticipants.length} faol qatnashchi toʻgʻri topdi</div>
+                <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{participants.length} qatnashchi toʻgʻri topdi</div>
               </div>
             );
           })()}
@@ -1019,8 +1034,6 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
 
 function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const [participants, setParticipants] = useState([]);
-  const [activeParticipantIds, setActiveParticipantIds] = useState([]);
-  const [presenceReady, setPresenceReady] = useState(false);
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState(null);
@@ -1060,22 +1073,30 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)])
-      .then(([freshRoom, list]) => {
-        if (cancelled) return;
+    let participantEventVersion = 0;
+    let rosterReadVersion = 0;
+    async function refreshRoster() {
+      const readVersion = ++rosterReadVersion;
+      const eventVersion = participantEventVersion;
+      try {
+        const [freshRoom, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (cancelled || readVersion !== rosterReadVersion || eventVersion !== participantEventVersion) return;
         if (freshRoom) setRoom(freshRoom);
         setParticipants(list);
-      })
-      .catch(() => { /* keyingi yangilanish (realtime yoki zaxira) orqali tuzatiladi */ });
+      } catch (e) { /* Realtime yoki zaxira so'rov yangilaydi */ }
+    }
+    refreshRoster();
 
     const unsubscribe = subscribeToLiveRoom(room.id, {
       onRoom: (r) => { if (!cancelled) setRoom(r); },
-      onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
-      onPresence: (state) => {
+      onParticipants: (updater) => {
         if (cancelled) return;
-        setActiveParticipantIds(livePresenceParticipantIds(state));
-        setPresenceReady(true);
+        participantEventVersion += 1;
+        setParticipants(updater);
       },
+      // Obuna tasdiqlangandan keyin ro'yxatni yangidan olib, GET va
+      // WebSocket ulanishi oralig'ida qo'shilganlarni ham qo'shamiz.
+      onSubscribed: refreshRoster,
       pollFallbackMs: room.mode === 'sync' ? 1500 : 3000,
     });
     return () => { cancelled = true; unsubscribe(); };
@@ -1158,8 +1179,6 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
         setRoom={setRoom}
         test={test}
         participants={participants}
-        activeParticipantIds={activeParticipantIds}
-        presenceReady={presenceReady}
         onExit={onExit}
       />
     );
@@ -1253,8 +1272,6 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   });
   const [now, setNow] = useState(estimatedServerNow());
   const [participants, setParticipants] = useState([]);
-  const [activeParticipantIds, setActiveParticipantIds] = useState([]);
-  const [presenceReady, setPresenceReady] = useState(false);
   const scoreRef = useRef(participant.score || 0);
   const draftsRef = useRef(drafts);
   const matchingDraftRef = useRef(matchingDraft);
@@ -1318,31 +1335,30 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const showingReveal = room.phase === 'intermission' && elapsedMs < REVEAL_SECONDS * 1000;
   const hasAnswered = currentQuestion ? myAnswers[currentQuestion.id] !== undefined : false;
 
-  const activeParticipants = liveActiveParticipants(participants, activeParticipantIds, presenceReady, now);
-  const answeredCount = currentQuestion
-    ? activeParticipants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
-    : 0;
-  const allAnswered = activeParticipants.length > 0 && answeredCount >= activeParticipants.length;
-
   useEffect(() => {
     let cancelled = false;
-    Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)])
-      .then(([fresh, list]) => {
-        if (cancelled) return;
+    let participantEventVersion = 0;
+    let rosterReadVersion = 0;
+    async function refreshSnapshot() {
+      const readVersion = ++rosterReadVersion;
+      const eventVersion = participantEventVersion;
+      try {
+        const [fresh, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (cancelled || readVersion !== rosterReadVersion || eventVersion !== participantEventVersion) return;
         if (fresh) setRoom(fresh);
         setParticipants(list);
-      })
-      .catch(() => { /* keyingi yangilanish (realtime yoki zaxira) orqali tuzatiladi */ });
+      } catch (e) { /* Realtime yoki zaxira so'rov yangilaydi */ }
+    }
+    refreshSnapshot();
 
     const unsubscribe = subscribeToLiveRoom(room.id, {
       onRoom: (r) => { if (!cancelled) setRoom(r); },
-      onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
-      presence: { participantId: participant.id, name: participant.name },
-      onPresence: (state) => {
+      onParticipants: (updater) => {
         if (cancelled) return;
-        setActiveParticipantIds(livePresenceParticipantIds(state));
-        setPresenceReady(true);
+        participantEventVersion += 1;
+        setParticipants(updater);
       },
+      onSubscribed: refreshSnapshot,
       pollFallbackMs: 1500,
     });
     return () => { cancelled = true; unsubscribe(); };
@@ -1393,15 +1409,14 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft, room.phase, hasAnswered, matchingDraft]);
 
-  /* Bosqichni faqat tuzuvchi emas — istalgan faol ishtirokchi ham
-     oldinga surishi mumkin (masalan tuzuvchining tabi fonda qolib
-     ketgan bo'lsa). advanceSyncPhase() ichidagi shartli so'rov ikki
-     kishi bir vaqtda urinib qolsa ham xavfsiz — faqat bittasi
-     muvaffaqiyatli bo'ladi. */
+  /* Ishtirokchi brauzeridagi qisman roster barcha javoblar berildi deb
+     noto'g'ri xulosa qilmasin. Savolni muddatidan oldin faqat tuzuvchi,
+     to'liq rosterdagi barcha javoblarni olgach, siljitadi; tuzuvchi uzilsa
+     server taymeri tugaganda ishtirokchilar zaxira bo'lib siljitadi. */
   useEffect(() => {
     if (room.status === 'finished') return;
     if (advancingRef.current) return;
-    const shouldAdvance = (room.phase === 'question' && (secondsLeft <= 0 || allAnswered))
+    const shouldAdvance = (room.phase === 'question' && secondsLeft <= 0)
       || (room.phase === 'intermission' && secondsLeft <= 0);
     if (!shouldAdvance) return;
 
@@ -1410,7 +1425,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
       .then((updated) => { if (updated) setRoom(updated); })
       .finally(() => { advancingRef.current = false; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, allAnswered, room.phase, room.status]);
+  }, [secondsLeft, room.phase, room.status]);
 
   if (room.status === 'finished') {
     return <LiveSyncFinished participants={participants} myId={participant.id} onExit={onExit} />;
@@ -1570,7 +1585,7 @@ function LiveSyncFinished({ participants, myId, onExit }) {
 }
 
 
-function LiveJoinForm({ initialCode, onJoined, onBack }) {
+function LiveJoinForm({ initialCode, onJoined, onBack, session }) {
   const [code, setCode] = useState(initialCode || '');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1586,20 +1601,19 @@ function LiveJoinForm({ initialCode, onJoined, onBack }) {
       const room = await sbFindRoomByCode(c);
       if (!room) { setErr('Bunday kodli xona topilmadi.'); setBusy(false); return; }
       if (room.status === 'finished') { setErr('Bu test allaqachon yakunlangan.'); setBusy(false); return; }
-      const deviceKey = getDeviceKey();
-      const existing = await sbFindParticipantByDevice(room.id, deviceKey);
+      const { participantKey, participant: existing } = await findOrClaimLiveParticipant(room.id, session);
       if (existing) {
         let restored = existing;
         if (existing.name !== n) {
           const [updated] = await sbUpdate('live_participants', existing.id, { name: n });
           if (updated) restored = liveParticipantFromRow(updated);
         }
-        onJoined(room, restored);
+        onJoined(room, restored, participantKey);
         return;
       }
-      const row = { room_id: room.id, name: n, device_key: deviceKey };
+      const row = { room_id: room.id, name: n, device_key: participantKey };
       const [created] = await sbInsert('live_participants', row);
-      onJoined(room, liveParticipantFromRow(created));
+      onJoined(room, liveParticipantFromRow(created), participantKey);
     } catch (e) {
       setErr('Qoʻshilishda xatolik yuz berdi.');
     } finally {
@@ -1878,8 +1892,6 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionChange, ensureTestContent }) {
   const [phase, setPhase] = useState(room.status === 'waiting' ? 'waiting' : 'quiz');
   const [participants, setParticipants] = useState([]);
-  const [activeParticipantIds, setActiveParticipantIds] = useState([]);
-  const [presenceReady, setPresenceReady] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   const previousStatusRef = useRef(room.status);
   const test = tests.find((t) => t.id === room.testId);
@@ -1923,16 +1935,22 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
     if (room.mode === 'sync' && phase === 'quiz') return undefined;
 
     let cancelled = false;
-    Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)])
-      .then(([fresh, list]) => {
-        if (cancelled) return;
+    let participantEventVersion = 0;
+    let rosterReadVersion = 0;
+    async function refreshSnapshot() {
+      const readVersion = ++rosterReadVersion;
+      const eventVersion = participantEventVersion;
+      try {
+        const [fresh, list] = await Promise.all([sbGetRoom(room.id), sbSelectParticipants(room.id)]);
+        if (cancelled || readVersion !== rosterReadVersion || eventVersion !== participantEventVersion) return;
         if (fresh) {
           setRoom(fresh);
           if (fresh.status !== 'waiting') setPhase((p) => (p === 'waiting' ? 'quiz' : p));
         }
         setParticipants(list);
-      })
-      .catch(() => { /* keyingi yangilanish (realtime yoki zaxira) orqali tuzatiladi */ });
+      } catch (e) { /* Realtime yoki zaxira so'rov yangilaydi */ }
+    }
+    refreshSnapshot();
 
     const unsubscribe = subscribeToLiveRoom(room.id, {
       onRoom: (r) => {
@@ -1940,13 +1958,12 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
         setRoom(r);
         if (r.status !== 'waiting') setPhase((p) => (p === 'waiting' ? 'quiz' : p));
       },
-      onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
-      presence: { participantId: participant.id, name: participant.name },
-      onPresence: (state) => {
+      onParticipants: (updater) => {
         if (cancelled) return;
-        setActiveParticipantIds(livePresenceParticipantIds(state));
-        setPresenceReady(true);
+        participantEventVersion += 1;
+        setParticipants(updater);
       },
+      onSubscribed: refreshSnapshot,
       pollFallbackMs: 2000,
     });
     return () => { cancelled = true; unsubscribe(); };
@@ -1969,10 +1986,9 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
           </div>
           <div className="flex flex-wrap gap-2">
             {participants.map((p) => {
-              const online = !presenceReady || activeParticipantIds.includes(String(p.id));
               return (
                 <span key={p.id} className="inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1.5 text-sm" style={{ ...fontBody, color: C.ink, background: C.paperSoft, border: `1px solid ${C.rule}` }}>
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: online ? C.accent : C.inkSoft }} />
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: C.accent }} />
                   <span className="max-w-[14rem] truncate">{p.name}{String(p.id) === String(participant.id) ? ' (siz)' : ''}</span>
                 </span>
               );
@@ -1980,7 +1996,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
             {participants.length === 0 && <span className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Hozircha boshqalar qoʻshilmadi.</span>}
           </div>
           <div className="mt-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
-            {presenceReady ? `${activeParticipantIds.length} kishi hozir zalda` : 'Qatnashchilar yangilanmoqda…'}
+            {participants.length} kishi xonaga qoʻshildi
           </div>
         </section>
         {room.scheduledAt && notificationPermission !== 'unsupported' && notificationPermission !== 'granted' && (
@@ -2038,12 +2054,17 @@ function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests,
           setRoom(foundRoom);
           setMode('host-lobby');
         } else {
-          const foundParticipant = await sbFindParticipantByDevice(foundRoom.id, getDeviceKey());
+          const { participant: foundParticipant, participantKey } = await findOrClaimLiveParticipant(
+            foundRoom.id,
+            session,
+            restoreSession.participantKey || null,
+          );
           if (cancelled) return;
           if (!foundParticipant) { if (onSessionChange) onSessionChange(null); setRestoring(false); return; }
           setRoom(foundRoom);
           setParticipant(foundParticipant);
           setMode('participant');
+          if (onSessionChange) onSessionChange({ role: 'participant', code: foundRoom.code, participantKey });
         }
       } catch (e) {
         if (!cancelled) { if (onSessionChange) onSessionChange(null); }
@@ -2100,7 +2121,7 @@ function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests,
     return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); if (room.status === 'finished' && onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'join-form') {
-    return <LiveJoinForm initialCode={initialCode} onJoined={(r, p) => { setRoom(r); setParticipant(p); setMode('participant'); if (onSessionChange) onSessionChange({ role: 'participant', code: r.code }); }} onBack={() => setMode(null)} />;
+    return <LiveJoinForm initialCode={initialCode} session={session} onJoined={(r, p, participantKey) => { setRoom(r); setParticipant(p); setMode('participant'); if (onSessionChange) onSessionChange({ role: 'participant', code: r.code, participantKey }); }} onBack={() => setMode(null)} />;
   }
   if (mode === 'participant' && room && participant) {
     return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); if (room.status === 'finished' && onSessionChange) onSessionChange(null); }} onSessionChange={onSessionChange} ensureTestContent={ensureTestContent} />;
@@ -2145,6 +2166,3 @@ export default function LiveQuizHub(props) {
     </LiveQuizErrorBoundary>
   );
 }
-
-
-
