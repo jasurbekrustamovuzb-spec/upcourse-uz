@@ -829,7 +829,7 @@ const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { version: 6, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 1.5, autoAdvanceWrongSeconds: 2, correctAnimation: 'pop', wrongAnimation: 'shake', celebrationStyle: 'mixed', correctTransition: 'shatter', wrongTransition: 'fade', adaptiveFeedback: false, viewMode: 'list', fontScale: 1, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 7, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 1.5, autoAdvanceWrongSeconds: 2, correctAnimation: 'pop', wrongAnimation: 'shake', celebrationStyle: 'mixed', correctTransition: 'shatter', wrongTransition: 'fade', adaptiveFeedback: false, viewMode: 'list', fontScale: 0.9, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 export const profileFromRow = (r) => {
   const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
@@ -845,7 +845,7 @@ export const profileFromRow = (r) => {
   }
   if (testPrefs && Number(testPrefs.version || 0) < 4) {
     const fontScale = Number(testPrefs.fontScale);
-    testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.9, Math.min(1.3, fontScale)) : 1;
+    testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.7, Math.min(1.3, fontScale)) : 0.9;
     testPrefs.version = 4;
   }
   if (testPrefs && Number(testPrefs.version || 0) < 5) {
@@ -868,6 +868,11 @@ export const profileFromRow = (r) => {
     if (!['shatter', 'dissolve', 'fly', 'fade', 'none'].includes(testPrefs.correctTransition)) testPrefs.correctTransition = 'shatter';
     if (!['fade', 'slide', 'shatter', 'none'].includes(testPrefs.wrongTransition)) testPrefs.wrongTransition = 'fade';
     testPrefs.version = 6;
+  }
+  if (testPrefs && Number(testPrefs.version || 0) < 7) {
+    const fontScale = Number(testPrefs.fontScale);
+    testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.7, Math.min(1.3, fontScale)) : 0.9;
+    testPrefs.version = 7;
   }
   return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
 };
@@ -2124,7 +2129,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
 
   if (active) {
     return (
-      <div>
+      <div className="px-1 sm:px-0">
         <button
           onClick={back}
           className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
