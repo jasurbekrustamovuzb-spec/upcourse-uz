@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
-  ArrowLeft, Award, Check, Clock3, Loader2, Search, Users, X, Trophy, Medal, BookOpen,
+  ArrowLeft, Award, Check, Clock3, Loader2, Search, Users, X, Trophy, Medal, BookOpen, SkipForward,
 } from 'lucide-react';
 import {
   C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField, SectionLoading,
@@ -378,11 +378,74 @@ function LiveLeaderboardList({ participants, showAsPoints }) {
   );
 }
 
+function livePresenceParticipantIds(state) {
+  const ids = new Set();
+  Object.values(state || {}).forEach((entries) => {
+    (Array.isArray(entries) ? entries : []).forEach((entry) => {
+      if (entry?.role === 'participant' && entry.participantId) ids.add(String(entry.participantId));
+    });
+  });
+  return [...ids];
+}
+
+function liveActiveParticipants(participants, activeIds, presenceReady, nowMs) {
+  if (!presenceReady) return participants;
+  const active = new Set(activeIds.map(String));
+  return participants.filter((participant) => {
+    if (active.has(String(participant.id))) return true;
+    // A newly joined participant may reach the participant table a moment
+    // before Realtime Presence has synchronized. Give that join a short grace
+    // window so the room cannot skip their first question prematurely.
+    const joinedAt = Date.parse(participant.joinedAt || '');
+    const ageMs = nowMs - joinedAt;
+    return Number.isFinite(joinedAt) && ageMs >= -15000 && ageMs <= 8000;
+  });
+}
+
+function liveShuffledOptionIndices(question, roomId, participantId, questionKey = '') {
+  const length = Array.isArray(question?.options) ? question.options.length : 0;
+  const indices = Array.from({ length }, (_, index) => index);
+  if (length < 2) return indices;
+
+  const seedText = `${roomId}:${participantId}:${questionKey || question?.id || question?.text || ''}`;
+  const hashText = (value) => {
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+    return hash >>> 0;
+  };
+  let seed = hashText(seedText);
+  const random = () => {
+    seed = (seed + 0x6D2B79F5) >>> 0;
+    let value = seed;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+  const shuffle = (items) => {
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [items[i], items[j]] = [items[j], items[i]];
+    }
+    return items;
+  };
+
+  const correctIndex = Number.isInteger(question?.correct) && question.correct >= 0 && question.correct < length
+    ? question.correct
+    : null;
+  if (correctIndex === null) return shuffle(indices);
+
+  const alternatives = shuffle(indices.filter((index) => index !== correctIndex));
+  const positionOffset = hashText(`${seedText}:correct-position`) % length;
+  alternatives.splice(positionOffset, 0, correctIndex);
+  return alternatives;
+}
+
 /* "Barchaga bir xil" (Kahoot uslubi) rejimida tuzuvchi ekrani —
    savol/reyting almashtirish, avtomatik keyingi savolga o'tish,
    yakunda podium (3-2-1 o'rin) ko'rsatish. */
-function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
+function LiveHostSyncPlay({ room, setRoom, test, participants, activeParticipantIds, presenceReady, onExit }) {
   const [peekLeaderboard, setPeekLeaderboard] = useState(false);
+  const [manualAdvancing, setManualAdvancing] = useState(false);
   const [now, setNow] = useState(estimatedServerNow());
   const advancingRef = useRef(false);
   const [revealStage, setRevealStage] = useState(0);
@@ -410,10 +473,24 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
   const showingReveal = room.phase === 'intermission' && elapsedMs < REVEAL_SECONDS * 1000;
 
+  const activeParticipants = liveActiveParticipants(participants, activeParticipantIds, presenceReady, now);
   const answeredCount = currentQuestion
-    ? participants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
+    ? activeParticipants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
     : 0;
-  const allAnswered = participants.length > 0 && answeredCount >= participants.length;
+  const allAnswered = activeParticipants.length > 0 && answeredCount >= activeParticipants.length;
+
+  async function advanceNow() {
+    if (advancingRef.current || room.status === 'finished') return;
+    advancingRef.current = true;
+    setManualAdvancing(true);
+    try {
+      const updated = await advanceSyncPhase(room, totalQuestions, { skipIntermission: true });
+      if (updated) setRoom(updated);
+    } finally {
+      setManualAdvancing(false);
+      advancingRef.current = false;
+    }
+  }
 
   useEffect(() => {
     if (room.status === 'finished') return;
@@ -522,7 +599,19 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
           <GhostButton onClick={() => setPeekLeaderboard((v) => !v)} icon={peekLeaderboard ? BookOpen : Trophy}>
             {peekLeaderboard ? 'Savolni koʻrsatish' : 'Reytingni koʻrish'}
           </GhostButton>
-          <span className="ml-3 text-sm" style={{ ...fontMono, color: C.inkSoft }}>{answeredCount}/{participants.length} javob berdi</span>
+          <span className="ml-3 text-sm" style={{ ...fontMono, color: C.inkSoft }}>{answeredCount}/{activeParticipants.length} faol qatnashchi javob berdi</span>
+          <button type="button" onClick={advanceNow} disabled={manualAdvancing} className="ml-3 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>
+            <SkipForward size={15} /> {manualAdvancing ? 'Oʻtilmoqda…' : 'Keyingi savol'}
+          </button>
+        </div>
+      )}
+
+      {room.phase === 'intermission' && (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <span className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Natijani koʻrib, kerak boʻlsa keyingi savolga oʻting.</span>
+          <button type="button" onClick={advanceNow} disabled={manualAdvancing} className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-sm disabled:opacity-50" style={{ ...fontBody, color: C.white, background: C.cover }}>
+            <SkipForward size={15} /> {manualAdvancing ? 'Oʻtilmoqda…' : 'Keyingi savol'}
+          </button>
         </div>
       )}
 
@@ -567,14 +656,14 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
                   ? currentQuestion.pairs.map((pair, index) => `${index + 1}${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pair.correct]}`).join(', ')
                   : currentQuestion.options?.[currentQuestion.correct] ?? ''
                 : currentQuestion.options?.[currentQuestion.correct] ?? '';
-            const correctCount = participants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
+            const correctCount = activeParticipants.filter((p) => p.answers && p.answers[currentQuestion.id]?.correct).length;
             return (
               <div className="px-4 py-3.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.successTint, border: `1px solid ${C.accent}`, color: C.ink }}>
                 <div className="flex items-center gap-2 mb-2" style={{ fontWeight: 600, color: C.accent }}>
                   <Check size={18} /> Toʻgʻri javob
                 </div>
                 <div className="text-sm mt-1"><span style={{ color: C.inkSoft }}>Toʻgʻri javob: </span><strong>{correctText || 'Javob kiritilmagan'}</strong></div>
-                <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{participants.length} ishtirokchi toʻgʻri topdi</div>
+                <div className="text-xs mt-2" style={{ ...fontMono, color: C.inkSoft }}>{correctCount}/{activeParticipants.length} faol qatnashchi toʻgʻri topdi</div>
               </div>
             );
           })()}
@@ -645,7 +734,9 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
   const [testId, setTestId] = useState('');
   const [duration, setDuration] = useState(300);
   const [liveMode, setLiveMode] = useState('sync');
-  const [perQSeconds, setPerQSeconds] = useState(20);
+  const [shuffleQuestions, setShuffleQuestions] = useState(true);
+  const [shuffleOptions, setShuffleOptions] = useState(true);
+  const [perQSeconds, setPerQSeconds] = useState(30);
   const [scheduledLocal, setScheduledLocal] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -699,7 +790,11 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
         host_name: (meta.given_name || meta.full_name || meta.name || '').trim(),
         status: 'waiting', duration_seconds: duration,
         mode: liveMode, per_question_seconds: roomQuestionSeconds, phase: 'lobby', current_index: 0,
-        question_order: liveMode === 'sync' && questionsForOrder ? shuffledIndices(questionsForOrder.length) : null,
+        question_order: liveMode === 'sync' && questionsForOrder
+          ? shuffleQuestions ? shuffledIndices(questionsForOrder.length) : questionsForOrder.map((_, i) => i)
+          : null,
+        shuffle_questions: liveMode === 'sync' && shuffleQuestions,
+        shuffle_options: shuffleOptions,
       };
       if (scheduledAt) row.scheduled_at = scheduledAt.toISOString();
       const [created] = await sbInsert('live_rooms', row);
@@ -811,6 +906,34 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
             : 'Har kim testni oʻzi xohlagan tezlikda, mustaqil ishlaydi.'}
         </div>
 
+        <div className="mb-4 space-y-3 rounded-2xl p-3" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+          <label className={`flex items-start gap-3 ${liveMode === 'sync' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+            <input
+              type="checkbox"
+              checked={shuffleQuestions}
+              disabled={liveMode !== 'sync'}
+              onChange={(e) => setShuffleQuestions(e.target.checked)}
+              className="mt-1 accent-amber-600"
+            />
+            <span>
+              <span className="block text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Savollar tartibini aralashtirish</span>
+              <span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Hamma qatnashchida bir xil ketma-ketlik boʻladi.</span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={shuffleOptions}
+              onChange={(e) => setShuffleOptions(e.target.checked)}
+              className="mt-1 accent-amber-600"
+            />
+            <span>
+              <span className="block text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Javob variantlarini aralashtirish</span>
+              <span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Har qatnashchida variantlar joyi turlicha; toʻgʻri javob hisobiga taʼsir qilmaydi.</span>
+            </span>
+          </label>
+        </div>
+
         {liveMode === 'sync' ? (
           <>
             <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Har bir savolga vaqt</label>
@@ -896,6 +1019,8 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
 
 function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const [participants, setParticipants] = useState([]);
+  const [activeParticipantIds, setActiveParticipantIds] = useState([]);
+  const [presenceReady, setPresenceReady] = useState(false);
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState(null);
@@ -946,6 +1071,11 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
     const unsubscribe = subscribeToLiveRoom(room.id, {
       onRoom: (r) => { if (!cancelled) setRoom(r); },
       onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
+      onPresence: (state) => {
+        if (cancelled) return;
+        setActiveParticipantIds(livePresenceParticipantIds(state));
+        setPresenceReady(true);
+      },
       pollFallbackMs: room.mode === 'sync' ? 1500 : 3000,
     });
     return () => { cancelled = true; unsubscribe(); };
@@ -1028,6 +1158,8 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
         setRoom={setRoom}
         test={test}
         participants={participants}
+        activeParticipantIds={activeParticipantIds}
+        presenceReady={presenceReady}
         onExit={onExit}
       />
     );
@@ -1121,6 +1253,8 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   });
   const [now, setNow] = useState(estimatedServerNow());
   const [participants, setParticipants] = useState([]);
+  const [activeParticipantIds, setActiveParticipantIds] = useState([]);
+  const [presenceReady, setPresenceReady] = useState(false);
   const scoreRef = useRef(participant.score || 0);
   const draftsRef = useRef(drafts);
   const matchingDraftRef = useRef(matchingDraft);
@@ -1131,6 +1265,14 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     ? room.questionOrder
     : test.questions.map((_, i) => i);
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
+  const currentOptionOrder = currentQuestion && currentQuestion.type !== 'matching' && currentQuestion.type !== 'open'
+    ? room.shuffleOptions ? liveShuffledOptionIndices(
+      currentQuestion,
+      room.id,
+      participant.id,
+      `${room.currentIndex}:${order[room.currentIndex]}`
+    ) : (Array.isArray(currentQuestion.options) ? currentQuestion.options.map((_, i) => i) : [])
+    : [];
   const INTERMISSION_SECONDS = 6;
   const REVEAL_SECONDS = 3; // birinchi 3s — to'g'ri/xato javob, keyingi 3s — reyting
   const totalQuestions = test.questions.length;
@@ -1176,10 +1318,11 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const showingReveal = room.phase === 'intermission' && elapsedMs < REVEAL_SECONDS * 1000;
   const hasAnswered = currentQuestion ? myAnswers[currentQuestion.id] !== undefined : false;
 
+  const activeParticipants = liveActiveParticipants(participants, activeParticipantIds, presenceReady, now);
   const answeredCount = currentQuestion
-    ? participants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
+    ? activeParticipants.filter((p) => p.answers && p.answers[currentQuestion.id] !== undefined).length
     : 0;
-  const allAnswered = participants.length > 0 && answeredCount >= participants.length;
+  const allAnswered = activeParticipants.length > 0 && answeredCount >= activeParticipants.length;
 
   useEffect(() => {
     let cancelled = false;
@@ -1194,6 +1337,12 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     const unsubscribe = subscribeToLiveRoom(room.id, {
       onRoom: (r) => { if (!cancelled) setRoom(r); },
       onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
+      presence: { participantId: participant.id, name: participant.name },
+      onPresence: (state) => {
+        if (cancelled) return;
+        setActiveParticipantIds(livePresenceParticipantIds(state));
+        setPresenceReady(true);
+      },
       pollFallbackMs: 1500,
     });
     return () => { cancelled = true; unsubscribe(); };
@@ -1318,19 +1467,22 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
             </div>
           ) : (
             <div className="space-y-2">
-              {(Array.isArray(currentQuestion.options) ? currentQuestion.options : []).map((opt, oi) => (
+              {currentOptionOrder.map((originalIndex, displayIndex) => {
+                const opt = currentQuestion.options[originalIndex];
+                return (
                 <button
-                  key={oi}
-                  onClick={() => submitAnswer(oi)}
+                  key={originalIndex}
+                  onClick={() => submitAnswer(originalIndex)}
                   className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
                   style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink, outlineColor: C.live }}
                 >
-                  <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                  <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + displayIndex)}</span>
                   {!currentQuestion.pdfSourceImageOnly && (currentQuestion.optionsAreMath
                     ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense>
                     : <span>{opt}</span>)}
                 </button>
-              ))}
+                );
+              })}
               {!Array.isArray(currentQuestion.options) || currentQuestion.options.length === 0 ? <div className="text-sm" style={{ ...fontBody, color: C.red }}>Bu savolning javob variantlari topilmadi.</div> : null}
             </div>
           )}
@@ -1643,7 +1795,11 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
         </div>
       </div>
       <div className="space-y-6 max-w-2xl">
-        {test.questions.map((q, qi) => (
+        {test.questions.map((q, qi) => {
+          const liveOptionOrder = q.type !== 'matching' && q.type !== 'open'
+            ? room.shuffleOptions ? liveShuffledOptionIndices(q, room.id, participant.id, `free:${qi}`) : (Array.isArray(q.options) ? q.options.map((_, i) => i) : [])
+            : [];
+          return (
           <div key={q.id}>
             {q.type !== 'matching' && !q.pdfSourceImageOnly && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
               <span style={{ ...fontMono, color: C.live }}>{qi + 1}.</span> {q.text}{q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
@@ -1665,17 +1821,18 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
               />
             ) : (
             <div className="space-y-2">
-              {(Array.isArray(q.options) ? q.options : []).map((opt, oi) => {
-                const isSelected = answers[q.id] === oi;
+              {liveOptionOrder.map((originalIndex, displayIndex) => {
+                const opt = q.options[originalIndex];
+                const isSelected = answers[q.id] === originalIndex;
                 return (
                   <button
-                    key={oi}
-                    onClick={() => select(q.id, oi)}
+                    key={originalIndex}
+                    onClick={() => select(q.id, originalIndex)}
                     disabled={submitted}
                     className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
                     style={{ ...fontBody, background: isSelected ? C.liveTint : C.surface, border: `1px solid ${isSelected ? C.live : C.rule}`, color: C.ink, outlineColor: C.live }}
                   >
-                    <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
+                    <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + displayIndex)}</span>
                     {q.pdfSourceImageOnly ? null : q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
                   </button>
                 );
@@ -1684,7 +1841,8 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
             </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
       <div className="mt-8">
         {submitError && <div role="alert" className="mb-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.red, background: C.dangerTint }}>{submitError}</div>}
@@ -1720,6 +1878,8 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionChange, ensureTestContent }) {
   const [phase, setPhase] = useState(room.status === 'waiting' ? 'waiting' : 'quiz');
   const [participants, setParticipants] = useState([]);
+  const [activeParticipantIds, setActiveParticipantIds] = useState([]);
+  const [presenceReady, setPresenceReady] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   const previousStatusRef = useRef(room.status);
   const test = tests.find((t) => t.id === room.testId);
@@ -1781,6 +1941,12 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
         if (r.status !== 'waiting') setPhase((p) => (p === 'waiting' ? 'quiz' : p));
       },
       onParticipants: (updater) => { if (!cancelled) setParticipants(updater); },
+      presence: { participantId: participant.id, name: participant.name },
+      onPresence: (state) => {
+        if (cancelled) return;
+        setActiveParticipantIds(livePresenceParticipantIds(state));
+        setPresenceReady(true);
+      },
       pollFallbackMs: 2000,
     });
     return () => { cancelled = true; unsubscribe(); };
@@ -1796,6 +1962,27 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
           <Loader2 className="animate-spin" size={16} />
           {room.scheduledAt ? `Test ${new Date(room.scheduledAt).toLocaleString()} da boshlanadi.` : 'Boshqaruvchi testni boshlashini kuting...'}
         </div>
+        <section className="mt-5 max-w-sm rounded-2xl p-4" aria-label="Kutish zalidagi qatnashchilar" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="font-semibold" style={{ ...fontBody, color: C.ink }}>Kutayotganlar</div>
+            <div className="rounded-full px-2.5 py-1 text-xs" style={{ ...fontMono, color: C.live, background: C.liveTint }}>{participants.length} kishi</div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {participants.map((p) => {
+              const online = !presenceReady || activeParticipantIds.includes(String(p.id));
+              return (
+                <span key={p.id} className="inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1.5 text-sm" style={{ ...fontBody, color: C.ink, background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: online ? C.accent : C.inkSoft }} />
+                  <span className="max-w-[14rem] truncate">{p.name}{String(p.id) === String(participant.id) ? ' (siz)' : ''}</span>
+                </span>
+              );
+            })}
+            {participants.length === 0 && <span className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Hozircha boshqalar qoʻshilmadi.</span>}
+          </div>
+          <div className="mt-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+            {presenceReady ? `${activeParticipantIds.length} kishi hozir zalda` : 'Qatnashchilar yangilanmoqda…'}
+          </div>
+        </section>
         {room.scheduledAt && notificationPermission !== 'unsupported' && notificationPermission !== 'granted' && (
           <button type="button" onClick={enableStartNotification} className="mt-4 rounded-xl px-4 py-2 text-sm" style={{ ...fontBody, color: C.ink, background: C.liveTint, border: `1px solid ${C.rule}` }}>
             Boshlanganda bildirishnoma yuborilsin
@@ -1958,5 +2145,6 @@ export default function LiveQuizHub(props) {
     </LiveQuizErrorBoundary>
   );
 }
+
 
 
