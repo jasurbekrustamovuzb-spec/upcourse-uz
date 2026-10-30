@@ -21,18 +21,18 @@ function makeCelebrationParticles(style) {
   const variants = style === 'mixed' ? ['confetti', 'stars', 'badges'] : [style];
   const selected = variants[Math.floor(Math.random() * variants.length)] || 'confetti';
   const symbols = CELEBRATION_SYMBOLS[selected] || CELEBRATION_SYMBOLS.confetti;
-  return Array.from({ length: 20 }, (_, index) => {
-    const angle = (Math.PI * 2 * index) / 20 + (Math.random() - 0.5) * 0.32;
-    const distance = 95 + Math.random() * 190;
+  return Array.from({ length: 8 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 8 + (Math.random() - 0.5) * 0.28;
+    const distance = 75 + Math.random() * 105;
     return {
       id: `${Date.now()}-${Math.random()}-${index}`,
       symbol: symbols[Math.floor(Math.random() * symbols.length)],
       x: `${Math.round(Math.cos(angle) * distance)}px`,
       y: `${Math.round(Math.sin(angle) * distance - 24)}px`,
-      rotate: `${Math.round((Math.random() - 0.5) * 520)}deg`,
-      delay: `${Math.round(Math.random() * 140)}ms`,
-      duration: `${Math.round(650 + Math.random() * 450)}ms`,
-      size: `${18 + Math.round(Math.random() * 12)}px`,
+      rotate: `${Math.round((Math.random() - 0.5) * 260)}deg`,
+      delay: `${Math.round(Math.random() * 70)}ms`,
+      duration: `${Math.round(520 + Math.random() * 180)}ms`,
+      size: `${16 + Math.round(Math.random() * 5)}px`,
     };
   });
 }
@@ -40,17 +40,18 @@ function makeCelebrationParticles(style) {
 function makeTransitionFragments(effect) {
   if (!['shatter', 'dissolve'].includes(effect)) return [];
   const colors = ['#c58a35', '#e5c78d', '#527d68', '#7c6bb1', '#d86e58', '#61a4a1'];
-  return Array.from({ length: effect === 'shatter' ? 24 : 30 }, (_, index) => {
-    const angle = (Math.PI * 2 * index) / (effect === 'shatter' ? 24 : 30) + (Math.random() - 0.5) * 0.45;
-    const distance = 145 + Math.random() * 270;
+  const count = effect === 'shatter' ? 10 : 12;
+  return Array.from({ length: count }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / count + (Math.random() - 0.5) * 0.28;
+    const distance = 78 + Math.random() * 130;
     return {
       id: `${Date.now()}-${Math.random()}-${index}`,
       x: `${Math.round(Math.cos(angle) * distance)}px`,
-      y: `${Math.round(Math.sin(angle) * distance - 26)}px`,
-      rotate: `${Math.round((Math.random() - 0.5) * 600)}deg`,
-      delay: `${Math.round(Math.random() * 90)}ms`,
+      y: `${Math.round(Math.sin(angle) * distance - 16)}px`,
+      rotate: `${Math.round((Math.random() - 0.5) * 360)}deg`,
+      delay: `${Math.round(Math.random() * 32)}ms`,
       color: colors[Math.floor(Math.random() * colors.length)],
-      size: `${12 + Math.round(Math.random() * 18)}px`,
+      size: `${8 + Math.round(Math.random() * 8)}px`,
       shape: Math.random() > 0.55 ? 'circle' : 'shard',
     };
   });
@@ -132,7 +133,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
   const [partIndex, setPartIndex] = useState(init.partIndex || 1);
   const [fontScale] = useState(() => {
     const value = Number(init.fontScale);
-    return Number.isFinite(value) && value > 0 ? Math.max(0.9, Math.min(1.3, value)) : 1;
+    return Number.isFinite(value) && value > 0 ? Math.max(0.7, Math.min(1.3, value)) : 0.9;
   });
   const lastSavedSetupPrefsRef = useRef(null);
 
@@ -296,8 +297,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const [visibleListCount, setVisibleListCount] = useState(() => Math.min(questions.length, 20));
   const [fontScale, setFontScale] = useState(() => {
     const saved = Number(config.fontScale);
-    if (Number.isFinite(saved) && saved > 0) return Math.max(0.9, Math.min(1.3, saved));
-    try { return Math.max(0.9, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 1)); } catch { return 1; }
+    if (Number.isFinite(saved) && saved > 0) return Math.max(0.7, Math.min(1.3, saved));
+    try { return Math.max(0.7, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 0.9)); } catch { return 0.9; }
   });
   const [revealed, setRevealed] = useState({});
   const [celebrationParticles, setCelebrationParticles] = useState(null);
@@ -455,11 +456,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       return;
     }
     setCelebrationParticles(makeCelebrationParticles(playerPrefs.celebrationStyle || 'mixed'));
-    celebrationTimerRef.current = setTimeout(() => setCelebrationParticles(null), 1200);
+    celebrationTimerRef.current = setTimeout(() => setCelebrationParticles(null), 760);
   }
 
   function setQuizFontScale(value) {
-    const next = Math.max(0.9, Math.min(1.3, value));
+    const next = Math.round(Math.max(0.7, Math.min(1.3, value)) * 10) / 10;
     setFontScale(next);
     try { localStorage.setItem('upcourse-quiz-font-scale', String(next)); } catch {}
     updatePlayerPrefs({ fontScale: next });
@@ -861,10 +862,6 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const renderQuestionCard = (question, index, reel = false) => {
     const answer = answers[question.id];
     const showResult = playerPrefs.immediate && question.type !== 'open' && !!revealed[question.id];
-    const resultAnimation = showResult
-      ? isQuestionCorrect(question, answer) ? playerPrefs.correctAnimation : playerPrefs.wrongAnimation
-      : 'none';
-    const resultClass = resultAnimation && resultAnimation !== 'none' ? `quiz-result-${resultAnimation}` : '';
     const exitEffect = reel && transitioningQuestion?.questionId === question.id ? transitioningQuestion.effect : null;
     return (
       <article
@@ -872,7 +869,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         ref={(node) => { if (node) questionRefs.current[index] = node; else delete questionRefs.current[index]; }}
         data-question-index={index}
         aria-labelledby={`quiz-question-title-${index}`}
-        className={`relative ${reel ? 'quiz-reel-enter flex h-full min-h-0 w-full flex-col' : question.type === 'matching' ? 'w-full border-b pb-2 pt-0.5 last:border-b-0' : 'w-full border-b py-5 last:border-b-0'} ${resultClass} ${exitEffect && exitEffect !== 'none' ? `quiz-exit-${exitEffect}` : ''}`}
+        className={`relative ${reel ? 'quiz-reel-enter flex h-full min-h-0 w-full flex-col' : question.type === 'matching' ? 'w-full border-b pb-2 pt-0.5 last:border-b-0' : 'w-full border-b py-5 last:border-b-0'} ${exitEffect && exitEffect !== 'none' ? `quiz-exit-${exitEffect}` : ''}`}
         style={reel ? undefined : { borderColor: C.rule, scrollMarginTop: '96px' }}
       >
         {exitEffect && transitioningQuestion?.questionId === question.id && transitioningQuestion.fragments?.length > 0 && (
@@ -883,12 +880,12 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           </div>
         )}
         {reel ? (
-          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
+          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
             {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
         ) : (
-          <div className={question.type === 'matching' ? "w-full px-0" : "mx-auto max-w-3xl px-1 sm:px-3"}>
+          <div className={question.type === 'matching' ? "w-full px-0" : "mx-auto max-w-3xl px-2 sm:px-3"}>
             {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
@@ -933,9 +930,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
               const selected = answer === optionIndex;
               const correct = showResult && optionIndex === question.correct;
               const wrong = showResult && selected && optionIndex !== question.correct;
+              const optionAnimation = correct ? playerPrefs.correctAnimation : wrong ? playerPrefs.wrongAnimation : 'none';
+              const optionEffectClass = showResult && optionAnimation !== 'none' ? `quiz-result-${optionAnimation}` : '';
               const background = correct ? C.successTint : wrong ? C.dangerTint : selected ? C.selectedTint : C.surface;
               const border = correct ? C.accent : wrong ? C.red : selected ? C.gold : C.rule;
-              return <button key={optionIndex} type="button" onClick={() => select(question.id, optionIndex)} disabled={showResult} aria-pressed={selected} className="flex min-h-12 w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 disabled:cursor-default" style={{ ...fontBody, color: C.ink, background, borderColor: border, outlineColor: C.gold, fontSize: `${Math.round(16 * fontScale)}px` }}>
+              return <button key={optionIndex} type="button" onClick={() => select(question.id, optionIndex)} disabled={showResult} aria-pressed={selected} className={`flex min-h-12 w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 disabled:cursor-default ${optionEffectClass}`} style={{ ...fontBody, color: C.ink, background, borderColor: border, outlineColor: C.gold, fontSize: `${Math.round(16 * fontScale)}px` }}>
                 <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold" style={{ ...fontMono, color: selected || correct || wrong ? C.cover : C.inkSoft, background: C.paper }}>{String.fromCharCode(65 + optionIndex)}</span>
                 {question.pdfSourceImageOnly ? null : <span className="min-w-0 flex-1 pt-0.5">{question.optionsAreMath ? <Suspense fallback={<span>{option}</span>}><MathInput value={option} readOnly compact scale={fontScale} /></Suspense> : option}</span>}
                 {correct && <Check size={18} className="mt-1 shrink-0" style={{ color: C.accent }} />}{wrong && <X size={18} className="mt-1 shrink-0" style={{ color: C.red }} />}
@@ -950,45 +949,43 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   return (
     <div className="fixed inset-0 z-[80] flex h-[100dvh] w-full flex-col overflow-hidden" style={{ background: C.paper, color: C.ink, paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <style>{`
-@keyframes quiz-reel-enter{from{opacity:.35;transform:translateY(34px) scale(.975)}to{opacity:1;transform:translateY(0) scale(1)}}
-@keyframes quiz-feedback-enter{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-@keyframes quiz-result-pop{0%{transform:scale(1)}28%{transform:scale(1.045)}58%{transform:scale(.99)}100%{transform:scale(1);box-shadow:0 0 0 3px rgba(46,130,84,.35),0 14px 32px rgba(46,130,84,.18)}}
-@keyframes quiz-result-glow{0%{box-shadow:0 0 0 0 rgba(52,160,104,0);filter:brightness(1)}38%{box-shadow:0 0 0 7px rgba(52,160,104,.36),0 0 35px rgba(52,160,104,.5);filter:brightness(1.12)}100%{box-shadow:0 0 0 3px rgba(52,160,104,.24),0 0 20px rgba(52,160,104,.18);filter:brightness(1)}}
-@keyframes quiz-result-slide{0%{transform:translateX(20px);opacity:.68}55%{transform:translateX(-4px)}100%{transform:translateX(0);opacity:1}}
-@keyframes quiz-result-shake{0%,100%{transform:translateX(0)}18%{transform:translateX(-11px)}38%{transform:translateX(9px)}58%{transform:translateX(-6px)}78%{transform:translateX(4px)}}
-@keyframes quiz-result-nudge{0%,100%{transform:translateY(0)}35%{transform:translateY(-8px)}65%{transform:translateY(3px)}}
-@keyframes quiz-result-flash{0%,100%{background-color:inherit;box-shadow:0 0 0 0 rgba(205,66,55,0)}30%{background-color:rgba(205,66,55,.14);box-shadow:0 0 0 6px rgba(205,66,55,.22),0 0 24px rgba(205,66,55,.24)}}
-@keyframes quiz-celebrate-burst{0%{opacity:0;transform:translate(-50%,-50%) scale(.28) rotate(0)}12%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.1) rotate(var(--turn))}}
-@keyframes quiz-transition-shard{0%{opacity:0;transform:translate(-50%,-50%) scale(1) rotate(0)}12%{opacity:1}65%{opacity:.94}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.12) rotate(var(--turn))}}
-@keyframes quiz-exit-shatter{0%{opacity:1;transform:scale(1);filter:none;clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}35%{opacity:.94;transform:scale(1.025);clip-path:polygon(0 0,34% 0,48% 16%,62% 0,100% 0,100% 30%,82% 42%,100% 55%,100% 100%,58% 100%,43% 82%,27% 100%,0 100%,0 61%,17% 48%,0 36%)}100%{opacity:0;transform:scale(.88) translateY(-20px);filter:blur(2px);clip-path:polygon(18% 19%,37% 22%,48% 35%,61% 18%,81% 25%,76% 43%,88% 56%,65% 63%,58% 84%,41% 72%,26% 83%,30% 61%,12% 49%)}}
-@keyframes quiz-exit-dissolve{0%{opacity:1;filter:none;transform:scale(1)}35%{opacity:.92;filter:saturate(1.35) blur(1px);transform:scale(1.015)}100%{opacity:0;transform:scale(.82) translateY(-12px);filter:blur(8px) saturate(.7)}}
+@keyframes quiz-reel-enter{from{opacity:.55;transform:translate3d(0,14px,0) scale(.99)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+@keyframes quiz-feedback-enter{from{opacity:0;transform:translate3d(0,-3px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+@keyframes quiz-result-pop{0%{transform:scale(1)}45%{transform:scale(1.018)}100%{transform:scale(1)}}
+@keyframes quiz-result-glow{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(52,160,104,0)}45%{transform:scale(1.015);box-shadow:0 0 0 3px rgba(52,160,104,.22)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(52,160,104,0)}}
+@keyframes quiz-result-slide{0%{transform:translate3d(7px,0,0);opacity:.82}65%{transform:translate3d(-2px,0,0)}100%{transform:translate3d(0,0,0);opacity:1}}
+@keyframes quiz-result-shake{0%,100%{transform:translate3d(0,0,0)}25%{transform:translate3d(-3px,0,0)}50%{transform:translate3d(3px,0,0)}75%{transform:translate3d(-1px,0,0)}}
+@keyframes quiz-result-nudge{0%,100%{transform:translate3d(0,0,0)}45%{transform:translate3d(0,-2px,0)}75%{transform:translate3d(0,1px,0)}}
+@keyframes quiz-result-flash{0%,100%{background-color:inherit}35%{background-color:rgba(205,66,55,.1)}}
+@keyframes quiz-celebrate-burst{0%{opacity:0;transform:translate(-50%,-50%) scale(.5) rotate(0)}18%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.82) rotate(var(--turn))}}
+@keyframes quiz-transition-shard{0%{opacity:0;transform:translate(-50%,-50%) scale(.75) rotate(0)}14%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.35) rotate(var(--turn))}}
+@keyframes quiz-exit-shatter{to{opacity:0;transform:translate3d(0,-10px,0) scale(.96) rotate(-.6deg)}}
+@keyframes quiz-exit-dissolve{to{opacity:0;transform:translate3d(0,7px,0) scale(.97)}}
 @keyframes quiz-exit-fly{to{opacity:0;transform:translate3d(0,-72vh,0) rotate(-4deg) scale(.9)}}
-@keyframes quiz-exit-fade{to{opacity:0;transform:scale(.94) translateY(-10px)}}
+@keyframes quiz-exit-fade{to{opacity:0;transform:translate3d(0,-8px,0) scale(.97)}}
 @keyframes quiz-exit-slide{to{opacity:0;transform:translate3d(-110vw,0,0) rotate(-2deg) scale(.94)}}
-.quiz-reel-enter{animation:quiz-reel-enter 380ms cubic-bezier(.2,.7,.2,1)}
-.quiz-feedback-enter{animation:quiz-feedback-enter 180ms ease-out}
-.quiz-result-pop{animation:quiz-result-pop 700ms cubic-bezier(.2,.7,.2,1)}
-.quiz-result-glow{animation:quiz-result-glow 900ms ease-out}
-.quiz-result-slide{animation:quiz-result-slide 520ms cubic-bezier(.2,.7,.2,1)}
-.quiz-result-shake{animation:quiz-result-shake 560ms ease-in-out}
-.quiz-result-nudge{animation:quiz-result-nudge 520ms cubic-bezier(.2,.7,.2,1)}
-.quiz-result-flash{animation:quiz-result-flash 720ms ease-out}
-.quiz-result-slide{border-left:5px solid #37875b}
-.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash{outline:2px solid rgba(205,66,55,.34);outline-offset:2px}
-.quiz-result-pop,.quiz-result-glow{outline:2px solid rgba(52,160,104,.28);outline-offset:2px}
-.quiz-celebration-particle{position:absolute;left:50%;top:44%;opacity:0;animation:quiz-celebrate-burst var(--duration) cubic-bezier(.16,.72,.25,1) var(--delay) forwards;will-change:transform,opacity}
-.quiz-transition-fragment{position:absolute;left:50%;top:50%;opacity:0;animation:quiz-transition-shard 620ms cubic-bezier(.16,.72,.25,1) var(--delay) forwards;will-change:transform,opacity;box-shadow:0 3px 9px rgba(15,35,25,.28)}
-.quiz-exit-shatter{animation:quiz-exit-shatter 620ms cubic-bezier(.35,0,.7,.25) forwards;pointer-events:none;will-change:transform,opacity,clip-path}
-.quiz-exit-dissolve{animation:quiz-exit-dissolve 620ms ease-in forwards;pointer-events:none;will-change:transform,opacity,filter}
-.quiz-exit-fly{animation:quiz-exit-fly 620ms cubic-bezier(.4,0,.8,.4) forwards;pointer-events:none}
-.quiz-exit-fade{animation:quiz-exit-fade 620ms ease-in forwards;pointer-events:none}
-.quiz-exit-slide{animation:quiz-exit-slide 620ms ease-in forwards;pointer-events:none}
+.quiz-reel-enter{animation:quiz-reel-enter 220ms cubic-bezier(.2,.7,.2,1)}
+.quiz-feedback-enter{animation:quiz-feedback-enter 160ms ease-out}
+.quiz-result-pop{animation:quiz-result-pop 300ms cubic-bezier(.2,.7,.2,1)}
+.quiz-result-glow{animation:quiz-result-glow 440ms ease-out}
+.quiz-result-slide{animation:quiz-result-slide 280ms cubic-bezier(.2,.7,.2,1)}
+.quiz-result-shake{animation:quiz-result-shake 260ms ease-in-out}
+.quiz-result-nudge{animation:quiz-result-nudge 240ms ease-out}
+.quiz-result-flash{animation:quiz-result-flash 360ms ease-out}
+.quiz-result-slide{border-left:3px solid #37875b}
+.quiz-celebration-particle{position:absolute;left:50%;top:44%;opacity:0;animation:quiz-celebrate-burst var(--duration) cubic-bezier(.16,.72,.25,1) var(--delay) forwards}
+.quiz-transition-fragment{position:absolute;left:50%;top:50%;opacity:0;animation:quiz-transition-shard 420ms cubic-bezier(.16,.72,.25,1) var(--delay) forwards}
+.quiz-exit-shatter{animation:quiz-exit-shatter 420ms ease-in forwards;pointer-events:none}
+.quiz-exit-dissolve{animation:quiz-exit-dissolve 420ms ease-in forwards;pointer-events:none}
+.quiz-exit-fly{animation:quiz-exit-fly 420ms cubic-bezier(.4,0,.8,.4) forwards;pointer-events:none}
+.quiz-exit-fade{animation:quiz-exit-fade 360ms ease-in forwards;pointer-events:none}
+.quiz-exit-slide{animation:quiz-exit-slide 420ms ease-in forwards;pointer-events:none}
 .quiz-control-panel{transition:transform 320ms cubic-bezier(.2,.7,.2,1),opacity 220ms ease}
 .quiz-control-panel[data-hidden="true"]{transform:translateY(-110%);opacity:0;pointer-events:none}
 @media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-feedback-enter,.quiz-result-pop,.quiz-result-glow,.quiz-result-slide,.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash,.quiz-celebration-particle,.quiz-transition-fragment,.quiz-exit-shatter,.quiz-exit-dissolve,.quiz-exit-fly,.quiz-exit-fade,.quiz-exit-slide,.quiz-control-panel{animation:none;transition:none;will-change:auto}}
 `}</style>
-      {celebrationParticles && <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[100] overflow-hidden">{celebrationParticles.map((particle) => <span key={particle.id} className="quiz-celebration-particle" style={{ '--dx': particle.x, '--dy': particle.y, '--turn': particle.rotate, '--delay': particle.delay, '--duration': particle.duration, fontSize: particle.size, filter: 'drop-shadow(0 2px 5px rgba(18,38,27,.22))' }}>{particle.symbol}</span>)}</div>}
-      <div className="quiz-control-panel absolute inset-x-0 top-0 z-30 border-b px-4 pb-2 pt-2 sm:px-5" data-hidden={!controlsVisible} aria-hidden={!controlsVisible} style={{ background: C.paper, borderColor: C.rule, paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}>
+      {celebrationParticles && <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[100] overflow-hidden">{celebrationParticles.map((particle) => <span key={particle.id} className="quiz-celebration-particle" style={{ '--dx': particle.x, '--dy': particle.y, '--turn': particle.rotate, '--delay': particle.delay, '--duration': particle.duration, fontSize: particle.size, filter: 'none' }}>{particle.symbol}</span>)}</div>}
+      <div className="quiz-control-panel absolute inset-x-0 top-0 z-30 border-b px-5 pb-2 pt-2 sm:px-6" data-hidden={!controlsVisible} aria-hidden={!controlsVisible} style={{ background: C.paper, borderColor: C.rule, paddingTop: 'calc(env(safe-area-inset-top) + 8px)' }}>
         <div className="flex items-center gap-2">
           <button type="button" onClick={requestLeave} aria-label="Testdan chiqish amallari" title="Ortga" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><ArrowLeft size={19} /></button>
           <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{test.title}</div><div className="flex items-center gap-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</div></div>
