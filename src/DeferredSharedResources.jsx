@@ -54,9 +54,14 @@ export function FollowerShareDialog({ resource, session, onClose }) {
       if (requestError) throw requestError;
       setSentCount(Number(data?.sent_count ?? selected.length));
     } catch (requestError) {
-      setError(requestError?.message?.includes('RESOURCE_NOT_OWNED')
-        ? 'Faqat o‘zingiz yaratgan materialni yubora olasiz.'
-        : 'Yuborib bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.');
+      const message = String(requestError?.message || '');
+      const normalized = message.toLowerCase();
+      if (normalized.includes('auth_required')) setError('Akkauntga qayta kiring, so‘ng yuborishni takrorlang.');
+      else if (normalized.includes('resource_not_owned')) setError('Bu material akkauntingizga bog‘lanmagan. Muallif ma’lumotini yangilang yoki boshqa materialni tanlang.');
+      else if (normalized.includes('recipient_not_follower')) setError('Tanlangan foydalanuvchi endi kuzatuvchilaringiz ro‘yxatida yo‘q. Ro‘yxatni yangilang.');
+      else if (normalized.includes('invalid_recipient_count')) setError('Kamida bitta kuzatuvchini tanlang; bir martada 50 tagacha yuborish mumkin.');
+      else if (normalized.includes('schema cache') || normalized.includes('could not find the function')) setError('Ulashish xizmati yangilanmagan. Supabase SQL’ni qayta ishga tushirib, birozdan keyin urinib ko‘ring.');
+      else setError(message ? `Yuborilmadi: ${message.slice(0, 180)}` : 'Ulashib bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.');
     } finally {
       setSending(false);
     }
