@@ -680,6 +680,19 @@ export async function sbFindParticipantByDevice(roomId, deviceKey) {
   const rows = await sbRequest(`live_participants?select=*&room_id=eq.${encodeURIComponent(roomId)}&device_key=eq.${encodeURIComponent(deviceKey)}`);
   return rows.length ? liveParticipantFromRow(rows[0]) : null;
 }
+/* Eski jonli testlarda bir qurilma kaliti bir nechta akkauntga umumiy
+   bo'lib qolgan bo'lishi mumkin. Kalitni faqat qator hanuz eski kalitga
+   teng bo'lsa almashtiramiz: parallel qo'shilishlarda bir akkauntning
+   boshqa akkaunt qatorini egallab olishini oldini oladi. */
+export async function sbClaimLiveParticipantDevice(roomId, participantId, oldDeviceKey, newDeviceKey) {
+  const filter = `id=eq.${encodeURIComponent(participantId)}&room_id=eq.${encodeURIComponent(roomId)}&device_key=eq.${encodeURIComponent(oldDeviceKey)}`;
+  const rows = await sbRequest(`live_participants?${filter}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ device_key: newDeviceKey }),
+  });
+  return rows?.[0] ? liveParticipantFromRow(rows[0]) : null;
+}
 
 /* Jonli test xonasini kuzatish — WebSocket (Realtime) orqali.
    Oldin: har bir qurilma xona holatini "so'rab turardi" (REST so'rov,
@@ -694,7 +707,7 @@ export async function sbFindParticipantByDevice(roomId, deviceKey) {
    bilan) tegishli o'zgarishlarni oladi — boshqa xonalarning trafigini
    olmaydi. Qaytaradi: tozalash (unsubscribe) funksiyasi — komponent
    yopilganda albatta shuni chaqirish kerak. */
-export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, onPresence, presence = null, pollFallbackMs = 2000 } = {}) {
+export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, onSubscribed, pollFallbackMs = 2000 } = {}) {
   let closed = false;
   let fallbackTimer = null;
   let fallbackActive = false;
@@ -719,11 +732,8 @@ export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, onPresence
     if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null; }
   }
 
-  const channelOptions = presence?.participantId
-    ? { config: { presence: { key: String(presence.participantId) } } }
-    : undefined;
   const channel = supabase
-    .channel(`live-room-${roomId}`, channelOptions)
+    .channel(`live-room-${roomId}`)
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'live_rooms', filter: `id=eq.${roomId}` },
@@ -750,20 +760,10 @@ export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, onPresence
         });
       }
     )
-    .on('presence', { event: 'sync' }, () => {
-      if (onPresence) onPresence(channel.presenceState());
-    })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         stopFallbackPolling();
-        if (onPresence) onPresence(channel.presenceState());
-        if (presence?.participantId) {
-          channel.track({
-            participantId: String(presence.participantId),
-            role: 'participant',
-            name: String(presence.name || ''),
-          }).catch(() => { /* Realtime presence ixtiyoriy; vaqt cheklovi zaxira bo'lib qoladi */ });
-        }
+        if (onSubscribed) onSubscribed();
       }
       else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') startFallbackPolling();
     });
@@ -4643,8 +4643,3 @@ export default function App() {
     </SectionLoadingProvider>
   );
 }
-
-
-
-
-
