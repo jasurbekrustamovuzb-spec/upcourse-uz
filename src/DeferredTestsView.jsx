@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileText, ListChecks, Lock, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
 import { signInWithGoogle, supabase } from './supabaseClient.js';
 import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
@@ -1162,7 +1162,7 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onExitInitialLive, onExitInitialTest, onShareToFollowers }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
@@ -1196,8 +1196,11 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
 
   const myId = session?.user?.id;
   const approved = tests.filter((t) => t.status === 'approved');
-  const approvedCategories = categories.filter((c) => c.status !== 'pending' || approved.some((test) => test.categoryId === c.id));
   const viewable = isAdmin ? tests : tests.filter((t) => t.status === 'approved' || t.authorId === myId);
+  const categoryCategories = categories.filter((category) =>
+    (isAdmin || category.status === 'approved' || category.authorId === myId || approved.some((test) => test.categoryId === category.id))
+    && viewable.some((test) => test.categoryId === category.id)
+  );
   /* To'liq tests ro'yxatidan qidiramiz (faqat viewable'dan emas) — shu
      tufayli ulashilgan havola orqali kirilgan tekshirilmoqda/xususiy
      test ham (uning muallifi yoki admin bo'lmasa ham) ochiladi:
@@ -1209,7 +1212,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const nextTest = activeCategoryIndex >= 0 ? activeCategoryTests[activeCategoryIndex + 1] || null : null;
   const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
-  const inCategory = approved.filter((t) => t.categoryId === categoryId);
+  const inCategory = viewable.filter((t) => t.categoryId === categoryId);
+  const privateInCategory = inCategory.filter((test) => test.status !== 'approved' && test.authorId === myId);
   const q = query.trim().toLowerCase();
   const effectivePrefs = { ...DEFAULT_TEST_PREFS, ...(profile?.testPrefs || {}) };
   const onSavePrefs = session ? saveTestPrefs : undefined;
@@ -1255,8 +1259,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   }, [activeId, categoryId, liveOpen, liveSession]);
 
 
-  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((t) => t.categoryId === cat.id)) : [];
-  const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
+  const matchedCategories = q ? categoryCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedTests = q ? viewable.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
 
@@ -1327,7 +1331,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     return (
       <div>
         <div className="flex items-start justify-between gap-3 mb-1">
-          <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
+          <SectionHeading eyebrow={`${categoryCategories.length} ta soha`} title="Testlar" />
           <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
         </div>
         <button
@@ -1404,7 +1408,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Sohalar</div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {matchedCategories.map((cat) => {
-                      const count = approved.filter((t) => t.categoryId === cat.id).length;
+                      const count = viewable.filter((t) => t.categoryId === cat.id).length;
                       return (
                         <div
                           key={cat.id}
@@ -1453,8 +1457,11 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           )
         ) : (
           <CategoryGrid
-            categories={approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id))}
-            itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            categories={categoryCategories}
+            itemsByCategory={viewable.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            approvedCountsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            privateCountsByCategory={viewable.reduce((acc, t) => { if (t.status !== 'approved' && t.authorId === myId) acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            onSharePrivateCategory={(cat) => onShareToFollowers?.('bundle', { title: `${cat.name} — maxfiy va kutilayotgan testlar`, resources: viewable.filter((test) => test.categoryId === cat.id && test.status !== 'approved' && test.authorId === myId).map((test) => ({ type: 'test', id: test.id, title: test.title })) })}
             itemLabel="test"
             onSelect={goCategory}
             renameCategory={renameCategory}
@@ -1479,6 +1486,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
         <ArrowLeft size={15} /> Barcha sohalar
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
+      {privateInCategory.length > 0 && onShareToFollowers && <button type="button" onClick={() => onShareToFollowers('bundle', { title: `${activeCategory?.name || 'Soha'} — maxfiy va kutilayotgan testlar`, resources: privateInCategory.map((test) => ({ type: 'test', id: test.id, title: test.title })) })} className="mb-4 inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-medium" style={{ ...fontBody, color: C.cover, background: C.goldSoft, borderColor: C.coverLine }}><Users size={14} /> Maxfiy testlarni do‘stlarga yuborish · {privateInCategory.length}</button>}
       <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} />
       {testsLoading && !tests.length ? (
         <SectionLoading label="Testlar yuklanmoqda…" />
@@ -1499,12 +1507,15 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                   <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
+                  {t.status === 'private' && <div className="mt-1 inline-flex items-center gap-1 text-[10px]" style={{ ...fontMono, color: C.inkSoft }}><Lock size={11} /> Maxfiy</div>}
+                  {t.status === 'pending' && <div className="mt-1 inline-flex items-center gap-1 text-[10px]" style={{ ...fontMono, color: C.gold }}><Clock3 size={11} /> Tasdiq kutilmoqda</div>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
                 <ItemMenu actions={[
                   { label: 'Sozlamalar', icon: Settings, onClick: () => goTest(t.id, true) },
-                  { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
+                  { label: 'Havolani ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
+                  ...(t.authorId === myId && onShareToFollowers ? [{ label: 'Kuzatuvchilarga yuborish', icon: Users, onClick: () => onShareToFollowers('test', t) }] : []),
                   ...(isAdmin ? [
                     { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
                     { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
