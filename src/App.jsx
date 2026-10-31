@@ -1328,7 +1328,7 @@ function UzbekFlagRibbon({ width = 92 }) {
         { y: 29, xs: [48, 59, 70, 81, 92] },
       ].map((row, ri) =>
         row.xs.map((x, ci) => (
-          <tex
+          <text
             key={`${ri}-${ci}`}
             x={x}
             y={row.y}
