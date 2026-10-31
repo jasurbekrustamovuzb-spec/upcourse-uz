@@ -1162,7 +1162,7 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onExitInitialLive }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onExitInitialLive, onExitInitialTest }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
@@ -1186,7 +1186,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
      oldin sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash")
      saqlangan/andoza sozlamalar bilan darhol boshlanadi. */
-  const goTest = (id, forceSetup, resumeState = null) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); setActiveResumeState(resumeState); setSetupMode(!!forceSetup); pushNav(() => { setActiveId(null); setActiveResumeState(null); setSetupMode(false); }); };
+  const goTest = (id, forceSetup, resumeState = null, onLeave = null) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); setActiveResumeState(resumeState); setSetupMode(!!forceSetup); pushNav(() => { setActiveId(null); setActiveResumeState(null); setSetupMode(false); onLeave?.(); }); };
   const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTeamBattle = () => { setTeamBattleOpen(true); pushNav(() => setTeamBattleOpen(false)); };
@@ -1225,7 +1225,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
      ekanini qayta izlashga hojat qolmaydi). */
   useEffect(() => {
     if (initialOpenId) {
-      goTest(initialOpenId);
+      goTest(initialOpenId, false, null, onExitInitialTest);
       setOpeningInitialTest(false);
     }
     else if (initialCategoryId) goCategory(initialCategoryId);
@@ -1261,9 +1261,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
 
   useEffect(() => {
-    if (onReadingChange) onReadingChange(!!active || (Boolean(initialLiveCode) && liveOpen));
+    if (onReadingChange) onReadingChange(!!active || (Boolean(initialOpenId) && (openingInitialTest || Boolean(activeId))) || (Boolean(initialLiveCode) && liveOpen));
     return () => { if (onReadingChange) onReadingChange(false); };
-  }, [active, initialLiveCode, liveOpen, onReadingChange]);
+  }, [active, activeId, initialOpenId, initialLiveCode, liveOpen, onReadingChange, openingInitialTest]);
 
   if (active) {
     if (active.questions === undefined) {
