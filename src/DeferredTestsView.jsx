@@ -491,6 +491,23 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     }
   }
 
+  function scrollQuestionToReadingPosition(index) {
+    const container = listContainerRef.current;
+    const question = questionRefs.current[index];
+    if (!container || !question) return;
+
+    const containerTop = container.getBoundingClientRect().top;
+    const questionTop = question.getBoundingClientRect().top;
+    const comfortableTop = Math.round(container.clientHeight * 0.24);
+    const nextScrollTop = container.scrollTop + questionTop - containerTop - comfortableTop;
+    const maxScrollTop = container.scrollHeight - container.clientHeight;
+
+    container.scrollTo({
+      top: Math.max(0, Math.min(maxScrollTop, nextScrollTop)),
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+  }
+
   function handleReelsTouchStart(event) {
     if (event.target?.closest?.('input, textarea, select, math-field, [contenteditable="true"]')) return;
     const touch = event.touches?.[0];
@@ -577,7 +594,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       if (viewMode === 'list') {
         setVisibleListCount((count) => Math.max(count, Math.min(questions.length, nextIndex + 1)));
         setCurrentQuestionIndex(nextIndex);
-        requestAnimationFrame(() => questionRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        requestAnimationFrame(() => scrollQuestionToReadingPosition(nextIndex));
       } else {
         setCurrentQuestionIndex(nextIndex);
         if (reelsQuestionBodyRef.current) reelsQuestionBodyRef.current.scrollTop = 0;
