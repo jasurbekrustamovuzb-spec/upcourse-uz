@@ -14,7 +14,7 @@ export function FollowerShareDialog({ resource, session, onClose }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [sentCount, setSentCount] = useState(null);
+  const [sentSummary, setSentSummary] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -46,13 +46,44 @@ export function FollowerShareDialog({ resource, session, onClose }) {
     setSending(true);
     setError('');
     try {
-      const { data, error: requestError } = await supabase.rpc('profile_shared_resource_send', {
-        p_resource_type: resource.type,
-        p_resource_id: resource.id,
-        p_recipient_ids: selected,
-      });
-      if (requestError) throw requestError;
-      setSentCount(Number(data?.sent_count ?? selected.length));
+      const resources = Array.isArray(resource?.resources) ? resource.resources : [resource];
+      if (!resources.length) throw new Error('Bu sohada yuboriladigan maxfiy yoki kutilayotgan material topilmadi.');
+
+      // The existing permission-checked RPC sends one resource at a time.
+      // Send a small batch concurrently only after the user confirms; this
+      // keeps page load untouched and avoids a burst for large categories.
+      let sentResources = 0;
+      let recipientDeliveries = 0;
+      let firstFailure = null;
+      for (let offset = 0; offset < resources.length; offset += 4) {
+        const batch = resources.slice(offset, offset + 4);
+        const results = await Promise.allSettled(batch.map(async (item) => {
+          const { data, error: requestError } = await supabase.rpc('profile_shared_resource_send', {
+            p_resource_type: item.type,
+            p_resource_id: String(item.id),
+            p_recipient_ids: selected,
+          });
+          if (requestError) throw requestError;
+          return Number(data?.sent_count ?? selected.length);
+        }));
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            sentResources += 1;
+            recipientDeliveries += result.value;
+          } else if (!firstFailure) firstFailure = result.reason;
+        });
+      }
+
+      if (sentResources > 0) {
+        setSentSummary({ isBundle: Array.isArray(resource?.resources), sentResources, totalResources: resources.length, recipientDeliveries, followers: selected.length });
+      }
+      if (firstFailure) {
+        if (sentResources > 0) {
+          setError(`${sentResources} ta material yuborildi, ${resources.length - sentResources} tasini yuborib bo‘lmadi.`);
+          return;
+        }
+        throw firstFailure;
+      }
     } catch (requestError) {
       const message = String(requestError?.message || '');
       const normalized = message.toLowerCase();
@@ -74,15 +105,18 @@ export function FollowerShareDialog({ resource, session, onClose }) {
         <header className="flex items-start justify-between gap-4 border-b p-4" style={{ borderColor: C.rule }}>
           <div className="min-w-0">
             <div className="mb-1 flex items-center gap-2 text-xs" style={{ ...fontMono, color: C.gold }}><Users size={14} /> KUZATUVCHILARGA</div>
-            <h2 id="follower-share-title" className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>{sentCount === null ? 'Materialni yuborish' : 'Yuborildi'}</h2>
+            <h2 id="follower-share-title" className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>{sentSummary === null ? 'Materialni yuborish' : sentSummary.sentResources === sentSummary.totalResources ? 'Yuborildi' : 'Qisman yuborildi'}</h2>
             <p className="mt-1 truncate text-sm" style={{ ...fontBody, color: C.inkSoft }}>{resource.title}</p>
+            {Array.isArray(resource?.resources) && sentSummary === null && <p className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{resource.resources.length} ta maxfiy yoki tasdiq kutayotgan material tanlangan kuzatuvchilarga yuboriladi.</p>}
           </div>
           <button type="button" onClick={onClose} aria-label="Yopish" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: C.surface, color: C.inkSoft }}><X size={18} /></button>
         </header>
-        {sentCount !== null ? (
+        {sentSummary !== null ? (
           <div className="p-6 text-center">
             <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full" style={{ color: C.accent, background: C.successTint }}><Check size={24} /></span>
-            <p className="font-medium" style={{ ...fontBody, color: C.ink }}>{sentCount} ta kuzatuvchiga yuborildi.</p>
+            <p className="font-medium" style={{ ...fontBody, color: C.ink }}>{sentSummary.isBundle ? `${sentSummary.sentResources}/${sentSummary.totalResources} ta material yuborildi.` : `${sentSummary.followers} ta kuzatuvchiga yuborildi.`}</p>
+            {sentSummary.isBundle && <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>{sentSummary.followers} ta kuzatuvchiga · {sentSummary.recipientDeliveries} ta yuborish</p>}
+            {error && <p role="alert" className="mt-2 text-sm" style={{ ...fontBody, color: C.red }}>{error}</p>}
             <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Ular buni profilidagi “Do‘stlar ulashganlari” bo‘limida saqlashi mumkin.</p>
             <button type="button" onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-sm font-semibold" style={{ ...fontBody, background: C.cover, color: C.white }}>Tayyor</button>
           </div>

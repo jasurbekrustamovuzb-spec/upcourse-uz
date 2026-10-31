@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileText, ListChecks, Lock, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
 import { signInWithGoogle, supabase } from './supabaseClient.js';
 import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
@@ -126,7 +126,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
   const [adaptiveFeedback, setAdaptiveFeedback] = useState(!!init.adaptiveFeedback);
   const [viewMode, setViewMode] = useState(init.viewMode === 'reels' ? 'reels' : 'list');
   const [shuffle, setShuffle] = useState(!!init.shuffle);
-  const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | split
+  const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | spli
   const [count, setCount] = useState(Math.min(init.count || 5, total));
   const [partsTotal, setPartsTotal] = useState(Math.max(2, Math.min(total, Number(init.partsTotal) || 2)));
   const [partsTotalDraft, setPartsTotalDraft] = useState(String(Math.max(2, Math.min(total, Number(init.partsTotal) || 2))));
@@ -224,7 +224,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
           {total > 1 && <SettingChip active={mode === 'split'} onClick={() => setMode('split')}>Qismlarga boʻlib</SettingChip>}
 
           {(mode === 'random' || mode === 'first') && (
-            <input
+            <inpu
               type="number"
               min={1}
               max={total}
@@ -238,7 +238,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
           {mode === 'split' && (
             <>
               <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Necha qism:</span>
-              <input
+              <inpu
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -491,6 +491,23 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     }
   }
 
+  function scrollQuestionToReadingPosition(index) {
+    const container = listContainerRef.current;
+    const question = questionRefs.current[index];
+    if (!container || !question) return;
+
+    const containerTop = container.getBoundingClientRect().top;
+    const questionTop = question.getBoundingClientRect().top;
+    const comfortableTop = Math.round(container.clientHeight * 0.24);
+    const nextScrollTop = container.scrollTop + questionTop - containerTop - comfortableTop;
+    const maxScrollTop = container.scrollHeight - container.clientHeight;
+
+    container.scrollTo({
+      top: Math.max(0, Math.min(maxScrollTop, nextScrollTop)),
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+  }
+
   function handleReelsTouchStart(event) {
     if (event.target?.closest?.('input, textarea, select, math-field, [contenteditable="true"]')) return;
     const touch = event.touches?.[0];
@@ -542,7 +559,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       const recentAccuracy = recentOutcomes.filter(Boolean).length / recentOutcomes.length;
       feedbackOutcomesRef.current = [...previousOutcomes, correct];
       setAnswerNoticeTone(correct ? 'correct' : 'wrong');
-      setAutoAdvanceNotice(correct
+      setAutoAdvanceNotice(correc
         ? previousWasWrong
           ? 'Xatoni tahlil qildingiz — bu safar to‘g‘ri.'
           : recentOutcomes.length >= 3 && recentAccuracy >= 0.8
@@ -577,7 +594,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       if (viewMode === 'list') {
         setVisibleListCount((count) => Math.max(count, Math.min(questions.length, nextIndex + 1)));
         setCurrentQuestionIndex(nextIndex);
-        requestAnimationFrame(() => questionRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        requestAnimationFrame(() => scrollQuestionToReadingPosition(nextIndex));
       } else {
         setCurrentQuestionIndex(nextIndex);
         if (reelsQuestionBodyRef.current) reelsQuestionBodyRef.current.scrollTop = 0;
@@ -880,7 +897,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           </div>
         )}
         {reel ? (
-          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
+          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + max(${showAdaptiveFeedback ? 150 : 112}px, 24vh))` : 'calc(env(safe-area-inset-top) + max(56px, 24vh))', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
             {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
@@ -1088,7 +1105,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  
+
                   <button type="button" onClick={() => { setLeaveDialog(false); exitTest(); }} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.red, background: C.surface, borderColor: C.rule }}><LogOut size={18} />Chiqish</button>
                   <button type="button" disabled={pauseBusy} onClick={pauseAndExit} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><Save size={18} style={{ color: C.accent }} />{pauseBusy ? 'Saqlanmoqda…' : 'Tanaffus'}</button>
                   <button type="button" onClick={() => submit(answersRef.current)} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft }}><CheckCircle2 size={18} />Yakunlash</button>
@@ -1162,7 +1179,7 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onExitInitialLive, onExitInitialTest, onShareToFollowers }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
@@ -1196,8 +1213,11 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
 
   const myId = session?.user?.id;
   const approved = tests.filter((t) => t.status === 'approved');
-  const approvedCategories = categories.filter((c) => c.status !== 'pending' || approved.some((test) => test.categoryId === c.id));
   const viewable = isAdmin ? tests : tests.filter((t) => t.status === 'approved' || t.authorId === myId);
+  const categoryCategories = categories.filter((category) =>
+    (isAdmin || category.status === 'approved' || category.authorId === myId || approved.some((test) => test.categoryId === category.id))
+    && viewable.some((test) => test.categoryId === category.id)
+  );
   /* To'liq tests ro'yxatidan qidiramiz (faqat viewable'dan emas) — shu
      tufayli ulashilgan havola orqali kirilgan tekshirilmoqda/xususiy
      test ham (uning muallifi yoki admin bo'lmasa ham) ochiladi:
@@ -1209,7 +1229,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const nextTest = activeCategoryIndex >= 0 ? activeCategoryTests[activeCategoryIndex + 1] || null : null;
   const editing = approved.find((t) => t.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
-  const inCategory = approved.filter((t) => t.categoryId === categoryId);
+  const inCategory = viewable.filter((t) => t.categoryId === categoryId);
+  const privateInCategory = inCategory.filter((test) => test.status !== 'approved' && test.authorId === myId);
   const q = query.trim().toLowerCase();
   const effectivePrefs = { ...DEFAULT_TEST_PREFS, ...(profile?.testPrefs || {}) };
   const onSavePrefs = session ? saveTestPrefs : undefined;
@@ -1219,7 +1240,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
      qat'i nazar ochishga urinib ko'ramiz (ensureTestContent ID bo'yicha
      to'g'ridan-to'g'ri so'raydi). Havola bo'lmasa, oxirgi saqlangan
      pozitsiyani tiklaymiz — masalan internet uzilib sahifa yangilanib
-     ketgan bo'lsa, foydalanuvchi Bosh sahifaga emas, aynan shu test
+     ketgan bo'lsa, foydalanuvchi Bosh sahifaga emas, aynan shu tes
      turgan joyga qaytadi (test qaytadan, boshidan boshlanadi — allaqachon
      bergan javoblar saqlanmaydi, lekin hech bo'lmasa qaysi testda
      ekanini qayta izlashga hojat qolmaydi). */
@@ -1255,8 +1276,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   }, [activeId, categoryId, liveOpen, liveSession]);
 
 
-  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((t) => t.categoryId === cat.id)) : [];
-  const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
+  const matchedCategories = q ? categoryCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedTests = q ? viewable.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
 
@@ -1327,7 +1348,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     return (
       <div>
         <div className="flex items-start justify-between gap-3 mb-1">
-          <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
+          <SectionHeading eyebrow={`${categoryCategories.length} ta soha`} title="Testlar" />
           <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
         </div>
         <button
@@ -1383,7 +1404,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
           >
-            <Calculator size={13} /> Matematik test
+            <Calculator size={13} /> Matematik tes
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
@@ -1404,7 +1425,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Sohalar</div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {matchedCategories.map((cat) => {
-                      const count = approved.filter((t) => t.categoryId === cat.id).length;
+                      const count = viewable.filter((t) => t.categoryId === cat.id).length;
                       return (
                         <div
                           key={cat.id}
@@ -1453,8 +1474,11 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           )
         ) : (
           <CategoryGrid
-            categories={approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id))}
-            itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            categories={categoryCategories}
+            itemsByCategory={viewable.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            approvedCountsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            privateCountsByCategory={viewable.reduce((acc, t) => { if (t.status !== 'approved' && t.authorId === myId) acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
+            onSharePrivateCategory={(cat) => onShareToFollowers?.('bundle', { title: `${cat.name} — maxfiy va kutilayotgan testlar`, resources: viewable.filter((test) => test.categoryId === cat.id && test.status !== 'approved' && test.authorId === myId).map((test) => ({ type: 'test', id: test.id, title: test.title })) })}
             itemLabel="test"
             onSelect={goCategory}
             renameCategory={renameCategory}
@@ -1479,6 +1503,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
         <ArrowLeft size={15} /> Barcha sohalar
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta test`} title={activeCategory ? activeCategory.name : 'Testlar'} />
+      {privateInCategory.length > 0 && onShareToFollowers && <button type="button" onClick={() => onShareToFollowers('bundle', { title: `${activeCategory?.name || 'Soha'} — maxfiy va kutilayotgan testlar`, resources: privateInCategory.map((test) => ({ type: 'test', id: test.id, title: test.title })) })} className="mb-4 inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-medium" style={{ ...fontBody, color: C.cover, background: C.goldSoft, borderColor: C.coverLine }}><Users size={14} /> Maxfiy testlarni do‘stlarga yuborish · {privateInCategory.length}</button>}
       <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar', activeCategory ? activeCategory.name : '')} />
       {testsLoading && !tests.length ? (
         <SectionLoading label="Testlar yuklanmoqda…" />
@@ -1499,12 +1524,15 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
                   <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
+                  {t.status === 'private' && <div className="mt-1 inline-flex items-center gap-1 text-[10px]" style={{ ...fontMono, color: C.inkSoft }}><Lock size={11} /> Maxfiy</div>}
+                  {t.status === 'pending' && <div className="mt-1 inline-flex items-center gap-1 text-[10px]" style={{ ...fontMono, color: C.gold }}><Clock3 size={11} /> Tasdiq kutilmoqda</div>}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
                 <ItemMenu actions={[
                   { label: 'Sozlamalar', icon: Settings, onClick: () => goTest(t.id, true) },
-                  { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
+                  { label: 'Havolani ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
+                  ...(t.authorId === myId && onShareToFollowers ? [{ label: 'Kuzatuvchilarga yuborish', icon: Users, onClick: () => onShareToFollowers('test', t) }] : []),
                   ...(isAdmin ? [
                     { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) },
                     { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) },
@@ -1523,7 +1551,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
         </div>
       )}
 
-      
+
     </div>
   );
 }

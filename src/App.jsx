@@ -426,7 +426,7 @@ export function estimatedServerNow() {
    qayta-qayta so'rar edi. Supabase kutubxonasi ichki tarzda bu
    chaqiruvlarni bitta "qulf" (lock) orqali navbatga qo'yadi — natijada
    bir vaqtning o'zida yuborilgan bir nechta so'rov (masalan turli
-   mualliflarning profil/nishonini yuklashda) parallel emas, ketma-ket
+   mualliflarning profil/nishonini yuklashda) parallel emas, ketma-ke
    ~500ms-1s kechikish bilan bajarilardi (sahifa ochilishini sekinlashtirib
    yuborardi). Endi token faqat BIR MARTA — ilova ochilganda — so'raladi
    va xotirada saqlanadi; onAuthStateChange orqali kirish holati
@@ -475,7 +475,7 @@ async function sbRequest(path, options = {}) {
   let res = await doFetch(token);
 
   /* Nozik holat: sahifa endigina ochilganda, keshlangan token hali
-     server tomonidan yangilanish jarayonida bo'lishi mumkin — shu payt
+     server tomonidan yangilanish jarayonida bo'lishi mumkin — shu pay
      u eskirgan/yaroqsiz bo'lsa, Supabase butun so'rovni 401 bilan rad
      etadi, hatto so'ralayotgan ma'lumot (masalan tasdiqlangan
      kurslar/testlar) hammaga ochiq bo'lsa ham. Bunday holatda — FAQAT
@@ -593,7 +593,7 @@ export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
    tekshirish uchun) yoki muallifning o'zi (o'z holatini ko'rishi uchun)
    so'raydi. Boshqa barcha holatlarda serverdan faqat tasdiqlangan
-   (approved) qatorlar so'raladi — shu tufayli tasdiqlanmagan kontent
+   (approved) qatorlar so'raladi — shu tufayli tasdiqlanmagan konten
    endi hamma foydalanuvchining bosh yuklanishiga behuda tushmaydi. */
 function visibilityFilter(myId, isAdminFlag) {
   if (isAdminFlag) return '';
@@ -722,7 +722,7 @@ export async function sbFindParticipantByDevice(roomId, deviceKey) {
    qolmaydi. Ulanish tiklansa, zaxira rejim o'zi o'chadi.
    FAQAT shu xonaga ('id=eq.<roomId>' / 'room_id=eq.<roomId>' filtri
    bilan) tegishli o'zgarishlarni oladi — boshqa xonalarning trafigini
-   olmaydi. Qaytaradi: tozalash (unsubscribe) funksiyasi — komponent
+   olmaydi. Qaytaradi: tozalash (unsubscribe) funksiyasi — komponen
    yopilganda albatta shuni chaqirish kerak. */
 export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, onSubscribed, pollFallbackMs = 2000 } = {}) {
   let closed = false;
@@ -815,7 +815,7 @@ export async function advanceSyncPhase(room, totalQuestions, { skipIntermission 
       if (skipIntermission) {
         const nextIndex = Math.min(room.currentIndex + 1, totalQuestions);
         const isLast = room.currentIndex >= totalQuestions - 1 || nextIndex >= totalQuestions;
-        const patch = isLast
+        const patch = isLas
           ? { phase: 'finished', status: 'finished' }
           : { phase: 'question', current_index: nextIndex, phase_started_at: new Date().toISOString() };
         const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.question&current_index=eq.${room.currentIndex}`;
@@ -1457,7 +1457,7 @@ export function MiniLearningBadge({ size = 18 }) {
 }
 
 /* Faol nishon — vaqti-vaqti bilan almashishi mumkin. Eski nishonlar
-   (masalan Mustaqillik-35) shu ro'yxatdan olib tashlanmaydi — faqat
+   (masalan Mustaqillik-35) shu ro'yxatdan olib tashlanmaydi — faqa
    yangisi ustiga qo'shiladi, shu tufayli avval olganlar hech narsa
    yo'qotmaydi. GIFT_ID — topshiriq orqali olinadigan nishon. */
 const INDEPENDENCE_ID = 'mustaqillik-35';
@@ -1579,7 +1579,7 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
   return (
     <div className={`relative mb-5 min-w-0 ${className}`}>
       <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
-      <input
+      <inpu
         id="upcourse-search"
         name="search"
         type="search"
@@ -1782,7 +1782,7 @@ export function EmptyState({ text, cta }) {
 
 /* Renders course text line-by-line: a blank line starts a new paragraph,
    consecutive lines within a paragraph keep their line breaks (so numbered
-   lists like "1." / "2." stay on separate lines), and a line that's just
+   lists like "1." / "2." stay on separate lines), and a line that's jus
    "{{video}}" is replaced with the video player exactly where it was typed —
    whether it's separated by one Enter or a blank line. */
 
@@ -1881,8 +1881,9 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId, shareParam }) {
+export function CategoryGrid({ categories, itemsByCategory, approvedCountsByCategory = {}, privateCountsByCategory = {}, onSharePrivateCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId, shareParam }) {
   const [renaming, setRenaming] = useState(null);
+  const [sharingCategoryId, setSharingCategoryId] = useState(null);
 
   return (
     <div>
@@ -1892,6 +1893,9 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
         <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
           {categories.map((cat, i) => {
             const count = itemsByCategory[cat.id] || 0;
+            const privateCount = privateCountsByCategory[cat.id] || 0;
+            const approvedCount = approvedCountsByCategory[cat.id] ?? count;
+            const canSharePrivate = privateCount > 0 && typeof onSharePrivateCategory === 'function';
             return (
               <div
                 key={cat.id}
@@ -1920,7 +1924,19 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
                   <ChevronRight size={16} style={{ color: C.gold }} />
                 </div>
                 {shareParam && (
-                  <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={(event) => { event.stopPropagation(); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="absolute bottom-2 right-2 inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, outlineColor: C.gold }}><Share2 size={12} /></button>
+                  <>
+                    <button type="button" aria-label={`${cat.name} sohasini ulashish`} title={canSharePrivate ? 'Ulashish usulini tanlang' : 'Sohani ulashish'} aria-expanded={sharingCategoryId === cat.id} onClick={(event) => {
+                      event.stopPropagation();
+                      if (canSharePrivate) setSharingCategoryId((current) => current === cat.id ? null : cat.id);
+                      else if (approvedCount > 0) shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name);
+                    }} className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, outlineColor: C.gold }}><Share2 size={13} /></button>
+                    {sharingCategoryId === cat.id && canSharePrivate && (
+                      <div role="menu" aria-label={`${cat.name} ulashish usullari`} onClick={(event) => event.stopPropagation()} className="absolute bottom-10 right-2 z-30 w-60 rounded-xl border p-1.5 shadow-xl" style={{ background: C.paper, borderColor: C.rule }}>
+                        {approvedCount > 0 && <button type="button" role="menuitem" onClick={() => { setSharingCategoryId(null); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="block w-full rounded-lg px-3 py-2 text-left text-xs" style={{ ...fontBody, color: C.ink }}>Ommaviy soha havolasini ulashish</button>}
+                        <button type="button" role="menuitem" onClick={() => { setSharingCategoryId(null); onSharePrivateCategory(cat); }} className="block w-full rounded-lg px-3 py-2 text-left text-xs font-medium" style={{ ...fontBody, color: C.cover, background: C.goldSoft }}>Maxfiy va kutilayotganlarni yuborish · {privateCount}</button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             );
@@ -2109,6 +2125,11 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const myId = session?.user?.id;
   const approved = courses.filter((c) => c.status === 'approved');
   const approvedCategories = categories.filter((c) => c.status !== 'pending' || approved.some((course) => course.categoryId === c.id));
+  const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
+  const categoryCategories = categories.filter((category) =>
+    (isAdmin || category.status === 'approved' || category.authorId === myId || approved.some((course) => course.categoryId === category.id))
+    && viewable.some((course) => course.categoryId === category.id)
+  );
   const fallbackCourse = approved.find((course) => course.id === FEATURED_COURSE_FALLBACK.id);
   const fallbackCategoryId = approvedCategories.find((category) => category.name === FEATURED_COURSE_FALLBACK.category)?.id || null;
   const recommendationItems = fallbackCourse
@@ -2116,7 +2137,6 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     : approved.length
       ? approved
       : [{ ...FEATURED_COURSE_FALLBACK, categoryId: fallbackCategoryId }];
-  const viewable = isAdmin ? courses : courses.filter((c) => c.status === 'approved' || c.authorId === myId);
   /* To'liq courses ro'yxatidan qidiramiz — shu tufayli ulashilgan havola
      orqali kirilgan tekshirilmoqda/xususiy kurs ham (muallifi/admin
      bo'lmasa ham) ochiladi (ensureCourseContent ID bo'yicha to'g'ridan-
@@ -2125,7 +2145,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   const isMine = active?.authorId === myId;
   const editing = approved.find((c) => c.id === editId);
   const activeCategory = categories.find((c) => c.id === categoryId);
-  const inCategory = approved.filter((c) => c.categoryId === categoryId);
+  const inCategory = viewable.filter((c) => c.categoryId === categoryId);
+  const privateInCategory = inCategory.filter((course) => course.status !== 'approved' && course.authorId === myId);
   const q = query.trim().toLowerCase();
 
   /* Ulashilgan havola orqali kirilgan bo'lsa (?course=ID), shu kursni
@@ -2147,8 +2168,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
     writePosition({ kurslar: { openId, categoryId } });
   }, [openId, categoryId]);
 
-  const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((c) => c.categoryId === cat.id)) : [];
-  const matchedCourses = q ? approved.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q)) : [];
+  const matchedCategories = q ? categoryCategories.filter((cat) => cat.name.toLowerCase().includes(q)) : [];
+  const matchedCourses = q ? viewable.filter((c) => c.title.toLowerCase().includes(q) || (c.summary || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedCourses.length === 0;
 
@@ -2249,7 +2270,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
-        <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
+        <SectionHeading eyebrow={`${categoryCategories.length} ta soha`} title="Kurslar" />
         <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar')} />
         {!!pausedTests?.length && <Suspense fallback={null}><PausedTestsPanel attempts={pausedTests} onResume={onResumePausedTest} onVisibilityChange={onPausedTestVisibilityChange} /></Suspense>}
         {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} session={session} onRequireAccount={onRequireAccount} />}
@@ -2288,7 +2309,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Sohalar</div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {matchedCategories.map((cat) => {
-                      const count = approved.filter((c) => c.categoryId === cat.id).length;
+                      const count = viewable.filter((c) => c.categoryId === cat.id).length;
                       return (
                         <div
                           key={cat.id}
@@ -2336,8 +2357,11 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           )
         ) : (
           <CategoryGrid
-            categories={approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id))}
-            itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
+            categories={categoryCategories}
+            itemsByCategory={viewable.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
+            approvedCountsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
+            privateCountsByCategory={viewable.reduce((acc, c) => { if (c.status !== 'approved' && c.authorId === myId) acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
+            onSharePrivateCategory={(cat) => onShareToFollowers?.('bundle', { title: `${cat.name} — maxfiy va kutilayotgan mavzular`, resources: viewable.filter((course) => course.categoryId === cat.id && course.status !== 'approved' && course.authorId === myId).map((course) => ({ type: 'course', id: course.id, title: course.title })) })}
             itemLabel="mavzu"
             onSelect={goCategory}
             renameCategory={renameCategory}
@@ -2363,6 +2387,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         <ArrowLeft size={15} /> Barcha sohalar
       </button>
       <SectionHeading eyebrow={`${inCategory.length} ta mavzu`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
+      {privateInCategory.length > 0 && onShareToFollowers && <button type="button" onClick={() => onShareToFollowers('bundle', { title: `${activeCategory?.name || 'Soha'} — maxfiy va kutilayotgan mavzular`, resources: privateInCategory.map((course) => ({ type: 'course', id: course.id, title: course.title })) })} className="mb-4 inline-flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs font-medium" style={{ ...fontBody, color: C.cover, background: C.goldSoft, borderColor: C.coverLine }}><Users size={14} /> Maxfiy mavzularni do‘stlarga yuborish · {privateInCategory.length}</button>}
       <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar', activeCategory ? activeCategory.name : '')} />
       {inCategory.length === 0 ? (
         <EmptyState text="Bu sohada hozircha mavzu qoʻshilmagan." cta="Quyidagi tugma orqali birinchi mavzuni qoʻshing." />
@@ -2380,11 +2405,14 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
                 <div className="min-w-0">
                   <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                   {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
+                  {c.status === 'private' && <div className="mt-1 inline-flex items-center gap-1 text-[10px]" style={{ ...fontMono, color: C.inkSoft }}><Lock size={11} /> Maxfiy</div>}
+                  {c.status === 'pending' && <div className="mt-1 inline-flex items-center gap-1 text-[10px]" style={{ ...fontMono, color: C.gold }}><Clock3 size={11} /> Tasdiq kutilmoqda</div>}
                 </div>
               </div>
               <div className="flex items-center flex-shrink-0 gap-1">
                 <ItemMenu actions={[
-                  { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ course: c.id }), c.title) },
+                  { label: 'Havolani ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ course: c.id }), c.title) },
+                  ...(c.authorId === myId && onShareToFollowers ? [{ label: 'Kuzatuvchilarga yuborish', icon: Users, onClick: () => onShareToFollowers('course', c) }] : []),
                   ...(isAdmin ? [
                     { label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(c.id) },
                     { label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteCourse(c.id, c.title) },
@@ -2397,7 +2425,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         </div>
       )}
 
-      
+
     </div>
   );
 }
@@ -2543,10 +2571,10 @@ export function computeSyncScore(correct, timeTakenMs, limitMs) {
 
 /* TXT fayldan variantli savollarni o'qish. Kutilgan format:
    Savol matni? (raqami bo'lsa ham, bo'lmasa ham farqi yo'q)
-   A) variant
-   B) variant
-   C) variant
-   D) variant
+   A) varian
+   B) varian
+   C) varian
+   D) varian
    ANSWER: A
    Har bir savol "ANSWER:" qatoridan keyin tugagan deb hisoblanadi —
    shu sababli keyingi savol qatori raqamlangan ("1.") yoki
@@ -2822,7 +2850,7 @@ function AboutView() {
         <p><strong>UpCourse Uz</strong> — o‘z ustida ishlash va rivojlanishni istaganlar uchun yaratilgan ochiq ta’lim platformasi. Maqsadimiz — bilimlarni sodda, tizimli va hammabop shaklda taqdim etish hamda jamiyat va ilm-fan rivojiga hissa qo‘shish.</p>
         <p>Platformadagi kurslar, testlar va yangiliklardan foydalanish uchun ro‘yxatdan o‘tish yoki profil yaratish shart emas.</p>
         <p>Platforma muntazam yangilanib boradi: unga yangi mavzular, testlar va e’lonlar qo‘shiladi.</p>
-        
+
         <p>Savol, taklif yoki hamkorlik bo‘yicha <a href="https://t.me/upcourseuz" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}><strong>UpCourse Uz jamoasi bilan bog‘laning</strong></a>.</p>
         <div className="pt-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>
           <a href="/jasurbek-rustamov.html" className="underline underline-offset-2" style={{ color: C.inkSoft }}>
@@ -2911,7 +2939,7 @@ function getTabMeta(id) {
 
 export default function App() {
   /* Havola orqali kirilgan bo'lsa (?course=/?test=/?live=/?u=), qaysi
-     bo'limdan boshlash kerakligini shu yerda hal qilamiz — faqat
+     bo'limdan boshlash kerakligini shu yerda hal qilamiz — faqa
      sahifa birinchi ochilgan paytdagi URL'ga qarab, bitta marta.
      Agar aniq havola bo'lmasa — oxirgi saqlangan pozitsiyaga qaraymiz
      (refresh qilinganda o'sha joyda qolish uchun). Aniq havola doim
@@ -3214,7 +3242,7 @@ export default function App() {
       applySession(newSession);
     });
     // Telefon brauzerlari sahifani "bfcache"dan tiklaganda (masalan orqaga
-    // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu payt
+    // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu pay
     // login holatini qayta tekshiramiz.
     function onPageShow(e) {
       if (e.persisted) supabase.auth.getSession().then(({ data }) => {
@@ -3469,7 +3497,7 @@ export default function App() {
 
   /* Testlar ro'yxati boshida faqat sarlavha/soha/muallif kabi yengil
      ma'lumot yuklanadi (tez). Savollar (questions) og'ir bo'lgani uchun
-     faqat aynan shu test ochilganda (yechish, tahrirlash, jonli test
+     faqat aynan shu test ochilganda (yechish, tahrirlash, jonli tes
      uchun tanlashda) alohida so'raladi — courses uchun ishlatilgan
      naqshning aynan o'zi. */
   const ensureTestContent = useCallback(async (id) => {
@@ -3651,7 +3679,7 @@ export default function App() {
               }
               throw new Error('Tezkor katalog mavjud emas.');
             }),
-            // Keep the edge request as the first path, but start the direct
+            // Keep the edge request as the first path, but start the direc
             // Supabase fallback after a short grace period instead of waiting
             // for the edge timeout. The first successful response wins.
             new Promise((resolve) => {
@@ -3709,7 +3737,7 @@ export default function App() {
       // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
       // odatda ishlab ketadi) — shuning uchun foydalanuvchiga texnik
       // tafsilotlar emas, sodda va tinch xabar ko'rsatamiz.
-      // "Jim" (silent) qayta yuklashda esa ekranda allaqachon ma'lumot
+      // "Jim" (silent) qayta yuklashda esa ekranda allaqachon ma'lumo
       // turibdi — shu xabarni ko'rsatib, uni bekorga "yuklab bo'lmadi"
       // holatiga o'tkazib yubormaymiz, faqat konsolga yozib qo'yamiz.
       if (!silent && !hasUsablePublicCache) setError('Ma\u02bblumotlarni yuklab bo\u02bblmadi. Internetni tekshirib, qayta urinib ko\u02bbring.');
@@ -3799,7 +3827,7 @@ export default function App() {
   }, []);
 
   /* 1) Kontentni (kurslar/testlar/kategoriyalar) DARHOL, kirish holatini
-     kutmasdan so'raymiz — sahifa ochilgan zahoti, bir marta. Bu payt
+     kutmasdan so'raymiz — sahifa ochilgan zahoti, bir marta. Bu pay
      session/isAdmin hali aniqlanmagan bo'lishi mumkin, lekin bu muammo
      emas: visibilityFilter bo'sh/false qiymatlar bilan chaqirilganda
      avtomatik "faqat ommaviy (approved) kontent" so'raydi — bu
@@ -4527,8 +4555,8 @@ export default function App() {
               {viewingUsername && (
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={(type, item) => setFollowerShareResource(type === 'bundle' ? { type: 'bundle', resources: item.resources, title: item.title } : { type, id: item.id, title: item.title })} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'testlar' && <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} onOpenRequestHandled={consumeTestOpenRequest} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} onShareToFollowers={(type, item) => setFollowerShareResource(type === 'bundle' ? { type: 'bundle', resources: item.resources, title: item.title } : { type, id: item.id, title: item.title })} /></Suspense>}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
@@ -4573,7 +4601,7 @@ export default function App() {
                   onOpenAdmin={() => goTo('admin')}
                   onOpenProfile={openSearchProfile}
                   onOpenArena={() => goTo('arena')}
-                  onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })}
+                  onShareToFollowers={(type, item) => setFollowerShareResource(type === 'bundle' ? { type: 'bundle', resources: item.resources, title: item.title } : { type, id: item.id, title: item.title })}
                   onOpenSharedResource={openSharedResource}
                 /></Suspense>
               )}
