@@ -897,7 +897,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           </div>
         )}
         {reel ? (
-          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
+          <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + max(${showAdaptiveFeedback ? 150 : 112}px, 24vh))` : 'calc(env(safe-area-inset-top) + max(56px, 24vh))', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
             {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
