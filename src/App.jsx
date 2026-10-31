@@ -426,7 +426,7 @@ export function estimatedServerNow() {
    qayta-qayta so'rar edi. Supabase kutubxonasi ichki tarzda bu
    chaqiruvlarni bitta "qulf" (lock) orqali navbatga qo'yadi — natijada
    bir vaqtning o'zida yuborilgan bir nechta so'rov (masalan turli
-   mualliflarning profil/nishonini yuklashda) parallel emas, ketma-ket
+   mualliflarning profil/nishonini yuklashda) parallel emas, ketma-ke
    ~500ms-1s kechikish bilan bajarilardi (sahifa ochilishini sekinlashtirib
    yuborardi). Endi token faqat BIR MARTA — ilova ochilganda — so'raladi
    va xotirada saqlanadi; onAuthStateChange orqali kirish holati
@@ -475,7 +475,7 @@ async function sbRequest(path, options = {}) {
   let res = await doFetch(token);
 
   /* Nozik holat: sahifa endigina ochilganda, keshlangan token hali
-     server tomonidan yangilanish jarayonida bo'lishi mumkin — shu payt
+     server tomonidan yangilanish jarayonida bo'lishi mumkin — shu pay
      u eskirgan/yaroqsiz bo'lsa, Supabase butun so'rovni 401 bilan rad
      etadi, hatto so'ralayotgan ma'lumot (masalan tasdiqlangan
      kurslar/testlar) hammaga ochiq bo'lsa ham. Bunday holatda — FAQAT
@@ -593,7 +593,7 @@ export async function sbSelectAuthorContent(kind, authorId, approvedOnly = false
 /* Tasdiqlanmagan (pending) yozuvlarni faqat administrator (hammasini,
    tekshirish uchun) yoki muallifning o'zi (o'z holatini ko'rishi uchun)
    so'raydi. Boshqa barcha holatlarda serverdan faqat tasdiqlangan
-   (approved) qatorlar so'raladi — shu tufayli tasdiqlanmagan kontent
+   (approved) qatorlar so'raladi — shu tufayli tasdiqlanmagan konten
    endi hamma foydalanuvchining bosh yuklanishiga behuda tushmaydi. */
 function visibilityFilter(myId, isAdminFlag) {
   if (isAdminFlag) return '';
@@ -722,7 +722,7 @@ export async function sbFindParticipantByDevice(roomId, deviceKey) {
    qolmaydi. Ulanish tiklansa, zaxira rejim o'zi o'chadi.
    FAQAT shu xonaga ('id=eq.<roomId>' / 'room_id=eq.<roomId>' filtri
    bilan) tegishli o'zgarishlarni oladi — boshqa xonalarning trafigini
-   olmaydi. Qaytaradi: tozalash (unsubscribe) funksiyasi — komponent
+   olmaydi. Qaytaradi: tozalash (unsubscribe) funksiyasi — komponen
    yopilganda albatta shuni chaqirish kerak. */
 export function subscribeToLiveRoom(roomId, { onRoom, onParticipants, onSubscribed, pollFallbackMs = 2000 } = {}) {
   let closed = false;
@@ -815,7 +815,7 @@ export async function advanceSyncPhase(room, totalQuestions, { skipIntermission 
       if (skipIntermission) {
         const nextIndex = Math.min(room.currentIndex + 1, totalQuestions);
         const isLast = room.currentIndex >= totalQuestions - 1 || nextIndex >= totalQuestions;
-        const patch = isLast
+        const patch = isLas
           ? { phase: 'finished', status: 'finished' }
           : { phase: 'question', current_index: nextIndex, phase_started_at: new Date().toISOString() };
         const filter = `id=eq.${encodeURIComponent(room.id)}&phase=eq.question&current_index=eq.${room.currentIndex}`;
@@ -1328,7 +1328,7 @@ function UzbekFlagRibbon({ width = 92 }) {
         { y: 29, xs: [48, 59, 70, 81, 92] },
       ].map((row, ri) =>
         row.xs.map((x, ci) => (
-          <text
+          <tex
             key={`${ri}-${ci}`}
             x={x}
             y={row.y}
@@ -1457,7 +1457,7 @@ export function MiniLearningBadge({ size = 18 }) {
 }
 
 /* Faol nishon — vaqti-vaqti bilan almashishi mumkin. Eski nishonlar
-   (masalan Mustaqillik-35) shu ro'yxatdan olib tashlanmaydi — faqat
+   (masalan Mustaqillik-35) shu ro'yxatdan olib tashlanmaydi — faqa
    yangisi ustiga qo'shiladi, shu tufayli avval olganlar hech narsa
    yo'qotmaydi. GIFT_ID — topshiriq orqali olinadigan nishon. */
 const INDEPENDENCE_ID = 'mustaqillik-35';
@@ -1579,7 +1579,7 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
   return (
     <div className={`relative mb-5 min-w-0 ${className}`}>
       <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
-      <input
+      <inpu
         id="upcourse-search"
         name="search"
         type="search"
@@ -1782,7 +1782,7 @@ export function EmptyState({ text, cta }) {
 
 /* Renders course text line-by-line: a blank line starts a new paragraph,
    consecutive lines within a paragraph keep their line breaks (so numbered
-   lists like "1." / "2." stay on separate lines), and a line that's just
+   lists like "1." / "2." stay on separate lines), and a line that's jus
    "{{video}}" is replaced with the video player exactly where it was typed —
    whether it's separated by one Enter or a blank line. */
 
@@ -2425,7 +2425,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
         </div>
       )}
 
-      
+
     </div>
   );
 }
@@ -2571,10 +2571,10 @@ export function computeSyncScore(correct, timeTakenMs, limitMs) {
 
 /* TXT fayldan variantli savollarni o'qish. Kutilgan format:
    Savol matni? (raqami bo'lsa ham, bo'lmasa ham farqi yo'q)
-   A) variant
-   B) variant
-   C) variant
-   D) variant
+   A) varian
+   B) varian
+   C) varian
+   D) varian
    ANSWER: A
    Har bir savol "ANSWER:" qatoridan keyin tugagan deb hisoblanadi —
    shu sababli keyingi savol qatori raqamlangan ("1.") yoki
@@ -2850,7 +2850,7 @@ function AboutView() {
         <p><strong>UpCourse Uz</strong> — o‘z ustida ishlash va rivojlanishni istaganlar uchun yaratilgan ochiq ta’lim platformasi. Maqsadimiz — bilimlarni sodda, tizimli va hammabop shaklda taqdim etish hamda jamiyat va ilm-fan rivojiga hissa qo‘shish.</p>
         <p>Platformadagi kurslar, testlar va yangiliklardan foydalanish uchun ro‘yxatdan o‘tish yoki profil yaratish shart emas.</p>
         <p>Platforma muntazam yangilanib boradi: unga yangi mavzular, testlar va e’lonlar qo‘shiladi.</p>
-        
+
         <p>Savol, taklif yoki hamkorlik bo‘yicha <a href="https://t.me/upcourseuz" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}><strong>UpCourse Uz jamoasi bilan bog‘laning</strong></a>.</p>
         <div className="pt-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>
           <a href="/jasurbek-rustamov.html" className="underline underline-offset-2" style={{ color: C.inkSoft }}>
@@ -2939,7 +2939,7 @@ function getTabMeta(id) {
 
 export default function App() {
   /* Havola orqali kirilgan bo'lsa (?course=/?test=/?live=/?u=), qaysi
-     bo'limdan boshlash kerakligini shu yerda hal qilamiz — faqat
+     bo'limdan boshlash kerakligini shu yerda hal qilamiz — faqa
      sahifa birinchi ochilgan paytdagi URL'ga qarab, bitta marta.
      Agar aniq havola bo'lmasa — oxirgi saqlangan pozitsiyaga qaraymiz
      (refresh qilinganda o'sha joyda qolish uchun). Aniq havola doim
@@ -3242,7 +3242,7 @@ export default function App() {
       applySession(newSession);
     });
     // Telefon brauzerlari sahifani "bfcache"dan tiklaganda (masalan orqaga
-    // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu payt
+    // tugmasi bosilganda) React holati eskirgan bo'lishi mumkin — shu pay
     // login holatini qayta tekshiramiz.
     function onPageShow(e) {
       if (e.persisted) supabase.auth.getSession().then(({ data }) => {
@@ -3497,7 +3497,7 @@ export default function App() {
 
   /* Testlar ro'yxati boshida faqat sarlavha/soha/muallif kabi yengil
      ma'lumot yuklanadi (tez). Savollar (questions) og'ir bo'lgani uchun
-     faqat aynan shu test ochilganda (yechish, tahrirlash, jonli test
+     faqat aynan shu test ochilganda (yechish, tahrirlash, jonli tes
      uchun tanlashda) alohida so'raladi — courses uchun ishlatilgan
      naqshning aynan o'zi. */
   const ensureTestContent = useCallback(async (id) => {
@@ -3679,7 +3679,7 @@ export default function App() {
               }
               throw new Error('Tezkor katalog mavjud emas.');
             }),
-            // Keep the edge request as the first path, but start the direct
+            // Keep the edge request as the first path, but start the direc
             // Supabase fallback after a short grace period instead of waiting
             // for the edge timeout. The first successful response wins.
             new Promise((resolve) => {
@@ -3737,7 +3737,7 @@ export default function App() {
       // Ko'pincha bu vaqtinchalik tarmoq uzilishi bo'ladi (qayta urinilsa
       // odatda ishlab ketadi) — shuning uchun foydalanuvchiga texnik
       // tafsilotlar emas, sodda va tinch xabar ko'rsatamiz.
-      // "Jim" (silent) qayta yuklashda esa ekranda allaqachon ma'lumot
+      // "Jim" (silent) qayta yuklashda esa ekranda allaqachon ma'lumo
       // turibdi — shu xabarni ko'rsatib, uni bekorga "yuklab bo'lmadi"
       // holatiga o'tkazib yubormaymiz, faqat konsolga yozib qo'yamiz.
       if (!silent && !hasUsablePublicCache) setError('Ma\u02bblumotlarni yuklab bo\u02bblmadi. Internetni tekshirib, qayta urinib ko\u02bbring.');
@@ -3827,7 +3827,7 @@ export default function App() {
   }, []);
 
   /* 1) Kontentni (kurslar/testlar/kategoriyalar) DARHOL, kirish holatini
-     kutmasdan so'raymiz — sahifa ochilgan zahoti, bir marta. Bu payt
+     kutmasdan so'raymiz — sahifa ochilgan zahoti, bir marta. Bu pay
      session/isAdmin hali aniqlanmagan bo'lishi mumkin, lekin bu muammo
      emas: visibilityFilter bo'sh/false qiymatlar bilan chaqirilganda
      avtomatik "faqat ommaviy (approved) kontent" so'raydi — bu

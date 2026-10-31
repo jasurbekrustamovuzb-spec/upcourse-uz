@@ -126,7 +126,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
   const [adaptiveFeedback, setAdaptiveFeedback] = useState(!!init.adaptiveFeedback);
   const [viewMode, setViewMode] = useState(init.viewMode === 'reels' ? 'reels' : 'list');
   const [shuffle, setShuffle] = useState(!!init.shuffle);
-  const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | split
+  const [mode, setMode] = useState(init.mode || 'all'); // all | random | first | spli
   const [count, setCount] = useState(Math.min(init.count || 5, total));
   const [partsTotal, setPartsTotal] = useState(Math.max(2, Math.min(total, Number(init.partsTotal) || 2)));
   const [partsTotalDraft, setPartsTotalDraft] = useState(String(Math.max(2, Math.min(total, Number(init.partsTotal) || 2))));
@@ -224,7 +224,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
           {total > 1 && <SettingChip active={mode === 'split'} onClick={() => setMode('split')}>Qismlarga boʻlib</SettingChip>}
 
           {(mode === 'random' || mode === 'first') && (
-            <input
+            <inpu
               type="number"
               min={1}
               max={total}
@@ -238,7 +238,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
           {mode === 'split' && (
             <>
               <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Necha qism:</span>
-              <input
+              <inpu
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -253,7 +253,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
                 style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
               />
               <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Qaysi qism:</span>
-              <select
+              <selec
                 value={partIndex}
                 onChange={(e) => setPartIndex(Number(e.target.value))}
                 className="px-2 py-1.5 rounded-sm text-[13px] outline-none"
@@ -559,7 +559,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       const recentAccuracy = recentOutcomes.filter(Boolean).length / recentOutcomes.length;
       feedbackOutcomesRef.current = [...previousOutcomes, correct];
       setAnswerNoticeTone(correct ? 'correct' : 'wrong');
-      setAutoAdvanceNotice(correct
+      setAutoAdvanceNotice(correc
         ? previousWasWrong
           ? 'Xatoni tahlil qildingiz — bu safar to‘g‘ri.'
           : recentOutcomes.length >= 3 && recentAccuracy >= 0.8
@@ -1105,7 +1105,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             ) : (
               <>
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  
+
                   <button type="button" onClick={() => { setLeaveDialog(false); exitTest(); }} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.red, background: C.surface, borderColor: C.rule }}><LogOut size={18} />Chiqish</button>
                   <button type="button" disabled={pauseBusy} onClick={pauseAndExit} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: C.rule }}><Save size={18} style={{ color: C.accent }} />{pauseBusy ? 'Saqlanmoqda…' : 'Tanaffus'}</button>
                   <button type="button" onClick={() => submit(answersRef.current)} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border px-2 text-xs font-semibold" style={{ ...fontBody, color: C.ink, background: C.goldSoft, borderColor: C.goldSoft }}><CheckCircle2 size={18} />Yakunlash</button>
@@ -1240,7 +1240,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
      qat'i nazar ochishga urinib ko'ramiz (ensureTestContent ID bo'yicha
      to'g'ridan-to'g'ri so'raydi). Havola bo'lmasa, oxirgi saqlangan
      pozitsiyani tiklaymiz — masalan internet uzilib sahifa yangilanib
-     ketgan bo'lsa, foydalanuvchi Bosh sahifaga emas, aynan shu test
+     ketgan bo'lsa, foydalanuvchi Bosh sahifaga emas, aynan shu tes
      turgan joyga qaytadi (test qaytadan, boshidan boshlanadi — allaqachon
      bergan javoblar saqlanmaydi, lekin hech bo'lmasa qaysi testda
      ekanini qayta izlashga hojat qolmaydi). */
@@ -1404,7 +1404,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
           >
-            <Calculator size={13} /> Matematik test
+            <Calculator size={13} /> Matematik tes
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
@@ -1551,7 +1551,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
         </div>
       )}
 
-      
+
     </div>
   );
 }
