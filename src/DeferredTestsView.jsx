@@ -253,7 +253,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
                 style={{ ...fontMono, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
               />
               <span className="text-[13px]" style={{ ...fontBody, color: C.inkSoft }}>Qaysi qism:</span>
-              <selec
+              <select
                 value={partIndex}
                 onChange={(e) => setPartIndex(Number(e.target.value))}
                 className="px-2 py-1.5 rounded-sm text-[13px] outline-none"
