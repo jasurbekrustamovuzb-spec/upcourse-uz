@@ -133,7 +133,7 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
   const [partIndex, setPartIndex] = useState(init.partIndex || 1);
   const [fontScale] = useState(() => {
     const value = Number(init.fontScale);
-    return Number.isFinite(value) && value > 0 ? Math.max(0.7, Math.min(1.3, value)) : 0.9;
+    return Number.isFinite(value) && value > 0 ? Math.max(0.7, Math.min(1.3, value)) : 0.85;
   });
   const lastSavedSetupPrefsRef = useRef(null);
 
@@ -298,7 +298,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const [fontScale, setFontScale] = useState(() => {
     const saved = Number(config.fontScale);
     if (Number.isFinite(saved) && saved > 0) return Math.max(0.7, Math.min(1.3, saved));
-    try { return Math.max(0.7, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 0.9)); } catch { return 0.9; }
+    try { return Math.max(0.7, Math.min(1.3, Number(localStorage.getItem('upcourse-quiz-font-scale')) || 0.85)); } catch { return 0.85; }
   });
   const [revealed, setRevealed] = useState({});
   const [celebrationParticles, setCelebrationParticles] = useState(null);
@@ -324,6 +324,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const autoAdvanceQuestionRef = useRef(null);
   const autoFinishTimerRef = useRef(null);
   const listContainerRef = useRef(null);
+  const listProgrammaticScrollUntilRef = useRef(0);
   const reelsStageRef = useRef(null);
   const reelsQuestionBodyRef = useRef(null);
   const swipeStartRef = useRef(null);
@@ -367,6 +368,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   useEffect(() => {
     if (finished || viewMode !== 'list' || !listContainerRef.current || typeof IntersectionObserver === 'undefined') return undefined;
     const observer = new IntersectionObserver((entries) => {
+      if (performance.now() < listProgrammaticScrollUntilRef.current) return;
       const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
       if (!visible) return;
       const index = Number(visible.target.dataset.questionIndex);
@@ -379,7 +381,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   useEffect(() => {
     if (finished || viewMode !== 'list') return;
     setVisibleListCount((count) => Math.max(count, Math.min(questions.length, currentQuestionIndex + 1)));
-    requestAnimationFrame(() => questionRefs.current[currentQuestionIndex]?.scrollIntoView({ behavior: 'auto', block: 'start' }));
+    scrollListToQuestion(currentQuestionIndex, 'auto');
   }, [viewMode]);
 
   useEffect(() => {
@@ -460,7 +462,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   }
 
   function setQuizFontScale(value) {
-    const next = Math.round(Math.max(0.7, Math.min(1.3, value)) * 10) / 10;
+    const next = Math.round(Math.max(0.7, Math.min(1.3, value)) * 20) / 20;
     setFontScale(next);
     try { localStorage.setItem('upcourse-quiz-font-scale', String(next)); } catch {}
     updatePlayerPrefs({ fontScale: next });
@@ -477,10 +479,25 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     setQuestionMapOpen(false);
     if (viewMode === 'list') {
       setVisibleListCount((count) => Math.max(count, Math.min(questions.length, nextIndex + 1)));
-      requestAnimationFrame(() => questionRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      scrollListToQuestion(nextIndex, 'smooth');
     } else {
       if (reelsQuestionBodyRef.current) reelsQuestionBodyRef.current.scrollTop = 0;
     }
+  }
+
+  function scrollListToQuestion(index, behavior = 'smooth') {
+    // Keep automatic navigation inside the quiz scroller. scrollIntoView may
+    // also move the page/webview itself and repeatedly trigger the observer.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const container = listContainerRef.current;
+      const target = questionRefs.current[index];
+      if (!container || !target) return;
+      const containerTop = container.getBoundingClientRect().top;
+      const targetTop = target.getBoundingClientRect().top;
+      const top = container.scrollTop + targetTop - containerTop - 96;
+      listProgrammaticScrollUntilRef.current = performance.now() + (behavior === 'smooth' ? 850 : 100);
+      container.scrollTo({ top: Math.max(0, top), behavior });
+    }));
   }
 
   function handleListScroll() {
@@ -557,11 +574,12 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     autoAdvanceQuestionRef.current = questionIndex;
     const nextIndex = questionIndex + 1;
     const exitEffect = correct ? (playerPrefs.correctTransition || 'shatter') : (playerPrefs.wrongTransition || 'fade');
+    const exitDuration = ['shatter', 'dissolve', 'fly', 'slide'].includes(exitEffect) ? 420 : 240;
     if (viewMode === 'reels' && nextIndex < questions.length && exitEffect !== 'none') {
       autoExitTimerRef.current = setTimeout(() => {
         if (autoAdvanceQuestionRef.current !== questionIndex) return;
         setTransitioningQuestion({ questionId: question.id, effect: exitEffect, fragments: makeTransitionFragments(exitEffect) });
-      }, Math.max(0, delay * 1000 - 620));
+      }, Math.max(0, delay * 1000 - exitDuration - 24));
     }
     autoScrollTimerRef.current = setTimeout(() => {
       if (autoAdvanceQuestionRef.current !== questionIndex) return;
@@ -577,7 +595,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       if (viewMode === 'list') {
         setVisibleListCount((count) => Math.max(count, Math.min(questions.length, nextIndex + 1)));
         setCurrentQuestionIndex(nextIndex);
-        requestAnimationFrame(() => questionRefs.current[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        scrollListToQuestion(nextIndex, 'smooth');
       } else {
         setCurrentQuestionIndex(nextIndex);
         if (reelsQuestionBodyRef.current) reelsQuestionBodyRef.current.scrollTop = 0;
@@ -965,7 +983,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 @keyframes quiz-exit-fly{to{opacity:0;transform:translate3d(0,-72vh,0) rotate(-4deg) scale(.9)}}
 @keyframes quiz-exit-fade{to{opacity:0;transform:translate3d(0,-8px,0) scale(.97)}}
 @keyframes quiz-exit-slide{to{opacity:0;transform:translate3d(-110vw,0,0) rotate(-2deg) scale(.94)}}
-.quiz-reel-enter{animation:quiz-reel-enter 220ms cubic-bezier(.2,.7,.2,1)}
+.quiz-reel-enter{animation:quiz-reel-enter 220ms cubic-bezier(.2,.7,.2,1);backface-visibility:hidden}
 .quiz-feedback-enter{animation:quiz-feedback-enter 160ms ease-out}
 .quiz-result-pop{animation:quiz-result-pop 300ms cubic-bezier(.2,.7,.2,1)}
 .quiz-result-glow{animation:quiz-result-glow 440ms ease-out}
@@ -976,11 +994,11 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
 .quiz-result-slide{border-left:3px solid #37875b}
 .quiz-celebration-particle{position:absolute;left:50%;top:44%;opacity:0;animation:quiz-celebrate-burst var(--duration) cubic-bezier(.16,.72,.25,1) var(--delay) forwards}
 .quiz-transition-fragment{position:absolute;left:50%;top:50%;opacity:0;animation:quiz-transition-shard 420ms cubic-bezier(.16,.72,.25,1) var(--delay) forwards}
-.quiz-exit-shatter{animation:quiz-exit-shatter 420ms ease-in forwards;pointer-events:none}
-.quiz-exit-dissolve{animation:quiz-exit-dissolve 420ms ease-in forwards;pointer-events:none}
-.quiz-exit-fly{animation:quiz-exit-fly 420ms cubic-bezier(.4,0,.8,.4) forwards;pointer-events:none}
-.quiz-exit-fade{animation:quiz-exit-fade 360ms ease-in forwards;pointer-events:none}
-.quiz-exit-slide{animation:quiz-exit-slide 420ms ease-in forwards;pointer-events:none}
+.quiz-exit-shatter{animation:quiz-exit-shatter 420ms ease-in forwards;pointer-events:none;will-change:transform,opacity;backface-visibility:hidden}
+.quiz-exit-dissolve{animation:quiz-exit-dissolve 420ms ease-in forwards;pointer-events:none;will-change:transform,opacity;backface-visibility:hidden}
+.quiz-exit-fly{animation:quiz-exit-fly 420ms cubic-bezier(.4,0,.8,.4) forwards;pointer-events:none;will-change:transform,opacity;backface-visibility:hidden}
+.quiz-exit-fade{animation:quiz-exit-fade 240ms ease-out forwards;pointer-events:none;will-change:transform,opacity;backface-visibility:hidden}
+.quiz-exit-slide{animation:quiz-exit-slide 420ms ease-in forwards;pointer-events:none;will-change:transform,opacity;backface-visibility:hidden}
 .quiz-control-panel{transition:transform 320ms cubic-bezier(.2,.7,.2,1),opacity 220ms ease}
 .quiz-control-panel[data-hidden="true"]{transform:translateY(-110%);opacity:0;pointer-events:none}
 @media(prefers-reduced-motion:reduce){.quiz-reel-enter,.quiz-feedback-enter,.quiz-result-pop,.quiz-result-glow,.quiz-result-slide,.quiz-result-shake,.quiz-result-nudge,.quiz-result-flash,.quiz-celebration-particle,.quiz-transition-fragment,.quiz-exit-shatter,.quiz-exit-dissolve,.quiz-exit-fly,.quiz-exit-fade,.quiz-exit-slide,.quiz-control-panel{animation:none;transition:none;will-change:auto}}
@@ -1056,7 +1074,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}>{theme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}{theme === 'dark' ? 'Tungi rejim' : 'Kunduzgi rejim'}</div><button type="button" onClick={toggleTheme} aria-label="Rang rejimini almashtirish" className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ ...fontBody, color: C.cover, background: C.goldSoft }}>Almashtirish</button></div>
-            <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}><Type size={17} />Matn kattaligi</div><div className="flex items-center gap-1"><button type="button" onClick={() => setQuizFontScale(fontScale - 0.1)} aria-label="Matnni kichraytirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>−</button><span className="min-w-12 text-center text-xs" style={{ ...fontMono, color: C.ink }}>{Math.round(fontScale * 100)}%</span><button type="button" onClick={() => setQuizFontScale(fontScale + 0.1)} aria-label="Matnni kattalashtirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>+</button></div></div>
+            <div className="flex items-center justify-between gap-3 rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }}><div className="flex items-center gap-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}><Type size={17} />Matn kattaligi</div><div className="flex items-center gap-1"><button type="button" onClick={() => setQuizFontScale(fontScale - 0.05)} aria-label="Matnni kichraytirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>−</button><span className="min-w-12 text-center text-xs" style={{ ...fontMono, color: C.ink }}>{Math.round(fontScale * 100)}%</span><button type="button" onClick={() => setQuizFontScale(fontScale + 0.05)} aria-label="Matnni kattalashtirish" className="h-9 w-9 rounded-lg border text-lg" style={{ color: C.ink, borderColor: C.rule }}>+</button></div></div>
             <button type="button" role="switch" aria-checked={!!playerPrefs.immediate} onClick={() => updatePlayerPrefs({ immediate: !playerPrefs.immediate })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobni darhol ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xatoni shu savolning o‘zida ko‘rib tahlil qilasiz.</span></span><span className="h-6 w-11 rounded-full p-1" style={{ background: playerPrefs.immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             <button type="button" role="switch" aria-checked={!!playerPrefs.autoScroll} onClick={() => updatePlayerPrefs({ autoScroll: !playerPrefs.autoScroll })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin avtomatik o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni ko‘rishga vaqt beradi; xato bo‘lsa ham o‘tadi.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.autoScroll ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.autoScroll ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             <button type="button" role="switch" aria-checked={!!playerPrefs.adaptiveFeedback} onClick={() => updatePlayerPrefs({ adaptiveFeedback: !playerPrefs.adaptiveFeedback })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobga mos qisqa fikrlar</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xato va to‘g‘ri javobga qarab izoh. Odatiy holatda o‘chiq.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.adaptiveFeedback ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.adaptiveFeedback ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
