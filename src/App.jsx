@@ -881,7 +881,7 @@ const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { version: 7, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 1.5, autoAdvanceWrongSeconds: 2, correctAnimation: 'pop', wrongAnimation: 'shake', celebrationStyle: 'mixed', correctTransition: 'shatter', wrongTransition: 'fade', adaptiveFeedback: false, viewMode: 'list', fontScale: 0.9, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 7, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 1.5, autoAdvanceWrongSeconds: 2, correctAnimation: 'pop', wrongAnimation: 'shake', celebrationStyle: 'mixed', correctTransition: 'shatter', wrongTransition: 'fade', adaptiveFeedback: false, viewMode: 'list', fontScale: 0.85, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 export const profileFromRow = (r) => {
   const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
@@ -897,7 +897,7 @@ export const profileFromRow = (r) => {
   }
   if (testPrefs && Number(testPrefs.version || 0) < 4) {
     const fontScale = Number(testPrefs.fontScale);
-    testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.7, Math.min(1.3, fontScale)) : 0.9;
+    testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.7, Math.min(1.3, fontScale)) : 0.85;
     testPrefs.version = 4;
   }
   if (testPrefs && Number(testPrefs.version || 0) < 5) {
@@ -923,7 +923,7 @@ export const profileFromRow = (r) => {
   }
   if (testPrefs && Number(testPrefs.version || 0) < 7) {
     const fontScale = Number(testPrefs.fontScale);
-    testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.7, Math.min(1.3, fontScale)) : 0.9;
+    testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.7, Math.min(1.3, fontScale)) : 0.85;
     testPrefs.version = 7;
   }
   return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
