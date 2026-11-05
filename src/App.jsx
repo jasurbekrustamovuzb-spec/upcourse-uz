@@ -230,6 +230,19 @@ export function SectionLoading() {
   );
 }
 
+export function GoogleBrandMark() {
+  return (
+    <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full border" style={{ borderColor: C.rule, background: C.white }}>
+      <svg viewBox="0 0 48 48" className="h-[17px] w-[17px]" focusable="false">
+        <path fill="#4285F4" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2l6.6 5.1c3.9-3.6 6.1-8.9 6.1-15z" />
+        <path fill="#34A853" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5.1c-1.8 1.2-4.1 1.9-6.9 1.9-5.3 0-9.8-3.6-11.4-8.4l-6.8 5.2A20 20 0 0 0 24 44z" />
+        <path fill="#FBBC05" d="M12.6 27.5a12 12 0 0 1 0-7l-6.8-5.2a20 20 0 0 0 0 17.4z" />
+        <path fill="#EA4335" d="M24 12c3 0 5.7 1 7.8 3l5.8-5.8A19.5 19.5 0 0 0 24 4 20 20 0 0 0 5.8 15.3l6.8 5.2C14.2 15.6 18.7 12 24 12z" />
+      </svg>
+    </span>
+  );
+}
+
 function TestAccountPrompt({ loading, busy, error, onSignIn, onBrowse, modal = false }) {
   const card = (
     <section className="w-full max-w-md rounded-2xl p-5 sm:p-6" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 18px 50px rgba(15,27,18,.18)' }} aria-labelledby="test-account-title">
@@ -237,10 +250,9 @@ function TestAccountPrompt({ loading, busy, error, onSignIn, onBrowse, modal = f
       <h2 id="test-account-title" className="text-center text-2xl" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>Test ishlash uchun akkauntga kiring</h2>
       <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>Ommaviy va maxfiy testlarni ishlash, natijalarni saqlash uchun akkaunt kerak. Mavzularni esa akkauntsiz ham ko‘rishingiz mumkin. Birinchi marta kirsangiz, Google akkauntingiz UpCourse profiliga ulanadi.</p>
       <button type="button" disabled={loading || busy} onClick={onSignIn} className="mt-5 flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border px-4 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.white, borderColor: C.rule }}>
-        {loading || busy ? <Loader2 size={18} className="animate-spin" /> : <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full border text-base font-bold" style={{ color: '#4285F4', borderColor: C.rule }}>G</span>}
+        {loading || busy ? <Loader2 size={18} className="animate-spin" /> : <GoogleBrandMark />}
         {loading ? 'Akkaunt tekshirilmoqda…' : busy ? 'Google ochilmoqda…' : 'Google orqali davom etish'}
       </button>
-      <div className="mt-3 flex items-center justify-center gap-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}><Lock size={13} /> Google orqali xavfsiz kirish · parol UpCourse’da saqlanmaydi</div>
       {error && <p role="alert" className="mt-3 text-center text-sm" style={{ ...fontBody, color: C.red }}>{error}</p>}
       {onBrowse && <button type="button" onClick={onBrowse} className="mt-4 w-full rounded-lg py-2 text-sm font-medium" style={{ ...fontBody, color: C.inkSoft }}>Testlar ro‘yxatiga qaytish</button>}
     </section>
@@ -910,7 +922,7 @@ const newsFromRow = (r) => ({ id: r.id, title: r.title, content: r.content, date
 /* Test boshlash sozlamalarining andoza (default) qiymati — akkaunti yo'q
    foydalanuvchilar va hali hech qanday sozlama saqlamagan akkauntlar
    uchun ishlatiladi. */
-export const DEFAULT_TEST_PREFS = { version: 7, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 1.5, autoAdvanceWrongSeconds: 2, correctAnimation: 'pop', wrongAnimation: 'shake', celebrationStyle: 'mixed', correctTransition: 'shatter', wrongTransition: 'fade', adaptiveFeedback: false, viewMode: 'list', fontScale: 0.85, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
+export const DEFAULT_TEST_PREFS = { version: 8, immediate: true, autoScroll: true, autoAdvanceCorrectSeconds: 2, autoAdvanceWrongSeconds: 3, correctAnimation: 'pop', wrongAnimation: 'shake', celebrationStyle: 'mixed', correctTransition: 'shatter', wrongTransition: 'fade', adaptiveFeedback: false, viewMode: 'list', fontScale: 0.85, shuffle: false, mode: 'all', count: 5, partsTotal: 2, partIndex: 1 };
 
 export const profileFromRow = (r) => {
   const testPrefs = r.test_prefs && typeof r.test_prefs === 'object' ? { ...r.test_prefs } : null;
@@ -954,6 +966,13 @@ export const profileFromRow = (r) => {
     const fontScale = Number(testPrefs.fontScale);
     testPrefs.fontScale = Number.isFinite(fontScale) ? Math.max(0.7, Math.min(1.3, fontScale)) : 0.85;
     testPrefs.version = 7;
+  }
+  if (testPrefs && Number(testPrefs.version || 0) < 8) {
+    // Previous defaults were 1.5s for correct and 2s for incorrect answers.
+    // Carry those old defaults forward while retaining custom delays.
+    if (Number(testPrefs.autoAdvanceCorrectSeconds) === 1.5) testPrefs.autoAdvanceCorrectSeconds = 2;
+    if (Number(testPrefs.autoAdvanceWrongSeconds) === 2) testPrefs.autoAdvanceWrongSeconds = 3;
+    testPrefs.version = 8;
   }
   return { id: r.id, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', isAdmin: !!r.is_admin, username: r.username || '', bio: r.bio || '', bannerKey: r.banner_key || 'green', usernameChangedAt: r.username_changed_at || null, testPrefs };
 };
@@ -3388,7 +3407,7 @@ export default function App() {
       ...basePrefs,
       ...persistentPatch,
       mode: 'all', count: DEFAULT_TEST_PREFS.count, partsTotal: DEFAULT_TEST_PREFS.partsTotal, partIndex: DEFAULT_TEST_PREFS.partIndex,
-      version: 6,
+      version: 8,
       pausedTests: patch.pausedTests ?? basePrefs.pausedTests ?? [],
     };
     store.prefs = nextPrefs;
@@ -3428,7 +3447,7 @@ export default function App() {
     }
     const existing = Array.isArray(current?.pausedTests) ? current.pausedTests : [];
     const next = [...existing.filter((attempt) => attempt.testId !== snapshot.testId), snapshot].slice(-10);
-    const nextPrefs = { ...DEFAULT_TEST_PREFS, ...current, pausedTests: next, version: 4 };
+    const nextPrefs = { ...DEFAULT_TEST_PREFS, ...current, pausedTests: next, version: 8 };
     if (store.userId !== userId || !store.hydrated) {
       store = { userId, prefs: current, queue: Promise.resolve(), hydrated: true };
       testPrefsStoreRef.current = store;

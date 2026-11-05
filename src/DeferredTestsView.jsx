@@ -5,6 +5,7 @@ import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumbe
 const MathInput = lazy(() => import('./MathInput.jsx'));
 const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 const AUTO_ADVANCE_DELAYS = [1, 1.5, 2, 3, 4, 5, 6, 8, 10];
+const QUIZ_LIST_BATCH_SIZE = 12;
 const CORRECT_ANIMATION_OPTIONS = [{ id: 'pop', title: 'Yengil sakrash' }, { id: 'glow', title: 'Yorqin belgi' }, { id: 'slide', title: 'Silliq siljish' }, { id: 'none', title: 'Animatsiyasiz' }];
 const WRONG_ANIMATION_OPTIONS = [{ id: 'shake', title: 'Yengil tebranish' }, { id: 'nudge', title: 'Qisqa siljish' }, { id: 'flash', title: 'Yumshoq chaqnash' }, { id: 'none', title: 'Animatsiyasiz' }];
 const CELEBRATION_STYLE_OPTIONS = [{ id: 'mixed', title: 'Aralash bayram', symbol: '🎉' }, { id: 'confetti', title: 'Konfetti', symbol: '🎊' }, { id: 'stars', title: 'Yulduzlar', symbol: '✨' }, { id: 'badges', title: 'Nishonlar', symbol: '🏅' }, { id: 'none', title: 'O‘chiq', symbol: '○' }];
@@ -115,8 +116,8 @@ export function QuizSetupPanel({ test, onExit, onStart, initialConfig, onSavePre
   const init = initialConfig || DEFAULT_TEST_PREFS;
   const [immediate, setImmediate] = useState(!!init.immediate);
   const [autoScroll, setAutoScroll] = useState(init.autoScroll !== false);
-  const [autoAdvanceCorrectSeconds, setAutoAdvanceCorrectSeconds] = useState(normalizedDelay(init.autoAdvanceCorrectSeconds, 1.5));
-  const [autoAdvanceWrongSeconds, setAutoAdvanceWrongSeconds] = useState(normalizedDelay(init.autoAdvanceWrongSeconds, 2));
+  const [autoAdvanceCorrectSeconds, setAutoAdvanceCorrectSeconds] = useState(normalizedDelay(init.autoAdvanceCorrectSeconds, 2));
+  const [autoAdvanceWrongSeconds, setAutoAdvanceWrongSeconds] = useState(normalizedDelay(init.autoAdvanceWrongSeconds, 3));
   const [correctAnimation, setCorrectAnimation] = useState(CORRECT_ANIMATION_OPTIONS.some((option) => option.id === init.correctAnimation) ? init.correctAnimation : 'pop');
   const [wrongAnimation, setWrongAnimation] = useState(WRONG_ANIMATION_OPTIONS.some((option) => option.id === init.wrongAnimation) ? init.wrongAnimation : 'shake');
   const [celebrationStyle, setCelebrationStyle] = useState(CELEBRATION_STYLE_OPTIONS.some((option) => option.id === init.celebrationStyle) ? init.celebrationStyle : 'mixed');
@@ -294,7 +295,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const [reconfigureDialog, setReconfigureDialog] = useState(false);
   const [autoAdvanceNotice, setAutoAdvanceNotice] = useState('');
   const [answerNoticeTone, setAnswerNoticeTone] = useState('correct');
-  const [visibleListCount, setVisibleListCount] = useState(() => Math.min(questions.length, 20));
+  const [visibleListCount, setVisibleListCount] = useState(() => Math.min(questions.length, QUIZ_LIST_BATCH_SIZE));
   const [fontScale, setFontScale] = useState(() => {
     const saved = Number(config.fontScale);
     if (Number.isFinite(saved) && saved > 0) return Math.max(0.7, Math.min(1.3, saved));
@@ -485,7 +486,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     }
   }
 
-  function scrollListToQuestion(index, behavior = 'smooth') {
+  function scrollListToQuestion(index, behavior = 'smooth', onScrollEnd) {
     // Keep automatic navigation inside the quiz scroller. scrollIntoView may
     // also move the page/webview itself and repeatedly trigger the observer.
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -496,6 +497,19 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       const targetTop = target.getBoundingClientRect().top;
       const top = container.scrollTop + targetTop - containerTop - 96;
       listProgrammaticScrollUntilRef.current = performance.now() + (behavior === 'smooth' ? 850 : 100);
+      let settled = false;
+      let fallbackTimer;
+      const finishScroll = () => {
+        if (settled) return;
+        settled = true;
+        container.removeEventListener('scrollend', finishScroll);
+        window.clearTimeout(fallbackTimer);
+        onScrollEnd?.();
+      };
+      if (onScrollEnd) {
+        container.addEventListener('scrollend', finishScroll, { once: true });
+        fallbackTimer = window.setTimeout(finishScroll, behavior === 'smooth' ? 1100 : 0);
+      }
       container.scrollTo({ top: Math.max(0, top), behavior });
     }));
   }
@@ -504,7 +518,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     const container = listContainerRef.current;
     if (!container || visibleListCount >= questions.length) return;
     if (container.scrollTop + container.clientHeight >= container.scrollHeight - 420) {
-      setVisibleListCount((count) => Math.min(questions.length, count + 20));
+      setVisibleListCount((count) => Math.min(questions.length, count + QUIZ_LIST_BATCH_SIZE));
     }
   }
 
@@ -550,7 +564,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     setAutoAdvanceNotice('');
     if (countAnsweredUnits([question], { [question.id]: answer }) === 0) return;
     const correct = isQuestionCorrect(question, answer);
-    const delay = normalizedDelay(correct ? playerPrefs.autoAdvanceCorrectSeconds : playerPrefs.autoAdvanceWrongSeconds, correct ? 1.5 : 2);
+    const delay = normalizedDelay(correct ? playerPrefs.autoAdvanceCorrectSeconds : playerPrefs.autoAdvanceWrongSeconds, correct ? 2 : 3);
     if (playerPrefs.immediate && playerPrefs.adaptiveFeedback && !feedbackQuestionIdsRef.current.has(question.id)) {
       feedbackQuestionIdsRef.current.add(question.id);
       const previousOutcomes = feedbackOutcomesRef.current;
@@ -594,8 +608,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       }
       if (viewMode === 'list') {
         setVisibleListCount((count) => Math.max(count, Math.min(questions.length, nextIndex + 1)));
-        setCurrentQuestionIndex(nextIndex);
-        scrollListToQuestion(nextIndex, 'smooth');
+        scrollListToQuestion(nextIndex, 'smooth', () => setCurrentQuestionIndex(nextIndex));
       } else {
         setCurrentQuestionIndex(nextIndex);
         if (reelsQuestionBodyRef.current) reelsQuestionBodyRef.current.scrollTop = 0;
@@ -1078,7 +1091,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
             <button type="button" role="switch" aria-checked={!!playerPrefs.immediate} onClick={() => updatePlayerPrefs({ immediate: !playerPrefs.immediate })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobni darhol ko‘rsatish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xatoni shu savolning o‘zida ko‘rib tahlil qilasiz.</span></span><span className="h-6 w-11 rounded-full p-1" style={{ background: playerPrefs.immediate ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.immediate ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             <button type="button" role="switch" aria-checked={!!playerPrefs.autoScroll} onClick={() => updatePlayerPrefs({ autoScroll: !playerPrefs.autoScroll })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobdan keyin avtomatik o‘tish</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javobni ko‘rishga vaqt beradi; xato bo‘lsa ham o‘tadi.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.autoScroll ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.autoScroll ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
             <button type="button" role="switch" aria-checked={!!playerPrefs.adaptiveFeedback} onClick={() => updatePlayerPrefs({ adaptiveFeedback: !playerPrefs.adaptiveFeedback })} className="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left" style={{ background: C.surface, borderColor: C.rule }}><span><span className="block text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Javobga mos qisqa fikrlar</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Xato va to‘g‘ri javobga qarab izoh. Odatiy holatda o‘chiq.</span></span><span className="h-6 w-11 shrink-0 rounded-full p-1" style={{ background: playerPrefs.adaptiveFeedback ? C.accent : C.rule }}><i className="block h-4 w-4 rounded-full transition-transform" style={{ background: C.white, transform: playerPrefs.adaptiveFeedback ? 'translateX(20px)' : 'translateX(0)' }} /></span></button>
-            {playerPrefs.autoScroll && <section className="rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }} aria-label="Avtomatik o‘tish vaqti"><div className="mb-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Keyingisiga o‘tish vaqti</div><div className="grid grid-cols-2 gap-2">{[['To‘g‘ri javob', 'autoAdvanceCorrectSeconds', 1.5], ['Xato javob', 'autoAdvanceWrongSeconds', 2]].map(([label, key, fallback]) => <label key={key} className="min-w-0 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{label}<select value={normalizedDelay(playerPrefs[key], fallback)} onChange={(event) => updatePlayerPrefs({ [key]: Number(event.target.value) })} className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label={`${label}dan keyin kutish`}>{AUTO_ADVANCE_DELAYS.map((delay) => <option key={delay} value={delay}>{delay} soniya</option>)}</select></label>)}</div></section>}
+            {playerPrefs.autoScroll && <section className="rounded-xl border p-3" style={{ background: C.surface, borderColor: C.rule }} aria-label="Avtomatik o‘tish vaqti"><div className="mb-2 text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Keyingisiga o‘tish vaqti</div><div className="grid grid-cols-2 gap-2">{[['To‘g‘ri javob', 'autoAdvanceCorrectSeconds', 2], ['Xato javob', 'autoAdvanceWrongSeconds', 3]].map(([label, key, fallback]) => <label key={key} className="min-w-0 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{label}<select value={normalizedDelay(playerPrefs[key], fallback)} onChange={(event) => updatePlayerPrefs({ [key]: Number(event.target.value) })} className="mt-1 w-full rounded-lg border px-2 py-2 text-sm" style={{ ...fontMono, color: C.ink, background: C.paper, borderColor: C.rule }} aria-label={`${label}dan keyin kutish`}>{AUTO_ADVANCE_DELAYS.map((delay) => <option key={delay} value={delay}>{delay} soniya</option>)}</select></label>)}</div></section>}
             <QuizAnimationSettings open={playerAnimationsOpen} onToggle={() => setPlayerAnimationsOpen((open) => !open)} prefs={playerPrefs} onChange={updatePlayerPrefs} />
           </div>
           <button type="button" onClick={() => { setPlayerSettingsOpen(false); setReconfigureDialog(true); }} className="mt-4 w-full rounded-xl border px-3 py-3 text-sm font-semibold" style={{ ...fontBody, color: C.ink, background: C.paperSoft, borderColor: C.rule }}>Savollar soni va tartibini o‘zgartirish…</button>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
 import { ArrowLeft, Award, BookOpen, Check, CheckCircle2, ChevronRight, Coins, Gift, Inbox, ListChecks, Loader2, Lock, LogIn, LogOut, Medal, Settings, ShieldCheck, ShoppingBag, Tag, UserCircle2, Users, X } from 'lucide-react';
-import { BANNER_PRESETS, C, CollectibleThumb, EmptyState, GhostButton, LinkedUsernameText, ProfileFollowView, PublicCollectionsView, RatingBadgeCollection, SectionLoading, SectionHeading, ShareButton, SolidButton, TextField, bannerGradient, buildShareUrl, checkUsernameAvailable, collectibleFromRow, fontBody, fontDisplay, fontMono, GIFT_CONTENT, GIFT_ID, isReservedUsername, isValidUsername, normalizeUsername, profileFromRow, sbInsert, sbSelect, sbSelectAuthorContent, sbUpdate, setAuthorBadgeCache, suggestAvailableUsername, unequipOtherCollectibles, useAuthorBadge, userCollectibleFromRow, usernameChangeDaysLeft, NavContext } from './App.jsx';
+import { BANNER_PRESETS, C, CollectibleThumb, EmptyState, GhostButton, GoogleBrandMark, LinkedUsernameText, ProfileFollowView, PublicCollectionsView, RatingBadgeCollection, SectionLoading, SectionHeading, ShareButton, SolidButton, TextField, bannerGradient, buildShareUrl, checkUsernameAvailable, collectibleFromRow, fontBody, fontDisplay, fontMono, GIFT_CONTENT, GIFT_ID, isReservedUsername, isValidUsername, normalizeUsername, profileFromRow, sbInsert, sbSelect, sbSelectAuthorContent, sbUpdate, setAuthorBadgeCache, suggestAvailableUsername, unequipOtherCollectibles, useAuthorBadge, userCollectibleFromRow, usernameChangeDaysLeft, NavContext } from './App.jsx';
 import { supabase } from './supabaseClient.js';
 import { signInWithGoogle, switchGoogleAccount } from './supabaseClient.js';
 import TeamBattleLibrary from './TeamBattleLibrary.jsx';
@@ -319,10 +319,9 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
             setSignInBusy(false);
           }
         }} className="mx-auto mt-5 flex min-h-12 w-full max-w-sm items-center justify-center gap-3 rounded-xl border px-4 text-sm font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.white, borderColor: C.rule }}>
-          {signInBusy ? <Loader2 size={18} className="animate-spin" /> : <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full border text-base font-bold" style={{ color: '#4285F4', borderColor: C.rule }}>G</span>}
+          {signInBusy ? <Loader2 size={18} className="animate-spin" /> : <GoogleBrandMark />}
           {signInBusy ? 'Google ochilmoqda…' : 'Google orqali davom etish'}
         </button>
-        <div className="mt-3 flex items-center justify-center gap-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}><Lock size={13} /> Parolingiz UpCourse’da saqlanmaydi</div>
         {signInError && <p role="alert" className="mt-3 text-sm" style={{ ...fontBody, color: C.red }}>{signInError}</p>}
         <div className="mt-6 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
           UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
