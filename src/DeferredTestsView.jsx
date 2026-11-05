@@ -588,7 +588,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   function createPauseSnapshot() {
     const { questions: _selectedQuestions, ...prefs } = config;
     const currentAnswers = answersRef.current;
-    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceCorrectSeconds: playerPrefs.autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds: playerPrefs.autoAdvanceWrongSeconds, correctAnimation: playerPrefs.correctAnimation, wrongAnimation: playerPrefs.wrongAnimation, celebrationStyle: playerPrefs.celebrationStyle, correctTransition: playerPrefs.correctTransition, wrongTransition: playerPrefs.wrongTransition, adaptiveFeedback: playerPrefs.adaptiveFeedback, viewMode: playerPrefs.viewMode, fontScale, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
+    return { testId: test.id, testTitle: test.title, questionIds: questions.map((question) => question.id), optionOrders: questions.flatMap((question) => Array.isArray(question.optionOrder) ? [{ id: question.id, order: question.optionOrder }] : []), questionIndex: currentQuestionIndex, prefs: { ...prefs, immediate: playerPrefs.immediate, autoScroll: playerPrefs.autoScroll, autoAdvanceCorrectSeconds: playerPrefs.autoAdvanceCorrectSeconds, autoAdvanceWrongSeconds: playerPrefs.autoAdvanceWrongSeconds, correctAnimation: playerPrefs.correctAnimation, wrongAnimation: playerPrefs.wrongAnimation, celebrationStyle: playerPrefs.celebrationStyle, correctTransition: playerPrefs.correctTransition, wrongTransition: playerPrefs.wrongTransition, adaptiveFeedback: playerPrefs.adaptiveFeedback, viewMode: playerPrefs.viewMode, fontScale, shuffle: playerPrefs.shuffle }, answers: currentAnswers, seconds, answeredCount: countAnsweredUnits(questions, currentAnswers), totalCount, savedAt: new Date().toISOString(), hiddenOnHome: false };
   }
 
   async function pauseAndExit() {
@@ -899,7 +899,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
       <>
         <div className={question.type === 'matching' ? "mb-1 flex flex-wrap items-center gap-2" : "mb-2 flex flex-wrap items-center gap-2"}>
           <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Savol {index + 1}</span>
-          <span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>{question.type === 'open' ? 'Javob yozing' : question.type === 'matching' ? 'Moslikni toping' : 'To‘g‘ri variantni tanlang'}</span>
+          {question.type === 'open' && <span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Javob yozing</span>}
+          {question.type === 'matching' && <span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>Moslikni toping</span>}
           {countAnsweredUnits([question], answers) > 0 && <span className="ml-auto inline-flex items-center gap-1 text-xs" style={{ ...fontBody, color: C.accent }}><Check size={13} /> Belgilangan</span>}
         </div>
         {question.type !== 'matching' && !question.pdfSourceImageOnly && <h2 id={`quiz-question-title-${index}`} className="mb-3 max-w-3xl font-medium leading-snug" style={{ ...fontBody, color: C.ink, fontSize: `${Math.round(18 * fontScale)}px` }}>
@@ -1108,7 +1109,21 @@ export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, f
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
   const [resumeProgress, setResumeProgress] = useState(initialProgress || null);
   const [config, setConfig] = useState(() => {
-    const restoredQuestions = initialProgress?.questionIds?.map((id) => test.questions.find((question) => question.id === id)).filter(Boolean);
+    const optionOrders = new Map((initialProgress?.optionOrders || []).map(({ id, order }) => [id, order]));
+    const restoredQuestions = initialProgress?.questionIds?.map((id) => {
+      const question = test.questions.find((item) => item.id === id);
+      if (!question) return null;
+      const order = optionOrders.get(id);
+      if (!Array.isArray(question.options) || !Array.isArray(order) || order.length !== question.options.length || order.some((index) => !Number.isInteger(index) || index < 0 || index >= question.options.length) || new Set(order).size !== question.options.length) return question;
+      const newIndexByOldIndex = new Map(order.map((oldIndex, newIndex) => [oldIndex, newIndex]));
+      return {
+        ...question,
+        options: order.map((oldIndex) => question.options[oldIndex]),
+        optionOrder: order,
+        ...(Number.isInteger(question.correct) ? { correct: newIndexByOldIndex.get(question.correct) ?? question.correct } : {}),
+        ...(Array.isArray(question.pairs) ? { pairs: question.pairs.map((pair) => Number.isInteger(pair.correct) ? { ...pair, correct: newIndexByOldIndex.get(pair.correct) ?? pair.correct } : pair) } : {}),
+      };
+    }).filter(Boolean);
     if (restoredQuestions?.length) return { ...(initialProgress.prefs || prefs), questions: restoredQuestions };
     return forceSetup ? null : { ...prefs, questions: computeQuizQuestions(test, prefs) };
   });
