@@ -230,6 +230,25 @@ export function SectionLoading() {
   );
 }
 
+function TestAccountPrompt({ loading, busy, error, onSignIn, onBrowse, modal = false }) {
+  const card = (
+    <section className="w-full max-w-md rounded-2xl p-5 sm:p-6" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 18px 50px rgba(15,27,18,.18)' }} aria-labelledby="test-account-title">
+      <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl" style={{ color: C.cover, background: C.goldSoft }}><ShieldCheck size={25} /></div>
+      <h2 id="test-account-title" className="text-center text-2xl" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>Test ishlash uchun akkauntga kiring</h2>
+      <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>Ommaviy va maxfiy testlarni ishlash, natijalarni saqlash uchun akkaunt kerak. Mavzularni esa akkauntsiz ham ko‘rishingiz mumkin. Birinchi marta kirsangiz, Google akkauntingiz UpCourse profiliga ulanadi.</p>
+      <button type="button" disabled={loading || busy} onClick={onSignIn} className="mt-5 flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border px-4 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.white, borderColor: C.rule }}>
+        {loading || busy ? <Loader2 size={18} className="animate-spin" /> : <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full border text-base font-bold" style={{ color: '#4285F4', borderColor: C.rule }}>G</span>}
+        {loading ? 'Akkaunt tekshirilmoqda…' : busy ? 'Google ochilmoqda…' : 'Google orqali davom etish'}
+      </button>
+      <div className="mt-3 flex items-center justify-center gap-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}><Lock size={13} /> Google orqali xavfsiz kirish · parol UpCourse’da saqlanmaydi</div>
+      {error && <p role="alert" className="mt-3 text-center text-sm" style={{ ...fontBody, color: C.red }}>{error}</p>}
+      {onBrowse && <button type="button" onClick={onBrowse} className="mt-4 w-full rounded-lg py-2 text-sm font-medium" style={{ ...fontBody, color: C.inkSoft }}>Testlar ro‘yxatiga qaytish</button>}
+    </section>
+  );
+  if (!modal) return <div className="grid min-h-[55vh] place-items-center px-3 py-8">{card}</div>;
+  return <div className="fixed inset-0 z-[150] grid place-items-center bg-black/55 p-3 sm:p-5" role="presentation">{card}</div>;
+}
+
 function CourseContentLoadError({ onRetry }) {
   return (
     <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
@@ -329,6 +348,16 @@ function parseDeepLink() {
     if (p.get('u')) return { type: 'profile', value: p.get('u') };
   } catch (e) { /* URL o'qib bo'lmasa, oddiy holatda ochiladi */ }
   return null;
+}
+
+const PENDING_TEST_AUTH_KEY = 'upcourse-pending-test-auth';
+function readPendingTestAuthIntent() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(PENDING_TEST_AUTH_KEY) || 'null');
+    return value && typeof value.testId === 'string' && value.testId
+      ? { testId: value.testId, action: value.action === 'start' ? 'start' : 'open', ...(value.startConfig && typeof value.startConfig === 'object' ? { startConfig: value.startConfig } : {}) }
+      : null;
+  } catch { return null; }
 }
 
 /* ------------------------------------------------------------------ */
@@ -2956,6 +2985,7 @@ export default function App() {
      saqlangan holatdan muhimroq. */
   const initialDeepLinkRef = useRef(parseDeepLink());
   const initialDeepLink = initialDeepLinkRef.current;
+  const pendingTestAuthAtBootRef = useRef(readPendingTestAuthIntent());
   const initialPositionRef = useRef(initialDeepLink ? {} : readPosition());
   const initialPosition = initialPositionRef.current;
   /* Havola o'qilgach, URL'dagi ?course=/?test=/?live=/?u= manzil
@@ -2990,6 +3020,7 @@ export default function App() {
       if (initialDeepLink.type === 'profile') return 'profil';
       return 'kurslar';
     }
+    if (pendingTestAuthAtBootRef.current) return 'testlar';
     try {
       const requestedSection = new URLSearchParams(window.location.search).get('section');
       if (requestedSection && VALID_TABS.includes(requestedSection)) return requestedSection;
@@ -3046,6 +3077,9 @@ export default function App() {
   }, [openRequest]);
   const [testOpenRequest, setTestOpenRequest] = useState(null);
   const testOpenRequestSeq = useRef(0);
+  const [testAuthIntent, setTestAuthIntent] = useState(() => pendingTestAuthAtBootRef.current);
+  const [testAuthBusy, setTestAuthBusy] = useState(false);
+  const [testAuthError, setTestAuthError] = useState('');
   const openFromProfile = (kind, id) => {
     if (kind === 'kurslar') setOpenRequest({ type: 'course', id });
     else setTestOpenRequest({ id, requestId: ++testOpenRequestSeq.current });
@@ -3455,6 +3489,67 @@ export default function App() {
     }
     return { ok: true };
   }
+
+  async function requireAccountForTest(intent) {
+    const testId = typeof intent?.testId === 'string' ? intent.testId.trim() : '';
+    if (!testId) return { authenticated: false };
+    if (session?.user?.id) return { authenticated: true };
+    try {
+      const { data } = await supabase.auth.getSession();
+      const currentSession = data?.session;
+      if (currentSession?.user?.id) {
+        setCachedAccessToken(currentSession.access_token);
+        setSession(currentSession);
+        return { authenticated: true };
+      }
+    } catch { /* Guest holatida kirish kartasini ko‘rsatamiz. */ }
+    const safeIntent = {
+      testId,
+      action: intent.action === 'start' ? 'start' : 'open',
+      ...(intent.action === 'start' && intent.startConfig && typeof intent.startConfig === 'object' ? { startConfig: intent.startConfig } : {}),
+    };
+    setTestAuthError('');
+    setTestAuthIntent(safeIntent);
+    return { authenticated: false, signInRequired: true };
+  }
+
+  async function beginTestAccountSignIn(intentOverride = null) {
+    const intent = intentOverride || testAuthIntent;
+    if (!intent?.testId || testAuthBusy) return;
+    setTestAuthBusy(true);
+    setTestAuthError('');
+    try {
+      sessionStorage.setItem(PENDING_TEST_AUTH_KEY, JSON.stringify(intent));
+      const { error: signInError } = await signInWithGoogle();
+      if (signInError) throw signInError;
+    } catch (error) {
+      try { sessionStorage.removeItem(PENDING_TEST_AUTH_KEY); } catch {}
+      console.error('Test uchun Google kirishini ochib bo‘lmadi:', error);
+      setTestAuthError('Google orqali kirish oynasini ochib bo‘lmadi. Qayta urinib ko‘ring.');
+      setTestAuthBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (authLoading || !session?.user?.id) return;
+    const intent = readPendingTestAuthIntent();
+    if (!intent) return;
+    try { sessionStorage.removeItem(PENDING_TEST_AUTH_KEY); } catch {}
+    setTestAuthIntent(null);
+    setTestAuthError('');
+    setTestAuthBusy(false);
+    setViewingUsername(null);
+    setTab('testlar');
+    setTestOpenRequest({
+      id: intent.testId,
+      ...(intent.action === 'start' && intent.startConfig ? { startConfig: intent.startConfig } : {}),
+      requestId: ++testOpenRequestSeq.current,
+    });
+  }, [authLoading, session?.user?.id]);
+
+  useEffect(() => {
+    if (!authLoading && testAuthIntent && !session?.user?.id) setTab('testlar');
+  }, [authLoading, session?.user?.id, testAuthIntent]);
 
   useEffect(() => {
     if (!session?.user?.id || profile?.id !== session.user.id) return;
@@ -4565,7 +4660,18 @@ export default function App() {
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
               )}
               {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
-              {!viewingUsername && tab === 'testlar' && <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}><DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialOpenId={testOpenRequest ? null : (initialDeepLink?.type === 'test' ? initialDeepLink.value : (initialPosition.testlar?.openId || null))} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} /></Suspense>}
+              {!viewingUsername && tab === 'testlar' && (initialDeepLink?.type === 'test' && sharedTestEntryActive && !session?.user?.id ? (
+                authLoading ? <SectionLoading label="Akkaunt tekshirilmoqda…" compact /> : <TestAccountPrompt
+                  busy={testAuthBusy}
+                  error={testAuthError}
+                  onSignIn={() => beginTestAccountSignIn({ testId: initialDeepLink.value, action: 'open' })}
+                  onBrowse={() => { setSharedTestEntryActive(false); setReadingActive(false); setTestAuthIntent(null); setTestAuthError(''); }}
+                />
+              ) : (
+                <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}>
+                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
+                </Suspense>
+              ))}
               {!viewingUsername && tab === 'arena' && (
                 <Suspense fallback={<SectionLoading label="Arena yuklanmoqda…" />}>
                   <DailyArenaView session={session} isAdmin={isAdmin} onOpenProfile={openArenaProfile} onExit={() => goTo('kurslar')} />
@@ -4714,6 +4820,16 @@ export default function App() {
           onClose={() => setGiftOpen(false)}
         />
         </Suspense>
+      )}
+      {testAuthIntent && !authLoading && !session?.user?.id && !(initialDeepLink?.type === 'test' && sharedTestEntryActive) && (
+        <TestAccountPrompt
+          modal
+          loading={authLoading}
+          busy={testAuthBusy}
+          error={testAuthError}
+          onSignIn={() => beginTestAccountSignIn()}
+          onBrowse={() => { setTestAuthIntent(null); setTestAuthError(''); }}
+        />
       )}
     </div>
     </ThemeContext.Provider>

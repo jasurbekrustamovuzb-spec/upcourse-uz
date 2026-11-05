@@ -224,6 +224,8 @@ export function PublicProfileView({ username, courses, tests, onBack, onOpenItem
 
 export function ProfileView({ session, profile, authLoading, pausedTests, onResumePausedTest, onPausedTestVisibilityChange, saveTestPrefs, onPauseAttempt, onClearPaused, onRequireAccount, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onSaveProfile, onSignOut, courses, tests, categories, submitCourse, approveCourse, deleteCourse, updateCourse, submitTest, approveTest, deleteTest, updateTest, renameCategory, target, onConsumeTarget, isAdmin, ensureCourseContent, ensureTestContent, onGoToAbout, onOpenAdmin, onOpenProfile, onOpenArena, onShareToFollowers, onOpenSharedResource }) {
   const [subTab, setSubTab] = useState(null);
+  const [signInBusy, setSignInBusy] = useState(false);
+  const [signInError, setSignInError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openCourseId, setOpenCourseId] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
@@ -301,13 +303,27 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
 
   if (!session) {
     return (
-      <div className="max-w-sm mx-auto mt-10 p-6 rounded-sm text-center" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-        <UserCircle2 size={28} style={{ color: C.gold }} className="mx-auto mb-2" />
-        <div className="text-lg mb-2" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>Profil</div>
-        <p className="text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}>
-          Oʻz kursingizni yaratish, testlar tuzish va ularni kuzatib borish uchun hisob yarating. Kurslarni oʻrganish va testlarni ishlash uchun ro'yxatdan o'tish shart emas.
-        </p>
-        <SolidButton onClick={signInWithGoogle} icon={LogIn}>Google orqali kirish</SolidButton>
+      <div className="mx-auto mt-8 w-full max-w-lg rounded-2xl p-5 text-center sm:mt-12 sm:p-7" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 14px 36px rgba(31,61,43,.08)' }}>
+        <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl" style={{ color: C.cover, background: C.goldSoft }}><UserCircle2 size={30} /></div>
+        <div className="text-2xl" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>UpCourse akkauntingiz</div>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>Testlarni ishlash va natijalarni profilingizda saqlash uchun Google orqali kiring. Mavzularni akkauntsiz ham o‘rganishingiz mumkin.</p>
+        <button type="button" disabled={signInBusy} onClick={async () => {
+          setSignInBusy(true);
+          setSignInError('');
+          try {
+            const { error } = await signInWithGoogle();
+            if (error) throw error;
+          } catch (error) {
+            console.error('Google orqali kirish oynasini ochib bo‘lmadi:', error);
+            setSignInError('Kirish oynasini ochib bo‘lmadi. Qayta urinib ko‘ring.');
+            setSignInBusy(false);
+          }
+        }} className="mx-auto mt-5 flex min-h-12 w-full max-w-sm items-center justify-center gap-3 rounded-xl border px-4 text-sm font-semibold disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.white, borderColor: C.rule }}>
+          {signInBusy ? <Loader2 size={18} className="animate-spin" /> : <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-full border text-base font-bold" style={{ color: '#4285F4', borderColor: C.rule }}>G</span>}
+          {signInBusy ? 'Google ochilmoqda…' : 'Google orqali davom etish'}
+        </button>
+        <div className="mt-3 flex items-center justify-center gap-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}><Lock size={13} /> Parolingiz UpCourse’da saqlanmaydi</div>
+        {signInError && <p role="alert" className="mt-3 text-sm" style={{ ...fontBody, color: C.red }}>{signInError}</p>}
         <div className="mt-6 text-xs" style={{ ...fontBody, color: C.inkSoft }}>
           UpCourse Uz — ochiq taʼlim platformasi, {new Date().getFullYear()} ·{' '}
           <button onClick={onGoToAbout} className="underline underline-offset-2">Biz haqimizda</button>

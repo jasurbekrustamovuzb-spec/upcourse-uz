@@ -1123,7 +1123,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   );
 }
 
-export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session, initialProgress, onPauseAttempt, onClearPaused, onRequireAccount }) {
+export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, forceSetup, onSavePrefs, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, session, initialProgress, initialStartConfig, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount }) {
   const prefs = effectivePrefs || DEFAULT_TEST_PREFS;
   const [resumeProgress, setResumeProgress] = useState(initialProgress || null);
   const [config, setConfig] = useState(() => {
@@ -1148,13 +1148,28 @@ export function QuizView({ test, onExit, onNextTest, nextTest, effectivePrefs, f
   const [lastConfig, setLastConfig] = useState(prefs);
   const [attemptKey, setAttemptKey] = useState(0);
 
-  function handleStart(cfg) {
+  async function handleStart(cfg) {
     const { questions, ...rest } = cfg;
+    if (!session?.user?.id) {
+      const access = await onRequireTestAccount?.({ testId: test.id, action: 'start', startConfig: rest });
+      if (!access?.authenticated) return;
+    }
     setResumeProgress(null);
     setLastConfig(rest);
     setConfig(cfg);
     if (onSavePrefs) onSavePrefs(rest);
   }
+
+  const resumedStartRef = useRef(null);
+  useEffect(() => {
+    if (!initialStartConfig || !session?.user?.id || !Array.isArray(test.questions) || !test.questions.length || config) return;
+    const startKey = `${test.id}:${JSON.stringify(initialStartConfig)}`;
+    if (resumedStartRef.current === startKey) return;
+    resumedStartRef.current = startKey;
+    handleStart({ ...initialStartConfig, questions: computeQuizQuestions(test, initialStartConfig) });
+    // Resume only once after OAuth returns; handleStart uses the current test and config.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStartConfig, session?.user?.id, test.id, test.questions, config]);
 
   function savePlayerPrefs(nextPrefs) {
     setLastConfig(nextPrefs);
@@ -1195,10 +1210,11 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
+  const [activeStartConfig, setActiveStartConfig] = useState(null);
   const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId || openRequest));
   const handledOpenRequestRef = useRef(null);
   const [setupMode, setSetupMode] = useState(false);
@@ -1219,7 +1235,18 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
      oldin sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash")
      saqlangan/andoza sozlamalar bilan darhol boshlanadi. */
-  const goTest = (id, forceSetup, resumeState = null, onLeave = null) => { if (ensureTestContent) ensureTestContent(id); setActiveId(id); setActiveResumeState(resumeState); setSetupMode(!!forceSetup); pushNav(() => { setActiveId(null); setActiveResumeState(null); setSetupMode(false); onLeave?.(); }); };
+  const goTest = async (id, forceSetup, resumeState = null, onLeave = null, startConfig = null) => {
+    if (!session?.user?.id && !forceSetup) {
+      const access = await onRequireTestAccount?.({ testId: id, action: 'open' });
+      if (!access?.authenticated) return;
+    }
+    if (ensureTestContent) ensureTestContent(id);
+    setActiveId(id);
+    setActiveResumeState(resumeState);
+    setActiveStartConfig(startConfig);
+    setSetupMode(!!forceSetup);
+    pushNav(() => { setActiveId(null); setActiveResumeState(null); setActiveStartConfig(null); setSetupMode(false); onLeave?.(); });
+  };
   const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTeamBattle = () => { setTeamBattleOpen(true); pushNav(() => setTeamBattleOpen(false)); };
@@ -1272,7 +1299,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   useEffect(() => {
     if (!openRequest || handledOpenRequestRef.current === openRequest.requestId) return;
     handledOpenRequestRef.current = openRequest.requestId;
-    goTest(openRequest.id, false, openRequest.resumeState || null);
+    goTest(openRequest.id, Boolean(openRequest.startConfig), openRequest.resumeState || null, onExitInitialTest, openRequest.startConfig || null);
     setOpeningInitialTest(false);
     onOpenRequestHandled?.(openRequest.requestId);
     // goTest/nav callback render oralig‘ida yangilanadi; requestId bir marta bajarilishini ta’minlaydi.
@@ -1303,7 +1330,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
       return <SectionLoading label="Test yuklanmoqda…" compact />;
     }
     const openNextTest = nextTest ? () => { if (ensureTestContent) ensureTestContent(nextTest.id); onClearPaused?.(active.id); setActiveId(nextTest.id); setActiveResumeState(null); setSetupMode(false); } : undefined;
-    return <QuizView key={active.id} test={active} initialProgress={activeResumeState} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} onExit={back} onNextTest={openNextTest} nextTest={nextTest} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
+    return <QuizView key={active.id} test={active} initialProgress={activeResumeState} initialStartConfig={activeStartConfig} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} onRequireTestAccount={onRequireTestAccount} onExit={back} onNextTest={openNextTest} nextTest={nextTest} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
 
   // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
