@@ -2620,24 +2620,60 @@ function shuffleArray(arr) {
   return a;
 }
 
-function shuffleQuestionOptions(question) {
+function shuffleQuestionOptions(question, targetCorrectIndex) {
   if (!Array.isArray(question.options) || question.options.length < 2) return question;
   const optionIndexes = question.options.map((_, index) => index);
-  // Derangement: an option will not remain in its original slot. This also
-  // prevents the keyed correct answer from staying at A on every attempt.
+  const hasCorrectIndex = Number.isInteger(question.correct) && question.correct >= 0 && question.correct < optionIndexes.length;
   let order;
-  do { order = shuffleArray(optionIndexes); }
-  while (order.some((originalIndex, newIndex) => originalIndex === newIndex));
+  if (hasCorrectIndex) {
+    const correctIndex = question.correct;
+    const target = Number.isInteger(targetCorrectIndex) && targetCorrectIndex >= 0 && targetCorrectIndex < optionIndexes.length
+      ? targetCorrectIndex
+      : Math.floor(Math.random() * optionIndexes.length);
+    const otherIndexes = shuffleArray(optionIndexes.filter((index) => index !== correctIndex));
+    let otherIndex = 0;
+    order = optionIndexes.map((_, newIndex) => newIndex === target ? correctIndex : otherIndexes[otherIndex++]);
+  } else {
+    order = shuffleArray(optionIndexes);
+  }
   const newIndexByOldIndex = new Map(order.map((oldIndex, newIndex) => [oldIndex, newIndex]));
   const remap = (index) => newIndexByOldIndex.has(index) ? newIndexByOldIndex.get(index) : index;
   return {
     ...question,
     options: order.map((index) => question.options[index]),
-    ...(Number.isInteger(question.correct) ? { correct: remap(question.correct) } : {}),
+    optionOrder: order,
+    ...(hasCorrectIndex ? { correct: remap(question.correct) } : {}),
     ...(Array.isArray(question.pairs) ? {
       pairs: question.pairs.map((pair) => Number.isInteger(pair.correct) ? { ...pair, correct: remap(pair.correct) } : pair),
     } : {}),
   };
+}
+
+/* To‘g‘ri javobning A/B/C/D joyini bitta urinishdagi savollar bo‘ylab
+   imkon qadar teng taqsimlaydi. Qaysi savol qaysi joyni olishi ham tasodifiy. */
+function balanceCorrectAnswerPositions(questions) {
+  const groups = new Map();
+  questions.forEach((question, questionIndex) => {
+    const optionCount = question.options?.length;
+    if (!Number.isInteger(question.correct) || !Number.isInteger(optionCount) || optionCount < 2 || question.correct < 0 || question.correct >= optionCount) return;
+    if (!groups.has(optionCount)) groups.set(optionCount, []);
+    groups.get(optionCount).push(questionIndex);
+  });
+
+  const positionsByQuestion = new Map();
+  for (const [optionCount, questionIndexes] of groups) {
+    const perPosition = Math.floor(questionIndexes.length / optionCount);
+    const targetPositions = [];
+    for (let position = 0; position < optionCount; position++) {
+      for (let count = 0; count < perPosition; count++) targetPositions.push(position);
+    }
+    const remainder = questionIndexes.length - targetPositions.length;
+    targetPositions.push(...shuffleArray(Array.from({ length: optionCount }, (_, index) => index)).slice(0, remainder));
+    const shuffledQuestions = shuffleArray(questionIndexes);
+    const shuffledPositions = shuffleArray(targetPositions);
+    shuffledQuestions.forEach((questionIndex, index) => positionsByQuestion.set(questionIndex, shuffledPositions[index]));
+  }
+  return positionsByQuestion;
 }
 
 export function formatDuration(totalSeconds) {
@@ -2694,7 +2730,8 @@ export function computeQuizQuestions(test, cfg) {
     if (base.length === 0) base = test.questions.slice(0, size);
   }
   if (cfg.shuffle) base = shuffleArray(base);
-  return base.map(shuffleQuestionOptions);
+  const correctPositions = balanceCorrectAnswerPositions(base);
+  return base.map((question, index) => shuffleQuestionOptions(question, correctPositions.get(index)));
 }
 
 
