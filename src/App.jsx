@@ -255,6 +255,7 @@ function TestAccountPrompt({ loading, busy, error, onSignIn, onBrowse, modal = f
       </button>
       {error && <p role="alert" className="mt-3 text-center text-sm" style={{ ...fontBody, color: C.red }}>{error}</p>}
       {onBrowse && <button type="button" onClick={onBrowse} className="mt-4 w-full rounded-lg py-2 text-sm font-medium" style={{ ...fontBody, color: C.inkSoft }}>Testlar ro‘yxatiga qaytish</button>}
+      <a href="/privacy-policy.html" className="mt-3 inline-block text-xs underline underline-offset-2" style={{ ...fontBody, color: C.inkSoft }}>Maxfiylik siyosati</a>
     </section>
   );
   if (!modal) return <div className="grid min-h-[55vh] place-items-center px-3 py-8">{card}</div>;
@@ -2907,7 +2908,6 @@ function AboutView() {
         <p><strong>UpCourse Uz</strong> — o‘z ustida ishlash va rivojlanishni istaganlar uchun yaratilgan ochiq ta’lim platformasi. Maqsadimiz — bilimlarni sodda, tizimli va hammabop shaklda taqdim etish hamda jamiyat va ilm-fan rivojiga hissa qo‘shish.</p>
         <p>Platformadagi kurslar, testlar va yangiliklardan foydalanish uchun ro‘yxatdan o‘tish yoki profil yaratish shart emas.</p>
         <p>Platforma muntazam yangilanib boradi: unga yangi mavzular, testlar va e’lonlar qo‘shiladi.</p>
-        <p><a href="/privacy-policy.html" style={{ color: '#2563eb', textDecoration: 'underline' }}>Maxfiylik siyosati</a></p>
         
         <p>Savol, taklif yoki hamkorlik bo‘yicha <a href="https://t.me/upcourseuz" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}><strong>UpCourse Uz jamoasi bilan bog‘laning</strong></a>.</p>
         <div className="pt-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>
@@ -4772,9 +4772,11 @@ export default function App() {
           </>
         )}
       </main>
-      <footer className="mt-6 border-t px-4 py-3 text-center text-xs" style={{ ...fontBody, borderColor: C.rule, color: C.inkSoft }}>
-        <a href="/privacy-policy.html" className="underline underline-offset-2" style={{ color: C.inkSoft }}>Maxfiylik siyosati</a>
-      </footer>
+      {!readingActive && !viewingUsername && (tab === 'kurslar' || tab === 'profil') && (
+        <footer className="mt-6 px-4 py-3 text-center text-xs" style={{ ...fontBody, color: C.inkSoft }}>
+          <a href="/privacy-policy.html" className="underline underline-offset-2" style={{ color: C.inkSoft }}>Maxfiylik siyosati</a>
+        </footer>
+      )}
 
       </div>
 
