@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import 'mathlive';
 import 'mathlive/fonts.css';
 import { convertAsciiMathToLatex } from 'mathlive';
-import { C, fontBody } from './App.jsx';
+import { C, fontBody, NavContext } from './App.jsx';
 
 const mathKeyboardLayouts = [
   {
@@ -50,7 +50,9 @@ const mathKeyboardLayouts = [
  * structured notation and offers MathLive's touch keyboard on phones.
  */
 export default function MathInput({ value = '', onChange, onBlur, placeholder, label, disabled = false, readOnly = false, compact = false, scale = 1 }) {
+  const { registerOverlayBackHandler } = useContext(NavContext);
   const fieldRef = useRef(null);
+  const unregisterKeyboardBackRef = useRef(null);
   const emittedValueRef = useRef(value);
   const initializedRef = useRef(false);
   const onChangeRef = useRef(onChange);
@@ -79,13 +81,34 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
       onChangeRef.current?.(ascii);
     };
     const handleBlur = () => onBlurRef.current?.();
+    const closeKeyboard = () => {
+      try { window.mathVirtualKeyboard?.hide(); } catch {}
+      if (document.activeElement === field) field.blur();
+      unregisterKeyboardBackRef.current?.();
+      unregisterKeyboardBackRef.current = null;
+    };
+    const handleFocus = () => {
+      if (unregisterKeyboardBackRef.current) return;
+      unregisterKeyboardBackRef.current = registerOverlayBackHandler?.(closeKeyboard) || null;
+    };
+    const handleFocusOut = (event) => {
+      handleBlur();
+      if (event.relatedTarget !== field) {
+        unregisterKeyboardBackRef.current?.();
+        unregisterKeyboardBackRef.current = null;
+      }
+    };
     field.addEventListener('input', syncState);
-    field.addEventListener('focusout', handleBlur);
+    field.addEventListener('focusin', handleFocus);
+    field.addEventListener('focusout', handleFocusOut);
     return () => {
       field.removeEventListener('input', syncState);
-      field.removeEventListener('focusout', handleBlur);
+      field.removeEventListener('focusin', handleFocus);
+      field.removeEventListener('focusout', handleFocusOut);
+      unregisterKeyboardBackRef.current?.();
+      unregisterKeyboardBackRef.current = null;
     };
-  }, []);
+  }, [registerOverlayBackHandler]);
 
   useEffect(() => {
     const field = fieldRef.current;

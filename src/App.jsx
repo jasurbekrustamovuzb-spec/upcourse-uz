@@ -2932,15 +2932,26 @@ function AboutView() {
 /*  bosilganda o'sha belgi "yechiladi" va aynan shu joyning ichki        */
 /*  "ortga" funksiyasi chaqiriladi — sahifadan yoki hisobdan chiqib      */
 /*  ketish o'rniga.                                                      */
-export const NavContext = React.createContext({ pushNav: () => {}, back: () => {} });
+export const NavContext = React.createContext({ pushNav: () => {}, back: () => {}, registerOverlayBackHandler: () => () => {} });
 export const ThemeContext = React.createContext({ theme: 'light', toggleTheme: () => {} });
 
 function useNavStack() {
   const stackRef = useRef([]);
   const backGuardRef = useRef(null);
+  const overlayBackHandlersRef = useRef([]);
+  const ignoredPopstateRef = useRef(0);
 
   useEffect(() => {
     function onPopState() {
+      if (ignoredPopstateRef.current > 0) {
+        ignoredPopstateRef.current -= 1;
+        return;
+      }
+      const overlayHandler = overlayBackHandlersRef.current.pop();
+      if (overlayHandler) {
+        overlayHandler();
+        return;
+      }
       const guard = backGuardRef.current;
       if (guard && stackRef.current.length <= guard.depth) {
         // Keep the current route alive while the test asks how to leave.
@@ -2972,7 +2983,20 @@ function useNavStack() {
     return () => { if (backGuardRef.current === guard) backGuardRef.current = null; };
   }, []);
 
-  return { pushNav, back, registerBackGuard };
+  const registerOverlayBackHandler = useCallback((handler) => {
+    overlayBackHandlersRef.current.push(handler);
+    try { window.history.pushState({ upcourseNav: true, upcourseOverlay: true }, ''); } catch {}
+    return () => {
+      const index = overlayBackHandlersRef.current.lastIndexOf(handler);
+      if (index >= 0) {
+        overlayBackHandlersRef.current.splice(index, 1);
+        ignoredPopstateRef.current += 1;
+        try { window.history.back(); } catch { ignoredPopstateRef.current -= 1; }
+      }
+    };
+  }, []);
+
+  return { pushNav, back, registerBackGuard, registerOverlayBackHandler };
 }
 
 /* ------------------------------------------------------------------ */
@@ -3653,6 +3677,24 @@ export default function App() {
       // Jim tarzda o'tkazib yuborish — keyingi urinishda qayta so'raladi.
     }
     return existing?.questions;
+  }, [tests]);
+
+  // Deep link ID eski yoki o‘chirilgan bo‘lsa, savol yuklanishini kutib
+  // cheksiz spinner ko‘rsatmaymiz: testni aniq topib yoki "mavjud emas" deymiz.
+  const loadTestForOpening = useCallback(async (id) => {
+    const cached = tests.find((test) => test.id === id);
+    if (cached && cached.questions !== undefined) return { status: 'ok', test: cached };
+    try {
+      const rows = await sbRequest(`tests?select=*&id=eq.${encodeURIComponent(id)}`);
+      if (!rows?.length) return { status: 'missing' };
+      const test = testFromRow(rows[0]);
+      setTests((previous) => previous.some((item) => item.id === id)
+        ? previous.map((item) => item.id === id ? test : item)
+        : [...previous, test]);
+      return { status: 'ok', test };
+    } catch (error) {
+      return { status: 'error', error };
+    }
   }, [tests]);
 
   const loadTests = useCallback(async (force = false) => {
@@ -4689,7 +4731,7 @@ export default function App() {
                 />
               ) : (
                 <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}>
-                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
+                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
                 </Suspense>
               ))}
               {!viewingUsername && tab === 'arena' && (
@@ -4814,7 +4856,7 @@ export default function App() {
       {followerShareResource && <Suspense fallback={null}><DeferredFollowerShareDialog resource={followerShareResource} session={session} onClose={() => setFollowerShareResource(null)} /></Suspense>}
 
       {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
-        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} />
+        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} registerOverlayBackHandler={nav.registerOverlayBackHandler} />
       </Suspense>}
 
       {learningTasksOpen && (
