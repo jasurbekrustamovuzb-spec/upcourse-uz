@@ -63,6 +63,9 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     const field = fieldRef.current;
     if (!field) return;
     field.mathVirtualKeyboardPolicy = 'auto';
+    // Hide MathLive's general-purpose context menu (Insert/Matrix/Mode etc.);
+    // the compact keyboard already exposes the math structures learners need.
+    field.menuItems = [];
     // MathLive reads layouts from the shared virtual keyboard, not from the
     // field element. Configure it only when a math input is actually mounted
     // (this component is lazy-loaded, so it does not add work to the homepage).
