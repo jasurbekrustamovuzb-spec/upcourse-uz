@@ -93,11 +93,14 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     field.addEventListener('input', syncState);
     field.addEventListener('focusin', handleFocus);
     field.addEventListener('focusout', handleFocusOut);
-    let menuObserver = null;
+    const menuObservers = [];
     const hideMenuToggle = () => {
-      // MathLive places these controls in light DOM, so shadowRoot lookup misses them.
-      for (const control of field.querySelectorAll('[part=\"menu-toggle\"], [part=\"virtual-keyboard-toggle\"]')) {
-        if (control.style.display !== 'none') control.style.display = 'none';
+      // MathLive renders its toolbar inside a shadow root. Keep one UpCourse keyboard button.
+      for (const root of [field, field.shadowRoot].filter(Boolean)) {
+        for (const control of root.querySelectorAll('[part=\"menu-toggle\"], [part=\"virtual-keyboard-toggle\"]')) {
+          control.style.setProperty('display', 'none', 'important');
+          control.setAttribute('aria-hidden', 'true');
+        }
       }
     };
     const initializeMathfield = () => {
@@ -111,9 +114,12 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
       try { field.onScrollIntoView = () => {}; } catch {}
       try { if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.layouts = mathKeyboardLayouts; } catch (error) { console.warn('Klaviatura sxemasi yuklanmadi:', error); }
       hideMenuToggle();
-      if (!menuObserver) {
-        menuObserver = new MutationObserver(hideMenuToggle);
-        menuObserver.observe(field, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
+      if (!menuObservers.length) {
+        for (const root of [field, field.shadowRoot].filter(Boolean)) {
+          const observer = new MutationObserver(hideMenuToggle);
+          observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
+          menuObservers.push(observer);
+        }
       }
       mountedMathfieldRef.current = true;
     };
@@ -127,7 +133,8 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
       field.removeEventListener('input', syncState);
       field.removeEventListener('focusin', handleFocus);
       field.removeEventListener('focusout', handleFocusOut);
-      menuObserver?.disconnect();
+      menuObservers.forEach((observer) => observer.disconnect());
+      menuObservers.length = 0;
       mountedMathfieldRef.current = false;
       unregisterKeyboardBackRef.current?.();
       unregisterKeyboardBackRef.current = null;
@@ -181,7 +188,16 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
         title="Matematik klaviatura"
         onPointerDown={(event) => event.preventDefault()}
         onClick={() => {
-          try { fieldRef.current?.executeCommand('showVirtualKeyboard'); }
+          try {
+            const field = fieldRef.current;
+            field?.focus();
+            field?.executeCommand('showVirtualKeyboard');
+            unregisterKeyboardBackRef.current ||= registerOverlayBackHandler?.(() => {
+              try { window.mathVirtualKeyboard?.hide(); } catch {}
+              field?.blur();
+              unregisterKeyboardBackRef.current = null;
+            }) || null;
+          }
           catch (error) { console.warn('Matematik klaviatura ochilmadi:', error); }
         }}
         className="absolute right-2 top-1/2 z-[1] inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg"
@@ -192,6 +208,5 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     </>
   );
 }
-
 
 
