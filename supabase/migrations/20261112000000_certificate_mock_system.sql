@@ -191,7 +191,7 @@ begin
   pct := case when n=0 then 0 else round(correct::numeric * 100 / n, 2) end;
   grade_value := case when pct > 70 then 'A+' when pct >= 65 then 'A' when pct >= 60 then 'B+'
     when pct >= 55 then 'B' when pct >= 50 then 'C+' when pct >= 46 then 'C' else null end;
-  cert := case when grade_value is not null then 'UC-MOCK-' || upper(encode(gen_random_bytes(8),'hex')) else null end;
+  cert := case when grade_value is not null then 'UC-MOCK-' || upper(left(replace(gen_random_uuid()::text, '-', ''), 16)) else null end;
   update public.certificate_mock_attempts set status=case when p_expired then 'expired' else 'submitted' end,
     submitted_at=now(), resumed_at=null, paused_at=null, score=pct, correct_count=correct, total_count=n,
     grade=grade_value, certificate_id=cert where id=p_attempt_id returning * into a;

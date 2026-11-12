@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef } from 'react';
 import 'mathlive';
 import 'mathlive/fonts.css';
 import { convertAsciiMathToLatex } from 'mathlive';
+import { Keyboard } from 'lucide-react';
 import { C, fontBody, NavContext } from './App.jsx';
 
 const mathKeyboardLayouts = [
@@ -22,19 +23,19 @@ const mathKeyboardLayouts = [
         { label: '<', latex: '<', class: 'hide-shift', variants: [{ latex: '\\le', label: '≤' }, { latex: '>', label: '>' }, { latex: '\\ge', label: '≥' }] },
         { label: '>', latex: '>', class: 'hide-shift', variants: [{ latex: '\\ge', label: '≥' }, { latex: '<', label: '<' }, { latex: '\\le', label: '≤' }] },
         '[4]', '[5]', '[6]', '[*]',
-        { class: 'hide-shift', latex: '#@^2}', shift: '#@^{#?}}', variants: ['#@^{#?}}', '#@^{3}}', '#@^{4}}', '#@^{n}}'] },
-        { latex: '#@^{#0}}', class: 'hide-shift', shift: '#@_{#?}' },
-        { class: 'hide-shift', latex: '\\sqrt{#0}', shift: { latex: '\\sqrt[#0]{#?}}', label: 'ⁿ√' }, variants: [{ latex: '\\sqrt[3]{#?}', label: '³√' }, { latex: '\\sqrt[4]{#?}', label: '⁴√' }, { latex: '\\sqrt[#?]{#?}', label: 'ⁿ√' }] },
+        { class: 'hide-shift', latex: '#@^2', shift: '#@^{#?}', variants: ['#@^{#?}', '#@^3', '#@^4', '#@^n'] },
+        { latex: '#@_{#?}', class: 'hide-shift', shift: '#@_{#?}' },
+        { class: 'hide-shift', latex: '\\sqrt{#?}', shift: { latex: '\\sqrt[#?]{#?}', label: 'ⁿ√' }, variants: [{ latex: '\\sqrt[3]{#?}', label: '³√' }, { latex: '\\sqrt[4]{#?}', label: '⁴√' }, { latex: '\\sqrt[#?]{#?}', label: 'ⁿ√' }] },
         { class: 'hide-shift', latex: '\\log_{#?}', label: 'logₐ' },
       ],
       [
         { label: '(', latex: '(', variants: ['[', '{'] }, { label: ')', latex: ')', variants: [']', '}'] }, '[1]', '[2]', '[3]', '[-]',
         { class: 'small', latex: '\\frac{#?}{#?}', variants: [{ latex: '\\frac{#?}{#?}' }, { latex: '#?\\,\\frac{#?}{#?}' }] },
         { latex: '\\int\\!#?\\,\\mathrm{d}x', class: 'small hide-shift', shift: '\\int', variants: [{ latex: '\\int_{#?}^{#?}', class: 'small' }, { latex: '\\iint', class: 'small' }, { latex: '\\oint', class: 'small' }, '\\partial'] },
-        { latex: '\\cot', label: 'ctg' }, { label: '[backspace]', width: 1 },
+        { latex: '\\cot', label: 'ctg' }, { label: '[backspace]' },
       ],
       [
-        '[0]', '[.]', '[=]', '[+]', { latex: '\\sin', label: 'sin' }, { latex: '\\cos', label: 'cos' }, '[left]', '[right]', '[<]', '[>]',
+        '[0]', '[.]', '[=]', '[+]', { latex: '\\sin', label: 'sin' }, { latex: '\\cos', label: 'cos' }, '[left]', '[right]', '[up]', '[down]',
       ],
     ],
   },
@@ -78,11 +79,10 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
       unregisterKeyboardBackRef.current = null;
     };
     const handleFocus = () => {
-      // Let MathLive finish its own focus handling before opening the on-screen
-      // keyboard. This also works in in-app browsers with a manual policy.
+      try { window.mathVirtualKeyboard?.show({ animate: true }); } catch {}
       window.requestAnimationFrame(() => {
-        if (mounted && document.activeElement === field) {
-          try { window.mathVirtualKeyboard?.show({ animate: true }); } catch {}
+        if (mounted && field.isConnected) {
+          try { window.mathVirtualKeyboard?.update(field); } catch {}
         }
       });
       if (unregisterKeyboardBackRef.current) return;
@@ -95,24 +95,30 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
         unregisterKeyboardBackRef.current = null;
       }
     };
+    field.addEventListener('input', syncState);
+    field.addEventListener('focusin', handleFocus);
+    field.addEventListener('focusout', handleFocusOut);
+    let menuObserver = null;
+    const hideMenuToggle = () => {
+      const menu = field.shadowRoot?.querySelector('[part=\"menu-toggle\"]');
+      if (menu && menu.style.display !== 'none') menu.style.display = 'none';
+    };
     const initializeMathfield = () => {
       if (!mounted || mountedMathfieldRef.current) return;
-      try {
-        // MathLive exposes menuItems only after the custom element's mount
-        // event. Setting it earlier throws and used to abort keyboard setup.
-        field.mathVirtualKeyboardPolicy = 'manual';
-        field.menuItems = [];
-        field.smartFence = true;
-        field.smartMode = false;
-        field.onScrollIntoView = () => {};
-        if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.layouts = mathKeyboardLayouts;
-        mountedMathfieldRef.current = true;
-        field.addEventListener('input', syncState);
-        field.addEventListener('focusin', handleFocus);
-        field.addEventListener('focusout', handleFocusOut);
-      } catch (error) {
-        console.warn('Matematik klaviaturasi sozlanmadi:', error);
+      // Configure nonessential options independently so one unsupported option
+      // cannot prevent focus handling or the touch keyboard from working.
+      try { field.mathVirtualKeyboardPolicy = 'manual'; } catch {}
+      try { field.menuItems = []; } catch {}
+      try { field.smartFence = true; } catch {}
+      try { field.smartMode = false; } catch {}
+      try { field.onScrollIntoView = () => {}; } catch {}
+      try { if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.layouts = mathKeyboardLayouts; } catch (error) { console.warn('Klaviatura sxemasi yuklanmadi:', error); }
+      hideMenuToggle();
+      if (field.shadowRoot && !menuObserver) {
+        menuObserver = new MutationObserver(hideMenuToggle);
+        menuObserver.observe(field.shadowRoot, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
       }
+      mountedMathfieldRef.current = true;
     };
     field.addEventListener('mount', initializeMathfield);
     // The effect can run after MathLive already emitted mount.
@@ -123,6 +129,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
       field.removeEventListener('input', syncState);
       field.removeEventListener('focusin', handleFocus);
       field.removeEventListener('focusout', handleFocusOut);
+      menuObserver?.disconnect();
       mountedMathfieldRef.current = false;
       unregisterKeyboardBackRef.current?.();
       unregisterKeyboardBackRef.current = null;
@@ -150,9 +157,10 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
 
   return (
     <>
-    <style>{`.upcourse-math-field::part(menu-toggle){display:none!important}`}</style>
+    <style>{`.upcourse-math-field::part(menu-toggle),.upcourse-math-field::part(virtual-keyboard-toggle){display:none!important}`}</style>
     <div className={compact ? 'min-w-0 max-w-full' : 'mb-3 min-w-0 max-w-full'} style={{ overflowAnchor: 'none' }}>
       {label && <label className="block text-xs mb-1.5" style={{ ...fontBody, color: C.inkSoft }}>{label}</label>}
+      <div className="relative">
       <math-field
         ref={fieldRef}
         aria-label={label || 'Matematik ifoda'}
@@ -169,6 +177,10 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
           opacity: disabled ? 0.7 : 1,
         }}
       />
+      {!readOnly && <button type="button" aria-label="Matematik klaviaturani ochish" className="absolute right-2 top-2 z-10 grid h-9 w-9 place-items-center rounded-lg" style={{ color: C.cover, background: C.surface }} onPointerDown={(event) => event.preventDefault()} onClick={() => { const field = fieldRef.current; field?.focus(); try { window.mathVirtualKeyboard?.show({ animate: true }); } catch {} }}>
+        <Keyboard size={19} />
+      </button>}
+      </div>
     </div>
     </>
   );
