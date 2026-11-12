@@ -1,4 +1,5 @@
 import { useContext, useEffect, useRef } from 'react';
+import { Keyboard } from 'lucide-react';
 import 'mathlive';
 import 'mathlive/fonts.css';
 import { convertAsciiMathToLatex } from 'mathlive';
@@ -78,12 +79,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
       unregisterKeyboardBackRef.current = null;
     };
     const handleFocus = () => {
-      try { window.mathVirtualKeyboard?.show({ animate: true }); } catch {}
-      window.requestAnimationFrame(() => {
-        if (mounted && field.isConnected) {
-          try { window.mathVirtualKeyboard?.update(field); } catch {}
-        }
-      });
+      try { field.executeCommand('showVirtualKeyboard'); } catch (error) { console.warn('Matematik klaviatura ochilmadi:', error); }
       if (unregisterKeyboardBackRef.current) return;
       unregisterKeyboardBackRef.current = registerOverlayBackHandler?.(closeKeyboard) || null;
     };
@@ -100,8 +96,9 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     let menuObserver = null;
     const hideMenuToggle = () => {
       // MathLive places these controls in light DOM, so shadowRoot lookup misses them.
-      const menu = field.querySelector('[part=\"menu-toggle\"]');
-      if (menu && menu.style.display !== 'none') menu.style.display = 'none';
+      for (const control of field.querySelectorAll('[part=\"menu-toggle\"], [part=\"virtual-keyboard-toggle\"]')) {
+        if (control.style.display !== 'none') control.style.display = 'none';
+      }
     };
     const initializeMathfield = () => {
       if (!mounted || mountedMathfieldRef.current) return;
@@ -171,17 +168,30 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
         className="upcourse-math-field"
         style={{
           display: 'block', width: '100%', minWidth: 0, maxWidth: '100%', minHeight: compact ? 38 : 48,
-          padding: compact ? '6px 9px' : '9px 12px', borderRadius: 10,
+          padding: compact ? '6px 42px 6px 9px' : '9px 48px 9px 12px', borderRadius: 10,
           color: C.ink, background: readOnly ? 'transparent' : C.surface,
           border: readOnly ? '0' : `1px solid ${C.rule}`,
           fontSize: Math.round((compact ? 16 : 19) * scale), boxSizing: 'border-box',
           opacity: disabled ? 0.7 : 1,
         }}
       />
+      {!readOnly && !disabled && <button
+        type="button"
+        aria-label="Matematik klaviaturani ochish"
+        title="Matematik klaviatura"
+        onPointerDown={(event) => event.preventDefault()}
+        onClick={() => {
+          try { fieldRef.current?.executeCommand('showVirtualKeyboard'); }
+          catch (error) { console.warn('Matematik klaviatura ochilmadi:', error); }
+        }}
+        className="absolute right-2 top-1/2 z-[1] inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg"
+        style={{ color: '#527ba5', background: 'transparent' }}
+      ><Keyboard size={20} aria-hidden="true" /></button>}
       </div>
     </div>
     </>
   );
 }
+
 
 
