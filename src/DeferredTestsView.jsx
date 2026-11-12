@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Eye, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X, ZoomIn } from 'lucide-react';
 import { signInWithGoogle, supabase } from './supabaseClient.js';
 import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
@@ -311,6 +311,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
   const [seconds, setSeconds] = useState(() => Math.max(0, Number(initialProgress?.seconds) || 0));
   const [leaveDialog, setLeaveDialog] = useState(false);
   const [finishDialog, setFinishDialog] = useState(!!initialProgress?.finishOnResume);
+  const [questionInfoOpen, setQuestionInfoOpen] = useState(false);
+  const [questionImagePreview, setQuestionImagePreview] = useState('');
   const [guestPausePrompt, setGuestPausePrompt] = useState(false);
   const [pauseBusy, setPauseBusy] = useState(false);
   const [accountSignInBusy, setAccountSignInBusy] = useState(false);
@@ -913,12 +915,10 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         )}
         {reel ? (
           <div ref={reelsQuestionBodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-3 sm:px-6 sm:pb-5" style={{ touchAction: 'pan-y', paddingTop: controlsVisible ? `calc(env(safe-area-inset-top) + ${showAdaptiveFeedback ? 150 : 112}px)` : 'calc(env(safe-area-inset-top) + 56px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 18px)' }}>
-            {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
         ) : (
           <div className={question.type === 'matching' ? "w-full px-0" : "mx-auto max-w-3xl px-2 sm:px-3"}>
-            {test.description && index === 0 && <p className="mb-3 text-sm leading-5" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p>}
             {renderQuestionContent(question, index, answer, showResult)}
           </div>
         )}
@@ -940,9 +940,12 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
         </h2>}
         {question.type === 'matching' && <h2 id={`quiz-question-title-${index}`} className="sr-only">{question.text || `Moslik savoli ${index + 1}`}</h2>}
         {question.pdfSourceImageOnly && <h2 id={`quiz-question-title-${index}`} className="sr-only">{question.text || `Savol ${index + 1}`}</h2>}
-        {question.imageUrl && (question.pdfSourceImageOnly
-          ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-xl" style={{ background: C.rule }} />}><PdfQuestionImage src={question.imageUrl} alt={question.text || 'PDFdagi savol'} /></Suspense>
-          : <img src={question.imageUrl} alt="Savolga tegishli rasm" loading="lazy" decoding="async" className="mb-3 max-h-[65dvh] max-w-full rounded-xl object-contain" style={{ border: `1px solid ${C.rule}` }} />)}
+        {question.imageUrl && <button type="button" onClick={() => setQuestionImagePreview(question.imageUrl)} aria-label="Savol rasmini kattalashtirish" className="group relative mb-3 block max-w-full rounded-xl text-left focus-visible:outline focus-visible:outline-2" style={{ outlineColor: C.gold }}>
+          {question.pdfSourceImageOnly
+            ? <Suspense fallback={<div className="h-28 animate-pulse rounded-xl" style={{ background: C.rule }} />}><PdfQuestionImage src={question.imageUrl} alt={question.text || 'PDFdagi savol'} /></Suspense>
+            : <img src={question.imageUrl} alt="Savolga tegishli rasm" loading="lazy" decoding="async" className="max-h-[65dvh] max-w-full rounded-xl object-contain" style={{ border: `1px solid ${C.rule}` }} />}
+          <span className="absolute bottom-2 right-2 rounded-full p-2 opacity-90 shadow" style={{ color: C.ink, background: C.surface }}><ZoomIn size={16} /></span>
+        </button>}
         {question.type === 'matching' ? (
           <MatchingTestQuestion question={question} answer={answer} onChange={(pairId, optionIndex) => selectMatching(question.id, pairId, optionIndex)} disabled={finished} showResult={showResult} fontScale={fontScale} />
         ) : question.type === 'open' ? (
@@ -1022,6 +1025,7 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           <button type="button" onClick={requestLeave} aria-label="Testdan chiqish amallari" title="Ortga" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><ArrowLeft size={19} /></button>
           <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{test.title}</div><div className="flex items-center gap-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}><Clock3 size={12} />{formatDuration(seconds)}</div></div>
           <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoExitTimerRef.current); autoAdvanceQuestionRef.current = null; setTransitioningQuestion(null); setAutoAdvanceNotice(''); setQuestionMapOpen(true); }} aria-label="Savollar ro‘yxati" title="Savollar ro‘yxati" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.cover, background: C.successTint, border: `1px solid ${C.rule}` }}><ListChecks size={18} /></button>
+          {test.description && <button type="button" onClick={() => setQuestionInfoOpen(true)} aria-label="Test ma’lumotini ko‘rish" title="Test haqida" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.cover, background: C.goldSoft, border: `1px solid ${C.rule}` }}><Eye size={18} /></button>}
           <button type="button" onClick={() => { clearTimeout(autoScrollTimerRef.current); clearTimeout(autoExitTimerRef.current); autoAdvanceQuestionRef.current = null; setTransitioningQuestion(null); setAutoAdvanceNotice(''); setPlayerSettingsOpen(true); }} aria-label="Test sozlamalari" title="Test sozlamalari" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><Settings size={18} /></button>
           <button type="button" onClick={() => submit(answersRef.current)} aria-label="Testni yakunlash" className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.cover }}><CheckCircle2 size={16} /><span className="hidden sm:inline">Yakunlash</span></button>
           <button type="button" onClick={() => setControlsVisible(false)} aria-label="Yuqori boshqaruvni yashirish" title="Boshqaruvni yig‘ish" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><PanelTopClose size={18} /></button>
@@ -1132,6 +1136,8 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
           </section>
         </div>
       )}
+      {questionInfoOpen && <div className="fixed inset-0 z-[125] grid place-items-center bg-black/45 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuestionInfoOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="quiz-info-title" className="w-full max-w-lg rounded-2xl p-5 shadow-xl" style={{ background: C.paper, border: `1px solid ${C.rule}` }}><div className="flex items-center justify-between gap-3"><h2 id="quiz-info-title" className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Test haqida</h2><button type="button" aria-label="Yopish" onClick={() => setQuestionInfoOpen(false)} className="rounded-full p-2" style={{ color: C.inkSoft, background: C.surface }}><X size={18} /></button></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>{test.description}</p></section></div>}
+      {questionImagePreview && <div className="fixed inset-0 z-[130] grid place-items-center bg-black/90 p-3" role="presentation" onMouseDown={() => setQuestionImagePreview('')}><button type="button" aria-label="Rasmni yopish" onClick={() => setQuestionImagePreview('')} className="absolute right-4 top-4 rounded-full bg-white p-2 text-slate-900"><X size={20} /></button><img src={questionImagePreview} alt="Kattalashtirilgan savol rasmi" className="max-h-full max-w-full object-contain" onClick={(event) => event.stopPropagation()} /></div>}
     </div>
   );
 }
