@@ -155,7 +155,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
 
   return (
     <>
-    <style>{`.upcourse-math-field::part(menu-toggle){display:none!important}`}</style>
+    <style>{`.upcourse-math-field::part(menu-toggle),.upcourse-math-field::part(virtual-keyboard-toggle){display:none!important}`}</style>
     <div className={compact ? 'min-w-0 max-w-full' : 'mb-3 min-w-0 max-w-full'} style={{ overflowAnchor: 'none' }}>
       {label && <label className="block text-xs mb-1.5" style={{ ...fontBody, color: C.inkSoft }}>{label}</label>}
       <div className="relative">

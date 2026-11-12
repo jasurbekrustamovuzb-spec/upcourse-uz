@@ -73,9 +73,18 @@ export default function NationalCertificate({ tests = [], session, profile, isAd
   const [fullName, setFullName] = useState(currentName);
   const sessionAttempts = useMemo(() => attempts.filter((a) => a.session_id), [attempts]);
   useEffect(() => {
+    const root = document.documentElement;
+    const previousKeyboardZIndex = root.style.getPropertyValue('--keyboard-zindex');
     const hideKeyboard = () => { try { window.mathVirtualKeyboard?.hide({ animate: false }); } catch {} };
-    if (view !== 'attempt') hideKeyboard();
-    return () => { if (view === 'attempt') hideKeyboard(); };
+    if (view === 'attempt') root.style.setProperty('--keyboard-zindex', '140');
+    else hideKeyboard();
+    return () => {
+      if (view === 'attempt') {
+        hideKeyboard();
+        if (previousKeyboardZIndex) root.style.setProperty('--keyboard-zindex', previousKeyboardZIndex);
+        else root.style.removeProperty('--keyboard-zindex');
+      }
+    };
   }, [view]);
   const localTests = useMemo(() => new Map(tests.map((t) => [String(t.id), t])), [tests]);
 
@@ -215,6 +224,7 @@ function MathAnswer({ value, onChange }) {
   useEffect(() => { import('./MathInput.jsx').then((module) => setInput(() => module.default)); }, []);
   return Input ? <Input value={value} onChange={onChange} /> : <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: C.paper, border: `1px solid ${C.rule}` }} />;
 }
+
 
 
 
