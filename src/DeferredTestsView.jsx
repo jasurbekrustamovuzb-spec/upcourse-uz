@@ -1366,9 +1366,6 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (certificateOpen) return <Suspense fallback={<SectionLoading label="Milliy sertifikat markazi yuklanmoqda…" />}><NationalCertificate tests={approved} session={session} profile={profile} isAdmin={isAdmin} initialVerifyId={initialCertificateId || new URLSearchParams(window.location.search).get('verifyCertificate') || ''} onBack={() => setCertificateOpen(false)} /></Suspense>;
-
-
   const matchedCategories = q ? approvedCategories.filter((cat) => cat.name.toLowerCase().includes(q) && approved.some((t) => t.categoryId === cat.id)) : [];
   const matchedTests = q ? approved.filter((t) => t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q)) : [];
   const isSearching = q.length > 0;
@@ -1378,6 +1375,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     if (onReadingChange) onReadingChange(!!active || (Boolean(initialOpenId) && (openingInitialTest || Boolean(activeId))) || (Boolean(initialLiveCode) && liveOpen));
     return () => { if (onReadingChange) onReadingChange(false); };
   }, [active, activeId, initialOpenId, initialLiveCode, liveOpen, onReadingChange, openingInitialTest]);
+
+  if (certificateOpen) return <Suspense fallback={<SectionLoading label="Milliy sertifikat markazi yuklanmoqda…" />}><NationalCertificate tests={approved} session={session} profile={profile} isAdmin={isAdmin} initialVerifyId={initialCertificateId || new URLSearchParams(window.location.search).get('verifyCertificate') || ''} onBack={() => setCertificateOpen(false)} /></Suspense>;
 
   if (active && active.questions !== undefined) {
     const openNextTest = nextTest ? async () => {
