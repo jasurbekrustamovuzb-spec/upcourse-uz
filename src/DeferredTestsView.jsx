@@ -1223,12 +1223,15 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
   const [activeStartConfig, setActiveStartConfig] = useState(null);
   const [openingInitialTest, setOpeningInitialTest] = useState(Boolean(initialOpenId || openRequest));
+  const [activeTestOverride, setActiveTestOverride] = useState(null);
+  const [openTestError, setOpenTestError] = useState(null);
+  const openTestGenerationRef = useRef(0);
   const handledOpenRequestRef = useRef(null);
   const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -1248,18 +1251,48 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   /* forceSetup=true bo'lsa (⋮ menyudagi "Sozlamalar"), test ochilishidan
      oldin sozlamalar ekrani ko'rsatiladi; aks holda (oddiy "Boshlash")
      saqlangan/andoza sozlamalar bilan darhol boshlanadi. */
-  const goTest = async (id, forceSetup, resumeState = null, onLeave = null, startConfig = null) => {
+  const openTest = async (id, forceSetup = false, resumeState = null, onLeave = null, startConfig = null, recordHistory = true) => {
     if (!session?.user?.id && !forceSetup) {
       const access = await onRequireTestAccount?.({ testId: id, action: 'open' });
-      if (!access?.authenticated) return;
+      if (!access?.authenticated) { setOpeningInitialTest(false); return; }
     }
-    if (ensureTestContent) ensureTestContent(id);
+    const generation = ++openTestGenerationRef.current;
+    setOpeningInitialTest(true);
+    setOpenTestError(null);
+    setActiveTestOverride(null);
     setActiveId(id);
     setActiveResumeState(resumeState);
     setActiveStartConfig(startConfig);
     setSetupMode(!!forceSetup);
-    pushNav(() => { setActiveId(null); setActiveResumeState(null); setActiveStartConfig(null); setSetupMode(false); onLeave?.(); });
+    if (recordHistory) pushNav(() => {
+      openTestGenerationRef.current += 1;
+      setActiveId(null);
+      setActiveTestOverride(null);
+      setOpenTestError(null);
+      setOpeningInitialTest(false);
+      setActiveResumeState(null);
+      setActiveStartConfig(null);
+      setSetupMode(false);
+      onLeave?.();
+    });
+    try {
+      let result;
+      if (loadTestForOpening) result = await loadTestForOpening(id);
+      else {
+        const questions = ensureTestContent ? await ensureTestContent(id) : undefined;
+        const cached = tests.find((test) => test.id === id);
+        result = cached ? { status: 'ok', test: { ...cached, questions: questions ?? cached.questions } } : { status: 'missing' };
+      }
+      if (generation !== openTestGenerationRef.current) return;
+      if (result?.status === 'ok' && result.test) setActiveTestOverride(result.test);
+      else setOpenTestError(result?.status === 'missing' ? 'missing' : 'error');
+    } catch {
+      if (generation === openTestGenerationRef.current) setOpenTestError('error');
+    } finally {
+      if (generation === openTestGenerationRef.current) setOpeningInitialTest(false);
+    }
   };
+  const goTest = (id, forceSetup, resumeState = null, onLeave = null, startConfig = null) => openTest(id, forceSetup, resumeState, onLeave, startConfig, true);
   const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
   const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTeamBattle = () => { setTeamBattleOpen(true); pushNav(() => setTeamBattleOpen(false)); };
@@ -1276,7 +1309,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
      test ham (uning muallifi yoki admin bo'lmasa ham) ochiladi:
      ensureTestContent uni ID bo'yicha to'g'ridan-to'g'ri yuklab, tests
      ro'yxatiga qo'shib qo'yadi. */
-  const active = tests.find((t) => t.id === activeId);
+  const active = activeTestOverride?.id === activeId ? activeTestOverride : tests.find((t) => t.id === activeId);
   const activeCategoryTests = active ? approved.filter((test) => test.categoryId === active.categoryId) : [];
   const activeCategoryIndex = activeCategoryTests.findIndex((test) => test.id === activeId);
   const nextTest = activeCategoryIndex >= 0 ? activeCategoryTests[activeCategoryIndex + 1] || null : null;
@@ -1299,7 +1332,6 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   useEffect(() => {
     if (initialOpenId) {
       goTest(initialOpenId, false, null, onExitInitialTest);
-      setOpeningInitialTest(false);
     }
     else if (initialCategoryId) goCategory(initialCategoryId);
     if (initialLiveCode) pushNav(exitInitialLiveRoute);
@@ -1313,7 +1345,6 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     if (!openRequest || handledOpenRequestRef.current === openRequest.requestId) return;
     handledOpenRequestRef.current = openRequest.requestId;
     goTest(openRequest.id, Boolean(openRequest.startConfig), openRequest.resumeState || null, onExitInitialTest, openRequest.startConfig || null);
-    setOpeningInitialTest(false);
     onOpenRequestHandled?.(openRequest.requestId);
     // goTest/nav callback render oralig‘ida yangilanadi; requestId bir marta bajarilishini ta’minlaydi.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1338,13 +1369,29 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     return () => { if (onReadingChange) onReadingChange(false); };
   }, [active, activeId, initialOpenId, initialLiveCode, liveOpen, onReadingChange, openingInitialTest]);
 
-  if (active) {
-    if (active.questions === undefined) {
-      return <SectionLoading label="Test yuklanmoqda…" compact />;
-    }
-    const openNextTest = nextTest ? () => { if (ensureTestContent) ensureTestContent(nextTest.id); onClearPaused?.(active.id); setActiveId(nextTest.id); setActiveResumeState(null); setSetupMode(false); } : undefined;
+  if (active && active.questions !== undefined) {
+    const openNextTest = nextTest ? async () => {
+      setActiveTestOverride(null);
+      setActiveId(nextTest.id);
+      setOpeningInitialTest(true);
+      setOpenTestError(null);
+      try {
+        const result = loadTestForOpening ? await loadTestForOpening(nextTest.id) : null;
+        if (result?.status === 'ok') {
+          onClearPaused?.(active.id);
+          setActiveTestOverride(result.test);
+          setActiveResumeState(null);
+          setSetupMode(false);
+        } else {
+          setOpenTestError(result?.status === 'missing' ? 'missing' : 'error');
+        }
+      } finally {
+        setOpeningInitialTest(false);
+      }
+    } : undefined;
     return <QuizView key={active.id} test={active} initialProgress={activeResumeState} initialStartConfig={activeStartConfig} onPauseAttempt={onPauseAttempt} onClearPaused={onClearPaused} onRequireAccount={onRequireAccount} onRequireTestAccount={onRequireTestAccount} onExit={back} onNextTest={openNextTest} nextTest={nextTest} effectivePrefs={effectivePrefs} forceSetup={setupMode} onSavePrefs={onSavePrefs} onTestComplete={onTestComplete} onBadgeClaim={onBadgeClaim} badgeClaimBusy={badgeClaimBusy} badgeClaimError={badgeClaimError} session={session} />;
   }
+  if (active && active.questions === undefined && !openTestError) return <SectionLoading label="Test yuklanmoqda…" compact />;
 
   // Mavzudan testga o'tishda ro'yxatni ko'rsatib yubormaymiz: tanlangan
   // test metadata/savollari kelguncha foydalanuvchi bevosita ochilish holatini ko'radi.
@@ -1352,7 +1399,17 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     return (
       <div className="flex flex-col items-start gap-3 py-6" aria-live="polite">
         <button onClick={back} className="inline-flex items-center gap-1 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Ortga</button>
-        {testsLoadError ? (
+        {openTestError === 'missing' ? (
+          <div role="status" className="w-full rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <div className="font-semibold" style={{ ...fontDisplay, color: C.ink }}>Test mavjud emas</div>
+            <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Bu test o‘chirilgan yoki havolasi eskirgan.</p>
+          </div>
+        ) : openTestError === 'error' ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 text-sm" style={{ ...fontBody, color: C.red }}>
+            <span>Testni yuklab bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.</span>
+            <button type="button" onClick={() => openTest(activeId, setupMode, activeResumeState, null, activeStartConfig, false)} className="rounded-sm px-3 py-1.5" style={{ color: C.white, background: C.cover }}>Qayta urinish</button>
+          </div>
+        ) : testsLoadError ? (
           <div className="flex flex-wrap items-center gap-3 text-sm" style={{ ...fontBody, color: C.red }}>
             <span>Testni yuklab bo‘lmadi.</span>
             <button type="button" onClick={onRetryTests} className="rounded-sm px-3 py-1.5" style={{ color: C.white, background: C.cover }}>Qayta urinish</button>

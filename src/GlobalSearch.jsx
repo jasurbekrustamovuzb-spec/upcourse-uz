@@ -19,21 +19,27 @@ function ResultGroup({ title, icon: Icon, rows, onChoose, getLabel, getMeta }) {
   </section>;
 }
 
-export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categories = [] }) {
+export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categories = [], registerOverlayBackHandler }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState({ courses: [], tests: [], people: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const term = query.trim().slice(0, 80);
   const categoryNames = useMemo(() => new Map(categories.map((item) => [item.id, item.name])), [categories]);
 
   useEffect(() => {
     inputRef.current?.focus();
-    const onKeyDown = (event) => { if (event.key === 'Escape') onClose(); };
+    const onKeyDown = (event) => { if (event.key === 'Escape') onCloseRef.current?.(); };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+    const unregisterBack = registerOverlayBackHandler?.(() => onCloseRef.current?.());
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      unregisterBack?.();
+    };
+  }, [registerOverlayBackHandler]);
 
   useEffect(() => {
     let cancelled = false;
