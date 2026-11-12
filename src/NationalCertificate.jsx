@@ -1,4 +1,194 @@
-d, borderColor: C.gold }}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide" style={{ ...fontMono, color: C.gold }}>Davom ettiriladigan mock</p><h2 className="mt-1 font-semibold" style={{ ...fontBody, color: C.ink }}>{exams.find((e) => e.id === myResume.exam_id)?.title || 'Mock test'}</h2><p className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{myResume.status === 'paused' ? 'Tanaffusda' : 'Davom etmoqda'} · {myResume.full_name}</p></div><Button onClick={() => makeAttempt(exams.find((e) => e.id === myResume.exam_id), sessions.find((s) => s.id === myResume.session_id) || null, myResume)}><Play size={16} /> Davom ettirish</Button></div></section>}
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Award, ArrowLeft, CalendarClock, CheckCircle2, Clock3, ExternalLink, FileCheck2, LoaderCircle, Pause, Play, Printer, Share2, ShieldCheck, UserRound, X } from 'lucide-react';
+import { supabase } from './supabaseClient.js';
+import { C, NavContext, fontBody, fontDisplay, fontMono } from './App.jsx';
+
+const card = { background: C.surface, border: `1px solid ${C.rule}` };
+const btn = { ...fontBody, minHeight: 42, padding: '8px 14px', borderRadius: 10, fontWeight: 650 };
+const localTime = (value) => value ? new Date(value).toLocaleString('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+const fullNameOf = (profile) => [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim();
+const formatClock = (seconds) => `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+
+function Button({ children, onClick, tone = 'dark', disabled, type = 'button' }) {
+  const tones = { dark: { color: C.white, background: C.cover }, light: { color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }, gold: { color: C.ink, background: C.goldSoft }, red: { color: C.white, background: C.red } };
+  return <button type={type} disabled={disabled} onClick={onClick} className="inline-flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50" style={{ ...btn, ...tones[tone] }}>{children}</button>;
+}
+
+function Field({ label, ...props }) {
+  return <label className="block text-sm" style={{ ...fontBody, color: C.ink }}>{label}<input {...props} className="mt-1.5 w-full rounded-lg px-3 py-2.5 outline-none" style={{ color: C.ink, background: C.paper, border: `1px solid ${C.rule}` }} /></label>;
+}
+
+function CertificateCard({ attempt, exam, onBack }) {
+  const verifyUrl = `${window.location.origin}${window.location.pathname}?verifyCertificate=${encodeURIComponent(attempt.certificate_id)}`;
+  const share = async () => {
+    const text = `${attempt.full_name} — ${exam.subject}, ${attempt.grade} daraja. Sertifikat: ${attempt.certificate_id}. UpCourse Uz mock natijasi.`;
+    if (navigator.share) await navigator.share({ title: 'UpCourse Uz mock sertifikati', text, url: verifyUrl }).catch(() => {});
+    else if (navigator.clipboard) await navigator.clipboard.writeText(`${text}\n${verifyUrl}`);
+  };
+  return <div>
+    <button onClick={onBack} className="mb-4 inline-flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={16} /> Natijalarga qaytish</button>
+    <article id="mock-certificate" className="mx-auto max-w-4xl rounded-2xl p-5 sm:p-10" style={{ background: 'linear-gradient(135deg,#fffdf4,#f6efd9)', border: '8px double #b49250', color: '#1f3d2b', boxShadow: '0 18px 45px #1f3d2b18' }}>
+      <div className="text-center"><div className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={{ color: '#fff', background: '#1f3d2b' }}><Award size={29} /></div><div className="mt-3 text-xs font-semibold tracking-[.16em]">UPCOURSE UZ · BILIM VA TA’LIM PLATFORMASI</div><h1 className="mt-3 text-2xl font-bold sm:text-4xl" style={fontDisplay}>MOCK TEST SERTIFIKATI</h1><p className="mt-2 text-xs tracking-wide">MILLIY SERTIFIKATGA TAYYORGARLIK NATIJASI</p></div>
+      <div className="my-6 h-px" style={{ background: '#b49250' }} />
+      <div className="grid gap-6 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="text-sm">Ushbu sertifikat</p><h2 className="mt-1 text-2xl font-bold sm:text-3xl">{attempt.full_name}</h2><p className="mt-3 text-sm">ism-familiyasi bilan <strong>{exam.subject}</strong> fanidan mock testni yakunlaganini tasdiqlaydi.</p><div className="mt-5 grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl p-3" style={{ background: '#ffffffa8' }}>Natija<strong className="mt-1 block text-xl">{Number(attempt.score).toFixed(1)} ball</strong></div><div className="rounded-xl p-3" style={{ background: '#ffffffa8' }}>Daraja<strong className="mt-1 block text-xl">{attempt.grade}</strong></div></div><p className="mt-4 text-xs">Sertifikat ID: <strong>{attempt.certificate_id}</strong></p><p className="mt-1 text-xs">Berilgan sana: {localTime(attempt.submitted_at)}</p></div><div className="flex flex-col items-center gap-2 rounded-xl p-4" style={{ background: '#fff' }}><div className="grid h-24 w-24 place-items-center rounded-full" style={{ color: '#64748b', background: '#edf0f1' }}><UserRound size={44} /></div><img className="h-28 w-28" src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(verifyUrl)}`} alt={`Sertifikat ${attempt.certificate_id} tekshiruv QR kodi`} /><span className="max-w-32 break-all text-center text-[10px]">Tekshirish ID: {attempt.certificate_id}</span><a className="text-xs underline" href={verifyUrl} target="_blank" rel="noreferrer">Sertifikatni tekshirish</a></div></div>
+      <div className="mt-7 flex flex-col gap-4 border-t pt-4 sm:flex-row sm:items-end sm:justify-between" style={{ borderColor: '#b49250' }}><p className="text-xs">Direktor<br /><strong className="mt-1 inline-block text-sm">J. RUSTAMOV</strong></p><p className="text-center text-xs font-bold">Ushbu hujjat UpCourse Uz mock test natijasidir.<br />Rasmiy davlat sertifikati hisoblanmaydi.</p><p className="text-xs sm:text-right">Test: {exam.title}</p></div>
+    </article>
+    <div className="mx-auto mt-4 flex max-w-4xl flex-wrap gap-2"><Button onClick={() => window.print()}><Printer size={16} /> Ko‘rish / PDF yuklab olish</Button><Button tone="light" onClick={share}><Share2 size={16} /> Ulashish</Button><Button tone="light" onClick={() => window.open(verifyUrl, '_blank', 'noopener,noreferrer')}><ShieldCheck size={16} /> Tekshirish sahifasi</Button></div>
+    <style>{`@media print { body * { visibility:hidden !important; } #mock-certificate,#mock-certificate * { visibility:visible !important; } #mock-certificate { position:absolute;inset:0;margin:0 auto;width:100%;box-shadow:none !important; } @page { size:A4 landscape; margin:12mm; } }`}</style>
+  </div>;
+}
+
+function VerifyCertificate({ initialId = '' }) {
+  const [id, setId] = useState(initialId);
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const verify = async (event) => {
+    event?.preventDefault(); setBusy(true); setError(''); setResult(null);
+    const { data, error: rpcError } = await supabase.rpc('certificate_mock_verify', { p_certificate_id: id.trim() });
+    setBusy(false);
+    if (rpcError) setError('Tekshirish xizmati hozircha mavjud emas. Tizim administratoriga murojaat qiling.');
+    else if (!data?.valid) setError('Bu ID bo‘yicha berilgan sertifikat topilmadi.');
+    else if (!data?.valid) setError('Bu sertifikat bekor qilingan yoki haqiqiy emas.');
+    else setResult(data);
+  };
+  useEffect(() => { if (initialId) verify(); }, [initialId]);
+  return <section className="mx-auto max-w-xl rounded-2xl p-5 sm:p-7" style={card}><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl" style={{ color: C.cover, background: C.goldSoft }}><ShieldCheck size={23} /></span><div><h2 className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>Sertifikatni tekshirish</h2><p className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>ID orqali mock natijasini tasdiqlang.</p></div></div><form onSubmit={verify} className="mt-5 flex gap-2"><input required value={id} onChange={(e) => setId(e.target.value)} placeholder="UC-MOCK-…" className="min-w-0 flex-1 rounded-lg px-3" style={{ background: C.paper, border: `1px solid ${C.rule}` }} /><Button type="submit" disabled={busy}>{busy ? <LoaderCircle className="animate-spin" size={16} /> : <ShieldCheck size={16} />} Tekshirish</Button></form>{error && <p role="alert" className="mt-4 rounded-lg p-3 text-sm" style={{ color: C.red, background: '#fcebea' }}>{error}</p>}{result && <div className="mt-4 rounded-xl p-4" style={{ background: C.successTint, border: `1px solid ${C.accent}` }}><p className="flex items-center gap-2 font-semibold" style={{ color: C.accent }}><CheckCircle2 size={18} /> Sertifikat haqiqiy — UpCourse Uz mock natijasi</p><div className="mt-3 grid grid-cols-2 gap-2 text-sm" style={{ color: C.ink }}><span>Ism-familiya</span><strong>{result.full_name}</strong><span>Fan</span><strong>{result.subject}</strong><span>Natija</span><strong>{Number(result.score).toFixed(1)} · {result.grade}</strong><span>Berilgan sana</span><strong>{localTime(result.issued_at)}</strong></div><p className="mt-3 text-xs" style={{ color: C.inkSoft }}>Bu UpCourse Uz mock sertifikati bo‘lib, davlat sertifikati emas.</p></div>}</section>;
+}
+
+export default function NationalCertificate({ tests = [], session, profile, isAdmin, onBack, initialVerifyId = '' }) {
+  const [exams, setExams] = useState([]); const [sessions, setSessions] = useState([]); const [attempts, setAttempts] = useState([]); const [auditEvents, setAuditEvents] = useState([]);
+  const [view, setView] = useState(initialVerifyId ? 'verify' : 'home'); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [selected, setSelected] = useState(null); const [attempt, setAttempt] = useState(null); const [activeExam, setActiveExam] = useState(null); const [questions, setQuestions] = useState([]); const [answers, setAnswers] = useState({}); const [seconds, setSeconds] = useState(0); const [leaveOpen, setLeaveOpen] = useState(false);
+  const [examForm, setExamForm] = useState({ test_id: '', subject: 'Matematika', title: '', duration_minutes: 180, is_enabled: true });
+  const [sessionForm, setSessionForm] = useState({ exam_id: '', title: '', starts_at: '', ends_at: '' });
+  const finishLock = useRef(false);
+  const { registerBackGuard } = useContext(NavContext);
+  const currentName = fullNameOf(profile);
+  const [fullName, setFullName] = useState(currentName);
+  const sessionAttempts = useMemo(() => attempts.filter((a) => a.session_id), [attempts]);
+  const localTests = useMemo(() => new Map(tests.map((t) => [String(t.id), t])), [tests]);
+
+  const loadData = useCallback(async () => {
+    if (!session?.user?.id) return;
+    setError('');
+    const [ex, se, at, events, certificateRows] = await Promise.all([
+      supabase.from('certificate_mock_exams').select('*').order('created_at', { ascending: false }),
+      supabase.from('certificate_mock_sessions').select('*').order('starts_at', { ascending: true }),
+      supabase.from('certificate_mock_attempts').select('*').order('created_at', { ascending: false }).limit(100),
+      isAdmin ? supabase.from('certificate_events').select('*').order('created_at', { ascending: false }).limit(50) : Promise.resolve({ data: [], error: null }),
+      isAdmin ? supabase.from('certificates').select('certificate_id,status') : Promise.resolve({ data: [], error: null }),
+    ]);
+    const failed = ex.error || se.error || at.error || events.error || certificateRows.error;
+    if (failed) { setError(/certificate_mock/i.test(failed.message) ? 'Milliy sertifikat jadvallari hali Supabase’da yaratilmagan. Yakundagi SQL migratsiyani qo‘llang.' : 'Ma’lumotlarni yuklab bo‘lmadi. Qayta urinib ko‘ring.'); return; }
+    const certificateStatus = new Map((certificateRows.data || []).map((row) => [row.certificate_id, row.status]));
+    setExams(ex.data || []); setSessions(se.data || []); setAttempts((at.data || []).map((row) => ({ ...row, certificate_status: certificateStatus.get(row.certificate_id) || null }))); setAuditEvents(events.data || []);
+  }, [session?.user?.id, isAdmin]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const makeAttempt = async (exam, examSession = null, resume = null) => {
+    if (!session?.user?.id) { setError('Mock test uchun avval profilingizga kiring.'); return; }
+    setBusy(true); setError('');
+    const { data, error: rpcError } = resume
+      ? await supabase.rpc('certificate_mock_resume', { p_attempt_id: resume.id })
+      : await supabase.rpc('certificate_mock_begin', { p_exam_id: exam.id, p_session_id: examSession?.id || null, p_full_name: fullName.trim() });
+    setBusy(false);
+    if (rpcError) { setError(rpcError.message.includes('SESSION_CLOSED') ? 'Jonli testning kirish vaqti yopildi.' : rpcError.message.includes('ATTEMPT_ALREADY_FINISHED') ? 'Bu sessiyadagi urinishingiz allaqachon yakunlangan.' : 'Testni boshlab bo‘lmadi. Ism-familiya va test jadvalini tekshiring.'); return; }
+    const nextAttempt = data.attempt; const testId = data.exam.test_id;
+    const [{ data: safeQuestions, error: questionError }, { data: testInfo }] = await Promise.all([
+      supabase.rpc('certificate_mock_get_questions', { p_attempt_id: nextAttempt.id }),
+      supabase.from('tests').select('id,title').eq('id', testId).maybeSingle(),
+    ]);
+    if (questionError || !safeQuestions?.length) { setError('Mock savollarini yuklab bo‘lmadi. Sessiya oynasi yoki SQL migratsiyani tekshiring.'); return; }
+    setSelected({ exam, session: examSession }); setActiveExam({ ...exam, testTitle: testInfo?.title || exam.title }); setQuestions(safeQuestions); setAttempt(nextAttempt); setAnswers(nextAttempt.answers || resume?.answers || {}); setSeconds(Number(nextAttempt.active_seconds || 0)); setView('attempt');
+  };
+
+  const persistAnswers = useCallback(async (pause = false) => {
+    if (!attempt) return null;
+    const { data, error: rpcError } = await supabase.rpc('certificate_mock_save', { p_attempt_id: attempt.id, p_answers: answers, p_pause: pause });
+    if (rpcError) { setError(rpcError.message.includes('TIME_EXPIRED') || rpcError.message.includes('SESSION_CLOSED') ? 'Test vaqti tugadi. Natija yakunlanmoqda.' : 'Javoblar saqlanmadi. Internetni tekshiring va qayta urinib ko‘ring.'); return null; }
+    setAttempt(data); return data;
+  }, [attempt, answers]);
+
+  const finish = useCallback(async () => {
+    if (!attempt || finishLock.current) return;
+    finishLock.current = true;
+    setBusy(true); setError('');
+    const { data, error: rpcError } = await supabase.rpc('certificate_mock_finish', { p_attempt_id: attempt.id, p_answers: answers });
+    setBusy(false); finishLock.current = false;
+    if (rpcError) { setError(rpcError.message.includes('TIME_EXPIRED') ? 'Test vaqti tugadi. Yakuniy natija saqlanmoqda.' : 'Testni yakunlab bo‘lmadi. Javoblar saqlangan; qayta urinib ko‘ring.'); if (rpcError.message.includes('TIME_EXPIRED')) { await persistAnswers(true); } return; }
+    setAttempt(data); setAttempts((prev) => [data, ...prev.filter((a) => a.id !== data.id)]); setView(data.grade ? 'certificate' : 'result'); await loadData();
+  }, [attempt, answers, loadData, persistAnswers]);
+
+  useEffect(() => {
+    if (view !== 'attempt' || !attempt || attempt.status !== 'in_progress') return undefined;
+    const tick = () => {
+      const now = Date.now();
+      const running = Number(attempt.active_seconds || 0) + Math.max(0, Math.floor((now - new Date(attempt.resumed_at || now).getTime()) / 1000));
+      setSeconds(running);
+      const scheduleExpired = selected?.session?.ends_at && now >= new Date(selected.session.ends_at).getTime();
+      if (running >= Number(activeExam?.duration_minutes || 180) * 60 || scheduleExpired) finish();
+    };
+    const timer = setInterval(tick, 1000); return () => clearInterval(timer);
+  }, [view, attempt?.id, attempt?.status, attempt?.active_seconds, attempt?.resumed_at, selected?.session?.ends_at, activeExam?.duration_minutes, finish]);
+
+  useEffect(() => {
+    if (view !== 'attempt') return undefined;
+    const guard = registerBackGuard?.(() => setLeaveOpen(true));
+    const beforeUnload = (event) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => { guard?.(); window.removeEventListener('beforeunload', beforeUnload); };
+  }, [view, registerBackGuard]);
+
+  useEffect(() => {
+    if (view !== 'attempt' || !attempt) return undefined;
+    const timer = setTimeout(async () => {
+      const { error: saveError } = await supabase.rpc('certificate_mock_save', { p_attempt_id: attempt.id, p_answers: answers, p_pause: false });
+      if (saveError && view === 'attempt') setError('Javobni serverga saqlashda uzilish bo‘ldi. Internetni tekshiring.');
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [answers, view, attempt?.id]);
+
+  const pauseAndExit = async () => { setBusy(true); const saved = await persistAnswers(true); setBusy(false); if (saved) { await loadData(); setView('home'); setAttempt(null); setLeaveOpen(false); } };
+  const createExam = async (event) => {
+    event.preventDefault(); setBusy(true); setError('');
+    const { error: insertError } = await supabase.from('certificate_mock_exams').insert({ ...examForm, duration_minutes: Number(examForm.duration_minutes), created_by: session.user.id });
+    setBusy(false); if (insertError) setError('Mockni yaratib bo‘lmadi. Jadval migratsiyasi va admin ruxsatini tekshiring.'); else { setExamForm({ test_id: '', subject: 'Matematika', title: '', duration_minutes: 180, is_enabled: true }); await loadData(); }
+  };
+  const createSession = async (event) => {
+    event.preventDefault(); setError('');
+    const startsAt = new Date(sessionForm.starts_at); const endsAt = new Date(sessionForm.ends_at);
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || startsAt <= new Date() || endsAt <= startsAt) { setError('Boshlanish va tugash vaqtini tekshiring. Boshlanish hozirgi vaqtdan keyin bo‘lishi kerak.'); return; }
+    setBusy(true);
+    const { error: insertError } = await supabase.from('certificate_mock_sessions').insert({ exam_id: sessionForm.exam_id, title: sessionForm.title, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), created_by: session.user.id });
+    setBusy(false); if (insertError) setError('Jonli sessiyani yaratib bo‘lmadi. Sana-vaqtlarni tekshiring.'); else { setSessionForm({ exam_id: '', title: '', starts_at: '', ends_at: '' }); await loadData(); }
+  };
+  const revokeCertificate = async (certificateId) => {
+    const reason = window.prompt('Sertifikatni bekor qilish sababini yozing:');
+    if (!reason || reason.trim().length < 5) return;
+    setBusy(true);
+    const { error: revokeError } = await supabase.rpc('certificate_revoke', { p_certificate_id: certificateId, p_reason: reason.trim() });
+    setBusy(false);
+    if (revokeError) setError('Sertifikatni bekor qilib bo‘lmadi. Admin ruxsati va SQL migratsiyani tekshiring.');
+    else await loadData();
+  };
+
+  const onAnswer = (questionId, value) => setAnswers((old) => ({ ...old, [questionId]: value }));
+  const activeSession = (s) => s.status === 'scheduled' && Date.now() >= new Date(s.starts_at).getTime() && Date.now() < new Date(s.ends_at).getTime();
+  const sessionExam = (s) => exams.find((e) => e.id === s.exam_id);
+
+  if (view === 'verify') return <div><button onClick={onBack} className="mb-4 inline-flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={16} /> Testlar</button><VerifyCertificate initialId={initialVerifyId} /></div>;
+  if (view === 'certificate') return <CertificateCard attempt={attempt} exam={activeExam} onBack={() => { setView('home'); loadData(); }} />;
+  if (view === 'result') return <section className="mx-auto max-w-xl rounded-2xl p-6 text-center" style={card}><span className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={{ color: C.cover, background: C.goldSoft }}><CheckCircle2 size={28} /></span><h2 className="mt-3 text-2xl font-bold" style={{ ...fontDisplay, color: C.ink }}>Mock test yakunlandi</h2><p className="mt-2" style={{ ...fontBody, color: C.inkSoft }}>{activeExam?.subject} · {attempt?.full_name}</p><p className="mt-3 text-4xl font-bold" style={{ ...fontMono, color: C.cover }}>{Number(attempt?.score || 0).toFixed(1)}</p><p className="mt-1 text-lg font-semibold" style={{ ...fontBody, color: C.ink }}>{attempt?.grade || 'Sertifikat olish uchun 46 ball kerak'}</p><p className="mt-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Ball qatnashchilar soniga bog‘liq bo‘lmagan mock foiz shkalasida hisoblandi. Rasmiy Rash kalibrlash uchun savollar qiyinlik parametrlari kerak; bu natija rasmiy davlat imtihoni natijasi emas.</p><div className="mt-5 flex justify-center gap-2">{attempt?.certificate_id && <Button onClick={() => setView('certificate')}><FileCheck2 size={16} /> Sertifikat</Button>}<Button tone="light" onClick={() => { setView('home'); loadData(); }}>Markazga qaytish</Button></div></section>;
+  if (view === 'attempt') return <div className="fixed inset-0 z-[115] overflow-y-auto" style={{ background: C.paper }}><div className="mx-auto max-w-4xl px-4 py-4 sm:px-6"><header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b py-3" style={{ background: C.paper, borderColor: C.rule }}><div className="min-w-0"><p className="truncate text-sm font-bold" style={{ ...fontBody, color: C.ink }}>{activeExam?.title}</p><p className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>{activeExam?.subject} · {selected?.session ? 'Jonli mock' : 'Mustaqil mock'}{selected?.session ? ` · tugash ${localTime(selected.session.ends_at)}` : ''}</p></div><div className="flex shrink-0 items-center gap-2"><span className="inline-flex items-center gap-1 rounded-full px-3 py-2 text-sm font-bold" style={{ ...fontMono, color: seconds > activeExam.duration_minutes * 60 - 300 ? C.red : C.cover, background: C.goldSoft }}><Clock3 size={15} />{formatClock(Math.max(0, activeExam.duration_minutes * 60 - seconds))}</span><Button tone="light" onClick={() => setLeaveOpen(true)}><Pause size={16} /> Tanaffus</Button></div></header><div className="my-4 rounded-xl p-3 text-xs" style={{ color: C.inkSoft, background: C.surface }}>Ism-familiya: <strong style={{ color: C.ink }}>{attempt.full_name}</strong> · {Object.keys(answers).length} javob saqlandi</div>{questions.map((q, index) => <article key={q.id || index} className="mb-4 rounded-2xl p-4 sm:p-6" style={card}><h2 className="font-semibold leading-relaxed" style={{ ...fontBody, color: C.ink }}><span className="mr-2 rounded-full px-2 py-1 text-xs" style={{ background: C.goldSoft }}>{index + 1}</span>{q.text}</h2>{q.imageUrl && <img className="mt-3 max-h-[60vh] max-w-full rounded-lg object-contain" src={q.imageUrl} alt="Savol" />}{q.mathFormula && <p className="mt-2 font-serif text-lg">{q.mathFormula}</p>}{q.type === 'matching' ? <div className="mt-4 space-y-2">{(q.pairs || []).map((pair, pi) => <label key={pair.id || pi} className="grid gap-2 rounded-xl p-3 sm:grid-cols-[1fr_1.2fr] sm:items-center" style={{ background: C.paper, border: `1px solid ${C.rule}` }}><span className="text-sm" style={{ ...fontBody, color: C.ink }}>{pair.text}</span><select value={answers[q.id]?.[pair.id] ?? ''} onChange={(e) => onAnswer(q.id, { ...(answers[q.id] || {}), [pair.id]: e.target.value === '' ? undefined : Number(e.target.value) })} className="rounded-lg px-3 py-2.5" style={{ color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}><option value="">Javobni tanlang</option>{(q.options || []).map((option, oi) => <option key={oi} value={oi}>{option}</option>)}</select></label>)}</div> : q.type === 'open' ? <div className="mt-4">{q.answerMode === 'math' ? <MathAnswer value={answers[q.id] || ''} onChange={(v) => onAnswer(q.id, v)} /> : <input value={answers[q.id] || ''} onChange={(e) => onAnswer(q.id, e.target.value)} className="w-full rounded-xl px-3 py-3" style={{ background: C.paper, border: `1px solid ${C.rule}` }} />}</div> : <div className="mt-4 grid gap-2">{(q.options || []).map((option, oi) => <button key={oi} type="button" onClick={() => onAnswer(q.id, oi)} className="flex items-start gap-3 rounded-xl p-3 text-left" style={{ ...fontBody, color: C.ink, background: answers[q.id] === oi ? C.goldSoft : C.paper, border: `1px solid ${answers[q.id] === oi ? C.gold : C.rule}` }}><span className="font-bold">{String.fromCharCode(65 + oi)}.</span>{option}</button>)}</div>}</article>)}{error && <p role="alert" className="mb-3 rounded-xl p-3 text-sm" style={{ color: C.red, background: '#fcebea' }}>{error}</p>}<div className="sticky bottom-0 flex justify-end border-t py-3" style={{ background: C.paper, borderColor: C.rule }}><Button disabled={busy} onClick={finish}><CheckCircle2 size={16} /> {busy ? 'Saqlanmoqda…' : 'Testni yakunlash'}</Button></div></div>{leaveOpen && <div className="fixed inset-0 z-20 grid place-items-center bg-black/50 p-4"><section className="w-full max-w-md rounded-2xl p-5" style={{ background: C.paper }}><h2 className="text-lg font-bold" style={{ ...fontDisplay, color: C.ink }}>Tanaffus qilasizmi?</h2><p className="mt-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Javoblar saqlanib, shaxsiy taymer toxtaydi. Jonli sessiya tugash vaqti esa davom etadi.</p><div className="mt-4 grid grid-cols-2 gap-2"><Button tone="light" onClick={() => setLeaveOpen(false)}>Testga qaytish</Button><Button disabled={busy} onClick={pauseAndExit}><Pause size={16} /> Tanaffus</Button></div></section></div>}</div>;
+  const myResume = attempts.find((a) => ['in_progress','paused'].includes(a.status));
+  const verifiedId = new URLSearchParams(window.location.search).get('verifyCertificate') || '';
+  return <div>
+    <button onClick={onBack} className="mb-4 inline-flex items-center gap-2 text-sm" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={16} /> Testlar</button>
+    <section className="mb-5 overflow-hidden rounded-2xl p-5 sm:p-7" style={{ background: 'linear-gradient(125deg,#1f3d2b,#355941)', color: '#fff' }}><p className="text-xs font-semibold tracking-[.16em]" style={{ color: C.goldSoft }}>UPCOURSE UZ · MOCK SINOVLAR</p><h1 className="mt-2 text-2xl font-bold sm:text-3xl" style={fontDisplay}>Milliy sertifikat markazi</h1><p className="mt-2 max-w-2xl text-sm text-white/80">Fan bo‘yicha mock testni tanlang, tayyorgarlik natijangizni kuzating va natijaga mos mock sertifikat oling.</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => setView('verify')} className="rounded-full px-3 py-2 text-xs font-semibold" style={{ color: C.ink, background: C.goldSoft }}><ShieldCheck className="mr-1 inline" size={14} /> Sertifikatni tekshirish</button><span className="rounded-full bg-white/10 px-3 py-2 text-xs">Davlat sertifikati emas · UpCourse Uz mock</span></div></section>
+    {!session && <div className="mb-4 rounded-xl p-4 text-sm" style={{ ...card, color: C.inkSoft }}>Urinishni saqlash, davom ettirish, natija va sertifikat olish uchun profilingizga kiring.</div>}
+    {error && <div role="alert" className="mb-4 rounded-xl p-3 text-sm" style={{ color: C.red, background: '#fcebea' }}>{error} <button onClick={loadData} className="ml-2 underline">Qayta yuklash</button></div>}
+    {myResume && <section className="mb-5 rounded-2xl p-4 sm:p-5" style={{ ...card, borderColor: C.gold }}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide" style={{ ...fontMono, color: C.gold }}>Davom ettiriladigan mock</p><h2 className="mt-1 font-semibold" style={{ ...fontBody, color: C.ink }}>{exams.find((e) => e.id === myResume.exam_id)?.title || 'Mock test'}</h2><p className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{myResume.status === 'paused' ? 'Tanaffusda' : 'Davom etmoqda'} · {myResume.full_name}</p></div><Button onClick={() => makeAttempt(exams.find((e) => e.id === myResume.exam_id), sessions.find((s) => s.id === myResume.session_id) || null, myResume)}><Play size={16} /> Davom ettirish</Button></div></section>}
     <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]"><section><div className="mb-3 flex items-center justify-between"><h2 className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>Fanlar va mock testlar</h2><span className="text-xs" style={{ ...fontBody, color: C.inkSoft }}>{exams.filter((e) => e.is_enabled).length} ta</span></div>{exams.filter((e) => e.is_enabled).length ? <div className="grid gap-3">{exams.filter((e) => e.is_enabled).map((exam) => <article key={exam.id} className="rounded-2xl p-4" style={card}><div className="flex flex-wrap items-start justify-between gap-3"><div><span className="rounded-full px-2.5 py-1 text-xs" style={{ color: C.cover, background: C.goldSoft }}>{exam.subject}</span><h3 className="mt-2 font-semibold" style={{ ...fontBody, color: C.ink }}>{exam.title}</h3><p className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{localTests.get(String(exam.test_id))?.title || 'Test savollari'} · {exam.duration_minutes} daqiqa</p></div><Button disabled={busy || !session} onClick={() => { setSelected({ exam, session: null }); setFullName(currentName); setView('start'); }}><Play size={16} /> Boshlash</Button></div></article>)}</div> : <div className="rounded-2xl p-5 text-sm" style={{ ...card, color: C.inkSoft }}>Hozircha ochiq mock test yo‘q.</div>}
     <div className="mb-3 mt-7 flex items-center gap-2"><CalendarClock size={18} style={{ color: C.gold }} /><h2 className="text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>Jadvaldagi jonli mocklar</h2></div>{sessions.filter((s) => s.status === 'scheduled' && sessionExam(s)?.is_enabled && new Date(s.ends_at) > new Date()).length ? <div className="grid gap-3">{sessions.filter((s) => s.status === 'scheduled' && sessionExam(s)?.is_enabled && new Date(s.ends_at) > new Date()).map((s) => { const exam = sessionExam(s); const joined = sessionAttempts.find((a) => a.session_id === s.id); return <article key={s.id} className="rounded-2xl p-4" style={card}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: activeSession(s) ? C.accent : C.gold }} /><h3 className="font-semibold" style={{ ...fontBody, color: C.ink }}>{s.title}</h3></div><p className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{exam?.subject} · {localTime(s.starts_at)} – {localTime(s.ends_at)}</p><p className="mt-1 text-xs" style={{ ...fontBody, color: activeSession(s) ? C.accent : C.gold }}>{activeSession(s) ? 'Hozir qo‘shilish mumkin' : 'Boshlanishini kutmoqda'}{joined ? ` · Siz: ${joined.status === 'paused' ? 'tanaffusda' : 'qatnashyapsiz'}` : ''}</p></div><Button disabled={busy || !session || !activeSession(s) || joined?.status === 'submitted'} onClick={() => joined ? makeAttempt(exam, s, joined) : (setSelected({ exam, session: s }), setFullName(currentName), setView('start'))}>{joined ? <Play size={16} /> : <ExternalLink size={15} />}{joined ? 'Davom etish' : 'Qo‘shilish'}</Button></div></article>; })}</div> : <div className="rounded-2xl p-4 text-sm" style={{ ...card, color: C.inkSoft }}>Rejalashtirilgan jonli mocklar yo‘q.</div>}</section>
     <aside className="space-y-5"><section className="rounded-2xl p-4" style={card}><h2 className="font-semibold" style={{ ...fontBody, color: C.ink }}>Mening natijalarim</h2>{attempts.filter((a) => ['submitted','expired'].includes(a.status)).length ? <div className="mt-3 space-y-2">{attempts.filter((a) => ['submitted','expired'].includes(a.status)).map((a) => { const exam = exams.find((e) => e.id === a.exam_id); return <div key={a.id} className="rounded-xl p-3" style={{ background: C.paper }}><p className="text-sm font-medium" style={{ ...fontBody, color: C.ink }}>{exam?.subject || 'Fan'} · {a.grade || 'Darajasiz'}</p><p className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{a.score == null ? 'Hisoblanmoqda' : `${Number(a.score).toFixed(1)} ball`} · {localTime(a.submitted_at)}</p>{a.certificate_id && <button onClick={() => { setAttempt(a); setActiveExam({ ...exam, testTitle: exam?.title }); setView('certificate'); }} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold underline" style={{ color: C.cover }}><FileCheck2 size={14} /> Sertifikatni ko‘rish/yuklash</button>}</div>; })}</div> : <p className="mt-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Test yakunlangach natijalar shu yerda saqlanadi.</p>}</section>
