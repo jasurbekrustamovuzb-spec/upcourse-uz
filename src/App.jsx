@@ -1626,7 +1626,7 @@ class RouteErrorBoundary extends React.Component {
         <h2 className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Bu bo‘lim ochilmadi</h2>
         <p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Boshqa bo‘limlarga o‘tishingiz mumkin. Qayta urinish xatoni tuzatmasa, sahifani yangilang.</p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <button type="button" onClick={() => this.setState({ failed: false })} className="rounded-xl px-4 py-2 text-sm font-semibold" style={{ ...fontBody, background: C.cover, color: C.white }}>Qayta urinish</button>
+          <button type="button" onClick={() => window.location.reload()} className="rounded-xl px-4 py-2 text-sm font-semibold" style={{ ...fontBody, background: C.cover, color: C.white }}>Qayta urinish</button>
           <button type="button" onClick={this.props.onHome} className="rounded-xl border px-4 py-2 text-sm font-semibold" style={{ ...fontBody, background: C.paper, borderColor: C.rule, color: C.ink }}>Bosh sahifa</button>
         </div>
       </section>

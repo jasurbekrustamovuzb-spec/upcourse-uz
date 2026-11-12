@@ -62,7 +62,9 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
   useEffect(() => {
     const field = fieldRef.current;
     if (!field) return;
-    field.mathVirtualKeyboardPolicy = 'auto';
+    // Open the touch keyboard explicitly on focus: auto policy is unreliable
+    // in embedded/mobile browsers and inside the fixed mock-test viewport.
+    field.mathVirtualKeyboardPolicy = 'manual';
     // Hide MathLive's general-purpose context menu (Insert/Matrix/Mode etc.);
     // the compact keyboard already exposes the math structures learners need.
     field.menuItems = [];
@@ -90,6 +92,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
       unregisterKeyboardBackRef.current = null;
     };
     const handleFocus = () => {
+      try { window.mathVirtualKeyboard?.show({ animate: true }); } catch {}
       if (unregisterKeyboardBackRef.current) return;
       unregisterKeyboardBackRef.current = registerOverlayBackHandler?.(closeKeyboard) || null;
     };
@@ -132,6 +135,8 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
   }, [value]);
 
   return (
+    <>
+    <style>{`.upcourse-math-field::part(menu-toggle){display:none!important}`}</style>
     <div className={compact ? 'min-w-0 max-w-full' : 'mb-3 min-w-0 max-w-full'} style={{ overflowAnchor: 'none' }}>
       {label && <label className="block text-xs mb-1.5" style={{ ...fontBody, color: C.inkSoft }}>{label}</label>}
       <math-field
@@ -151,6 +156,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
         }}
       />
     </div>
+    </>
   );
 }
 
