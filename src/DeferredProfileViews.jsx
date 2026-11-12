@@ -306,7 +306,7 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
       <div className="mx-auto mt-8 w-full max-w-lg rounded-2xl p-5 text-center sm:mt-12 sm:p-7" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 14px 36px rgba(31,61,43,.08)' }}>
         <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl" style={{ color: C.cover, background: C.goldSoft }}><UserCircle2 size={30} /></div>
         <div className="text-2xl" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>UpCourse akkauntingiz</div>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>Testlarni ishlash va natijalarni profilingizda saqlash uchun Google orqali kiring. Mavzularni akkauntsiz ham o‘rganishingiz mumkin.</p>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>Testlarni ishlash va natijalarni profilingizda saqlash uchun Google orqali kiring.</p>
         <button type="button" disabled={signInBusy} onClick={async () => {
           setSignInBusy(true);
           setSignInError('');
@@ -331,7 +331,7 @@ export function ProfileView({ session, profile, authLoading, pausedTests, onResu
     );
   }
 
-  if (!profile || !profile.username) {
+  if (!profile || !profile.username || /^upc_[a-f0-9]{16}$/i.test(profile.username)) {
     const meta = session.user?.user_metadata || {};
     const guessFirst = profile?.firstName || (meta.given_name || (meta.full_name || meta.name || '').split(' ')[0] || '');
     const guessLast = profile?.lastName || (meta.family_name || (meta.full_name || meta.name || '').split(' ').slice(1).join(' ') || '');

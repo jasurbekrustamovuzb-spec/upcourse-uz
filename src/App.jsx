@@ -248,7 +248,7 @@ function TestAccountPrompt({ loading, busy, error, onSignIn, onBrowse, modal = f
     <section className="w-full max-w-md rounded-2xl p-5 sm:p-6" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 18px 50px rgba(15,27,18,.18)' }} aria-labelledby="test-account-title">
       <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl" style={{ color: C.cover, background: C.goldSoft }}><ShieldCheck size={25} /></div>
       <h2 id="test-account-title" className="text-center text-2xl" style={{ ...fontDisplay, color: C.ink, fontWeight: 700 }}>Test ishlash uchun akkauntga kiring</h2>
-      <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>Ommaviy va maxfiy testlarni ishlash, natijalarni saqlash uchun akkaunt kerak. Mavzularni esa akkauntsiz ham ko‘rishingiz mumkin. Birinchi marta kirsangiz, Google akkauntingiz UpCourse profiliga ulanadi.</p>
+      <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>Ommaviy va maxfiy testlarni ishlash, natijalarni saqlash uchun akkaunt kerak. Birinchi marta kirsangiz, Google akkauntingiz UpCourse profiliga ulanadi.</p>
       <button type="button" disabled={loading || busy} onClick={onSignIn} className="mt-5 flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border px-4 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-60" style={{ ...fontBody, color: C.ink, background: C.white, borderColor: C.rule }}>
         {loading || busy ? <Loader2 size={18} className="animate-spin" /> : <GoogleBrandMark />}
         {loading ? 'Akkaunt tekshirilmoqda…' : busy ? 'Google ochilmoqda…' : 'Google orqali davom etish'}
@@ -377,11 +377,9 @@ function readPendingTestAuthIntent() {
 /*  "Qayerda edim?" — sahifa yangilanganda (refresh) foydalanuvchini    */
 /*  Bosh sahifaga emas, oxirgi turgan joyiga qaytarish uchun.           */
 /*                                                                      */
-/*  sessionStorage ishlatiladi (localStorage emas) — shu tufayli bu     */
-/*  faqat joriy brauzer tabi ochiq turgan davrda ishlaydi; tabni yopib  */
-/*  qayta ochganda (yoki boshqa kunda qaytganda) tabiiy ravishda Bosh   */
-/*  sahifadan boshlanadi. Bu ataylab shunday — eski, allaqachon         */
-/*  tugatilgan holatni haftalar o'tib ham qayta ochib qo'ymaslik uchun. */
+/*  sessionStorage ishlatiladi: refreshda davom etadi, tab muddati       */
+/*  tugagach eski jarayon tiklanmaydi. Live sessiya 24 soatdan keyin    */
+/*  eskirgan hisoblanadi; oldingi localStorage nusxalari o'chadi.       */
 /*  Hech qanday tarmoq so'rovi yubormaydi, shuning uchun yuklanish      */
 /*  jarayoniga umuman ta'sir qilmaydi.                                  */
 const POSITION_KEY = 'upcourse_last_position';
@@ -390,9 +388,19 @@ function readPosition() {
   try {
     const raw = sessionStorage.getItem(POSITION_KEY);
     const position = raw ? JSON.parse(raw) : {};
-    if (position?.testlar?.live?.code) return position;
-    const live = localStorage.getItem('upcourse_live_session');
-    return live ? { ...position, testlar: { ...(position.testlar || {}), live: JSON.parse(live) } } : position;
+    // Oldingi build live sessiyani localStorage'da saqlagan; u keyinroq
+    // kutilmaganda qaytib kelmasin. Yangi sessiya faqat shu tabda tiklanadi.
+    localStorage.removeItem('upcourse_live_session');
+    const live = position?.testlar?.live;
+    const age = live?.savedAt ? Date.now() - Number(live.savedAt) : Infinity;
+    if (live?.code && age >= 0 && age < 24 * 60 * 60 * 1000) return position;
+    if (live) {
+      const next = { ...position, testlar: { ...(position.testlar || {}) } };
+      delete next.testlar.live;
+      sessionStorage.setItem(POSITION_KEY, JSON.stringify(next));
+      return next;
+    }
+    return position;
   } catch (e) {
     return {};
   }
@@ -404,12 +412,13 @@ function readPosition() {
 export function writePosition(patch) {
   try {
     const current = readPosition();
-    const next = { ...current, ...patch };
-    sessionStorage.setItem(POSITION_KEY, JSON.stringify(next));
-    if (Object.prototype.hasOwnProperty.call(patch.testlar || {}, 'live')) {
-      if (patch.testlar.live?.code) localStorage.setItem('upcourse_live_session', JSON.stringify(patch.testlar.live));
-      else localStorage.removeItem('upcourse_live_session');
+    const safePatch = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(patch.testlar || {}, 'live') && patch.testlar.live?.code) {
+      safePatch.testlar = { ...patch.testlar, live: { ...patch.testlar.live, savedAt: Date.now() } };
     }
+    const next = { ...current, ...safePatch };
+    sessionStorage.setItem(POSITION_KEY, JSON.stringify(next));
+    if (Object.prototype.hasOwnProperty.call(patch.testlar || {}, 'live')) localStorage.removeItem('upcourse_live_session');
   } catch (e) { /* xotira yo'q yoki to'lgan bo'lsa e'tiborsiz qoldiriladi */ }
 }
 
@@ -3269,13 +3278,41 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     let lastLoadedUid = null;
-    async function loadProfile(uid) {
+    async function loadProfile(uid, authUser = null) {
       if (uid === lastLoadedUid) return;
       lastLoadedUid = uid;
       try {
         const rows = await sbSelect('profiles', `id=eq.${uid}`);
         if (!cancelled && activeUserIdRef.current === uid) {
-          const nextProfile = rows[0] ? profileFromRow(rows[0]) : null;
+          let profileRow = rows[0] || null;
+          // Google sign-in completes the auth account before the user reaches
+          // profile setup. Create a minimal searchable row at that point so
+          // the account is discoverable even if they leave setup unfinished.
+          if (!profileRow && authUser?.id === uid) {
+            const metadata = authUser.user_metadata || {};
+            const fullName = String(metadata.full_name || metadata.name || '').trim();
+            const userIdSuffix = String(uid).replace(/[^a-f0-9]/gi, '').toLowerCase().slice(0, 16);
+            const firstName = String(metadata.given_name || fullName.split(/\s+/)[0] || '').trim();
+            const lastName = String(metadata.family_name || fullName.split(/\s+/).slice(1).join(' ') || '').trim();
+            const seed = {
+              id: uid,
+              first_name: firstName,
+              last_name: lastName,
+              email: authUser.email || '',
+              username: `upc_${userIdSuffix}`,
+              bio: '',
+              banner_key: 'green',
+            };
+            try {
+              const created = await sbUpsert('profiles', seed);
+              profileRow = Array.isArray(created) ? created[0] || seed : seed;
+            } catch (error) {
+              // Keep profile setup available if profile creation is blocked;
+              // don't fail the entire authentication flow.
+              console.warn('Boshlang‘ich profil qatorini yaratib bo‘lmadi:', error);
+            }
+          }
+          const nextProfile = profileRow ? profileFromRow(profileRow) : null;
           if (testPrefsStoreRef.current.userId !== uid || !testPrefsStoreRef.current.hydrated) {
             const sameUser = testPrefsStoreRef.current.userId === uid;
             testPrefsStoreRef.current = {
@@ -3310,7 +3347,7 @@ export default function App() {
       activeUserIdRef.current = nextUserId;
       setSession(newSession || null);
       if (newSession) {
-        await loadProfile(newSession.user.id);
+        await loadProfile(newSession.user.id, newSession.user);
       } else {
         setProfile(null);
         testPrefsStoreRef.current = { userId: null, prefs: null, queue: Promise.resolve(), hydrated: false };
@@ -4465,7 +4502,7 @@ export default function App() {
     <SectionLoadingProvider>
     <NavContext.Provider value={nav}>
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-    <div className="min-h-screen w-full overflow-x-hidden md:flex" style={{ background: C.paper }}>
+    <div className="min-h-dvh w-full overflow-x-clip md:flex" style={{ background: C.paper }}>
       <style>{`
         * { box-sizing: border-box; }
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline-offset: 2px; }
@@ -4503,9 +4540,10 @@ export default function App() {
       {/* Desktop yon navigatsiya paneli — mobil ekranlarda yashirin */}
       {!readingActive && (
         <aside
-          className="hidden md:flex md:flex-col md:w-56 md:shrink-0 md:sticky md:top-0 md:h-screen px-4 py-6"
+          className="hidden md:flex md:w-56 md:shrink-0 md:self-stretch"
           style={{ background: `linear-gradient(180deg, ${C.cover}, ${C.coverDeep})` }}
         >
+          <div className="sticky top-0 flex h-screen w-full flex-col px-4 py-6">
           <div className="flex items-center gap-2 px-2 mb-8">
             <BrandMark size={26} />
             <span className="text-[15px]" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>UpCourse Uz</span>
@@ -4611,6 +4649,7 @@ export default function App() {
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
               {theme === 'dark' ? 'Kunduzgi rejim' : 'Tungi rejim'}
             </button>
+          </div>
           </div>
         </aside>
       )}
