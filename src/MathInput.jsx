@@ -2,7 +2,6 @@ import { useContext, useEffect, useRef } from 'react';
 import 'mathlive';
 import 'mathlive/fonts.css';
 import { convertAsciiMathToLatex } from 'mathlive';
-import { Keyboard } from 'lucide-react';
 import { C, fontBody, NavContext } from './App.jsx';
 
 const mathKeyboardLayouts = [
@@ -100,7 +99,8 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     field.addEventListener('focusout', handleFocusOut);
     let menuObserver = null;
     const hideMenuToggle = () => {
-      const menu = field.shadowRoot?.querySelector('[part=\"menu-toggle\"]');
+      // MathLive places these controls in light DOM, so shadowRoot lookup misses them.
+      const menu = field.querySelector('[part=\"menu-toggle\"]');
       if (menu && menu.style.display !== 'none') menu.style.display = 'none';
     };
     const initializeMathfield = () => {
@@ -114,9 +114,9 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
       try { field.onScrollIntoView = () => {}; } catch {}
       try { if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.layouts = mathKeyboardLayouts; } catch (error) { console.warn('Klaviatura sxemasi yuklanmadi:', error); }
       hideMenuToggle();
-      if (field.shadowRoot && !menuObserver) {
+      if (!menuObserver) {
         menuObserver = new MutationObserver(hideMenuToggle);
-        menuObserver.observe(field.shadowRoot, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
+        menuObserver.observe(field, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
       }
       mountedMathfieldRef.current = true;
     };
@@ -125,6 +125,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
     try { field.getValue('latex'); initializeMathfield(); } catch {}
     return () => {
       mounted = false;
+      try { window.mathVirtualKeyboard?.hide({ animate: false }); } catch {}
       field.removeEventListener('mount', initializeMathfield);
       field.removeEventListener('input', syncState);
       field.removeEventListener('focusin', handleFocus);
@@ -157,7 +158,7 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
 
   return (
     <>
-    <style>{`.upcourse-math-field::part(menu-toggle),.upcourse-math-field::part(virtual-keyboard-toggle){display:none!important}`}</style>
+    <style>{`.upcourse-math-field::part(menu-toggle){display:none!important}`}</style>
     <div className={compact ? 'min-w-0 max-w-full' : 'mb-3 min-w-0 max-w-full'} style={{ overflowAnchor: 'none' }}>
       {label && <label className="block text-xs mb-1.5" style={{ ...fontBody, color: C.inkSoft }}>{label}</label>}
       <div className="relative">
@@ -177,9 +178,6 @@ export default function MathInput({ value = '', onChange, onBlur, placeholder, l
           opacity: disabled ? 0.7 : 1,
         }}
       />
-      {!readOnly && <button type="button" aria-label="Matematik klaviaturani ochish" className="absolute right-2 top-2 z-10 grid h-9 w-9 place-items-center rounded-lg" style={{ color: C.cover, background: C.surface }} onPointerDown={(event) => event.preventDefault()} onClick={() => { const field = fieldRef.current; field?.focus(); try { window.mathVirtualKeyboard?.show({ animate: true }); } catch {} }}>
-        <Keyboard size={19} />
-      </button>}
       </div>
     </div>
     </>
