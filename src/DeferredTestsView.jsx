@@ -1444,7 +1444,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
     </Suspense>
   );
 
-  if (luckyWheelOpen) return <Suspense fallback={<SectionLoading label="Ismlar barabani yuklanmoqda…" />}><LuckyWheel onBack={back} /></Suspense>;
+  if (luckyWheelOpen) return <Suspense fallback={<SectionLoading label="Ismlar barabani yuklanmoqda…" />}><LuckyWheel onBack={back} tests={viewable} ensureTestContent={ensureTestContent} /></Suspense>;
 
   if (editing) {
     return (
