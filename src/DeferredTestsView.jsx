@@ -1528,9 +1528,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           <button
             onClick={goLuckyWheel}
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: '#344356', background: '#eef0f3', border: '1px solid #d5dae1', outlineColor: C.gold, fontWeight: 600 }}
+             style={{ ...fontBody, color: '#fff', background: 'linear-gradient(110deg,#e2545d,#e9ad35 42%,#3fa77a 72%,#438ed0)', border: '1px solid #ffffff88', outlineColor: C.gold, fontWeight: 700, boxShadow: '0 6px 16px #5483a533' }}
           >
-            <Dices size={14} /> Ismlar barabani
+             <Dices size={16} /> Omad charxpalagi
           </button>
           <button
             onClick={goMathTest}
