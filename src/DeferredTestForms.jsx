@@ -195,27 +195,27 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             <MathInput label="Formula yoki ifoda (ixtiyoriy)" value={qFormula} onChange={setQFormula} placeholder="Kasr, daraja yoki ildiz" />
           </Suspense>}
 
-          <div className="mb-3">
-            <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
+          <div className="mb-3 flex items-start gap-2">
+            <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
             {imageUrl ? (
-              <div className="flex items-center gap-3">
-                <img src={imageUrl} alt="" className="h-16 w-16 rounded-2xl object-cover" style={{ border: `1px solid ${C.rule}` }} />
+              <div className="flex items-center gap-2">
+                <img src={imageUrl} alt="Savol rasmi" className="h-11 w-11 rounded-xl object-cover" style={{ border: `1px solid ${C.rule}` }} />
                 <button onClick={() => setImageUrl('')} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: C.red }}>
                   <X size={13} /> Rasmni olib tashlash
                 </button>
               </div>
             ) : (
-              <>
-                <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
-                <button
-                  onClick={() => imageInputRef.current && imageInputRef.current.click()}
-                  disabled={imageUploading}
-                  className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium focus-visible:outline focus-visible:outline-2"
-                  style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-                >
-                  <ImageIcon size={13} /> {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish'}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={imageUploading}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 disabled:opacity-50"
+                style={{ color: '#536FE0', background: '#EEF1FF', outlineColor: '#CBD3FF' }}
+                aria-label={imageUploading ? 'Rasm yuklanmoqda' : 'Savolga rasm qo‘shish'}
+                title={imageUploading ? 'Yuklanmoqda...' : 'Rasm qo‘shish'}
+              >
+                <ImageIcon size={16} />
+              </button>
             )}
             {imageError && <div className="text-xs mt-2" style={{ ...fontBody, color: C.red }}>{imageError}</div>}
           </div>
@@ -331,14 +331,10 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
 
   return (
     <div className="mt-4 w-full min-w-0 overflow-hidden rounded-[28px] border p-4 shadow-sm sm:p-6" style={{ background: 'linear-gradient(145deg,#FFFFFF,#F7F8FF)', borderColor: '#E1E4F2', boxShadow: '0 12px 34px rgba(69,79,132,.08)' }}>
-      <header className="mb-5 flex items-start gap-3">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl" style={{ color: activeMode.color, background: activeMode.tint }}><Sparkles size={22} /></span>
-        <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.16em]" style={{ ...fontMono, color: activeMode.color }}>YANGI TEST</p><h2 className="mt-1 text-xl font-bold sm:text-2xl" style={{ ...fontBody, color: C.ink }}>Test yaratish</h2><p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Savollarni qanday qo‘shishni tanlang.</p></div>
-      </header>
-      <div role="tablist" aria-label="Test yaratish usuli" className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div role="tablist" aria-label="Test yaratish usuli" className="mb-4 flex w-full items-center gap-1.5 rounded-full border p-1" style={{ background: '#F5F6FC', borderColor: '#E5E7F1' }}>
         {modes.map(({ id, label, description, Icon, color, tint, border }) => {
           const selected = mode === id;
-          return <button key={id} type="button" role="tab" aria-selected={selected} onClick={() => setMode(id)} className="flex min-h-[68px] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: selected ? color : C.inkSoft, background: selected ? tint : C.surface, borderColor: selected ? border : C.rule, boxShadow: selected ? `0 5px 16px ${color}1c` : 'none', outlineColor: color }}><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color, background: tint }}><Icon size={19} /></span><span className="min-w-0"><span className="block text-sm font-bold">{label}</span><span className="mt-0.5 block text-[11px] leading-tight" style={{ color: C.inkSoft }}>{description}</span></span></button>;
+          return <button key={id} type="button" role="tab" aria-selected={selected} onClick={() => setMode(id)} className="flex min-w-0 min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-2 text-center transition focus-visible:outline focus-visible:outline-2 sm:gap-2 sm:px-3" style={{ ...fontBody, color: selected ? color : C.inkSoft, background: selected ? tint : 'transparent', boxShadow: selected ? `0 2px 8px ${color}1c` : 'none', outlineColor: color }} title={description}><Icon size={15} className="shrink-0" /><span className="truncate text-[11px] font-bold sm:text-xs">{label}</span></button>;
         })}
       </div>
       <section className="rounded-3xl border p-4 sm:p-5" style={{ background: '#FFFFFF', borderColor: activeMode.border }}>
