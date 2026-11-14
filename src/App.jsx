@@ -1246,12 +1246,12 @@ export function getBrowseTone(kind = 'area', theme = 'light') {
 export function getBrowseCardStyle(theme = 'light', kind = 'area') {
   const backgrounds = {
     area: ['linear-gradient(145deg,#F7F2E6,#F3F3EC)', 'linear-gradient(145deg,#2A2E28,#2D322C)'],
-    course: ['linear-gradient(145deg,#F1F4EC,#EBF2F0)', 'linear-gradient(145deg,#29302D,#2D3431)'],
-    test: ['linear-gradient(145deg,#F6F0E7,#F2EBE7)', 'linear-gradient(145deg,#302D29,#342F2B)'],
+    course: ['linear-gradient(145deg,#F1F4EC,#EBF2F0)', 'linear-gradient(145deg,#2D3331,#353B3A)'],
+    test: ['radial-gradient(ellipse at 0% 0%,rgba(141,112,158,.13),transparent 58%),linear-gradient(145deg,#F2EBF5,#F5EEE8 68%,#EEF0F2)', 'radial-gradient(ellipse at 0% 0%,rgba(173,139,192,.16),transparent 58%),linear-gradient(145deg,#332D3A,#302E36 68%,#2C3337)'],
   };
   const dark = theme === 'dark';
   const palette = backgrounds[kind] || backgrounds.area;
-  return { background: palette[dark ? 1 : 0], border: `1px solid ${dark ? '#454B42' : '#DEDCCF'}`, boxShadow: dark ? '0 6px 16px rgba(0,0,0,.14)' : '0 5px 16px rgba(74,82,68,.07)' };
+  return { background: palette[dark ? 1 : 0], border: `1px solid ${kind === 'test' ? (dark ? '#65556B' : '#DED1E4') : dark ? '#4D554D' : '#DEDCCF'}`, borderRadius: kind === 'test' ? '27px 20px 27px 20px' : '28px', boxShadow: kind === 'test' ? (dark ? 'inset 3px 0 0 rgba(183,151,199,.65),0 8px 20px rgba(0,0,0,.20)' : 'inset 3px 0 0 rgba(151,116,170,.52),0 8px 20px rgba(90,70,99,.10)') : dark ? '0 6px 16px rgba(0,0,0,.14)' : '0 5px 16px rgba(74,82,68,.07)' };
 }
 export function EntryNumber({ icon: Icon = Tag, kind }) {
   const { theme } = useContext(ThemeContext);
@@ -1654,7 +1654,7 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
   const dark = theme === 'dark';
   return (
     <div className={`relative mb-5 min-w-0 ${className}`}>
-      <Search size={28} className="absolute top-1/2 -translate-y-1/2 left-2.5 rounded-full p-1.5" style={{ color: dark ? '#A9C7C8' : '#4D7485', background: dark ? '#34403D' : '#E5EFF0' }} />
+      <Search size={28} className="absolute top-1/2 -translate-y-1/2 left-2.5 rounded-full p-1.5" style={{ color: dark ? '#C7B5D8' : '#725A88', background: dark ? '#3B3443' : '#EEE7F3' }} />
       <input
         id="upcourse-search"
         name="search"
@@ -1664,7 +1664,7 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="w-full pl-12 pr-4 py-3 rounded-2xl text-base outline-none transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-        style={{ ...fontBody, color: C.ink, background: dark ? '#2B302B' : '#F8F7F0', border: `1px solid ${dark ? '#50554B' : '#D8D5C8'}`, boxShadow: dark ? '0 5px 16px rgba(0,0,0,.16)' : '0 5px 16px rgba(74,82,68,.07)', outlineColor: dark ? '#8CB3B3' : '#9BAE9E' }}
+        style={{ ...fontBody, color: C.ink, background: dark ? '#292630' : '#FBF8FD', border: `1px solid ${dark ? '#65556F' : '#D9CEE0'}`, boxShadow: dark ? '0 5px 16px rgba(0,0,0,.18)' : '0 5px 16px rgba(99,75,112,.08)', outlineColor: dark ? '#A88CB9' : '#AC93BB' }}
       />
       {value && (
         <button
@@ -1715,7 +1715,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? 'linear-gradient(118deg,#332F27 0%,#2B3938 54%,#343039 100%)' : 'linear-gradient(118deg,#F3E7CC 0%,#E3ECEA 54%,#EAE5EC 100%)', border: `1px solid ${dark ? '#514C41' : '#DCD8CA'}`, boxShadow: dark ? '0 9px 24px rgba(0,0,0,.18)' : '0 9px 24px rgba(74,82,68,.09)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? 'linear-gradient(118deg,#332D3A 0%,#3B303D 54%,#34313C 100%)' : 'linear-gradient(118deg,#F2E9D8 0%,#EAE4F0 54%,#EEE8F2 100%)', border: `1px solid ${dark ? '#564C60' : '#DCD3E1'}`, boxShadow: dark ? '0 9px 24px rgba(0,0,0,.18)' : '0 9px 24px rgba(74,82,68,.09)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
@@ -1725,7 +1725,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
-      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#D7C394' : '#647C77', background: dark ? '#41443B' : '#F8F7F0', border: `1px solid ${dark ? '#5B5647' : '#D4D7CB'}`, outlineColor: dark ? '#A7C9AA' : '#8BA8A0' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#D2BDE0' : '#725A88', background: dark ? '#403746' : '#F7F2F8', border: `1px solid ${dark ? '#62556A' : '#DCD1E2'}`, outlineColor: dark ? '#B99BCB' : '#A890B5' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
       {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
         {userId ? <>
           <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Kursni tanlang</div>
@@ -1745,20 +1745,20 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
         </>}
       </div>}
       <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
-        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: dark ? 'linear-gradient(145deg,#41423A,#354545 58%,#514237)' : 'linear-gradient(145deg,#D7C69F,#BFD0C8 58%,#D6C5B7)' }}>
+        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: dark ? 'linear-gradient(145deg,#49404D,#574550 58%,#46434D)' : 'linear-gradient(145deg,#DCCFE4,#D4C8DD 58%,#E6D6C8)' }}>
           <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} />
-          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#B7CFCA' : '#4D7485' }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#D6C3E2' : '#755C8D' }} />
           <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: 'rgba(31,61,43,.4)' }} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#D8B877' : '#9A6E36' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: dark ? '#B9BBB2' : '#6E7569' }}>{index + 1}/{count}</span>}</div>
-          <div className="truncate text-[11px]" style={{ ...fontBody, color: dark ? '#C1C4BA' : '#68736E' }}>{category}</div>
-          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: dark ? '#F0EDE4' : '#2C3C3D' }}>{item.title}</div>
-          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#F0EDE4' : '#263A3D', background: dark ? '#44534D' : '#D9E6DC', outlineColor: dark ? '#A7C9AA' : '#9DB5A2' }}>Mavzuni ochish <ChevronRight size={13} /></button>
+          <div className="truncate text-[11px]" style={{ ...fontBody, color: dark ? '#C5BACD' : '#72667A' }}>{category}</div>
+          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: dark ? '#F3ECF5' : '#483B50' }}>{item.title}</div>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#F3ECF5' : '#483B50', background: dark ? '#55465E' : '#E4D9EC', outlineColor: dark ? '#B99BCB' : '#AC94B7' }}>Mavzuni ochish <ChevronRight size={13} /></button>
         </div>
-        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#C5C4B8' : '#68736E', border: `1px solid ${dark ? '#575B51' : '#D5D8CB'}`, background: dark ? '#3A3D37' : '#F8F7F0' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#F0EDE4' : '#2C3C3D', background: dark ? '#4B5C55' : '#D9E6DC' }}><ChevronRight size={16} /></button></div>}
+        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#C5C4B8' : '#68736E', border: `1px solid ${dark ? '#575B51' : '#D5D8CB'}`, background: dark ? '#3A3D37' : '#F8F7F0' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#F0EDE4' : '#2C3C3D', background: dark ? '#55465E' : '#E4D9EC' }}><ChevronRight size={16} /></button></div>}
       </div>
-      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#A7C9AA' : '#668B82') : (dark ? '#55594F' : '#C9CEC1') }} />)}</div>}
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#B99BCB' : '#9075A2') : (dark ? '#595260' : '#D1C7D8') }} />)}</div>}
     </section>
   );
 }
