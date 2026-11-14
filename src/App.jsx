@@ -1235,13 +1235,10 @@ export function LinkedUsernameText({ text, className, style }) {
 /*  Small shared UI bits                                              */
 /* ------------------------------------------------------------------ */
 
-export function EntryNumber({ n }) {
+export function EntryNumber({ icon: Icon = Tag }) {
   return (
-    <span
-      className="inline-block flex-shrink-0 text-xs px-2 py-1 mr-3 rounded-sm"
-      style={{ ...fontMono, color: C.gold, background: 'rgba(184,134,59,0.12)', border: `1px solid ${C.coverLine}` }}
-    >
-      №{String(n).padStart(2, '0')}
+    <span aria-hidden="true" className="mr-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ color: '#5475D8', background: 'linear-gradient(145deg,#EDF2FF,#F4ECFF)', border: '1px solid #DFE5FF', boxShadow: '0 4px 10px rgba(89,111,190,.10)' }}>
+      <Icon size={19} strokeWidth={1.9} />
     </span>
   );
 }
@@ -1638,7 +1635,7 @@ class RouteErrorBoundary extends React.Component {
 export function SearchBox({ value, onChange, placeholder, className = '' }) {
   return (
     <div className={`relative mb-5 min-w-0 ${className}`}>
-      <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
+      <Search size={28} className="absolute top-1/2 -translate-y-1/2 left-2.5 rounded-full p-1.5" style={{ color: '#647AC8', background: '#EEF2FF' }} />
       <input
         id="upcourse-search"
         name="search"
@@ -1647,8 +1644,8 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-11 pr-4 py-3 rounded-sm text-base outline-none focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+        className="w-full pl-12 pr-4 py-3 rounded-2xl text-base outline-none transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        style={{ ...fontBody, color: C.ink, background: 'linear-gradient(120deg,#FFFFFF,#F8FAFF)', border: '1px solid #DCE5F5', boxShadow: '0 5px 16px rgba(77,104,160,.08)', outlineColor: '#91A9F2' }}
       />
       {value && (
         <button
@@ -1697,7 +1694,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 rounded-lg" style={{ background: `linear-gradient(112deg, ${C.coverDeep}, #284F61 68%, #376B70)`, border: `1px solid ${C.coverLine}`, boxShadow: '0 5px 18px rgba(24,45,36,.12)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: 'linear-gradient(118deg,#FFF1D6 0%,#E8F6FF 54%,#F4ECFF 100%)', border: '1px solid #E7E4F2', boxShadow: '0 9px 24px rgba(94,105,160,.11)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
@@ -1707,7 +1704,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
-      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: C.white, background: 'rgba(255,255,255,.13)', border: '1px solid rgba(255,255,255,.24)', outlineColor: C.goldSoft }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: '#6878C5', background: 'rgba(255,255,255,.86)', border: '1px solid rgba(136,146,199,.22)', outlineColor: '#9AA8ED' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
       {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
         {userId ? <>
           <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Kursni tanlang</div>
@@ -1727,20 +1724,20 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
         </>}
       </div>}
       <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
-        <div className="relative flex w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-md sm:w-[100px]" aria-hidden="true" style={{ background: 'linear-gradient(145deg, #D8B66C, #A77B38)' }}>
+        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: 'linear-gradient(145deg,#C6DCFF,#D9C9FF 58%,#FFE1C1)' }}>
           <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} />
-          <BookOpen size={34} strokeWidth={1.8} style={{ color: C.coverDeep }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: '#526BC0' }} />
           <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: 'rgba(31,61,43,.4)' }} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] uppercase tracking-[.17em]" style={{ ...fontMono, color: C.goldSoft }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: 'rgba(255,255,255,.65)' }}>{index + 1}/{count}</span>}</div>
-          <div className="truncate text-[11px]" style={{ ...fontBody, color: 'rgba(255,255,255,.7)' }}>{category}</div>
-          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: C.white }}>{item.title}</div>
-          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-medium transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.coverDeep, background: C.goldSoft, outlineColor: C.white }}>Mavzuni ochish <ChevronRight size={13} /></button>
+          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: '#A8732F' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: '#78819C' }}>{index + 1}/{count}</span>}</div>
+          <div className="truncate text-[11px]" style={{ ...fontBody, color: '#77809A' }}>{category}</div>
+          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: '#243453' }}>{item.title}</div>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: '#FFFFFF', background: 'linear-gradient(100deg,#7288E8,#A078D4)', outlineColor: '#FFFFFF' }}>Mavzuni ochish <ChevronRight size={13} /></button>
         </div>
-        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.white, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.08)' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.coverDeep, background: C.goldSoft }}><ChevronRight size={16} /></button></div>}
+        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#62719A', border: '1px solid #DDE3F3', background: '#FFFFFFAA' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#FFFFFF', background: '#7585DE' }}><ChevronRight size={16} /></button></div>}
       </div>
-      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? C.goldSoft : 'rgba(255,255,255,.32)' }} />)}</div>}
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? '#7D8BE0' : '#CBD3E7' }} />)}</div>}
     </section>
   );
 }
@@ -1752,6 +1749,13 @@ export function SectionHeading({ eyebrow, title }) {
       <h2 className="text-2xl sm:text-3xl" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{title}</h2>
     </div>
   );
+}
+
+export function BrowseHeading({ eyebrow, title, icon: Icon = BookOpen }) {
+  return <div className="mb-3 flex items-center gap-2.5" aria-label={`${eyebrow} · ${title}`}>
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl" style={{ color: '#5475D8', background: 'linear-gradient(145deg,#EDF2FF,#F4ECFF)', border: '1px solid #DFE5FF' }}><Icon size={17} /></span>
+    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-[11px] font-medium" style={{ ...fontMono, color: '#9A7A51' }}>{eyebrow}</span><h2 className="text-lg font-semibold" style={{ ...fontBody, color: '#263752' }}>{title}</h2></div>
+  </div>;
 }
 
 /* Kurs/test/profil/jonli xona uchun universal "Ulashish" tugmasi.
@@ -1965,18 +1969,18 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
             return (
               <div
                 key={cat.id}
-                className="relative min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+                className="relative min-w-0 group flex items-start justify-between gap-2 p-3.5 sm:p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+                style={{ background: 'linear-gradient(145deg,#FFFFFF,#F8FAFF)', border: '1px solid #E1E8F4', boxShadow: '0 5px 16px rgba(58,79,120,.06)' }}
                 onClick={() => onSelect(cat.id)}
               >
                 <div className="flex items-start min-w-0">
-                  <EntryNumber n={i + 1} />
+                  <EntryNumber icon={itemLabel === 'mavzu' ? BookOpen : ListChecks} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                       {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
                     </div>
-                    <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
+                    <div className="mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium" style={{ ...fontBody, color: '#64749A', background: '#F0F4FC' }}>{count} ta {itemLabel}</div>
                     <AuthorLine authorId={cat.authorId} authorName={cat.author} className={shareParam ? "text-xs mt-1 pr-8" : "text-xs mt-1"} />
                   </div>
                 </div>
@@ -2141,8 +2145,8 @@ export function EditCourseForm({ course, onSave, onDone }) {
 export function PinnedAddButton({ icon: Icon, label, onClick }) {
   return (
     <div className="pointer-events-none fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-5">
-      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full px-3.5 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.white, background: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.goldSoft, boxShadow: '0 5px 16px rgba(20,42,27,.24)' }}>
-        <span className="relative inline-flex"><Icon size={16} /><Plus size={9} className="absolute -bottom-1 -right-1 rounded-full" style={{ background: C.cover, color: C.goldSoft }} /></span>
+      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-11 items-center gap-2.5 rounded-full border border-white/80 px-4 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: '#FFFFFF', background: 'linear-gradient(105deg,#6F86E8,#9372D5)', outlineColor: '#BFCBFF', boxShadow: '0 8px 22px rgba(97,111,188,.28)' }}>
+        <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-full" style={{ background: 'rgba(255,255,255,.2)' }}><Icon size={15} /><Plus size={9} className="absolute -right-0.5 -top-0.5 rounded-full" style={{ background: '#FFFFFF', color: '#7182DF' }} /></span>
         {label}
       </button>
     </div>
@@ -2319,7 +2323,6 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
-        <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
         <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar')} />
         {!!pausedTests?.length && <Suspense fallback={null}><PausedTestsPanel attempts={pausedTests} onResume={onResumePausedTest} onVisibilityChange={onPausedTestVisibilityChange} /></Suspense>}
         {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} session={session} onRequireAccount={onRequireAccount} />}
@@ -2330,8 +2333,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             onClick={onOpenTasks}
             aria-label={`Topshiriqlar va sovg‘a. ${learningTaskComplete ? '1/1 bajarildi' : '0/1 bajarildi'}`}
             title="Topshiriqlar va sovg‘a"
-            className="relative flex h-[50px] w-[54px] flex-shrink-0 items-center justify-center rounded-sm focus-visible:outline focus-visible:outline-2"
-            style={{ background: C.goldSoft, color: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.cover, boxShadow: '0 2px 7px rgba(31,61,43,.12)' }}
+            className="relative flex h-[50px] w-[54px] flex-shrink-0 items-center justify-center rounded-2xl focus-visible:outline focus-visible:outline-2"
+            style={{ background: 'linear-gradient(145deg,#FFF3D5,#FFE5EE)', color: '#BE7850', border: '1px solid #F0D8CA', outlineColor: '#E6B7A5', boxShadow: '0 5px 13px rgba(174,121,101,.12)' }}
           >
             <ListChecks size={23} strokeWidth={2.2} />
             <span className="absolute -right-1 -top-1 flex h-[19px] min-w-[19px] items-center justify-center rounded-full px-1 text-[8px] font-bold" style={{ ...fontMono, background: C.cover, color: C.goldSoft, border: `1px solid ${C.surface}` }}>{learningTaskComplete ? '1/1' : '0/1'}</span>
@@ -2405,6 +2408,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             </div>
           )
         ) : (
+          <>
+          <BrowseHeading icon={BookOpen} eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
           <CategoryGrid
             categories={approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id))}
             itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
@@ -2418,6 +2423,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             featuredCategoryId={null}
             shareParam="courseCategory"
           />
+          </>
         )}
       </div>
     );
@@ -2441,12 +2447,12 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           {inCategory.map((c, i) => (
             <div
               key={c.id}
-              className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-              style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+              className="min-w-0 group flex items-start justify-between p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+              style={{ background: 'linear-gradient(145deg,#FFFFFF,#F8FAFF)', border: '1px solid #E1E8F4', boxShadow: '0 5px 16px rgba(58,79,120,.06)' }}
               onClick={() => goCourse(c.id)}
             >
               <div className="flex items-start min-w-0">
-                <EntryNumber n={i + 1} />
+                <EntryNumber icon={BookOpen} />
                 <div className="min-w-0">
                   <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                   {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}

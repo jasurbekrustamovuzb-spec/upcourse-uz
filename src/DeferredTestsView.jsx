@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
 import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Dices, Eye, FileCheck2, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
 import { signInWithGoogle, supabase } from './supabaseClient.js';
-import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
+import { AuthorLine, BrowseHeading, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
 const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 const NationalCertificate = lazy(() => import('./NationalCertificate.jsx'));
@@ -1480,10 +1480,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   if (!categoryId) {
     return (
       <div>
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
-          <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
-        </div>
+        <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
         <button
           onClick={goLive}
           className="w-full flex items-center gap-3 px-4 py-3 mb-2.5 rounded-2xl text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
@@ -1559,8 +1556,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                       return (
                         <div
                           key={cat.id}
-                          className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+                          className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+                          style={{ background: 'linear-gradient(145deg,#FFFFFF,#F8FAFF)', border: '1px solid #E1E8F4', boxShadow: '0 5px 16px rgba(58,79,120,.06)' }}
                           onClick={() => goCategory(cat.id)}
                         >
                           <div className="min-w-0">
@@ -1580,7 +1577,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {matchedTests.map((t) => (
-                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-3xl" style={{ background: 'linear-gradient(145deg,#FFFFFF,#F8FAFF)', border: '1px solid #E1E8F4', boxShadow: '0 5px 16px rgba(58,79,120,.06)' }}>
                         <div className="min-w-0">
                           <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
                             {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
@@ -1603,6 +1600,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             </div>
           )
         ) : (
+          <>
+          <BrowseHeading icon={ListChecks} eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
           <CategoryGrid
             categories={approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id))}
             itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
@@ -1615,6 +1614,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             userId={session?.user?.id}
             shareParam="testCategory"
           />
+          </>
         )}
       </div>
     );
@@ -1643,9 +1643,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((t, i) => (
-            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-3xl transition-all hover:-translate-y-0.5 hover:shadow-md" style={{ background: 'linear-gradient(145deg,#FFFFFF,#F8FAFF)', border: '1px solid #E1E8F4', boxShadow: '0 5px 16px rgba(58,79,120,.06)' }}>
               <div className="flex items-start min-w-0">
-                <EntryNumber n={i + 1} />
+                <EntryNumber icon={ListChecks} />
                 <div className="min-w-0">
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
