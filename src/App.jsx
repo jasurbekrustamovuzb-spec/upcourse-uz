@@ -1237,21 +1237,21 @@ export function LinkedUsernameText({ text, className, style }) {
 
 export function getBrowseTone(kind = 'area', theme = 'light') {
   const tones = {
-    area: { light: { color: '#926C31', soft: '#F1E8D4', line: '#E1D2B1' }, dark: { color: '#D7BC83', soft: '#3A3529', line: '#5A503A' } },
-    course: { light: { color: '#4D7485', soft: '#E5EFF0', line: '#CEDFE0' }, dark: { color: '#9BC4CA', soft: '#2E3D3E', line: '#4A6264' } },
-    test: { light: { color: '#A35E43', soft: '#F3E7DB', line: '#E7D2BF' }, dark: { color: '#D8A17F', soft: '#44342D', line: '#695043' } },
+    area: { light: { color: '#926C31', soft: '#F1E8D4', line: '#E1D2B1' }, dark: { color: '#C9ADC9', soft: '#403542', line: '#615163' } },
+    course: { light: { color: '#4C7290', soft: '#E6EEF5', line: '#C9D9E7' }, dark: { color: '#A9C5DE', soft: '#303A48', line: '#526278' } },
+    test: { light: { color: '#9A668B', soft: '#F0E7F0', line: '#DCCBDD' }, dark: { color: '#D2A8C9', soft: '#473747', line: '#68526A' } },
   };
   return tones[tones[kind] ? kind : 'area'][theme === 'dark' ? 'dark' : 'light'];
 }
 export function getBrowseCardStyle(theme = 'light', kind = 'area') {
   const backgrounds = {
-    area: ['linear-gradient(145deg,#F7F2E6,#F3F3EC)', 'linear-gradient(145deg,#2A2E28,#2D322C)'],
-    course: ['linear-gradient(145deg,#F1F4EC,#EBF2F0)', 'linear-gradient(145deg,#2D3331,#353B3A)'],
-    test: ['radial-gradient(ellipse at 0% 0%,rgba(141,112,158,.13),transparent 58%),linear-gradient(145deg,#F2EBF5,#F5EEE8 68%,#EEF0F2)', 'radial-gradient(ellipse at 0% 0%,rgba(173,139,192,.16),transparent 58%),linear-gradient(145deg,#332D3A,#302E36 68%,#2C3337)'],
+    area: ['linear-gradient(145deg,#F5EFE5,#F4EDF2)', 'linear-gradient(145deg,#322D36,#3A323D)'],
+    course: ['linear-gradient(145deg,#EFF4F8,#E8EFF5)', 'linear-gradient(145deg,#2C3541,#333E4C)'],
+    test: ['radial-gradient(ellipse at 0% 0%,rgba(141,112,158,.13),transparent 58%),linear-gradient(145deg,#F2EBF5,#F5EEE8 68%,#EEF0F2)', 'radial-gradient(ellipse at 0% 0%,rgba(173,139,192,.16),transparent 58%),linear-gradient(145deg,#382E3D,#34313F 68%,#2E3541)'],
   };
   const dark = theme === 'dark';
   const palette = backgrounds[kind] || backgrounds.area;
-  return { background: palette[dark ? 1 : 0], border: `1px solid ${kind === 'test' ? (dark ? '#65556B' : '#DED1E4') : dark ? '#4D554D' : '#DEDCCF'}`, borderRadius: kind === 'test' ? '27px 20px 27px 20px' : '28px', boxShadow: kind === 'test' ? (dark ? 'inset 3px 0 0 rgba(183,151,199,.65),0 8px 20px rgba(0,0,0,.20)' : 'inset 3px 0 0 rgba(151,116,170,.52),0 8px 20px rgba(90,70,99,.10)') : dark ? '0 6px 16px rgba(0,0,0,.14)' : '0 5px 16px rgba(74,82,68,.07)' };
+  return { background: palette[dark ? 1 : 0], border: `1px solid ${kind === 'test' ? (dark ? '#68576E' : '#DED1E4') : dark ? (kind === 'course' ? '#536177' : '#5B505F') : '#DCD6D7'}`, borderRadius: kind === 'test' ? '27px 20px 27px 20px' : '28px', boxShadow: kind === 'test' ? (dark ? 'inset 3px 0 0 rgba(183,151,199,.65),0 8px 20px rgba(0,0,0,.20)' : 'inset 3px 0 0 rgba(151,116,170,.52),0 8px 20px rgba(90,70,99,.10)') : dark ? '0 6px 16px rgba(0,0,0,.14)' : '0 5px 16px rgba(74,82,68,.07)' };
 }
 export function EntryNumber({ icon: Icon = Tag, kind }) {
   const { theme } = useContext(ThemeContext);
@@ -1715,7 +1715,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? 'linear-gradient(118deg,#332D3A 0%,#3B303D 54%,#34313C 100%)' : 'linear-gradient(118deg,#F2E9D8 0%,#EAE4F0 54%,#EEE8F2 100%)', border: `1px solid ${dark ? '#564C60' : '#DCD3E1'}`, boxShadow: dark ? '0 9px 24px rgba(0,0,0,.18)' : '0 9px 24px rgba(74,82,68,.09)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? 'linear-gradient(118deg,#342E3D 0%,#30394A 42%,#443542 76%,#3B3038 100%)' : 'linear-gradient(118deg,#F2EAF6 0%,#E8F0F8 42%,#FAEEE5 100%)', border: `1px solid ${dark ? '#66556F' : '#DCD3E1'}`, boxShadow: dark ? '0 9px 24px rgba(0,0,0,.18)' : '0 9px 24px rgba(74,82,68,.09)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
@@ -1725,7 +1725,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
-      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#D2BDE0' : '#725A88', background: dark ? '#403746' : '#F7F2F8', border: `1px solid ${dark ? '#62556A' : '#DCD1E2'}`, outlineColor: dark ? '#B99BCB' : '#A890B5' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#D8C4E5' : '#725A88', background: dark ? '#463C51' : '#F7F2F8', border: `1px solid ${dark ? '#6D5D77' : '#DCD1E2'}`, outlineColor: dark ? '#B99BCB' : '#A890B5' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
       {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
         {userId ? <>
           <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Kursni tanlang</div>
@@ -1745,20 +1745,20 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
         </>}
       </div>}
       <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
-        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: dark ? 'linear-gradient(145deg,#49404D,#574550 58%,#46434D)' : 'linear-gradient(145deg,#DCCFE4,#D4C8DD 58%,#E6D6C8)' }}>
-          <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} />
-          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#D6C3E2' : '#755C8D' }} />
-          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: 'rgba(31,61,43,.4)' }} />
+        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: dark ? 'linear-gradient(145deg,#4B425C,#3F5368 58%,#62505A)' : 'linear-gradient(145deg,#DDD1E8,#D2DFEB 58%,#F2D9CB)' }}>
+          <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: dark ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.28)' }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#D9D1EC' : '#526B8A' }} />
+          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: dark ? '#D6A778' : '#BF8B67' }} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#D8B877' : '#9A6E36' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: dark ? '#B9BBB2' : '#6E7569' }}>{index + 1}/{count}</span>}</div>
-          <div className="truncate text-[11px]" style={{ ...fontBody, color: dark ? '#C5BACD' : '#72667A' }}>{category}</div>
-          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: dark ? '#F3ECF5' : '#483B50' }}>{item.title}</div>
-          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#F3ECF5' : '#483B50', background: dark ? '#55465E' : '#E4D9EC', outlineColor: dark ? '#B99BCB' : '#AC94B7' }}>Mavzuni ochish <ChevronRight size={13} /></button>
+          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#E6BE7E' : '#A36E39' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: dark ? '#B9BBB2' : '#6E7569' }}>{index + 1}/{count}</span>}</div>
+          <div className="truncate text-[11px]" style={{ ...fontBody, color: dark ? '#BBC8DB' : '#60758B' }}>{category}</div>
+          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: dark ? '#F4EEF6' : '#29384A' }}>{item.title}</div>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#F3ECF5' : '#483B50', background: dark ? '#5B4A68' : '#E4D9EC', outlineColor: dark ? '#B99BCB' : '#AC94B7' }}>Mavzuni ochish <ChevronRight size={13} /></button>
         </div>
-        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#C5C4B8' : '#68736E', border: `1px solid ${dark ? '#575B51' : '#D5D8CB'}`, background: dark ? '#3A3D37' : '#F8F7F0' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#F0EDE4' : '#2C3C3D', background: dark ? '#55465E' : '#E4D9EC' }}><ChevronRight size={16} /></button></div>}
+        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#D0C8D8' : '#657187', border: `1px solid ${dark ? '#5B5265' : '#D7D1E0'}`, background: dark ? '#393443' : '#F5F7FA' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#F0EDE4' : '#2C3C3D', background: dark ? '#5B4A68' : '#E4D9EC' }}><ChevronRight size={16} /></button></div>}
       </div>
-      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#B99BCB' : '#9075A2') : (dark ? '#595260' : '#D1C7D8') }} />)}</div>}
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#D0B4DF' : '#9075A2') : (dark ? '#575060' : '#D1C7D8') }} />)}</div>}
     </section>
   );
 }
@@ -1775,9 +1775,9 @@ export function SectionHeading({ eyebrow, title }) {
 export function BrowseHeading({ eyebrow, title, icon: Icon = BookOpen, kind = 'course' }) {
   const { theme } = useContext(ThemeContext);
   const tone = getBrowseTone(kind, theme);
-  return <div className="mb-3 flex items-center gap-2.5" aria-label={`${eyebrow} · ${title}`}>
+  return <div className="mb-3 flex min-w-0 items-center gap-3" aria-label={`${eyebrow} · ${title}`}>
     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl" style={{ color: tone.color, background: tone.soft, border: `1px solid ${tone.line}` }}><Icon size={17} /></span>
-    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-[11px] font-medium" style={{ ...fontMono, color: tone.color }}>{eyebrow}</span><h2 className="text-lg font-semibold" style={{ ...fontBody, color: C.ink }}>{title}</h2></div>
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><span className="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ ...fontMono, color: tone.color, background: tone.soft, border: `1px solid ${tone.line}` }}>{eyebrow}</span><h2 className="text-lg font-semibold leading-none" style={{ ...fontBody, color: C.ink }}>{title}</h2></div>
   </div>;
 }
 
@@ -2172,8 +2172,8 @@ export function PinnedAddButton({ icon: Icon, label, onClick }) {
   const tone = getBrowseTone(kind, theme);
   return (
     <div className="pointer-events-none fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-5">
-      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-11 items-center gap-2.5 rounded-full border border-white/80 px-4 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: theme === 'dark' ? '#F0EEE7' : '#283B3E', background: theme === 'dark' ? '#35413D' : tone.soft, borderColor: tone.line, outlineColor: tone.color, boxShadow: theme === 'dark' ? '0 6px 16px rgba(0,0,0,.22)' : '0 6px 16px rgba(74,82,68,.12)' }}>
-        <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-full" style={{ background: theme === 'dark' ? '#48534B' : '#F9F8F1', color: tone.color }}><Icon size={15} /><Plus size={9} className="absolute -right-0.5 -top-0.5 rounded-full" style={{ background: theme === 'dark' ? '#2D342F' : '#F9F8F1', color: tone.color }} /></span>
+      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-11 items-center gap-2.5 rounded-full border border-white/80 px-4 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: theme === 'dark' ? '#F0EEE7' : '#283B3E', background: theme === 'dark' ? (kind === 'course' ? '#3B4655' : '#47394B') : tone.soft, borderColor: tone.line, outlineColor: tone.color, boxShadow: theme === 'dark' ? '0 6px 16px rgba(0,0,0,.22)' : '0 6px 16px rgba(74,82,68,.12)' }}>
+        <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-full" style={{ background: theme === 'dark' ? '#56475D' : '#F9F8FC', color: tone.color }}><Icon size={15} /><Plus size={9} className="absolute -right-0.5 -top-0.5 rounded-full" style={{ background: theme === 'dark' ? '#342B3A' : '#F9F8FC', color: tone.color }} /></span>
         {label}
       </button>
     </div>
@@ -3338,6 +3338,12 @@ export default function App() {
   }, [tab]);
 
   Object.assign(C, theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? DARK_PALETTE.paper : LIGHT_PALETTE.paper);
+  }, [theme]);
 
   useEffect(() => {
     try { localStorage.setItem('upcourse-theme', theme); } catch {}
