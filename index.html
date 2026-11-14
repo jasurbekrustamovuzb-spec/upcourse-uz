@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />    <style>
-      html { min-height: 100%; background: #EFE9D6; }
-      html[data-theme="dark"] { background: #20241F; }
+      html { min-height: 100%; background: #EFE9D6; --cert-blue: #416D78; --cert-tint: #E8EFEB; --cert-border: #D3DDD2; --cert-cyan: #A26F3A; }
+      html[data-theme="dark"] { background: #20241F; --cert-blue: #A7C8C8; --cert-tint: #313B37; --cert-border: #4A554C; --cert-cyan: #D6AF75; }
       body { min-height: 100%; margin: 0; background: transparent; color: #262A1E; }
       html[data-theme="dark"] body { color: #F4F1E7; }
     </style>
@@ -113,12 +113,13 @@
       html[data-theme="dark"] #upcourse-splash { background: #20241F; color: #F4F1E7; }
       #upcourse-splash.uc-hide { opacity: 0; pointer-events: none; }
       #upcourse-splash * { box-sizing: border-box; }
-      .ucs-loading { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,.52); }
-      html[data-theme="dark"] .ucs-loading { background: rgba(255,255,255,.04); }
+      .ucs-loading { display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 50%; background: transparent; }
+      html[data-theme="dark"] .ucs-loading { background: transparent; }
       .ucs-mark { display: grid; place-items: center; position: relative; width: 32px; height: 32px; flex: 0 0 auto; padding-bottom: 2px; border: 2px solid #B8863B; border-radius: 9px; color: #B8863B; font: 700 21px/1 Georgia, 'Times New Roman', serif; }
       .ucs-mark::after { content: ""; position: absolute; left: 25%; right: 25%; bottom: 5px; height: 1px; background: currentColor; }
       .ucs-brand { color: inherit; font: 700 18px Georgia, 'Times New Roman', serif; white-space: nowrap; }
-      .ucs-spinner { width: 17px; height: 17px; margin-left: 6px; border: 2px solid rgba(184,134,59,.24); border-top-color: #B8863B; border-radius: 50%; animation: ucsSpin .8s linear infinite; }
+      .ucs-spinner { width: 23px; height: 23px; border: 2px solid rgba(77,116,133,.20); border-top-color: #4D7485; border-radius: 50%; animation: ucsSpin .8s linear infinite; }
+      html[data-theme="dark"] .ucs-spinner { border-color: rgba(167,201,170,.18); border-top-color: #A7C9AA; }
       .ucs-load-note { position: absolute; top: calc(50% + 45px); max-width: 280px; padding: 0 16px; color: #6c705f; font-size: 12px; text-align: center; }
       html[data-theme="dark"] .ucs-load-note { color: #bdc3b7; }
       .ucs-retry { margin-top: 8px; border: 0; background: transparent; color: #8b6828; font: inherit; font-weight: 650; text-decoration: underline; cursor: pointer; }
@@ -129,7 +130,7 @@
   <body>
     <div id="root">
       <div id="upcourse-splash" role="status" aria-live="polite" aria-label="UpCourse yuklanmoqda">
-        <div class="ucs-loading" aria-hidden="true"><span class="ucs-mark">U</span><span class="ucs-brand">UpCourse Uz</span><span class="ucs-spinner"></span></div>
+        <div class="ucs-loading" aria-hidden="true"><span class="ucs-spinner"></span></div>
         <div class="ucs-load-note" id="ucsLoadNote" hidden>Sayt sekin yuklanyapti.<br /><button class="ucs-retry" type="button" onclick="location.reload()">Qayta yuklash</button></div>
       </div>
     <script>

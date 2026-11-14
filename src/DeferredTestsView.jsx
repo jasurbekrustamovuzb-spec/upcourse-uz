@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
 import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Dices, Eye, FileCheck2, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
 import { signInWithGoogle, supabase } from './supabaseClient.js';
-import { AuthorLine, BrowseHeading, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
+import { AuthorLine, BrowseHeading, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, getBrowseCardStyle, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
 const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 const NationalCertificate = lazy(() => import('./NationalCertificate.jsx'));
@@ -1230,6 +1230,7 @@ function LiveEntryLoading() {
 }
 
 export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
+  const { theme } = useContext(ThemeContext);
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
@@ -1557,7 +1558,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                         <div
                           key={cat.id}
                           className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
-                          style={{ background: 'linear-gradient(145deg,#FFFFFF,#F8FAFF)', border: '1px solid #E1E8F4', boxShadow: '0 5px 16px rgba(58,79,120,.06)' }}
+                          style={getBrowseCardStyle(theme, 'area')}
                           onClick={() => goCategory(cat.id)}
                         >
                           <div className="min-w-0">
@@ -1577,7 +1578,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {matchedTests.map((t) => (
-                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-3xl" style={{ background: 'linear-gradient(145deg,#FFFFFF,#F8FAFF)', border: '1px solid #E1E8F4', boxShadow: '0 5px 16px rgba(58,79,120,.06)' }}>
+                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-3xl" style={getBrowseCardStyle(theme, 'test')}>
                         <div className="min-w-0">
                           <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
                             {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
@@ -1601,7 +1602,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           )
         ) : (
           <>
-          <BrowseHeading icon={ListChecks} eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
+          <BrowseHeading icon={ListChecks} kind="test" eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
           <CategoryGrid
             categories={approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id))}
             itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
@@ -1643,9 +1644,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((t, i) => (
-            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-3xl transition-all hover:-translate-y-0.5 hover:shadow-md" style={{ background: 'linear-gradient(145deg,#FFFFFF,#F8FAFF)', border: '1px solid #E1E8F4', boxShadow: '0 5px 16px rgba(58,79,120,.06)' }}>
+            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-3xl transition-all hover:-translate-y-0.5 hover:shadow-md" style={getBrowseCardStyle(theme, 'test')}>
               <div className="flex items-start min-w-0">
-                <EntryNumber icon={ListChecks} />
+                <EntryNumber icon={ListChecks} kind="test" />
                 <div className="min-w-0">
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
