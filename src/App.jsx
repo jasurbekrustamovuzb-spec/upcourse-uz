@@ -2069,7 +2069,7 @@ export function AddCourseForm({ categories, lockedCategoryId, initialCategoryNam
   );
 }
 
-export function VisibilityToggle({ value, onChange }) {
+export function VisibilityToggle({ value, onChange, accent = C.cover, accentSoft = C.surface }) {
   return (
     <div className="mb-3">
       <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div>
@@ -2077,12 +2077,12 @@ export function VisibilityToggle({ value, onChange }) {
         <button
           type="button"
           onClick={() => onChange('private')}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          className="flex-1 flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
           style={{
             ...fontBody,
             color: value === 'private' ? C.white : C.ink,
-            background: value === 'private' ? C.cover : C.surface,
-            border: `1px solid ${value === 'private' ? C.cover : C.rule}`,
+            background: value === 'private' ? accent : accentSoft,
+            border: `1px solid ${value === 'private' ? accent : C.rule}`,
             outlineColor: C.gold,
             fontWeight: value === 'private' ? 600 : 400,
           }}
@@ -2092,12 +2092,12 @@ export function VisibilityToggle({ value, onChange }) {
         <button
           type="button"
           onClick={() => onChange('public')}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          className="flex-1 flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
           style={{
             ...fontBody,
             color: value === 'public' ? C.white : C.ink,
-            background: value === 'public' ? C.cover : C.surface,
-            border: `1px solid ${value === 'public' ? C.cover : C.rule}`,
+            background: value === 'public' ? accent : accentSoft,
+            border: `1px solid ${value === 'public' ? accent : C.rule}`,
             outlineColor: C.gold,
             fontWeight: value === 'public' ? 600 : 400,
           }}

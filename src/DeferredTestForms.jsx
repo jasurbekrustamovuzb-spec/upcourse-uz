@@ -1,6 +1,6 @@
 import { useState, useRef, Suspense, lazy } from 'react';
 
-import { Calculator, Check, ChevronRight, FileText, Image as ImageIcon, Info, Loader2, Paperclip, Plus, X } from 'lucide-react';
+import { Calculator, Check, ChevronRight, FileText, Image as ImageIcon, Info, Loader2, Paperclip, Plus, X, ListChecks, Sparkles } from 'lucide-react';
 
 import { C, GhostButton, InfoHint, SectionLoading, SolidButton, TextField, VisibilityToggle, fontBody, fontMono, parseTxtQuestions, sbUploadImage, uid } from './App.jsx';
 
@@ -113,12 +113,12 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
         <div className="mb-4 space-y-2">
           <input ref={replaceImageInputRef} type="file" accept="image/*" onChange={handleReplaceQuestionImage} className="hidden" />
           {questions.map((q, i) => (
-            <div key={q.id} className="flex min-w-0 items-start justify-between gap-3 p-3 rounded-sm" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
+            <div key={q.id} className="flex min-w-0 items-start justify-between gap-3 p-3 rounded-2xl" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
               <div className={q.pdfSourceImageOnly ? "flex min-w-0 flex-1" : "flex items-start gap-2 min-w-0"}>
                 {q.imageUrl && (
                   q.pdfSourceImageOnly
                     ? <Suspense fallback={<div className="mb-2 h-20 animate-pulse rounded-lg bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
-                    : <img src={q.imageUrl} alt="" loading="lazy" className="h-10 w-10 flex-shrink-0 rounded-sm object-cover" style={{ border: `1px solid ${C.rule}` }} />
+                    : <img src={q.imageUrl} alt="" loading="lazy" className="h-10 w-10 flex-shrink-0 rounded-xl object-cover" style={{ border: `1px solid ${C.rule}` }} />
                 )}
                 {!q.pdfSourceImageOnly && <div className="text-[15px] min-w-0" style={{ ...fontBody, color: C.ink }}>
                   <span style={{ ...fontMono, color: C.gold }}>{i + 1}.</span> {q.text}
@@ -128,7 +128,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                   )}
                 </div>}
               </div>
-              <button type="button" disabled={replacingImage} onClick={() => { setReplaceImageQuestionId(q.id); replaceImageInputRef.current?.click(); }} className="inline-flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-lg border text-[11px] font-medium disabled:opacity-60 sm:w-auto sm:gap-1 sm:px-2" style={{ ...fontBody, color: C.inkSoft, background: C.surface, borderColor: C.rule }} title={q.imageUrl ? 'Savol rasmini almashtirish' : 'Savolga rasm qo‘shish'} aria-label={q.imageUrl ? 'Savol rasmini almashtirish' : 'Savolga rasm qo‘shish'}>
+              <button type="button" disabled={replacingImage} onClick={() => { setReplaceImageQuestionId(q.id); replaceImageInputRef.current?.click(); }} className="inline-flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full border text-[11px] font-medium disabled:opacity-60 sm:w-auto sm:gap-1 sm:px-3" style={{ ...fontBody, color: '#5E68C8', background: '#F1F1FF', borderColor: '#DADAFE' }} title={q.imageUrl ? 'Savol rasmini almashtirish' : 'Savolga rasm qo‘shish'} aria-label={q.imageUrl ? 'Savol rasmini almashtirish' : 'Savolga rasm qo‘shish'}>
                 {replacingImage && replaceImageQuestionId === q.id ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={13} />}
                 <span className="hidden sm:inline">{replacingImage && replaceImageQuestionId === q.id ? 'Yuklanmoqda' : q.imageUrl ? 'Rasmni almashtirish' : 'Rasm qo‘shish'}</span>
               </button>
@@ -142,17 +142,18 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
       <input ref={fileInputRef} type="file" accept=".txt" onChange={handleTxtFile} className="hidden" />
 
       {isTxtMode ? (
-        <div className="p-6 rounded-2xl mb-4 text-center" style={{ background: C.mathTint, border: `1px solid ${C.math}` }}>
-          <FileText size={22} style={{ color: C.math }} className="mx-auto mb-2" />
+        <div className="mb-4 rounded-3xl border border-dashed p-6 text-center" style={{ background: 'linear-gradient(135deg,#F3F2FF,#FFF0F7)', borderColor: '#CFC9FF' }}>
+          <span className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl" style={{ color: '#7552C9', background: '#E8E3FF' }}><FileText size={23} /></span>
           <div className="flex items-center justify-center gap-1.5 mb-4">
             <div className="text-[15px]" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>TXT fayldan savollarni yuklang</div>
             <InfoHint text={'Har bir savol alohida qatorda (raqami bo\u2018lsa ham, bo\u2018lmasa ham farqi yo\u2018q), keyin "A)", "B)", "C)", "D)" variantlari, oxirida "ANSWER: A" (yoki B, C, D) yozilgan bo\u2018lishi kerak.'} />
           </div>
-          <SolidButton onClick={() => fileInputRef.current && fileInputRef.current.click()} icon={Paperclip}>TXT faylni tanlash</SolidButton>
-          {importError && <div className="text-xs mt-3" style={{ ...fontBody, color: C.red }}>{importError}</div>}
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="mx-auto inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, background: 'linear-gradient(110deg,#7357CF,#C14DA6)', outlineColor: '#B9A8FF' }}><Paperclip size={16} /> TXT faylni tanlash</button>
+          {questions.length > 0 && <p className="mt-3 text-xs font-medium" style={{ ...fontBody, color: '#6257A7' }}>{questions.length} ta savol fayldan olindi</p>}
+          {importError && <div role="alert" className="mt-3 text-xs" style={{ ...fontBody, color: C.red }}>{importError}</div>}
         </div>
       ) : (
-        <div className={isMathMode ? "mb-4 w-full min-w-0 space-y-2" : "p-4 rounded-sm mb-4"} style={isMathMode ? undefined : { background: C.paperSoft, border: `1px dashed ${C.rule}` }}>
+        <div className={isMathMode ? "mb-4 w-full min-w-0 space-y-2" : "mb-4 rounded-3xl border border-dashed p-4"} style={isMathMode ? undefined : { background: 'linear-gradient(135deg,#F1F7FF,#F8F3FF)', borderColor: '#C8D8F3' }}>
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="text-xs tracking-wide uppercase" style={{ ...fontMono, color: C.inkSoft }}>Savol qoʻshish</div>
             {!isMathMode && (
@@ -172,15 +173,15 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
           <div className="flex items-center gap-2 mb-3">
             <button
               onClick={() => setQType('mcq')}
-              className="px-3 py-1.5 rounded-sm text-sm"
-              style={{ ...fontBody, background: qType === 'mcq' ? C.cover : 'transparent', color: qType === 'mcq' ? C.white : C.inkSoft, border: `1px solid ${qType === 'mcq' ? C.cover : C.rule}` }}
+                className="rounded-full px-4 py-2 text-sm font-semibold transition"
+                style={{ ...fontBody, background: qType === 'mcq' ? 'linear-gradient(110deg,#5778E8,#7763D6)' : C.surface, color: qType === 'mcq' ? C.white : C.inkSoft, border: `1px solid ${qType === 'mcq' ? '#6574D8' : C.rule}`, boxShadow: qType === 'mcq' ? '0 4px 12px #6675d833' : 'none' }}
             >
               Variantli
             </button>
             <button
               onClick={() => setQType('open')}
-              className="px-3 py-1.5 rounded-sm text-sm"
-              style={{ ...fontBody, background: qType === 'open' ? C.cover : 'transparent', color: qType === 'open' ? C.white : C.inkSoft, border: `1px solid ${qType === 'open' ? C.cover : C.rule}` }}
+                className="rounded-full px-4 py-2 text-sm font-semibold transition"
+                style={{ ...fontBody, background: qType === 'open' ? 'linear-gradient(110deg,#5778E8,#7763D6)' : C.surface, color: qType === 'open' ? C.white : C.inkSoft, border: `1px solid ${qType === 'open' ? '#6574D8' : C.rule}`, boxShadow: qType === 'open' ? '0 4px 12px #6675d833' : 'none' }}
             >
               Yozma javob
             </button>
@@ -198,7 +199,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Rasm / chizma (ixtiyoriy)</div>
             {imageUrl ? (
               <div className="flex items-center gap-3">
-                <img src={imageUrl} alt="" className="w-16 h-16 object-cover rounded-sm" style={{ border: `1px solid ${C.rule}` }} />
+                <img src={imageUrl} alt="" className="h-16 w-16 rounded-2xl object-cover" style={{ border: `1px solid ${C.rule}` }} />
                 <button onClick={() => setImageUrl('')} className="text-xs inline-flex items-center gap-1" style={{ ...fontBody, color: C.red }}>
                   <X size={13} /> Rasmni olib tashlash
                 </button>
@@ -209,7 +210,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
                 <button
                   onClick={() => imageInputRef.current && imageInputRef.current.click()}
                   disabled={imageUploading}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs focus-visible:outline focus-visible:outline-2"
+                  className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium focus-visible:outline focus-visible:outline-2"
                   style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
                 >
                   <ImageIcon size={13} /> {imageUploading ? 'Yuklanmoqda...' : 'Rasm qoʻshish'}
@@ -255,7 +256,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
             </>
           )}
 
-          <GhostButton onClick={addQuestion} icon={Plus} disabled={imageUploading}>Savolni testga qoʻshish</GhostButton>
+          <button type="button" onClick={addQuestion} disabled={imageUploading || (!qText.trim() && !qFormula.trim())} className="inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50" style={{ ...fontBody, background: 'linear-gradient(110deg,#5778E8,#7763D6)' }}><Plus size={16} /> Savolni testga qoʻshish</button>
         </div>
       )}
     </>
@@ -263,6 +264,7 @@ function QuestionBuilder({ questions, setQuestions, mode = 'manual' }) {
 }
 
 export function AddTestForm({ categories, lockedCategoryId, initialCategoryName, onSubmit, onDone, onView, formMode }) {
+  const [mode, setMode] = useState(formMode || 'manual');
   const [categoryName, setCategoryName] = useState(initialCategoryName || '');
   const [title, setTitle] = useState('');
   const [questions, setQuestions] = useState([]);
@@ -320,36 +322,55 @@ export function AddTestForm({ categories, lockedCategoryId, initialCategoryName,
       }
     }
   }
+  const modes = [
+    { id: 'manual', label: 'Test', description: 'Savollarni qo‘lda kiriting', Icon: ListChecks, color: '#536FE0', tint: '#EEF1FF', border: '#CBD3FF' },
+    { id: 'txt', label: 'TXT fayldan', description: 'Tayyor savollarni yuklang', Icon: FileText, color: '#9A53C5', tint: '#F6ECFF', border: '#E2C8F5' },
+    { id: 'math', label: 'Matematik test', description: 'Formula va PDF savollar', Icon: Calculator, color: '#D17A2F', tint: '#FFF3E5', border: '#F3D5B3' },
+  ];
+  const activeMode = modes.find((item) => item.id === mode) || modes[0];
+
   return (
-    <div className={formMode === 'math' ? "math-test-form mt-4 w-full min-w-0" : "mt-6 p-5 rounded-sm"} style={formMode === 'math' ? undefined : { background: C.surface, border: `1px solid ${C.rule}` }}>
-      {formMode === 'txt' && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-[13px]" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}>
-          <FileText size={14} style={{ flexShrink: 0 }} /> TXT fayldan test yaratish — savollarni qoʻlda yozish shart emas.
+    <div className="mt-4 w-full min-w-0 overflow-hidden rounded-[28px] border p-4 shadow-sm sm:p-6" style={{ background: 'linear-gradient(145deg,#FFFFFF,#F7F8FF)', borderColor: '#E1E4F2', boxShadow: '0 12px 34px rgba(69,79,132,.08)' }}>
+      <header className="mb-5 flex items-start gap-3">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl" style={{ color: activeMode.color, background: activeMode.tint }}><Sparkles size={22} /></span>
+        <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[.16em]" style={{ ...fontMono, color: activeMode.color }}>YANGI TEST</p><h2 className="mt-1 text-xl font-bold sm:text-2xl" style={{ ...fontBody, color: C.ink }}>Test yaratish</h2><p className="mt-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>Savollarni qanday qo‘shishni tanlang.</p></div>
+      </header>
+      <div role="tablist" aria-label="Test yaratish usuli" className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {modes.map(({ id, label, description, Icon, color, tint, border }) => {
+          const selected = mode === id;
+          return <button key={id} type="button" role="tab" aria-selected={selected} onClick={() => setMode(id)} className="flex min-h-[68px] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: selected ? color : C.inkSoft, background: selected ? tint : C.surface, borderColor: selected ? border : C.rule, boxShadow: selected ? `0 5px 16px ${color}1c` : 'none', outlineColor: color }}><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color, background: tint }}><Icon size={19} /></span><span className="min-w-0"><span className="block text-sm font-bold">{label}</span><span className="mt-0.5 block text-[11px] leading-tight" style={{ color: C.inkSoft }}>{description}</span></span></button>;
+        })}
+      </div>
+      <section className="rounded-3xl border p-4 sm:p-5" style={{ background: '#FFFFFF', borderColor: activeMode.border }}>
+      {mode === 'txt' && (
+        <div className="mb-4 flex items-center gap-2 rounded-2xl px-3 py-2.5 text-[13px]" style={{ ...fontBody, color: activeMode.color, background: activeMode.tint }}>
+          <FileText size={16} className="shrink-0" /> TXT fayldan savollarni yuklang yoki kerak bo‘lsa qo‘lda savol qo‘shing.
         </div>
       )}
-      {formMode === 'math' && (
-        <div className="mb-4 flex items-start gap-2 border-l-2 py-1 pl-3 text-[13px]" style={{ ...fontBody, color: C.inkSoft, borderColor: C.mathSoft }}>
-          <Calculator size={15} style={{ flexShrink: 0, color: C.mathDeep }} /> Matematik test — PDF savollarini asl ko‘rinishida oling yoki formula klaviaturasi bilan kiriting.
+      {mode === 'math' && (
+        <div className="mb-4 flex items-start gap-2 rounded-2xl px-3 py-2.5 text-[13px]" style={{ ...fontBody, color: activeMode.color, background: activeMode.tint }}>
+          <Calculator size={16} className="mt-0.5 shrink-0" /> Matematik savollarni formula klaviaturasida yozing yoki PDF’dan olib kiring.
         </div>
       )}
       {!lockedCategoryId && (
         <TextField label="Soha nomi" value={categoryName} onChange={setCategoryName} placeholder="Sohaga nom bering" />
       )}
       <TextField label="Test nomi" value={title} onChange={setTitle} placeholder="Masalan: Inflyatsiya boʻyicha test" />
-      {formMode === 'math' && <div className="mb-4">
-        <button type="button" onClick={() => setShowPdfImport((shown) => !shown)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-sm" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint, borderColor: C.mathSoft }}>
+      {mode === 'math' && <div className="mb-4">
+        <button type="button" onClick={() => setShowPdfImport((shown) => !shown)} className="inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition hover:-translate-y-0.5" style={{ ...fontBody, color: activeMode.color, background: activeMode.tint, borderColor: activeMode.border }}>
           <FileText size={16} /> PDFdan savol olish
         </button>
         {showPdfImport && <Suspense fallback={<div className="mt-3 text-sm" style={{ ...fontBody, color: C.inkSoft }}>PDF o‘quvchi yuklanmoqda…</div>}>
           <MathPdfImport onImport={(items) => { setQuestions((current) => [...current, ...items]); setShowPdfImport(false); }} onClose={() => setShowPdfImport(false)} />
         </Suspense>}
       </div>}
-      <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={formMode || 'manual'} />
-      <VisibilityToggle value={visibility} onChange={setVisibility} />
-      <div className="flex gap-3">
-        <SolidButton onClick={submit} icon={Check} disabled={!canSubmit || submitting}>{submitting ? "Saqlanmoqda…" : "Yuborish"}</SolidButton>
-        <GhostButton onClick={onDone} icon={X}>Bekor qilish</GhostButton>
+      <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={mode} />
+      <VisibilityToggle value={visibility} onChange={setVisibility} accent="#5D70D6" accentSoft="#E8ECFF" />
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <button type="button" onClick={onDone} className="inline-flex min-h-11 items-center gap-2 rounded-full border px-5 text-sm font-semibold transition hover:bg-slate-50" style={{ ...fontBody, color: C.inkSoft, borderColor: C.rule }}><X size={15} /> Bekor qilish</button>
+        <button type="button" onClick={submit} disabled={!canSubmit || submitting} className="inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45" style={{ ...fontBody, background: `linear-gradient(110deg,${activeMode.color},#7463D8)` }}><Check size={16} />{submitting ? 'Saqlanmoqda…' : 'Testni saqlash'}</button>
       </div>
+      </section>
     </div>
   );
 }
@@ -374,7 +395,7 @@ export function EditTestForm({ test, onSave, onDone }) {
   }
 
   return (
-    <div className={isMathTest ? "math-test-form mt-4 w-full min-w-0" : "mt-6 p-5 rounded-sm"} style={isMathTest ? undefined : { background: C.surface, border: `1px solid ${C.rule}` }}>
+    <div className="mt-4 w-full min-w-0 rounded-[28px] border p-4 shadow-sm sm:p-6" style={{ background: 'linear-gradient(145deg,#FFFFFF,#F7F8FF)', borderColor: '#E1E4F2' }}>
       <TextField label="Test nomi" value={title} onChange={setTitle} />
       <QuestionBuilder questions={questions} setQuestions={setQuestions} mode={isMathTest ? 'math' : 'manual'} />
       <div className="flex gap-3">
