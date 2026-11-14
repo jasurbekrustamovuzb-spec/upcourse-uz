@@ -348,6 +348,12 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     if (questionMapOpen) { setQuestionMapOpen(false); return; }
     if (playerSettingsOpen) { setPlayerSettingsOpen(false); return; }
     if (reconfigureDialog) { setReconfigureDialog(false); return; }
+    // Close a lingering math keyboard before showing the leave-test prompt.
+    if (window.mathVirtualKeyboard?.visible) {
+      try { window.mathVirtualKeyboard.hide({ animate: false }); } catch { try { window.mathVirtualKeyboard.hide(); } catch {} }
+      if (document.activeElement?.matches?.('math-field')) document.activeElement.blur();
+      return;
+    }
     // Orqaga qaytish avval ochiq yakunlash ogohlantirishini yopadi.
     if (finishDialog) { setFinishDialog(false); return; }
     setLeaveDialog(true);
@@ -1508,14 +1514,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: '#675382', background: '#e8e3ef' }}><FileCheck2 size={20} /></span>
           <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold" style={{ ...fontBody, color: C.ink }}>Milliy sertifikat mock testlari</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Fan bo‘yicha sinov, natija va sertifikat</span></span><ChevronRight className="transition-transform group-hover:translate-x-0.5" size={17} style={{ color: '#766589' }} />
         </button>
-        <div className="grid grid-cols-2 gap-1.5 mb-3">
-          <button
-            onClick={goTxtImport}
-            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-          >
-            <FileText size={13} /> TXT fayldan
-          </button>
+        <div className="grid grid-cols-3 gap-1.5 mb-3">
           <button
             onClick={goMatchingTest}
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
@@ -1536,13 +1535,6 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
              style={{ ...fontBody, color: '#fff', background: 'linear-gradient(110deg,#e2545d,#e9ad35 42%,#3fa77a 72%,#438ed0)', border: '1px solid #ffffff88', outlineColor: C.gold, fontWeight: 700, boxShadow: '0 6px 16px #5483a533' }}
           >
              <Dices size={16} /> Omad charxpalagi
-          </button>
-          <button
-            onClick={goMathTest}
-            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
-          >
-            <Calculator size={13} /> Matematik test
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
@@ -1687,4 +1679,3 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   );
 }
 import { EditTestForm } from './DeferredTestForms.jsx';
-
