@@ -18,10 +18,10 @@ export async function getSharedTeamBattleSet(token) {
 }
 
 export async function saveTeamBattleSet({ id, ownerId, title, questions }) {
-  const payload = { owner_id: ownerId, title: title.trim(), questions, is_shared: false, updated_at: new Date().toISOString() };
+  const payload = { owner_id: ownerId, title: title.trim(), questions, updated_at: new Date().toISOString() };
   const query = id
     ? supabase.from('team_battle_sets').update(payload).eq('id', id)
-    : supabase.from('team_battle_sets').insert(payload);
+    : supabase.from('team_battle_sets').insert({ ...payload, is_shared: false });
   return unwrap(await query.select('id, owner_id, title, questions, share_token, is_shared, created_at, updated_at').single());
 }
 
@@ -37,3 +37,4 @@ export async function listTeamBattleSetsAdmin() {
   const data = unwrap(await supabase.rpc('admin_list_team_battle_sets'));
   return Array.isArray(data) ? data : [];
 }
+

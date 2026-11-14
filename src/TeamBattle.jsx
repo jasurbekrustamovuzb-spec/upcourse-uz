@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Eye, Loader2, Pencil, Plus, RotateCcw, Search, Share2, Shuffle, Trash2, Trophy, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Eye, EyeOff, Loader2, Pencil, Plus, RotateCcw, Search, Share2, Shuffle, Trash2, Trophy, Users, X } from 'lucide-react';
 import { C, fontBody, fontMono, SectionLoading, shareItem, buildShareUrl } from './App';
 import { signInWithGoogle } from './supabaseClient';
 import { deleteTeamBattleSet, getSharedTeamBattleSet, listTeamBattleSets, saveTeamBattleSet, setTeamBattleSetShared } from './teamBattleData';
+import { compressQuestionImage, MAX_QUESTION_IMAGE_INPUT_BYTES } from './compressQuestionImage';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const BATTLE_COLORS = ['#3977ad','#59844f','#b87933','#875fba','#df7650','#358e8b','#bd5678','#668146'];
@@ -142,12 +143,16 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
     if (!questions.length) { setError('Kamida bitta savol va javobni toʻliq kiriting.'); return; }
     setSaving(true); setError(''); setSaveMessage('');
     try {
+      const payloadSize = new TextEncoder().encode(JSON.stringify(questions)).byteLength;
+      if (payloadSize > 1200 * 1024) throw new Error('QUESTION_SET_TOO_LARGE');
       const row = await saveTeamBattleSet({ id: editingSetId || undefined, ownerId: session.user.id, title: draftTitle, questions });
       setSets((current) => [row, ...current.filter((item) => item.id !== row.id)]);
       chooseSet(row); setCreateOpen(false); setDraftTitle(''); setDraftQuestions([newQuestion()]); setEditingSetId(null);
       setSaveMessage('Saqlandi');
     } catch (e) {
-      setError('Saqlash amalga oshmadi. Birozdan soʻng qayta urinib koʻring.');
+      setError(e?.message === 'QUESTION_SET_TOO_LARGE'
+        ? 'Toʻplam hajmi katta. Kamroq rasm qoʻshing yoki rasmlarni kichraytiring.'
+        : 'Saqlash amalga oshmadi. Birozdan soʻng qayta urinib koʻring.');
     } finally { setSaving(false); }
   }
 
@@ -155,10 +160,14 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
     setEditingSetId(set.id); setDraftTitle(set.title); setDraftQuestions((set.questions || []).map((q) => ({ ...newQuestion(), ...q }))); setCreateOpen(true); setSaveMessage('');
   }
 
-  function setQuestionImage(questionId, file) {
+  async function setQuestionImage(questionId, file) {
     if (!file || !file.type.startsWith('image/')) return;
-    if (file.size > 3 * 1024 * 1024) { setError('Rasm hajmi 3 MB dan oshmasin.'); return; }
-    const reader = new FileReader(); reader.onload = () => setDraftQuestions((rows) => rows.map((row) => row.id === questionId ? { ...row, imageUrl: String(reader.result) } : row)); reader.readAsDataURL(file);
+    if (file.size > MAX_QUESTION_IMAGE_INPUT_BYTES) { setError('Rasm hajmi 10 MB dan oshmasin.'); return; }
+    setError('');
+    try {
+      const imageUrl = await compressQuestionImage(file);
+      setDraftQuestions((rows) => rows.map((row) => row.id === questionId ? { ...row, imageUrl } : row));
+    } catch (error) { setError(error.message || 'Rasmni tayyorlab boʻlmadi.'); }
   }
 
   async function shareSet(set) {
@@ -174,6 +183,17 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
       const url = buildShareUrl({ battle: current.share_token });
       await shareItem(url, current.title);
     } catch (e) { setError('Ulashish havolasini tayyorlab boʻlmadi.'); }
+  }
+
+  async function toggleSetVisibility(set) {
+    setError(''); setSaveMessage('');
+    try {
+      const result = await setTeamBattleSetShared(set.id, !set.is_shared);
+      const updated = { ...set, ...result, is_shared: !set.is_shared };
+      setSets((items) => items.map((item) => item.id === set.id ? updated : item));
+      if (selectedSet?.id === set.id) setSelectedSet(updated);
+      setSaveMessage(updated.is_shared ? 'Havolasi ochiq — ulashish mumkin.' : 'Toʻplam maxfiy qilindi.');
+    } catch { setError('Maxfiylik sozlamasini saqlab boʻlmadi. Qayta urinib koʻring.'); }
   }
 
   async function removeSet(set) {
@@ -239,7 +259,7 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
           {draftQuestions.length < 100 && <button type="button" onClick={() => setDraftQuestions((rows) => [...rows, newQuestion()])} className="inline-flex items-center gap-1 mt-3 text-xs font-semibold" style={{ ...fontBody, color: '#344356' }}><Plus size={14} /> Yana savol</button>}
           <div className="flex justify-end gap-2 mt-4"><button type="button" onClick={() => setCreateOpen(false)} className="px-3 py-2 rounded-lg text-xs" style={{ ...fontBody, color: C.inkSoft, border: `1px solid ${C.rule}` }}>Bekor</button><button type="submit" disabled={saving} className="px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-50" style={{ ...fontBody, color: C.white, background: '#344356' }}>{saving ? 'Saqlanmoqda…' : 'Saqlash'}</button></div>
         </form>}
-        {!session ? <p className="text-sm py-3" style={{ ...fontBody, color: C.inkSoft }}>Savollarni saqlash va ulashish uchun akkauntga kiring.</p> : setsLoading ? <SectionLoading label="Savollar yuklanmoqda…" compact /> : sets.length ? <div className="grid sm:grid-cols-2 gap-2">{sets.map((set) => <div key={set.id} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: C.paper, border: `1px solid ${selectedSet?.id === set.id ? C.math : C.rule}` }}><button type="button" onClick={() => chooseSet(set)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: C.mathDeep, background: C.mathTint }}><Shuffle size={15} /></span><span className="min-w-0"><span className="block truncate text-sm font-medium" style={{ ...fontBody }}>{set.title}</span><span className="block text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>{set.questions?.length || 0} ta savol</span></span>{selectedSet?.id === set.id && <Check size={16} style={{ color: C.math }} />}</button><button type="button" onClick={() => editSet(set)} aria-label={`${set.title} tahrirlash`} title="Tahrirlash" className="p-2 rounded-lg" style={{ color: "#344356", background: "#eef0f3" }}><Pencil size={15} /></button><button type="button" onClick={() => shareSet(set)} aria-label={`${set.title} toʻplamini ulashish`} title="Ulashish" className="p-2 rounded-lg" style={{ color: '#344356', background: C.goldSoft }}><Share2 size={16} /></button><button type="button" onClick={() => removeSet(set)} aria-label={`${set.title} toʻplamini oʻchirish`} title="Oʻchirish" className="p-2 rounded-lg" style={{ color: C.red, background: C.dangerBannerTint }}><Trash2 size={15} /></button></div>)}</div> : <p className="text-sm py-3" style={{ ...fontBody, color: C.inkSoft }}>Hozircha savol toʻplami yoʻq. “Savol tuzish” orqali birinchisini yarating.</p>}
+        {!session ? <p className="text-sm py-3" style={{ ...fontBody, color: C.inkSoft }}>Savollarni saqlash va ulashish uchun akkauntga kiring.</p> : setsLoading ? <SectionLoading label="Savollar yuklanmoqda…" compact /> : sets.length ? <div className="grid sm:grid-cols-2 gap-2">{sets.map((set) => <div key={set.id} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: C.paper, border: `1px solid ${selectedSet?.id === set.id ? C.math : C.rule}` }}><button type="button" onClick={() => chooseSet(set)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: C.mathDeep, background: C.mathTint }}><Shuffle size={15} /></span><span className="min-w-0"><span className="block truncate text-sm font-medium" style={{ ...fontBody }}>{set.title}</span><span className="block text-xs mt-0.5" style={{ ...fontBody, color: C.inkSoft }}>{set.questions?.length || 0} ta savol · {set.is_shared ? 'Havolasi ochiq' : 'Maxfiy'}</span></span>{selectedSet?.id === set.id && <Check size={16} style={{ color: C.math }} />}</button><button type="button" onClick={() => editSet(set)} aria-label={`${set.title} tahrirlash`} title="Tahrirlash" className="p-2 rounded-lg" style={{ color: "#344356", background: "#eef0f3" }}><Pencil size={15} /></button><button type="button" onClick={() => toggleSetVisibility(set)} aria-label={`${set.title} maxfiyligini o‘zgartirish`} title={set.is_shared ? "Maxfiy qilish" : "Havolani yoqish"} className="p-2 rounded-lg" style={{ color: "#344356", background: "#eef0f3" }}>{set.is_shared ? <Eye size={15} /> : <EyeOff size={15} />}</button><button type="button" onClick={() => shareSet(set)} aria-label={`${set.title} toʻplamini ulashish`} title="Ulashish" className="p-2 rounded-lg" style={{ color: '#344356', background: C.goldSoft }}><Share2 size={16} /></button><button type="button" onClick={() => removeSet(set)} aria-label={`${set.title} toʻplamini oʻchirish`} title="Oʻchirish" className="p-2 rounded-lg" style={{ color: C.red, background: C.dangerBannerTint }}><Trash2 size={15} /></button></div>)}</div> : <p className="text-sm py-3" style={{ ...fontBody, color: C.inkSoft }}>Hozircha savol toʻplami yoʻq. “Savol tuzish” orqali birinchisini yarating.</p>}
         {saveMessage && <p className="text-xs mt-3" role="status" style={{ ...fontBody, color: C.accent }}>{saveMessage}</p>}
       </section>}
       {(sharedLoading || setsLoading) && initialShareToken && <SectionLoading label="Savollar yuklanmoqda…" compact />}
@@ -260,3 +280,4 @@ export default function TeamBattle({ tests = [], testsLoading = false, testsLoad
     {activeCard && <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6" style={{ background: 'rgba(15, 20, 25, 0.82)' }} role="dialog" aria-modal="true" aria-label="Jamoaviy jang savoli"><div className="w-full max-w-3xl max-h-[92dvh] overflow-y-auto rounded-2xl p-5 sm:p-8" style={{ color: C.ink, background: C.paper }}><div className="flex items-start justify-between gap-3 mb-5"><div><div className="text-xs uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Navbat: {groupNames[turn]}</div><div className="text-xs mt-1" style={{ ...fontBody, color: C.inkSoft }}>Toʻgʻri javob uchun +{Number(activeCard.reward) || pointsInput} ball · Xato uchun −{activeCard.penalty || 0}</div></div><button type="button" onClick={() => { setActiveId(null); setAnswerVisible(false); }} aria-label="Savolni yopish" className="p-2 rounded-full" style={{ color: C.inkSoft, background: C.surface }}><X size={19} /></button></div><h2 className="text-xl sm:text-3xl font-semibold leading-relaxed whitespace-pre-wrap" style={{ ...fontBody }}>{activeCard.text}</h2>{activeCard.imageUrl && <img src={activeCard.imageUrl} alt="Savol rasmi" className="max-h-60 max-w-full object-contain rounded-lg mt-4" />}<div className="mt-5 p-4 sm:p-5 rounded-xl" style={{ background: C.surface, border: `1px solid ${C.rule}`, minHeight: 76 }}>{answerVisible ? <><div className="text-[10px] uppercase tracking-wider mb-1" style={{ ...fontMono, color: C.gold }}>Toʻgʻri javob</div><div className="text-lg sm:text-xl whitespace-pre-wrap" style={{ ...fontBody }}>{activeCard.answer}</div></> : <button type="button" onClick={() => setAnswerVisible(true)} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm" style={{ ...fontBody, color: C.mathDeep, background: C.mathTint }}><Eye size={17} /> Javobni koʻrish</button>}</div>{answerVisible && <div className="grid sm:grid-cols-2 gap-2 mt-5"><button type="button" onClick={() => finishCard(true)} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold" style={{ ...fontBody, color: C.white, background: "#b99a55" }}><Check size={18} /> Toʻgʻri · +{Number(activeCard.reward) || pointsInput} ball</button><button type="button" onClick={() => finishCard(false)} className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold" style={{ ...fontBody, color: C.white, background: activeCard.penalty ? C.red : "#657184" }}>Notoʻgʻri · {activeCard.penalty ? `−${activeCard.penalty}` : "0"} ball</button></div>}</div></div>}
     </div></div>;
 }
+

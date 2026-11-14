@@ -1223,7 +1223,7 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
@@ -1237,9 +1237,14 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
   const [liveOpen, setLiveOpen] = useState(Boolean(initialLiveCode || initialLiveSession));
-  const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken));
+  const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken || initialTeamBattle));
   const [luckyWheelOpen, setLuckyWheelOpen] = useState(false);
   const [certificateOpen, setCertificateOpen] = useState(Boolean(initialCertificateId || new URLSearchParams(window.location.search).get('verifyCertificate')));
+  useEffect(() => {
+    if (!initialTeamBattle) return;
+    setTeamBattleOpen(true);
+    onInitialTeamBattleHandled?.();
+  }, [initialTeamBattle, onInitialTeamBattleHandled]);
   /* Jonli xona holati (xona ochgan/qo'shilgan bo'lsa) — LiveQuizHub
      shuni o'zgarganda xabar beradi, biz esa sessionStorage'ga yozamiz,
      shu tufayli refresh qilinganda xonaga qaytib kirish mumkin. */
@@ -1682,3 +1687,4 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   );
 }
 import { EditTestForm } from './DeferredTestForms.jsx';
+

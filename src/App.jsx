@@ -359,6 +359,7 @@ function parseDeepLink() {
     if (p.get('testCategory')) return { type: 'testCategory', value: p.get('testCategory') };
     if (p.get('live')) return { type: 'live', value: p.get('live').toUpperCase() };
     if (p.get('battle')) return { type: 'battle', value: p.get('battle') };
+    if (p.get('teamBattle') === '1') return { type: 'teamBattle' };
     if (p.get('u')) return { type: 'profile', value: p.get('u') };
   } catch (e) { /* URL o'qib bo'lmasa, oddiy holatda ochiladi */ }
   return null;
@@ -1764,7 +1765,7 @@ export function ShareButton({ url, title, small, onShareToFollowers }) {
   async function shareExternal() {
     setOpen(false);
     if (!url) return;
-    if (navigator.share) {
+    if (canUseNativeShare()) {
       try {
         await navigator.share({ url, title: title || 'UpCourse Uz' });
         return;
@@ -1800,12 +1801,22 @@ export function ShareButton({ url, title, small, onShareToFollowers }) {
   );
 }
 
+// Windows desktop browsers can expose Web Share while delegating to the
+// operating-system share sheet. That sheet can hang indefinitely when its
+// contacts/apps are still loading, so keep desktop sharing inside the page.
+export function canUseNativeShare() {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
+  const ua = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 /* ShareButton bilan bir xil mantiq, lekin ⋮ menyu ichidan (alohida
    ko'rinadigan tugmasiz) chaqirish uchun — masalan kartochka menyusidagi
    "Ulashish" bandi. */
 export async function shareItem(url, title, text) {
   if (!url) return;
-  if (navigator.share) {
+  if (canUseNativeShare()) {
     try {
       await navigator.share({ url, title: title || 'UpCourse Uz', ...(text ? { text } : {}) });
       return;
@@ -2877,31 +2888,48 @@ export function AddNewsForm({ onAdd, onDone }) {
   );
 }
 
-function NewsView({ news, isLoading, session, onOpenSharedResource }) {
+function NewsView({ news, isLoading, session, onOpenSharedResource, onOpenArena, onOpenBattle }) {
   const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   return (
     <div>
-      <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklar" />
+      <SectionHeading eyebrow="Resurslar · Arena · jamoa" title="Hamjamiyat" />
 
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <a href="https://t.me/upcourseuz" target="_blank" rel="noreferrer" className="rounded-xl border p-4 transition-transform hover:-translate-y-0.5" style={{ background: C.surface, borderColor: C.rule }}>
+          <Users size={19} style={{ color: C.gold }} /><strong className="mt-2 block text-sm" style={{ ...fontBody, color: C.ink }}>Hamjamiyatga qo‘shiling</strong><span className="mt-1 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Savol va takliflarni Telegram’da ulashing.</span>
+        </a>
+        <button type="button" onClick={onOpenBattle} className="rounded-xl border p-4 text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, borderColor: C.rule }}>
+          <Trophy size={19} style={{ color: C.gold }} /><strong className="mt-2 block text-sm" style={{ ...fontBody, color: C.ink }}>Jamoaviy jang</strong><span className="mt-1 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlardan savol tanlang yoki saqlangan to‘plamni o‘ynang.</span>
+        </button>
+        <button type="button" onClick={onOpenArena} className="rounded-xl border p-4 text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, borderColor: C.rule }}>
+          <Zap size={19} style={{ color: C.gold }} /><strong className="mt-2 block text-sm" style={{ ...fontBody, color: C.ink }}>Arena rejimlari</strong><span className="mt-1 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Bugungi topshiriq va bellashuvlarni oching.</span>
+        </button>
+        <button type="button" onClick={() => shareItem(`${window.location.origin}${window.location.pathname}?section=yangiliklar`, 'UpCourse Uz hamjamiyati')} className="rounded-xl border p-4 text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, borderColor: C.rule }}>
+          <Share2 size={19} style={{ color: C.gold }} /><strong className="mt-2 block text-sm" style={{ ...fontBody, color: C.ink }}>Hamjamiyatni ulashing</strong><span className="mt-1 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Do‘stlaringizga sahifa havolasini yuboring.</span>
+        </button>
+      </div>
+
+      {session?.user?.id && <Suspense fallback={<SectionLoading label="Jamoadan ulashilganlar yuklanmoqda…" compact />}><DeferredSharedResourcesPanel session={session} scope="news" onOpenResource={onOpenSharedResource} /></Suspense>}
+
+      <div className="mb-3 mt-8 flex items-end justify-between gap-3"><div><div className="text-[10px] uppercase tracking-[.16em]" style={{ ...fontMono, color: C.gold }}>Platforma e’lonlari</div><h2 className="mt-1 text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>Yangiliklar</h2></div><span className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{news.length} ta</span></div>
       {isLoading && sorted.length === 0 ? (
-        <SectionLoading label="Yangiliklar yuklanmoqda…" />
+        <SectionLoading label="Hamjamiyat yangiliklari yuklanmoqda…" />
       ) : sorted.length === 0 ? (
-        <EmptyState text="Hozircha yangilik yoʻq." />
+        <EmptyState text="Hozircha yangi e’lon yo‘q." />
       ) : (
         <div className="space-y-4 max-w-2xl">
           {sorted.map((n) => (
-            <div key={n.id} className="p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <article key={n.id} className="rounded-xl p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
               <div className="min-w-0">
-                <div className="text-xs mb-1" style={{ ...fontMono, color: C.gold }}>{formatDate(n.date)}</div>
-                <div className="font-medium text-base mb-1" style={{ ...fontBody, color: C.ink }}>{n.title}</div>
-                <p className="text-[15px] leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
+                <div className="mb-2 flex items-center gap-2 text-xs" style={{ ...fontMono, color: C.gold }}><Newspaper size={14} /> {formatDate(n.date)}</div>
+                <h2 className="mb-1 text-base font-semibold" style={{ ...fontBody, color: C.ink }}>{n.title}</h2>
+                <p className="whitespace-pre-wrap text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
-      {session?.user?.id && <Suspense fallback={<SectionLoading label="Ulashilganlar yuklanmoqda…" compact />}><DeferredSharedResourcesPanel session={session} scope="news" onOpenResource={onOpenSharedResource} /></Suspense>}
     </div>
   );
 }
@@ -2918,6 +2946,26 @@ function AboutView() {
         <p><strong>UpCourse Uz</strong> — o‘z ustida ishlash va rivojlanishni istaganlar uchun yaratilgan ochiq ta’lim platformasi. Maqsadimiz — bilimlarni sodda, tizimli va hammabop shaklda taqdim etish hamda jamiyat va ilm-fan rivojiga hissa qo‘shish.</p>
         <p>Platformadagi kurslar, testlar va yangiliklardan foydalanish uchun ro‘yxatdan o‘tish yoki profil yaratish shart emas.</p>
         <p>Platforma muntazam yangilanib boradi: unga yangi mavzular, testlar va e’lonlar qo‘shiladi.</p>
+
+        <section className="space-y-3 rounded-xl border p-4 sm:p-5" style={{ background: C.surface, borderColor: C.rule }}>
+          <h2 className="text-base font-semibold" style={{ ...fontBody, color: C.ink }}>Telefoningizga qo‘shish</h2>
+          <details className="rounded-lg border p-3" style={{ borderColor: C.rule, background: C.paper }}>
+            <summary className="cursor-pointer text-sm font-medium" style={{ ...fontBody, color: C.ink }}>iPhone va iPad (Safari)</summary>
+            <ol className="ml-5 mt-2 list-decimal space-y-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+              <li>UpCourse Uz saytini Safari’da oching.</li>
+              <li>Pastdagi yoki yuqoridagi Ulashish belgisini bosing.</li>
+              <li>“Bosh ekranga qo‘shish”ni tanlab, “Qo‘shish”ni bosing.</li>
+            </ol>
+          </details>
+          <details className="rounded-lg border p-3" style={{ borderColor: C.rule, background: C.paper }}>
+            <summary className="cursor-pointer text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Android (Chrome)</summary>
+            <ol className="ml-5 mt-2 list-decimal space-y-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+              <li>Saytni Chrome’da oching.</li>
+              <li>Uch nuqtali menyudan “Ilovani o‘rnatish” yoki “Bosh ekranga qo‘shish”ni tanlang.</li>
+              <li>Ko‘rsatmani tasdiqlang. UpCourse Uz ikonasi bosh ekranda paydo bo‘ladi.</li>
+            </ol>
+          </details>
+        </section>
         
         <p>Savol, taklif yoki hamkorlik bo‘yicha <a href="https://t.me/upcourseuz" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}><strong>UpCourse Uz jamoasi bilan bog‘laning</strong></a>.</p>
         <div className="pt-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>
@@ -3019,7 +3067,7 @@ const TABS = [
   { id: 'kurslar', label: 'Bosh sahifa', icon: Home },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
   { id: 'arena', label: 'Kunlik Arena', icon: Zap },
-  { id: 'yangiliklar', label: 'Yangiliklar', icon: Newspaper },
+  { id: 'yangiliklar', label: 'Hamjamiyat', icon: Newspaper },
   { id: 'profil', label: 'Profil', icon: UserCircle2 },
 ];
 const ABOUT_TAB = { id: 'about', label: 'Biz haqimizda', icon: Info };
@@ -3066,11 +3114,11 @@ export default function App() {
      ma'lumoti esa fonda, sekin-asta yuklanaveradi (kerak bo'lsa). */
   const [liveEntryActive, setLiveEntryActive] = useState(initialDeepLink?.type === 'live');
   const [sharedTestEntryActive, setSharedTestEntryActive] = useState(initialDeepLink?.type === 'test');
-  const skipMainLoadingGate = liveEntryActive || sharedTestEntryActive || initialDeepLink?.type === 'battle';
+  const skipMainLoadingGate = liveEntryActive || sharedTestEntryActive || initialDeepLink?.type === 'battle' || initialDeepLink?.type === 'teamBattle';
   const initialTab = (() => {
     if (initialDeepLink) {
       if (initialDeepLink.type === 'course' || initialDeepLink.type === 'courseCategory') return 'kurslar';
-      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle' || initialDeepLink.type === 'certificate') return 'testlar';
+      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle' || initialDeepLink.type === 'teamBattle' || initialDeepLink.type === 'certificate') return 'testlar';
       if (initialDeepLink.type === 'profile') return 'profil';
       return 'kurslar';
     }
@@ -3084,6 +3132,7 @@ export default function App() {
   })();
 
   const [tab, setTab] = useState(initialTab);
+  const [teamBattleRequest, setTeamBattleRequest] = useState(initialDeepLink?.type === 'teamBattle');
   const [categories, setCategories] = useState([]);
   const [courses, setCourses] = useState([]);
   const [tests, setTests] = useState([]);
@@ -4771,7 +4820,7 @@ export default function App() {
                 />
               ) : (
                 <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}>
-                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
+                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} initialTeamBattle={teamBattleRequest} onInitialTeamBattleHandled={() => setTeamBattleRequest(false)} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
                 </Suspense>
               ))}
               {!viewingUsername && tab === 'arena' && (
@@ -4847,7 +4896,7 @@ export default function App() {
                   />
                 </Suspense>
               )}
-              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} session={session} onOpenSharedResource={openSharedResource} />}
+              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} session={session} onOpenSharedResource={openSharedResource} onOpenArena={() => goTo('arena')} onOpenBattle={() => { setTeamBattleRequest(true); goTo('testlar'); }} />}
               {!viewingUsername && tab === 'about' && <AboutView />}
               </RouteErrorBoundary>
             </PaperPanel>
@@ -4944,3 +4993,4 @@ export default function App() {
     </SectionLoadingProvider>
   );
 }
+

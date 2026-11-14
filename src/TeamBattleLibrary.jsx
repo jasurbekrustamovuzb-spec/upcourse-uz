@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Loader2, Share2, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Loader2, Share2, Trash2, Users } from 'lucide-react';
 import { C, EmptyState, SectionHeading, fontBody, fontMono, buildShareUrl, shareItem } from './App';
 import { deleteTeamBattleSet, listTeamBattleSets, setTeamBattleSetShared } from './teamBattleData';
 
@@ -31,6 +31,15 @@ export default function TeamBattleLibrary({ onBack }) {
     finally { setBusyId(null); }
   }
 
+  async function toggleVisibility(item) {
+    setBusyId(item.id); setError('');
+    try {
+      const result = await setTeamBattleSetShared(item.id, !item.is_shared);
+      setItems((rows) => rows.map((row) => row.id === item.id ? { ...row, ...result, is_shared: !item.is_shared } : row));
+    } catch { setError('Maxfiylik sozlamasini saqlab boʻlmadi. Qayta urinib koʻring.'); }
+    finally { setBusyId(null); }
+  }
+
   async function remove(item) {
     if (!window.confirm(`“${item.title}” savollar toʻplami oʻchirilsinmi?`)) return;
     setBusyId(item.id); setError('');
@@ -45,6 +54,7 @@ export default function TeamBattleLibrary({ onBack }) {
     <button type="button" onClick={onBack} className="inline-flex items-center gap-1 mb-5 text-sm" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={16} /> Profil</button>
     <SectionHeading eyebrow="Jamoaviy jang" title="Savol-javob toʻplamlarim" />
     {error && <p role="alert" className="mb-3 text-sm" style={{ ...fontBody, color: C.red }}>{error}</p>}
-    {loading ? <div role="status" className="flex items-center justify-center gap-2 py-10 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={17} className="animate-spin" /> Yuklanmoqda</div> : items.length ? <div className="grid sm:grid-cols-2 gap-3">{items.map((item, index) => <article key={item.id} className="flex items-center gap-3 p-4 rounded-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}><div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ color: C.cover, background: C.goldSoft }}><Users size={19} /></div><div className="min-w-0 flex-1"><h2 className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{item.title}</h2><p className="mt-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}>{item.questions?.length || 0} ta savol{item.is_shared ? ' · Ulashilgan' : ''}</p></div><button type="button" disabled={busyId === item.id} onClick={() => share(item)} aria-label={`${item.title} toʻplamini ulashish`} title="Ulashish" className="rounded-lg p-2 disabled:opacity-50" style={{ color: C.cover, background: C.goldSoft }}>{busyId === item.id ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />}</button><button type="button" disabled={busyId === item.id} onClick={() => remove(item)} aria-label={`${item.title} toʻplamini oʻchirish`} title="Oʻchirish" className="rounded-lg p-2 disabled:opacity-50" style={{ color: C.red, background: C.dangerBannerTint }}><Trash2 size={15} /></button></article>)}</div> : <EmptyState text="Hozircha jamoaviy jang savollari yoʻq." cta="Yangi toʻplamni Jamoaviy jang bo‘limidan yarating." />}
+    {loading ? <div role="status" className="flex items-center justify-center gap-2 py-10 text-sm" style={{ ...fontBody, color: C.inkSoft }}><Loader2 size={17} className="animate-spin" /> Yuklanmoqda</div> : items.length ? <div className="grid sm:grid-cols-2 gap-3">{items.map((item) => <article key={item.id} className="flex items-center gap-3 p-4 rounded-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}><div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ color: C.cover, background: C.goldSoft }}><Users size={19} /></div><div className="min-w-0 flex-1"><h2 className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{item.title}</h2><p className="mt-1 text-xs" style={{ ...fontMono, color: C.inkSoft }}>{item.questions?.length || 0} ta savol · {item.is_shared ? 'Havolasi ochiq' : 'Maxfiy'}</p></div><button type="button" disabled={busyId === item.id} onClick={() => toggleVisibility(item)} aria-label={`${item.title} maxfiyligini o‘zgartirish`} title={item.is_shared ? 'Maxfiy qilish' : 'Havolani yoqish'} className="rounded-lg p-2 disabled:opacity-50" style={{ color: C.ink, background: C.paper }}>{item.is_shared ? <Eye size={16} /> : <EyeOff size={16} />}</button><button type="button" disabled={busyId === item.id} onClick={() => share(item)} aria-label={`${item.title} toʻplamini ulashish`} title="Ulashish" className="rounded-lg p-2 disabled:opacity-50" style={{ color: C.cover, background: C.goldSoft }}>{busyId === item.id ? <Loader2 size={16} className="animate-spin" /> : <Share2 size={16} />}</button><button type="button" disabled={busyId === item.id} onClick={() => remove(item)} aria-label={`${item.title} toʻplamini oʻchirish`} title="Oʻchirish" className="rounded-lg p-2 disabled:opacity-50" style={{ color: C.red, background: C.dangerBannerTint }}><Trash2 size={15} /></button></article>)}</div> : <EmptyState text="Hozircha jamoaviy jang savollari yoʻq." cta="Yangi toʻplamni Jamoaviy jang bo‘limidan yarating." />}
   </div>;
 }
+
