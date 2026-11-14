@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext, useMemo, lazy, Suspense } from 'react';
 import {
-  BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
+  BookOpen, ListChecks, MessageCircle, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
@@ -2922,7 +2922,7 @@ function NewsView({ news, isLoading, session, onOpenSharedResource, onOpenArena,
           {sorted.map((n) => (
             <article key={n.id} className="rounded-xl p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
               <div className="min-w-0">
-                <div className="mb-2 flex items-center gap-2 text-xs" style={{ ...fontMono, color: C.gold }}><Newspaper size={14} /> {formatDate(n.date)}</div>
+                <div className="mb-2 flex items-center gap-2 text-xs" style={{ ...fontMono, color: C.gold }}><MessageCircle size={14} /> {formatDate(n.date)}</div>
                 <h2 className="mb-1 text-base font-semibold" style={{ ...fontBody, color: C.ink }}>{n.title}</h2>
                 <p className="whitespace-pre-wrap text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
               </div>
@@ -3067,7 +3067,7 @@ const TABS = [
   { id: 'kurslar', label: 'Bosh sahifa', icon: Home },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
   { id: 'arena', label: 'Kunlik Arena', icon: Zap },
-  { id: 'yangiliklar', label: 'Hamjamiyat', icon: Newspaper },
+  { id: 'yangiliklar', label: 'Hamjamiyat', icon: MessageCircle },
   { id: 'profil', label: 'Profil', icon: UserCircle2 },
 ];
 const ABOUT_TAB = { id: 'about', label: 'Biz haqimizda', icon: Info };
@@ -4993,4 +4993,3 @@ export default function App() {
     </SectionLoadingProvider>
   );
 }
-
