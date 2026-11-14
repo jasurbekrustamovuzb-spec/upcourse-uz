@@ -1715,7 +1715,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? 'linear-gradient(118deg,#342E3D 0%,#30394A 42%,#443542 76%,#3B3038 100%)' : 'linear-gradient(118deg,#F2EAF6 0%,#E8F0F8 42%,#FAEEE5 100%)', border: `1px solid ${dark ? '#66556F' : '#DCD3E1'}`, boxShadow: dark ? '0 9px 24px rgba(0,0,0,.18)' : '0 9px 24px rgba(74,82,68,.09)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? 'linear-gradient(118deg,#223D64 0%,#2D5477 48%,#693F4A 100%)' : 'linear-gradient(118deg,#3767A5 0%,#3B79A5 48%,#B96655 100%)', border: `1px solid ${dark ? '#6683A1' : '#D78B70'}`, boxShadow: dark ? '0 9px 24px rgba(0,0,0,.18)' : '0 9px 24px rgba(74,82,68,.09)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
@@ -1725,7 +1725,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
-      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#D8C4E5' : '#725A88', background: dark ? '#463C51' : '#F7F2F8', border: `1px solid ${dark ? '#6D5D77' : '#DCD1E2'}`, outlineColor: dark ? '#B99BCB' : '#A890B5' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#2E4C72' : '#2E4C72', background: 'rgba(255,255,255,.94)', border: '1px solid rgba(255,255,255,.68)', outlineColor: '#F4C875' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
       {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
         {userId ? <>
           <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Kursni tanlang</div>
@@ -1745,20 +1745,20 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
         </>}
       </div>}
       <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
-        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: dark ? 'linear-gradient(145deg,#4B425C,#3F5368 58%,#62505A)' : 'linear-gradient(145deg,#DDD1E8,#D2DFEB 58%,#F2D9CB)' }}>
+        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: dark ? 'linear-gradient(145deg,#D9A65F,#CA735D 58%,#7788B1)' : 'linear-gradient(145deg,#F2C56E,#DD8564 58%,#8798C2)' }}>
           <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: dark ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.28)' }} />
-          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#D9D1EC' : '#526B8A' }} />
-          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: dark ? '#D6A778' : '#BF8B67' }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#263F62' : '#29466E' }} />
+          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: dark ? '#F0C36D' : '#F1BD5E' }} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#E6BE7E' : '#A36E39' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: dark ? '#B9BBB2' : '#6E7569' }}>{index + 1}/{count}</span>}</div>
-          <div className="truncate text-[11px]" style={{ ...fontBody, color: dark ? '#BBC8DB' : '#60758B' }}>{category}</div>
-          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: dark ? '#F4EEF6' : '#29384A' }}>{item.title}</div>
-          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#F3ECF5' : '#483B50', background: dark ? '#5B4A68' : '#E4D9EC', outlineColor: dark ? '#B99BCB' : '#AC94B7' }}>Mavzuni ochish <ChevronRight size={13} /></button>
+          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#FFE09A' : '#FFE29A' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: dark ? '#F5E9D7' : '#F7EBDD' }}>{index + 1}/{count}</span>}</div>
+          <div className="truncate text-[11px]" style={{ ...fontBody, color: dark ? '#E2EDF7' : '#EAF1F8' }}>{category}</div>
+          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: dark ? '#FFFFFF' : '#FFFFFF' }}>{item.title}</div>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#263F62' : '#29466E', background: dark ? '#F0BD62' : '#F2C46E', outlineColor: '#FFF0C0' }}>Mavzuni ochish <ChevronRight size={13} /></button>
         </div>
-        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#D0C8D8' : '#657187', border: `1px solid ${dark ? '#5B5265' : '#D7D1E0'}`, background: dark ? '#393443' : '#F5F7FA' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#F0EDE4' : '#2C3C3D', background: dark ? '#5B4A68' : '#E4D9EC' }}><ChevronRight size={16} /></button></div>}
+        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#2E4C72', border: '1px solid rgba(255,255,255,.68)', background: 'rgba(255,255,255,.92)' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#FFFFFF', background: dark ? '#C86B5D' : '#D9795D' }}><ChevronRight size={16} /></button></div>}
       </div>
-      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#D0B4DF' : '#9075A2') : (dark ? '#575060' : '#D1C7D8') }} />)}</div>}
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#FFE09A' : '#FFD77A') : (dark ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.55)') }} />)}</div>}
     </section>
   );
 }
