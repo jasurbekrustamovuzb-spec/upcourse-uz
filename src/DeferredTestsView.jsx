@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
 import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Dices, Eye, FileCheck2, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
 import { signInWithGoogle, supabase } from './supabaseClient.js';
-import { AuthorLine, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, writePosition } from './App.jsx';
+import { AuthorLine, BrowseHeading, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, getBrowseCardStyle, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
 const PdfQuestionImage = lazy(() => import('./PdfQuestionImage.jsx'));
 const NationalCertificate = lazy(() => import('./NationalCertificate.jsx'));
@@ -348,6 +348,12 @@ export function QuizPlayer({ test, config, onExit, onRestart, onRetry, onNextTes
     if (questionMapOpen) { setQuestionMapOpen(false); return; }
     if (playerSettingsOpen) { setPlayerSettingsOpen(false); return; }
     if (reconfigureDialog) { setReconfigureDialog(false); return; }
+    // Close a lingering math keyboard before showing the leave-test prompt.
+    if (window.mathVirtualKeyboard?.visible) {
+      try { window.mathVirtualKeyboard.hide({ animate: false }); } catch { try { window.mathVirtualKeyboard.hide(); } catch {} }
+      if (document.activeElement?.matches?.('math-field')) document.activeElement.blur();
+      return;
+    }
     // Orqaga qaytish avval ochiq yakunlash ogohlantirishini yopadi.
     if (finishDialog) { setFinishDialog(false); return; }
     setLeaveDialog(true);
@@ -1223,7 +1229,8 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
+  const { theme } = useContext(ThemeContext);
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [activeResumeState, setActiveResumeState] = useState(null);
@@ -1237,9 +1244,14 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
   const [liveOpen, setLiveOpen] = useState(Boolean(initialLiveCode || initialLiveSession));
-  const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken));
+  const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken || initialTeamBattle));
   const [luckyWheelOpen, setLuckyWheelOpen] = useState(false);
   const [certificateOpen, setCertificateOpen] = useState(Boolean(initialCertificateId || new URLSearchParams(window.location.search).get('verifyCertificate')));
+  useEffect(() => {
+    if (!initialTeamBattle) return;
+    setTeamBattleOpen(true);
+    onInitialTeamBattleHandled?.();
+  }, [initialTeamBattle, onInitialTeamBattleHandled]);
   /* Jonli xona holati (xona ochgan/qo'shilgan bo'lsa) — LiveQuizHub
      shuni o'zgarganda xabar beradi, biz esa sessionStorage'ga yozamiz,
      shu tufayli refresh qilinganda xonaga qaytib kirish mumkin. */
@@ -1469,10 +1481,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   if (!categoryId) {
     return (
       <div>
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
-          <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
-        </div>
+        <PinnedAddButton icon={ListChecks} label="Test yaratish" onClick={() => onGoToCommunity('testlar')} />
         <button
           onClick={goLive}
           className="w-full flex items-center gap-3 px-4 py-3 mb-2.5 rounded-2xl text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2"
@@ -1503,14 +1512,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: '#675382', background: '#e8e3ef' }}><FileCheck2 size={20} /></span>
           <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold" style={{ ...fontBody, color: C.ink }}>Milliy sertifikat mock testlari</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Fan bo‘yicha sinov, natija va sertifikat</span></span><ChevronRight className="transition-transform group-hover:translate-x-0.5" size={17} style={{ color: '#766589' }} />
         </button>
-        <div className="grid grid-cols-2 gap-1.5 mb-3">
-          <button
-            onClick={goTxtImport}
-            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.ink, background: 'transparent', border: `1px solid ${C.rule}`, outlineColor: C.gold }}
-          >
-            <FileText size={13} /> TXT fayldan
-          </button>
+        <div className="grid grid-cols-3 gap-1.5 mb-3">
           <button
             onClick={goMatchingTest}
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
@@ -1531,13 +1533,6 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
              style={{ ...fontBody, color: '#fff', background: 'linear-gradient(110deg,#e2545d,#e9ad35 42%,#3fa77a 72%,#438ed0)', border: '1px solid #ffffff88', outlineColor: C.gold, fontWeight: 700, boxShadow: '0 6px 16px #5483a533' }}
           >
              <Dices size={16} /> Omad charxpalagi
-          </button>
-          <button
-            onClick={goMathTest}
-            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.white, background: C.math, outlineColor: C.mathSoft, fontWeight: 500 }}
-          >
-            <Calculator size={13} /> Matematik test
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
@@ -1562,8 +1557,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                       return (
                         <div
                           key={cat.id}
-                          className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                          style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+                          className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+                          style={getBrowseCardStyle(theme, 'area')}
                           onClick={() => goCategory(cat.id)}
                         >
                           <div className="min-w-0">
@@ -1583,7 +1578,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                   <div className="text-xs uppercase tracking-wide mb-2" style={{ ...fontMono, color: C.inkSoft }}>Testlar</div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {matchedTests.map((t) => (
-                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+                      <div key={t.id} className="min-w-0 flex items-start justify-between gap-2 p-4 rounded-3xl" style={getBrowseCardStyle(theme, 'test')}>
                         <div className="min-w-0">
                           <div className="text-xs uppercase tracking-wide mb-0.5 truncate" style={{ ...fontMono, color: C.gold }}>
                             {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
@@ -1606,6 +1601,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             </div>
           )
         ) : (
+          <>
+          <BrowseHeading icon={ListChecks} kind="test" eyebrow={`${approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id)).length} ta soha`} title="Testlar" />
           <CategoryGrid
             categories={approvedCategories.filter((cat) => approved.some((t) => t.categoryId === cat.id))}
             itemsByCategory={approved.reduce((acc, t) => { acc[t.categoryId] = (acc[t.categoryId] || 0) + 1; return acc; }, {})}
@@ -1618,6 +1615,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             userId={session?.user?.id}
             shareParam="testCategory"
           />
+          </>
         )}
       </div>
     );
@@ -1646,9 +1644,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
       ) : (
         <div className="grid sm:grid-cols-2 gap-4">
           {inCategory.map((t, i) => (
-            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-3xl transition-all hover:-translate-y-0.5 hover:shadow-md" style={getBrowseCardStyle(theme, 'test')}>
               <div className="flex items-start min-w-0">
-                <EntryNumber n={i + 1} />
+                <EntryNumber icon={ListChecks} kind="test" />
                 <div className="min-w-0">
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}

@@ -1,7 +1,10 @@
 import { useState, useContext } from 'react';
-import { ArrowLeft, Award, CheckCircle2, ChevronRight, Clock3, Lock, Pencil, Plus, Share2, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, CheckCircle2, ChevronRight, Clock3, ListChecks, Lock, Pencil, Plus, Share2, Trash2, Users } from 'lucide-react';
 import { AddCourseForm, AuthorLine, C, EditCourseForm, EmptyState, EntryNumber, GhostButton, ItemMenu, NavContext, PreviousItemsDisclosure, RenameCategoryModal, SectionHeading, SectionLoading, buildShareUrl, fontBody, fontDisplay, fontMono, shareItem } from './App.jsx';
 import { QuizView } from './DeferredTestsView.jsx';
+function BackButton({ onClick, children }) {
+  return <button type="button" onClick={onClick} className="mb-3 inline-flex items-center gap-2 rounded-full px-2 py-1.5 pr-3 text-sm transition hover:-translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, background: C.surface, border: `1px solid ${C.rule}`, outlineColor: C.gold }}><span className="grid h-7 w-7 place-items-center rounded-full" style={{ color: '#536FE0', background: '#EEF1FF' }}><ArrowLeft size={15} /></span>{children}</button>;
+}
 export function CommunityCoursesView({ courses, categories, openId, setOpenId, onBack, submitCourse, approveCourse, deleteCourse, updateCourse, renameCategory, ownerId, formOpen, onOpenForm, onCloseForm, prefillCategory, mode = 'admin', ensureCourseContent, onShareToFollowers }) {
   const [categoryId, setCategoryId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -28,13 +31,14 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
         return (
           <div key={cat.id} className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }} onClick={() => goCategory(cat.id)}>
             <div className="flex items-start min-w-0">
-              <EntryNumber n={i + 1} />
+              <EntryNumber icon={BookOpen} />
               <div className="min-w-0">
                 <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                 <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div>
               </div>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0" onClick={(event) => event.stopPropagation()}>
+              {isMine && <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={() => shareItem(buildShareUrl({ courseCategory: cat.id }), cat.name)} className="inline-flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-indigo-50" style={{ color: '#536FE0', background: '#EEF1FF' }}><Share2 size={15} /></button>}
               {isMine && cat.authorId === ownerId && renameCategory && <ItemMenu actions={[{ label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) }]} />}
               <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
             </div>
@@ -108,14 +112,8 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
   if (!categoryId) {
     return (
       <div>
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> {backLabel}
-        </button>
-        <SectionHeading eyebrow={countLabel} title={heading} />
+        <BackButton onClick={back}>{backLabel}</BackButton>
+        {formOpen && isMine ? <div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{courses.length} ta mavzu</span><span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ ...fontBody, color: '#536FE0', background: '#EEF1FF' }}>Yangi mavzu</span></div> : <SectionHeading eyebrow={countLabel} title={heading} />}
         {formOpen ? (
           <>
             <AddCourseForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitCourse} onDone={back} onView={goOpen} />
@@ -148,7 +146,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
       {inCategory.map((c, i) => (
         <div key={c.id} className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }} onClick={() => goOpen(c.id)}>
           <div className="flex items-start min-w-0">
-            <EntryNumber n={i + 1} />
+            <EntryNumber icon={BookOpen} />
             <div className="min-w-0">
               <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
               {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
@@ -157,6 +155,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
             </div>
           </div>
           <div className="flex items-center flex-shrink-0 gap-1" onClick={(event) => event.stopPropagation()}>
+            {isMine && <button type="button" aria-label={`${c.title} mavzusini ulashish`} title="Mavzuni ulashish" onClick={() => shareItem(buildShareUrl({ course: c.id }), c.title)} className="inline-flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#536FE0', background: '#EEF1FF' }}><Share2 size={15} /></button>}
             <ItemMenu actions={[
               { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ course: c.id }), c.title) },
               ...(isMine && onShareToFollowers ? [{ label: 'Kuzatuvchilarga yuborish', icon: Users, onClick: () => onShareToFollowers('course', c) }] : []),
@@ -172,13 +171,7 @@ export function CommunityCoursesView({ courses, categories, openId, setOpenId, o
 
   return (
     <div>
-      <button
-        onClick={back}
-        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-      >
-        <ArrowLeft size={15} /> {heading} — barcha sohalar
-      </button>
+      <BackButton onClick={back}>{heading} — barcha sohalar</BackButton>
       <SectionHeading eyebrow={`${inCategory.length} ta`} title={activeCategory ? activeCategory.name : 'Kurslar'} />
       {formOpen ? (
         <>
@@ -220,8 +213,8 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
       {categoriesWithPending.map((cat, i) => {
         const count = tests.filter((t) => t.categoryId === cat.id).length;
         return <div key={cat.id} className="min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }} onClick={() => goCategory(cat.id)}>
-          <div className="flex items-start min-w-0"><EntryNumber n={i + 1} /><div className="min-w-0"><div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div><div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div></div></div>
-          <div className="flex items-center gap-1 flex-shrink-0">{isMine && cat.authorId === ownerId && renameCategory && <ItemMenu actions={[{ label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) }]} />}<ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} /></div>
+          <div className="flex items-start min-w-0"><EntryNumber icon={ListChecks} /><div className="min-w-0"><div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div><div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta</div></div></div>
+          <div className="flex items-center gap-1 flex-shrink-0" onClick={(event) => event.stopPropagation()}>{isMine && <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={() => shareItem(buildShareUrl({ testCategory: cat.id }), cat.name)} className="inline-flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#536FE0', background: '#EEF1FF' }}><Share2 size={15} /></button>}{isMine && cat.authorId === ownerId && renameCategory && <ItemMenu actions={[{ label: 'Nomini oʻzgartirish', icon: Pencil, onClick: () => setRenaming(cat) }]} />}<ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} /></div>
         </div>;
       })}
     </div>
@@ -230,20 +223,20 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
     <div className="grid sm:grid-cols-2 gap-4">
       {inCategory.map((t, i) => (
         <div key={t.id} className="min-w-0 flex items-start justify-between p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-          <div className="flex items-start min-w-0"><EntryNumber n={i + 1} /><div className="min-w-0">
+          <div className="flex items-start min-w-0"><EntryNumber icon={ListChecks} /><div className="min-w-0">
             <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
             {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
             <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
             <AuthorLine authorId={t.authorId} authorName={t.author} className="text-xs mt-1.5" />
             {isMine && <div className="text-xs mt-1.5 inline-flex items-center gap-1" style={{ ...fontMono, color: t.status === 'pending' ? C.gold : t.status === 'private' ? C.inkSoft : C.accent }}>{t.status === 'pending' ? <><Clock3 size={12} /> Tekshirilmoqda</> : t.status === 'private' ? <><Lock size={12} /> Maxfiy</> : <><CheckCircle2 size={12} /> Tasdiqlangan</>}</div>}
           </div></div>
-          <div className="flex flex-col items-end gap-2 flex-shrink-0"><ItemMenu actions={[
+          <div className="flex flex-col items-end gap-2 flex-shrink-0"><div className="flex items-center gap-1"><ItemMenu actions={[
             { label: 'Ulashish', icon: Share2, onClick: () => shareItem(buildShareUrl({ test: t.id }), t.title) },
             ...(isMine && onShareToFollowers ? [{ label: 'Kuzatuvchilarga yuborish', icon: Users, onClick: () => onShareToFollowers('test', t) }] : []),
             ...(updateTest ? [{ label: 'Tahrirlash', icon: Pencil, onClick: () => goEdit(t.id) }] : []),
             ...(approveTest && t.status === 'pending' ? [{ label: 'Tasdiqlash', icon: CheckCircle2, onClick: () => approveTest(t.id, t.title) }] : []),
             ...(!isMine || t.status === 'pending' || t.status === 'private' ? [{ label: 'Oʻchirish', icon: Trash2, danger: true, onClick: () => deleteTest(t.id, t.title) }] : []),
-          ]} /><button onClick={() => goOpen(t.id)} className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm" style={{ ...fontBody, color: C.white, background: C.cover }}><Award size={13} /> Boshlash</button></div>
+          ]} />{isMine && <button type="button" aria-label={`${t.title} testini ulashish`} title="Testni ulashish" onClick={() => shareItem(buildShareUrl({ test: t.id }), t.title)} className="inline-flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#536FE0', background: '#EEF1FF' }}><Share2 size={15} /></button>}</div><button onClick={() => goOpen(t.id)} className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-sm" style={{ ...fontBody, color: C.white, background: C.cover }}><Award size={13} /> Boshlash</button></div>
         </div>
       ))}
     </div>
@@ -281,14 +274,8 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
   if (!categoryId) {
     return (
       <div>
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-          style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-        >
-          <ArrowLeft size={15} /> {backLabel}
-        </button>
-        <SectionHeading eyebrow={countLabel} title={heading} />
+        <BackButton onClick={back}>{backLabel}</BackButton>
+        {formOpen && isMine ? <div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{tests.length} ta test</span><span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ ...fontBody, color: '#536FE0', background: '#EEF1FF' }}>Yangi test</span></div> : <SectionHeading eyebrow={countLabel} title={heading} />}
         {formOpen ? <>
           <AddTestForm categories={categories} initialCategoryName={prefillCategory} onSubmit={submitTest} onDone={back} onView={goOpen} formMode={formMode} />
           {categoriesWithPending.length > 0 && <PreviousItemsDisclosure label={isMine ? 'Avval yaratgan testlarim' : 'Oldingi testlar'} count={tests.length}>{categoryContent}</PreviousItemsDisclosure>}
@@ -316,13 +303,7 @@ export function CommunityTestsView({ tests, categories, openId, setOpenId, onBac
 
   return (
     <div>
-      <button
-        onClick={back}
-        className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}
-      >
-        <ArrowLeft size={15} /> {heading} — barcha sohalar
-      </button>
+      <BackButton onClick={back}>{heading} — barcha sohalar</BackButton>
       <SectionHeading eyebrow={`${inCategory.length} ta`} title={activeCategory ? activeCategory.name : 'Testlar'} />
       {formOpen ? (
         <>

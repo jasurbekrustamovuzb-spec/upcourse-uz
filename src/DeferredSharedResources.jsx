@@ -160,7 +160,7 @@ export function SharedResourcesPanel({ session, scope = 'profile', onOpenResourc
 
   const title = scope === 'news' ? 'Do‘stlardan ulashilgan' : 'Do‘stlar ulashganlari';
   return (
-    <section className={scope === 'news' ? 'mt-8' : ''}>
+    <section id={scope === 'news' ? 'community-shared-resources' : undefined} className={scope === 'news' ? 'mt-8 scroll-mt-6' : ''}>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="min-w-0">
           {scope !== 'news' && onBack && <button type="button" onClick={onBack} className="mb-3 inline-flex items-center gap-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Profil</button>}
@@ -213,3 +213,4 @@ export function SharedResourcesPanel({ session, scope = 'profile', onOpenResourc
     </section>
   );
 }
+

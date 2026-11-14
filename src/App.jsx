@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext, useMemo, lazy, Suspense } from 'react';
 import {
-  BookOpen, ListChecks, Newspaper, Info, Plus, X, Check,
+  BookOpen, ListChecks, MessageCircle, Info, Plus, X, Check,
   ChevronRight, ArrowLeft, Trash2, Award, Loader2,
   Paperclip, RotateCcw, MoreVertical, Pencil, CheckCircle2, Users, Search,
   Sun, Moon, LogIn, LogOut, UserCircle2, ShieldCheck, Lock, Clock3, Home, Settings, Share2,
@@ -359,6 +359,7 @@ function parseDeepLink() {
     if (p.get('testCategory')) return { type: 'testCategory', value: p.get('testCategory') };
     if (p.get('live')) return { type: 'live', value: p.get('live').toUpperCase() };
     if (p.get('battle')) return { type: 'battle', value: p.get('battle') };
+    if (p.get('teamBattle') === '1') return { type: 'teamBattle' };
     if (p.get('u')) return { type: 'profile', value: p.get('u') };
   } catch (e) { /* URL o'qib bo'lmasa, oddiy holatda ochiladi */ }
   return null;
@@ -1234,15 +1235,29 @@ export function LinkedUsernameText({ text, className, style }) {
 /*  Small shared UI bits                                              */
 /* ------------------------------------------------------------------ */
 
-export function EntryNumber({ n }) {
-  return (
-    <span
-      className="inline-block flex-shrink-0 text-xs px-2 py-1 mr-3 rounded-sm"
-      style={{ ...fontMono, color: C.gold, background: 'rgba(184,134,59,0.12)', border: `1px solid ${C.coverLine}` }}
-    >
-      №{String(n).padStart(2, '0')}
-    </span>
-  );
+export function getBrowseTone(kind = 'area', theme = 'light') {
+  const tones = {
+    area: { light: { color: '#926C31', soft: '#F1E8D4', line: '#E1D2B1' }, dark: { color: '#C9ADC9', soft: '#403542', line: '#615163' } },
+    course: { light: { color: '#4C7290', soft: '#E6EEF5', line: '#C9D9E7' }, dark: { color: '#A9C5DE', soft: '#303A48', line: '#526278' } },
+    test: { light: { color: '#9A668B', soft: '#F0E7F0', line: '#DCCBDD' }, dark: { color: '#D2A8C9', soft: '#473747', line: '#68526A' } },
+  };
+  return tones[tones[kind] ? kind : 'area'][theme === 'dark' ? 'dark' : 'light'];
+}
+export function getBrowseCardStyle(theme = 'light', kind = 'area') {
+  const backgrounds = {
+    area: ['linear-gradient(145deg,#F5EFE5,#F4EDF2)', 'linear-gradient(145deg,#322D36,#3A323D)'],
+    course: ['linear-gradient(145deg,#EFF4F8,#E8EFF5)', 'linear-gradient(145deg,#2C3541,#333E4C)'],
+    test: ['radial-gradient(ellipse at 0% 0%,rgba(141,112,158,.13),transparent 58%),linear-gradient(145deg,#F2EBF5,#F5EEE8 68%,#EEF0F2)', 'radial-gradient(ellipse at 0% 0%,rgba(173,139,192,.16),transparent 58%),linear-gradient(145deg,#382E3D,#34313F 68%,#2E3541)'],
+  };
+  const dark = theme === 'dark';
+  const palette = backgrounds[kind] || backgrounds.area;
+  return { background: palette[dark ? 1 : 0], border: `1px solid ${kind === 'test' ? (dark ? '#68576E' : '#DED1E4') : dark ? (kind === 'course' ? '#536177' : '#5B505F') : '#DCD6D7'}`, borderRadius: kind === 'test' ? '27px 20px 27px 20px' : '28px', boxShadow: kind === 'test' ? (dark ? 'inset 3px 0 0 rgba(183,151,199,.65),0 8px 20px rgba(0,0,0,.20)' : 'inset 3px 0 0 rgba(151,116,170,.52),0 8px 20px rgba(90,70,99,.10)') : dark ? '0 6px 16px rgba(0,0,0,.14)' : '0 5px 16px rgba(74,82,68,.07)' };
+}
+export function EntryNumber({ icon: Icon = Tag, kind }) {
+  const { theme } = useContext(ThemeContext);
+  const resolvedKind = kind || (Icon === BookOpen ? 'course' : Icon === ListChecks ? 'test' : 'area');
+  const tone = getBrowseTone(resolvedKind, theme);
+  return <span aria-hidden="true" className="mr-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ color: tone.color, background: tone.soft, border: `1px solid ${tone.line}` }}><Icon size={19} strokeWidth={1.9} /></span>;
 }
 
 export function InfoHint({ text }) {
@@ -1635,9 +1650,11 @@ class RouteErrorBoundary extends React.Component {
 }
 
 export function SearchBox({ value, onChange, placeholder, className = '' }) {
+  const { theme } = useContext(ThemeContext);
+  const dark = theme === 'dark';
   return (
     <div className={`relative mb-5 min-w-0 ${className}`}>
-      <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3.5" style={{ color: C.inkSoft }} />
+      <Search size={28} className="absolute top-1/2 -translate-y-1/2 left-2.5 rounded-full p-1.5" style={{ color: dark ? '#C7B5D8' : '#725A88', background: dark ? '#3B3443' : '#EEE7F3' }} />
       <input
         id="upcourse-search"
         name="search"
@@ -1646,8 +1663,8 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-11 pr-4 py-3 rounded-sm text-base outline-none focus-visible:outline focus-visible:outline-2"
-        style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}`, outlineColor: C.gold }}
+        className="w-full pl-12 pr-4 py-3 rounded-2xl text-base outline-none transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        style={{ ...fontBody, color: C.ink, background: dark ? '#292630' : '#FBF8FD', border: `1px solid ${dark ? '#65556F' : '#D9CEE0'}`, boxShadow: dark ? '0 5px 16px rgba(0,0,0,.18)' : '0 5px 16px rgba(99,75,112,.08)', outlineColor: dark ? '#A88CB9' : '#AC93BB' }}
       />
       {value && (
         <button
@@ -1664,6 +1681,8 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
 }
 
 function CourseRecommendationCarousel({ items, categories, onOpen, session, onRequireAccount }) {
+  const { theme } = useContext(ThemeContext);
+  const dark = theme === 'dark';
   const [index, setIndex] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [preferredId, setPreferredId] = useState(null);
@@ -1696,7 +1715,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 rounded-lg" style={{ background: `linear-gradient(112deg, ${C.coverDeep}, #284F61 68%, #376B70)`, border: `1px solid ${C.coverLine}`, boxShadow: '0 5px 18px rgba(24,45,36,.12)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? 'linear-gradient(118deg,#223D64 0%,#2D5477 48%,#693F4A 100%)' : 'linear-gradient(118deg,#3767A5 0%,#3B79A5 48%,#B96655 100%)', border: `1px solid ${dark ? '#6683A1' : '#D78B70'}`, boxShadow: dark ? '0 9px 24px rgba(0,0,0,.18)' : '0 9px 24px rgba(74,82,68,.09)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
@@ -1706,7 +1725,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
-      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: C.white, background: 'rgba(255,255,255,.13)', border: '1px solid rgba(255,255,255,.24)', outlineColor: C.goldSoft }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#2E4C72' : '#2E4C72', background: 'rgba(255,255,255,.94)', border: '1px solid rgba(255,255,255,.68)', outlineColor: '#F4C875' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
       {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
         {userId ? <>
           <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Kursni tanlang</div>
@@ -1726,20 +1745,20 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
         </>}
       </div>}
       <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
-        <div className="relative flex w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-md sm:w-[100px]" aria-hidden="true" style={{ background: 'linear-gradient(145deg, #D8B66C, #A77B38)' }}>
-          <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: 'rgba(255,255,255,.18)' }} />
-          <BookOpen size={34} strokeWidth={1.8} style={{ color: C.coverDeep }} />
-          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: 'rgba(31,61,43,.4)' }} />
+        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: dark ? 'linear-gradient(145deg,#D9A65F,#CA735D 58%,#7788B1)' : 'linear-gradient(145deg,#F2C56E,#DD8564 58%,#8798C2)' }}>
+          <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: dark ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.28)' }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#263F62' : '#29466E' }} />
+          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: dark ? '#F0C36D' : '#F1BD5E' }} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] uppercase tracking-[.17em]" style={{ ...fontMono, color: C.goldSoft }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: 'rgba(255,255,255,.65)' }}>{index + 1}/{count}</span>}</div>
-          <div className="truncate text-[11px]" style={{ ...fontBody, color: 'rgba(255,255,255,.7)' }}>{category}</div>
-          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: C.white }}>{item.title}</div>
-          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-medium transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.coverDeep, background: C.goldSoft, outlineColor: C.white }}>Mavzuni ochish <ChevronRight size={13} /></button>
+          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#FFE09A' : '#FFE29A' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: dark ? '#F5E9D7' : '#F7EBDD' }}>{index + 1}/{count}</span>}</div>
+          <div className="truncate text-[11px]" style={{ ...fontBody, color: dark ? '#E2EDF7' : '#EAF1F8' }}>{category}</div>
+          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: dark ? '#FFFFFF' : '#FFFFFF' }}>{item.title}</div>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#263F62' : '#29466E', background: dark ? '#F0BD62' : '#F2C46E', outlineColor: '#FFF0C0' }}>Mavzuni ochish <ChevronRight size={13} /></button>
         </div>
-        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.white, border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.08)' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: C.coverDeep, background: C.goldSoft }}><ChevronRight size={16} /></button></div>}
+        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#2E4C72', border: '1px solid rgba(255,255,255,.68)', background: 'rgba(255,255,255,.92)' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#FFFFFF', background: dark ? '#C86B5D' : '#D9795D' }}><ChevronRight size={16} /></button></div>}
       </div>
-      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? C.goldSoft : 'rgba(255,255,255,.32)' }} />)}</div>}
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#FFE09A' : '#FFD77A') : (dark ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.55)') }} />)}</div>}
     </section>
   );
 }
@@ -1753,6 +1772,15 @@ export function SectionHeading({ eyebrow, title }) {
   );
 }
 
+export function BrowseHeading({ eyebrow, title, icon: Icon = BookOpen, kind = 'course' }) {
+  const { theme } = useContext(ThemeContext);
+  const tone = getBrowseTone(kind, theme);
+  return <div className="mb-3 flex min-w-0 items-center gap-3" aria-label={`${eyebrow} · ${title}`}>
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl" style={{ color: tone.color, background: tone.soft, border: `1px solid ${tone.line}` }}><Icon size={17} /></span>
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"><span className="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ ...fontMono, color: tone.color, background: tone.soft, border: `1px solid ${tone.line}` }}>{eyebrow}</span><h2 className="text-lg font-semibold leading-none" style={{ ...fontBody, color: C.ink }}>{title}</h2></div>
+  </div>;
+}
+
 /* Kurs/test/profil/jonli xona uchun universal "Ulashish" tugmasi.
    Qurilmada Web Share qo'llab-quvvatlansa (mobil brauzerlarning
    aksariyati) — tizim ulashish oynasini ochadi (Telegram, WhatsApp va h.k.
@@ -1764,7 +1792,7 @@ export function ShareButton({ url, title, small, onShareToFollowers }) {
   async function shareExternal() {
     setOpen(false);
     if (!url) return;
-    if (navigator.share) {
+    if (canUseNativeShare()) {
       try {
         await navigator.share({ url, title: title || 'UpCourse Uz' });
         return;
@@ -1800,12 +1828,22 @@ export function ShareButton({ url, title, small, onShareToFollowers }) {
   );
 }
 
+// Windows desktop browsers can expose Web Share while delegating to the
+// operating-system share sheet. That sheet can hang indefinitely when its
+// contacts/apps are still loading, so keep desktop sharing inside the page.
+export function canUseNativeShare() {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
+  const ua = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 /* ShareButton bilan bir xil mantiq, lekin ⋮ menyu ichidan (alohida
    ko'rinadigan tugmasiz) chaqirish uchun — masalan kartochka menyusidagi
    "Ulashish" bandi. */
 export async function shareItem(url, title, text) {
   if (!url) return;
-  if (navigator.share) {
+  if (canUseNativeShare()) {
     try {
       await navigator.share({ url, title: title || 'UpCourse Uz', ...(text ? { text } : {}) });
       return;
@@ -1941,6 +1979,7 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
 }
 
 export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId, shareParam }) {
+  const { theme } = useContext(ThemeContext);
   const [renaming, setRenaming] = useState(null);
 
   return (
@@ -1954,18 +1993,18 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
             return (
               <div
                 key={cat.id}
-                className="relative min-w-0 group flex items-start justify-between gap-2 p-3 sm:p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-                style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+                className="relative min-w-0 group flex items-start justify-between gap-2 p-3.5 sm:p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+                style={getBrowseCardStyle(theme, 'area')}
                 onClick={() => onSelect(cat.id)}
               >
                 <div className="flex items-start min-w-0">
-                  <EntryNumber n={i + 1} />
+                  <EntryNumber icon={itemLabel === 'mavzu' ? BookOpen : ListChecks} kind="area" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                       {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
                     </div>
-                    <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta {itemLabel}</div>
+                    <div className="mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium" style={{ ...fontBody, color: '#64749A', background: '#F0F4FC' }}>{count} ta {itemLabel}</div>
                     <AuthorLine authorId={cat.authorId} authorName={cat.author} className={shareParam ? "text-xs mt-1 pr-8" : "text-xs mt-1"} />
                   </div>
                 </div>
@@ -2058,7 +2097,7 @@ export function AddCourseForm({ categories, lockedCategoryId, initialCategoryNam
   );
 }
 
-export function VisibilityToggle({ value, onChange }) {
+export function VisibilityToggle({ value, onChange, accent = C.cover, accentSoft = C.surface }) {
   return (
     <div className="mb-3">
       <div className="text-xs mb-1.5 uppercase tracking-wide" style={{ ...fontMono, color: C.inkSoft }}>Koʻrinishi</div>
@@ -2066,12 +2105,12 @@ export function VisibilityToggle({ value, onChange }) {
         <button
           type="button"
           onClick={() => onChange('private')}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          className="flex-1 flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
           style={{
             ...fontBody,
             color: value === 'private' ? C.white : C.ink,
-            background: value === 'private' ? C.cover : C.surface,
-            border: `1px solid ${value === 'private' ? C.cover : C.rule}`,
+            background: value === 'private' ? accent : accentSoft,
+            border: `1px solid ${value === 'private' ? accent : C.rule}`,
             outlineColor: C.gold,
             fontWeight: value === 'private' ? 600 : 400,
           }}
@@ -2081,12 +2120,12 @@ export function VisibilityToggle({ value, onChange }) {
         <button
           type="button"
           onClick={() => onChange('public')}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-sm text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
+          className="flex-1 flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-[14px] transition-colors focus-visible:outline focus-visible:outline-2"
           style={{
             ...fontBody,
             color: value === 'public' ? C.white : C.ink,
-            background: value === 'public' ? C.cover : C.surface,
-            border: `1px solid ${value === 'public' ? C.cover : C.rule}`,
+            background: value === 'public' ? accent : accentSoft,
+            border: `1px solid ${value === 'public' ? accent : C.rule}`,
             outlineColor: C.gold,
             fontWeight: value === 'public' ? 600 : 400,
           }}
@@ -2128,10 +2167,13 @@ export function EditCourseForm({ course, onSave, onDone }) {
 }
 
 export function PinnedAddButton({ icon: Icon, label, onClick }) {
+  const { theme } = useContext(ThemeContext);
+  const kind = Icon === BookOpen ? 'course' : 'test';
+  const tone = getBrowseTone(kind, theme);
   return (
     <div className="pointer-events-none fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-5">
-      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-10 items-center gap-2 rounded-full px-3.5 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.white, background: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.goldSoft, boxShadow: '0 5px 16px rgba(20,42,27,.24)' }}>
-        <span className="relative inline-flex"><Icon size={16} /><Plus size={9} className="absolute -bottom-1 -right-1 rounded-full" style={{ background: C.cover, color: C.goldSoft }} /></span>
+      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-11 items-center gap-2.5 rounded-full border border-white/80 px-4 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: theme === 'dark' ? '#F0EEE7' : '#283B3E', background: theme === 'dark' ? (kind === 'course' ? '#3B4655' : '#47394B') : tone.soft, borderColor: tone.line, outlineColor: tone.color, boxShadow: theme === 'dark' ? '0 6px 16px rgba(0,0,0,.22)' : '0 6px 16px rgba(74,82,68,.12)' }}>
+        <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-full" style={{ background: theme === 'dark' ? '#56475D' : '#F9F8FC', color: tone.color }}><Icon size={15} /><Plus size={9} className="absolute -right-0.5 -top-0.5 rounded-full" style={{ background: theme === 'dark' ? '#342B3A' : '#F9F8FC', color: tone.color }} /></span>
         {label}
       </button>
     </div>
@@ -2139,6 +2181,7 @@ export function PinnedAddButton({ icon: Icon, label, onClick }) {
 }
 
 function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCategory, deleteCategory, onGoToCommunity, onOpenTasks, onOpenTest, onReadingChange, isAdmin, session, onRequireAccount, initialOpenId, initialCategoryId, ensureCourseContent, isLoading, learningTaskComplete, pausedTests, onResumePausedTest, onPausedTestVisibilityChange, onShareToFollowers }) {
+  const { theme } = useContext(ThemeContext);
   const [categoryId, setCategoryId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [editId, setEditId] = useState(null);
@@ -2308,7 +2351,6 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
   if (!categoryId) {
     return (
       <div>
-        <SectionHeading eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
         <PinnedAddButton icon={BookOpen} label="Mavzu qoʻshish" onClick={() => onGoToCommunity('kurslar')} />
         {!!pausedTests?.length && <Suspense fallback={null}><PausedTestsPanel attempts={pausedTests} onResume={onResumePausedTest} onVisibilityChange={onPausedTestVisibilityChange} /></Suspense>}
         {!isSearching && <CourseRecommendationCarousel items={recommendationItems} categories={categories} onOpen={goCourse} session={session} onRequireAccount={onRequireAccount} />}
@@ -2319,8 +2361,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             onClick={onOpenTasks}
             aria-label={`Topshiriqlar va sovg‘a. ${learningTaskComplete ? '1/1 bajarildi' : '0/1 bajarildi'}`}
             title="Topshiriqlar va sovg‘a"
-            className="relative flex h-[50px] w-[54px] flex-shrink-0 items-center justify-center rounded-sm focus-visible:outline focus-visible:outline-2"
-            style={{ background: C.goldSoft, color: C.cover, border: `1px solid ${C.gold}`, outlineColor: C.cover, boxShadow: '0 2px 7px rgba(31,61,43,.12)' }}
+            className="relative flex h-[50px] w-[54px] flex-shrink-0 items-center justify-center rounded-2xl focus-visible:outline focus-visible:outline-2"
+            style={{ background: 'linear-gradient(145deg,#FFF3D5,#FFE5EE)', color: '#BE7850', border: '1px solid #F0D8CA', outlineColor: '#E6B7A5', boxShadow: '0 5px 13px rgba(174,121,101,.12)' }}
           >
             <ListChecks size={23} strokeWidth={2.2} />
             <span className="absolute -right-1 -top-1 flex h-[19px] min-w-[19px] items-center justify-center rounded-full px-1 text-[8px] font-bold" style={{ ...fontMono, background: C.cover, color: C.goldSoft, border: `1px solid ${C.surface}` }}>{learningTaskComplete ? '1/1' : '0/1'}</span>
@@ -2394,6 +2436,8 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             </div>
           )
         ) : (
+          <>
+          <BrowseHeading icon={BookOpen} kind="course" eyebrow={`${approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id)).length} ta soha`} title="Kurslar" />
           <CategoryGrid
             categories={approvedCategories.filter((cat) => approved.some((c) => c.categoryId === cat.id))}
             itemsByCategory={approved.reduce((acc, c) => { acc[c.categoryId] = (acc[c.categoryId] || 0) + 1; return acc; }, {})}
@@ -2407,6 +2451,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             featuredCategoryId={null}
             shareParam="courseCategory"
           />
+          </>
         )}
       </div>
     );
@@ -2430,12 +2475,12 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
           {inCategory.map((c, i) => (
             <div
               key={c.id}
-              className="min-w-0 group flex items-start justify-between p-4 rounded-sm cursor-pointer transition-transform hover:-translate-y-0.5"
-              style={{ background: C.surface, border: `1px solid ${C.rule}` }}
+              className="min-w-0 group flex items-start justify-between p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+              style={getBrowseCardStyle(theme, 'course')}
               onClick={() => goCourse(c.id)}
             >
               <div className="flex items-start min-w-0">
-                <EntryNumber n={i + 1} />
+                <EntryNumber icon={BookOpen} kind="course" />
                 <div className="min-w-0">
                   <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{c.title}</div>
                   {c.summary && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{c.summary}</div>}
@@ -2877,31 +2922,48 @@ export function AddNewsForm({ onAdd, onDone }) {
   );
 }
 
-function NewsView({ news, isLoading, session, onOpenSharedResource }) {
+function NewsView({ news, isLoading, session, onOpenSharedResource, onOpenArena, onOpenBattle }) {
   const sorted = [...news].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   return (
     <div>
-      <SectionHeading eyebrow={`${news.length} ta yangilik`} title="Yangiliklar" />
+      <SectionHeading eyebrow="Resurslar · Arena · jamoa" title="Hamjamiyat" />
 
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <a href="https://t.me/upcourseuz" target="_blank" rel="noreferrer" className="rounded-xl border p-4 transition-transform hover:-translate-y-0.5" style={{ background: C.surface, borderColor: C.rule }}>
+          <Users size={19} style={{ color: C.gold }} /><strong className="mt-2 block text-sm" style={{ ...fontBody, color: C.ink }}>Hamjamiyatga qo‘shiling</strong><span className="mt-1 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Savol va takliflarni Telegram’da ulashing.</span>
+        </a>
+        <button type="button" onClick={onOpenBattle} className="rounded-xl border p-4 text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, borderColor: C.rule }}>
+          <Trophy size={19} style={{ color: C.gold }} /><strong className="mt-2 block text-sm" style={{ ...fontBody, color: C.ink }}>Jamoaviy jang</strong><span className="mt-1 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Testlardan savol tanlang yoki saqlangan to‘plamni o‘ynang.</span>
+        </button>
+        <button type="button" onClick={onOpenArena} className="rounded-xl border p-4 text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, borderColor: C.rule }}>
+          <Zap size={19} style={{ color: C.gold }} /><strong className="mt-2 block text-sm" style={{ ...fontBody, color: C.ink }}>Arena rejimlari</strong><span className="mt-1 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Bugungi topshiriq va bellashuvlarni oching.</span>
+        </button>
+        <button type="button" onClick={() => shareItem(`${window.location.origin}${window.location.pathname}?section=yangiliklar`, 'UpCourse Uz hamjamiyati')} className="rounded-xl border p-4 text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, borderColor: C.rule }}>
+          <Share2 size={19} style={{ color: C.gold }} /><strong className="mt-2 block text-sm" style={{ ...fontBody, color: C.ink }}>Hamjamiyatni ulashing</strong><span className="mt-1 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Do‘stlaringizga sahifa havolasini yuboring.</span>
+        </button>
+      </div>
+
+      {session?.user?.id && <Suspense fallback={<SectionLoading label="Jamoadan ulashilganlar yuklanmoqda…" compact />}><DeferredSharedResourcesPanel session={session} scope="news" onOpenResource={onOpenSharedResource} /></Suspense>}
+
+      <div className="mb-3 mt-8 flex items-end justify-between gap-3"><div><div className="text-[10px] uppercase tracking-[.16em]" style={{ ...fontMono, color: C.gold }}>Platforma e’lonlari</div><h2 className="mt-1 text-xl font-semibold" style={{ ...fontDisplay, color: C.ink }}>Yangiliklar</h2></div><span className="text-xs" style={{ ...fontMono, color: C.inkSoft }}>{news.length} ta</span></div>
       {isLoading && sorted.length === 0 ? (
-        <SectionLoading label="Yangiliklar yuklanmoqda…" />
+        <SectionLoading label="Hamjamiyat yangiliklari yuklanmoqda…" />
       ) : sorted.length === 0 ? (
-        <EmptyState text="Hozircha yangilik yoʻq." />
+        <EmptyState text="Hozircha yangi e’lon yo‘q." />
       ) : (
         <div className="space-y-4 max-w-2xl">
           {sorted.map((n) => (
-            <div key={n.id} className="p-4 rounded-sm" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+            <article key={n.id} className="rounded-xl p-4 sm:p-5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
               <div className="min-w-0">
-                <div className="text-xs mb-1" style={{ ...fontMono, color: C.gold }}>{formatDate(n.date)}</div>
-                <div className="font-medium text-base mb-1" style={{ ...fontBody, color: C.ink }}>{n.title}</div>
-                <p className="text-[15px] leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
+                <div className="mb-2 flex items-center gap-2 text-xs" style={{ ...fontMono, color: C.gold }}><MessageCircle size={14} /> {formatDate(n.date)}</div>
+                <h2 className="mb-1 text-base font-semibold" style={{ ...fontBody, color: C.ink }}>{n.title}</h2>
+                <p className="whitespace-pre-wrap text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>{n.content}</p>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
-      {session?.user?.id && <Suspense fallback={<SectionLoading label="Ulashilganlar yuklanmoqda…" compact />}><DeferredSharedResourcesPanel session={session} scope="news" onOpenResource={onOpenSharedResource} /></Suspense>}
     </div>
   );
 }
@@ -2918,6 +2980,26 @@ function AboutView() {
         <p><strong>UpCourse Uz</strong> — o‘z ustida ishlash va rivojlanishni istaganlar uchun yaratilgan ochiq ta’lim platformasi. Maqsadimiz — bilimlarni sodda, tizimli va hammabop shaklda taqdim etish hamda jamiyat va ilm-fan rivojiga hissa qo‘shish.</p>
         <p>Platformadagi kurslar, testlar va yangiliklardan foydalanish uchun ro‘yxatdan o‘tish yoki profil yaratish shart emas.</p>
         <p>Platforma muntazam yangilanib boradi: unga yangi mavzular, testlar va e’lonlar qo‘shiladi.</p>
+
+        <section className="space-y-3 rounded-xl border p-4 sm:p-5" style={{ background: C.surface, borderColor: C.rule }}>
+          <h2 className="text-base font-semibold" style={{ ...fontBody, color: C.ink }}>Telefoningizga qo‘shish</h2>
+          <details className="rounded-lg border p-3" style={{ borderColor: C.rule, background: C.paper }}>
+            <summary className="cursor-pointer text-sm font-medium" style={{ ...fontBody, color: C.ink }}>iPhone va iPad (Safari)</summary>
+            <ol className="ml-5 mt-2 list-decimal space-y-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+              <li>UpCourse Uz saytini Safari’da oching.</li>
+              <li>Pastdagi yoki yuqoridagi Ulashish belgisini bosing.</li>
+              <li>“Bosh ekranga qo‘shish”ni tanlab, “Qo‘shish”ni bosing.</li>
+            </ol>
+          </details>
+          <details className="rounded-lg border p-3" style={{ borderColor: C.rule, background: C.paper }}>
+            <summary className="cursor-pointer text-sm font-medium" style={{ ...fontBody, color: C.ink }}>Android (Chrome)</summary>
+            <ol className="ml-5 mt-2 list-decimal space-y-1 text-sm" style={{ ...fontBody, color: C.inkSoft }}>
+              <li>Saytni Chrome’da oching.</li>
+              <li>Uch nuqtali menyudan “Ilovani o‘rnatish” yoki “Bosh ekranga qo‘shish”ni tanlang.</li>
+              <li>Ko‘rsatmani tasdiqlang. UpCourse Uz ikonasi bosh ekranda paydo bo‘ladi.</li>
+            </ol>
+          </details>
+        </section>
         
         <p>Savol, taklif yoki hamkorlik bo‘yicha <a href="https://t.me/upcourseuz" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}><strong>UpCourse Uz jamoasi bilan bog‘laning</strong></a>.</p>
         <div className="pt-2 text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>
@@ -3019,7 +3101,7 @@ const TABS = [
   { id: 'kurslar', label: 'Bosh sahifa', icon: Home },
   { id: 'testlar', label: 'Testlar', icon: ListChecks },
   { id: 'arena', label: 'Kunlik Arena', icon: Zap },
-  { id: 'yangiliklar', label: 'Yangiliklar', icon: Newspaper },
+  { id: 'yangiliklar', label: 'Hamjamiyat', icon: MessageCircle },
   { id: 'profil', label: 'Profil', icon: UserCircle2 },
 ];
 const ABOUT_TAB = { id: 'about', label: 'Biz haqimizda', icon: Info };
@@ -3066,11 +3148,11 @@ export default function App() {
      ma'lumoti esa fonda, sekin-asta yuklanaveradi (kerak bo'lsa). */
   const [liveEntryActive, setLiveEntryActive] = useState(initialDeepLink?.type === 'live');
   const [sharedTestEntryActive, setSharedTestEntryActive] = useState(initialDeepLink?.type === 'test');
-  const skipMainLoadingGate = liveEntryActive || sharedTestEntryActive || initialDeepLink?.type === 'battle';
+  const skipMainLoadingGate = liveEntryActive || sharedTestEntryActive || initialDeepLink?.type === 'battle' || initialDeepLink?.type === 'teamBattle';
   const initialTab = (() => {
     if (initialDeepLink) {
       if (initialDeepLink.type === 'course' || initialDeepLink.type === 'courseCategory') return 'kurslar';
-      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle' || initialDeepLink.type === 'certificate') return 'testlar';
+      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle' || initialDeepLink.type === 'teamBattle' || initialDeepLink.type === 'certificate') return 'testlar';
       if (initialDeepLink.type === 'profile') return 'profil';
       return 'kurslar';
     }
@@ -3084,6 +3166,7 @@ export default function App() {
   })();
 
   const [tab, setTab] = useState(initialTab);
+  const [teamBattleRequest, setTeamBattleRequest] = useState(initialDeepLink?.type === 'teamBattle');
   const [categories, setCategories] = useState([]);
   const [courses, setCourses] = useState([]);
   const [tests, setTests] = useState([]);
@@ -3255,6 +3338,12 @@ export default function App() {
   }, [tab]);
 
   Object.assign(C, theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? DARK_PALETTE.paper : LIGHT_PALETTE.paper);
+  }, [theme]);
 
   useEffect(() => {
     try { localStorage.setItem('upcourse-theme', theme); } catch {}
@@ -4771,7 +4860,7 @@ export default function App() {
                 />
               ) : (
                 <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}>
-                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
+                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} initialTeamBattle={teamBattleRequest} onInitialTeamBattleHandled={() => setTeamBattleRequest(false)} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
                 </Suspense>
               ))}
               {!viewingUsername && tab === 'arena' && (
@@ -4847,7 +4936,7 @@ export default function App() {
                   />
                 </Suspense>
               )}
-              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} session={session} onOpenSharedResource={openSharedResource} />}
+              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} session={session} onOpenSharedResource={openSharedResource} onOpenArena={() => goTo('arena')} onOpenBattle={() => { setTeamBattleRequest(true); goTo('testlar'); }} />}
               {!viewingUsername && tab === 'about' && <AboutView />}
               </RouteErrorBoundary>
             </PaperPanel>
