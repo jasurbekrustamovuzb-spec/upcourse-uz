@@ -184,7 +184,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
     handledDirectRef.current = directUserId;
     (async () => {
       const { data, error: requestError } = await supabase.rpc('community_start_direct', { p_user_id: directUserId });
-      if (requestError) { setError('Shaxsiy chatni ochib bo‘lmadi.'); return; }
+      if (requestError) { setError('Shaxsiy chatni ochib bo‘lmadi.'); onDirectHandled?.(); return; }
       await loadChats();
       setSelectedId(data);
       setMobilePane('chat');
@@ -415,8 +415,12 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
                 return <button key={chat.id} type="button" onClick={() => selectChat(chat)} className="flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-left" style={{ background: chat.id === selectedId ? C.paperSoft : 'transparent', color: C.ink }}>
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ color: '#fff', background: CHAT_ACCENTS[chat.kind] }}><Icon size={17} /></span>
                   <span className="min-w-0 flex-1 overflow-hidden">
-                    <span className="flex min-w-0 items-center justify-between gap-2 overflow-hidden"><span className="truncate text-xs font-semibold">{title || 'Chat'}</span><span className="ml-2 inline-flex shrink-0 items-center gap-1.5">{chat.last_message_at && <time className="text-[9px]" style={{ ...fontMono, color: C.inkSoft }}>{shortTime(chat.last_message_at)}</time>}{chat.unread_count > 0 && <span className="min-w-[18px] rounded-full px-1.5 py-0.5 text-center text-[9px]" style={{ color: '#fff', background: C.cover }}>{chat.unread_count > 99 ? '99+' : chat.unread_count}</span>}</span></span>
-                    <span className="mt-0.5 block max-w-full truncate text-[10px]" style={{ color: C.inkSoft }}>{chat.last_resource_title || chat.last_body || (chat.kind === 'news' ? 'Rasmiy yangiliklar' : chat.is_public ? 'Ommaviy' : 'Yangi chat')}</span>
+                    <span className="block min-w-0 truncate text-xs font-semibold">{title || 'Chat'}</span>
+                    <span className="mt-1 block max-w-full truncate text-[10px]" style={{ color: C.inkSoft }}>{chat.last_resource_title || chat.last_body || (chat.kind === 'news' ? 'Rasmiy yangiliklar' : chat.is_public ? 'Ommaviy' : 'Yangi chat')}</span>
+                    <span className="mt-1.5 flex items-center justify-between gap-2">
+                      {chat.last_message_at ? <time className="text-[9px]" style={{ ...fontMono, color: C.inkSoft }}>{shortTime(chat.last_message_at)}</time> : <span />}
+                      {chat.unread_count > 0 && <span className="inline-flex min-w-[22px] shrink-0 justify-center rounded-full border px-1.5 py-0.5 text-[9px] leading-none" style={{ ...fontMono, color: C.inkSoft, background: C.paperSoft, borderColor: C.rule }}>{chat.unread_count > 99 ? '99+' : chat.unread_count}</span>}
+                    </span>
                   </span>
                 </button>;
               })}
