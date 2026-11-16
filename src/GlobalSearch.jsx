@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, BookOpen, Command, Loader2, Search, UserRound, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Command, Hash, Loader2, MessageCircle, Search, UserRound, Users, X } from 'lucide-react';
 import { C, fontBody, fontDisplay, fontMono } from './App';
 import { supabase } from './supabaseClient';
 
@@ -19,9 +19,9 @@ function ResultGroup({ title, icon: Icon, rows, onChoose, getLabel, getMeta }) {
   </section>;
 }
 
-export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categories = [], registerOverlayBackHandler }) {
+export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categories = [], registerOverlayBackHandler, communityMode = false, isAuthenticated = false, onOpenCommunityPerson, onOpenCommunityChat }) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState({ courses: [], tests: [], people: [] });
+  const [results, setResults] = useState({ courses: [], tests: [], people: [], chats: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const inputRef = useRef(null);
@@ -44,7 +44,7 @@ export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categ
   useEffect(() => {
     let cancelled = false;
     if (term.length < 2) {
-      setResults({ courses: [], tests: [], people: [] });
+      setResults({ courses: [], tests: [], people: [], chats: [] });
       setError('');
       setLoading(false);
       return undefined;
@@ -64,21 +64,28 @@ export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categ
           .limit(8).abortSignal(controller.signal),
       ];
       const settled = await Promise.allSettled(queries);
+      const roomSettled = communityMode && isAuthenticated
+        ? await Promise.allSettled([supabase.rpc('community_chat_list'), supabase.rpc('community_public_list')])
+        : [];
       if (cancelled) return;
       const values = settled.map((item) => item.status === 'fulfilled' && !item.value.error ? item.value.data || [] : []);
-      setResults({ courses: values[0], tests: values[1], people: values[2] });
-      if (settled.some((item) => item.status === 'rejected' || item.value?.error)) setError('Ayrim natijalar yuklanmadi. Qidiruvni davom ettirishingiz mumkin.');
+      const roomValues = roomSettled.map((item) => item.status === 'fulfilled' && !item.value.error ? item.value.data || [] : []);
+      const rooms = [...new Map([...((roomValues[0] || [])), ...((roomValues[1] || []))].map((row) => [row.id, row])).values()]
+        .filter((row) => [row.title, row.peer_name, row.peer_username, row.last_body, row.last_resource_title].some((text) => String(text || '').toLocaleLowerCase().includes(term.toLocaleLowerCase())))
+        .slice(0, 8);
+      setResults({ courses: values[0], tests: values[1], people: values[2], chats: rooms });
+      if (settled.some((item) => item.status === 'rejected' || item.value?.error) || roomSettled.some((item) => item.status === 'rejected' || item.value?.error)) setError('Ayrim natijalar yuklanmadi. Qidiruvni davom ettirishingiz mumkin.');
       setLoading(false);
     }, 220);
     return () => { cancelled = true; window.clearTimeout(timer); controller.abort(); };
-  }, [term]);
+  }, [term, communityMode, isAuthenticated]);
 
-  const hasResults = results.courses.length + results.tests.length + results.people.length > 0;
+  const hasResults = results.courses.length + results.tests.length + results.people.length + results.chats.length > 0;
   return <div className="fixed inset-0 z-[100] flex items-start justify-center p-3 pt-[10vh] sm:p-6 sm:pt-[12vh]" role="dialog" aria-modal="true" aria-label="Sayt bo‘yicha qidiruv" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }} style={{ background: 'rgba(12,24,17,.58)', backdropFilter: 'blur(5px)' }}>
     <div className="w-full max-w-xl overflow-hidden rounded-2xl shadow-2xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
       <div className="flex items-center gap-3 border-b px-4 py-3" style={{ borderColor: C.rule }}>
         <Search size={19} style={{ color: C.gold }} />
-        <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') event.preventDefault(); }} placeholder="Kurs, test yoki profilni qidiring…" maxLength={80} className="min-w-0 flex-1 bg-transparent py-1 text-[15px] outline-none" style={{ ...fontBody, color: C.ink }} aria-label="Qidiruv so‘zi" />
+        <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') event.preventDefault(); }} placeholder={communityMode ? "Chat, guruh, kurs, test yoki foydalanuvchi…" : "Kurs, test yoki profilni qidiring…"} maxLength={80} className="min-w-0 flex-1 bg-transparent py-1 text-[15px] outline-none" style={{ ...fontBody, color: C.ink }} aria-label="Qidiruv so‘zi" />
         {loading ? <Loader2 size={17} className="animate-spin" style={{ color: C.inkSoft }} /> : <kbd className="hidden rounded-md border px-1.5 py-1 text-[10px] sm:block" style={{ ...fontMono, color: C.inkSoft, borderColor: C.rule }}>ESC</kbd>}
         <button type="button" onClick={onClose} aria-label="Qidiruvni yopish" className="rounded-lg p-1.5" style={{ color: C.inkSoft }}><X size={17} /></button>
       </div>
@@ -88,7 +95,8 @@ export default function GlobalSearch({ onClose, onOpenItem, onOpenProfile, categ
         {error && <p role="status" className="px-3 py-2 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{error}</p>}
         <ResultGroup title="Kurslar va mavzular" icon={BookOpen} rows={results.courses} onChoose={(row) => onOpenItem('course', row.id)} getLabel={(row) => row.title} getMeta={(row) => categoryNames.get(row.category_id) || row.summary || 'Kurs'} />
         <ResultGroup title="Testlar" icon={BookOpen} rows={results.tests} onChoose={(row) => onOpenItem('test', row.id)} getLabel={(row) => row.title} getMeta={(row) => categoryNames.get(row.category_id) || row.description || 'Test'} />
-        <ResultGroup title="Foydalanuvchilar" icon={UserRound} rows={results.people} onChoose={(row) => { onOpenProfile(row.username); onClose(); }} getLabel={(row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || `@${row.username}`} getMeta={(row) => row.username ? `@${row.username}` : 'Profil'} />
+        <ResultGroup title="Chatlar va guruhlar" icon={MessageCircle} rows={communityMode ? results.chats : []} onChoose={(chat) => { onOpenCommunityChat?.(chat); onClose(); }} getLabel={(chat) => chat.kind === "direct" ? chat.peer_name || "@" + chat.peer_username : chat.title} getMeta={(chat) => chat.last_resource_title || chat.last_body || (chat.kind === "channel" ? "Kanal" : chat.kind === "group" ? "Guruh" : chat.kind === "news" ? "News" : "Shaxsiy chat")} />
+        <ResultGroup title="Foydalanuvchilar" icon={UserRound} rows={results.people} onChoose={(row) => { if (communityMode) onOpenCommunityPerson?.(row.id); else onOpenProfile(row.username); onClose(); }} getLabel={(row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || `@${row.username}`} getMeta={(row) => row.username ? `@${row.username}` : 'Profil'} />
         {term.length >= 2 && !loading && !hasResults && <div className="px-3 py-7 text-center"><p className="text-sm font-medium" style={{ ...fontDisplay, color: C.ink }}>Natija topilmadi</p><p className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Boshqa soʻz yoki qisqaroq soʻrovni sinab koʻring</p></div>}
       </div>
       <div className="flex items-center justify-between border-t px-4 py-2 text-[10px]" style={{ ...fontMono, color: C.inkSoft, borderColor: C.rule }}><span>UpCourse · qidiruv</span><span>Esc · yopish</span></div>
