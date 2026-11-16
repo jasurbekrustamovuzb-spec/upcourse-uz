@@ -3175,6 +3175,7 @@ export default function App() {
   const [newsLoading, setNewsLoading] = useState(false);
   const [pendingChatShare, setPendingChatShare] = useState(null);
   const [communityDirectRequest, setCommunityDirectRequest] = useState(null);
+  const [communityChatRequest, setCommunityChatRequest] = useState(null);
   const newsLoadRef = useRef({ loaded: false, promise: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -4584,9 +4585,17 @@ export default function App() {
   }
 
   function openCommunityDirect(userId) {
-    if (!userId || !session?.user?.id || userId === session.user.id) return;
+    if (!userId || (session?.user?.id && userId === session.user.id)) return;
     setPendingChatShare(null);
-    setCommunityDirectRequest({ userId, nonce: Date.now() });
+    if (session?.user?.id) setCommunityDirectRequest({ userId, nonce: Date.now() });
+    setTab('yangiliklar');
+  }
+
+  function openCommunityChatFromSearch(chat) {
+    if (!chat?.id) return;
+    setCommunityDirectRequest(null);
+    setCommunityChatRequest({ chatId: chat.id, kind: chat.kind, isMember: chat.is_member, nonce: Date.now() });
+    setGlobalSearchOpen(false);
     setTab('yangiliklar');
   }
 
@@ -4955,7 +4964,7 @@ export default function App() {
                   />
                 </Suspense>
               )}
-              {!viewingUsername && tab === 'yangiliklar' && <Suspense fallback={<SectionLoading label="Hamjamiyat yuklanmoqda…" compact />}><CommunityChatView session={session} isAdmin={isAdmin} onOpenProfile={openSearchProfile} directUserId={communityDirectRequest?.userId} onDirectHandled={() => setCommunityDirectRequest(null)} shareResource={pendingChatShare} onShareHandled={() => setPendingChatShare(null)} initialInviteToken={initialDeepLink?.type === 'chatInvite' ? initialDeepLink.value : null} onOpenResource={(kind, message) => { const data = message.resource_data || {}; const resource = { ...data, id: message.resource_id, title: message.resource_title || data.title, category_id: data.categoryId || data.category_id, video_url: data.videoUrl || data.video_url, author_id: data.authorId || data.author_id }; if (kind === 'course' || kind === 'test') openSharedResource(kind, resource); else if (kind === 'course_category') openSearchItem('courseCategory', message.resource_id); else if (kind === 'test_category') openSearchItem('testCategory', message.resource_id); }} /></Suspense>}
+              {!viewingUsername && tab === 'yangiliklar' && <Suspense fallback={<SectionLoading label="Hamjamiyat yuklanmoqda…" compact />}><CommunityChatView session={session} isAdmin={isAdmin} onOpenProfile={openSearchProfile} directUserId={communityDirectRequest?.userId} onDirectHandled={() => setCommunityDirectRequest(null)} chatRequest={communityChatRequest} onChatHandled={() => setCommunityChatRequest(null)} shareResource={pendingChatShare} onShareHandled={() => setPendingChatShare(null)} initialInviteToken={initialDeepLink?.type === 'chatInvite' ? initialDeepLink.value : null} onOpenResource={(kind, message) => { const data = message.resource_data || {}; const resource = { ...data, id: message.resource_id, title: message.resource_title || data.title, category_id: data.categoryId || data.category_id, video_url: data.videoUrl || data.video_url, author_id: data.authorId || data.author_id }; if (kind === 'course' || kind === 'test') openSharedResource(kind, resource); else if (kind === 'course_category') openSearchItem('courseCategory', message.resource_id); else if (kind === 'test_category') openSearchItem('testCategory', message.resource_id); }} /></Suspense>}
               {!viewingUsername && tab === 'about' && <AboutView />}
               </RouteErrorBoundary>
             </PaperPanel>
@@ -5002,7 +5011,7 @@ export default function App() {
       )}
 
       {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
-        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} registerOverlayBackHandler={nav.registerOverlayBackHandler} />
+        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} registerOverlayBackHandler={nav.registerOverlayBackHandler} communityMode={tab === 'yangiliklar'} isAuthenticated={!!session?.user?.id} onOpenCommunityPerson={openCommunityDirect} onOpenCommunityChat={openCommunityChatFromSearch} />
       </Suspense>}
 
       {learningTasksOpen && (
