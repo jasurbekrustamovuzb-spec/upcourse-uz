@@ -1254,7 +1254,7 @@ export function EntryNumber({ icon: Icon = Tag, kind }) {
   const { theme } = useContext(ThemeContext);
   const resolvedKind = kind || (Icon === BookOpen ? 'course' : Icon === ListChecks ? 'test' : 'area');
   const baseTone = getBrowseTone(resolvedKind, theme);
-  const tone = Icon === BookOpen ? (theme === 'dark' ? { color: '#C4A6D3', soft: '#3A3040', line: '#685574' } : { color: '#765185', soft: '#F0EAF3', line: '#CDBFD5' }) : baseTone;
+  const tone = Icon === BookOpen ? (theme === 'dark' ? { color: '#E3A18B', soft: '#49332F', line: '#765347' } : { color: '#A9533D', soft: '#F5E8E1', line: '#DFC2B5' }) : baseTone;
   return <span aria-hidden="true" className="mr-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ color: tone.color, background: tone.soft, border: `1px solid ${tone.line}` }}><Icon size={19} strokeWidth={1.9} /></span>;
 }
 
