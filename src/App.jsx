@@ -23,7 +23,7 @@ const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
 export const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
 const DeferredSharedResourcesPanel = lazy(() => import('./DeferredSharedResources.jsx').then((module) => ({ default: module.SharedResourcesPanel })));
-const DeferredFollowerShareDialog = lazy(() => import('./DeferredSharedResources.jsx').then((module) => ({ default: module.FollowerShareDialog })));
+const CommunityChatView = lazy(() => import('./CommunityChat.jsx'));
 export const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
 const CourseLinkedTestsView = lazy(() => import('./CourseLinkedTests.jsx'));
 const LearningTasksModal = lazy(() => import('./LearningTasks.jsx'));
@@ -357,6 +357,11 @@ function parseDeepLink() {
     if (p.get('battle')) return { type: 'battle', value: p.get('battle') };
     if (p.get('teamBattle') === '1') return { type: 'teamBattle' };
     if (p.get('u')) return { type: 'profile', value: p.get('u') };
+    if (p.get('chatInvite')) return { type: 'chatInvite', value: p.get('chatInvite') };
+    try {
+      const pendingInvite = sessionStorage.getItem('upcourse-pending-chat-invite');
+      if (pendingInvite) { sessionStorage.removeItem('upcourse-pending-chat-invite'); return { type: 'chatInvite', value: pendingInvite }; }
+    } catch (e) { /* taklif bo‘lmasa oddiy kirish */ }
   } catch (e) { /* URL o'qib bo'lmasa, oddiy holatda ochiladi */ }
   return null;
 }
@@ -3145,6 +3150,7 @@ export default function App() {
       if (initialDeepLink.type === 'course' || initialDeepLink.type === 'courseCategory') return 'kurslar';
       if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle' || initialDeepLink.type === 'teamBattle' || initialDeepLink.type === 'certificate') return 'testlar';
       if (initialDeepLink.type === 'profile') return 'profil';
+      if (initialDeepLink.type === 'chatInvite') return 'yangiliklar';
       return 'kurslar';
     }
     if (pendingTestAuthAtBootRef.current) return 'testlar';
@@ -3166,7 +3172,8 @@ export default function App() {
   const testsLoadRef = useRef({ generation: 0, loadedKey: null, requestKey: null, promise: null });
   const [news, setNews] = useState([]);
   const [newsLoading, setNewsLoading] = useState(false);
-  const [followerShareResource, setFollowerShareResource] = useState(null);
+  const [pendingChatShare, setPendingChatShare] = useState(null);
+  const [communityDirectRequest, setCommunityDirectRequest] = useState(null);
   const newsLoadRef = useRef({ loaded: false, promise: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -4562,6 +4569,20 @@ export default function App() {
     openPublicProfile(username, 'kurslar');
   }
 
+  function shareResourceToChat(type, item) {
+    if (!item?.id) return;
+    setCommunityDirectRequest(null);
+    setPendingChatShare({ kind: type, id: item.id, title: item.title || 'Ulashilgan material', data: item });
+    setTab('yangiliklar');
+  }
+
+  function openCommunityDirect(userId) {
+    if (!userId || !session?.user?.id || userId === session.user.id) return;
+    setPendingChatShare(null);
+    setCommunityDirectRequest({ userId, nonce: Date.now() });
+    setTab('yangiliklar');
+  }
+
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const createMenuDeskRef = useRef(null);
   useEffect(() => {
@@ -4839,9 +4860,9 @@ export default function App() {
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
               <RouteErrorBoundary onHome={() => goTo('kurslar')}>
               {viewingUsername && (
-                <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
+                <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} onOpenChat={openCommunityDirect} session={session} /></Suspense>
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={shareResourceToChat} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && (initialDeepLink?.type === 'test' && sharedTestEntryActive && !session?.user?.id ? (
                 authLoading ? <SectionLoading label="Akkaunt tekshirilmoqda…" compact /> : <TestAccountPrompt
                   busy={testAuthBusy}
@@ -4898,7 +4919,7 @@ export default function App() {
                   onOpenAdmin={() => goTo('admin')}
                   onOpenProfile={openSearchProfile}
                   onOpenArena={() => goTo('arena')}
-                  onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })}
+                  onShareToFollowers={shareResourceToChat}
                   onOpenSharedResource={openSharedResource}
                 /></Suspense>
               )}
@@ -4927,7 +4948,7 @@ export default function App() {
                   />
                 </Suspense>
               )}
-              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} session={session} onOpenSharedResource={openSharedResource} onOpenArena={() => goTo('arena')} onOpenBattle={() => { setTeamBattleRequest(true); goTo('testlar'); }} />}
+              {!viewingUsername && tab === 'yangiliklar' && <Suspense fallback={<SectionLoading label="Hamjamiyat yuklanmoqda…" compact />}><CommunityChatView session={session} isAdmin={isAdmin} onOpenProfile={openSearchProfile} directUserId={communityDirectRequest?.userId} onDirectHandled={() => setCommunityDirectRequest(null)} shareResource={pendingChatShare} onShareHandled={() => setPendingChatShare(null)} initialInviteToken={initialDeepLink?.type === 'chatInvite' ? initialDeepLink.value : null} onOpenResource={(kind, message) => { const data = message.resource_data || {}; const resource = { ...data, id: message.resource_id, title: message.resource_title || data.title, category_id: data.categoryId || data.category_id, video_url: data.videoUrl || data.video_url, author_id: data.authorId || data.author_id }; if (kind === 'course' || kind === 'test') openSharedResource(kind, resource); else if (kind === 'course_category') openSearchItem('courseCategory', message.resource_id); else if (kind === 'test_category') openSearchItem('testCategory', message.resource_id); }} /></Suspense>}
               {!viewingUsername && tab === 'about' && <AboutView />}
               </RouteErrorBoundary>
             </PaperPanel>
@@ -4972,8 +4993,6 @@ export default function App() {
           })}
         </nav>
       )}
-
-      {followerShareResource && <Suspense fallback={null}><DeferredFollowerShareDialog resource={followerShareResource} session={session} onClose={() => setFollowerShareResource(null)} /></Suspense>}
 
       {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
         <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} registerOverlayBackHandler={nav.registerOverlayBackHandler} />
