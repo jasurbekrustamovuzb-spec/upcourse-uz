@@ -80,7 +80,7 @@ drop policy if exists community_chats_read on public.community_chats;
 create policy community_chats_read on public.community_chats for select to authenticated using (
   exists (select 1 from public.community_chat_members m where m.chat_id = id and m.user_id = auth.uid())
   or (kind in ('group', 'channel') and is_public and not is_system)
-  or (kind = 'news' and exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true))
+  or kind = 'news'
 );
 
 drop policy if exists community_members_read on public.community_chat_members;
@@ -97,8 +97,7 @@ create policy community_messages_read on public.community_messages for select to
   )
   or exists (
     select 1 from public.community_chats c
-    join public.profiles p on p.id = auth.uid() and p.is_admin = true
-    where c.id = chat_id and c.kind = 'news'
+    where c.id = public.community_messages.chat_id and c.kind = 'news'
   )
 );
 
@@ -325,7 +324,7 @@ begin
       limit 1
     ) peer on true
     where m.user_id is not null
-      or (c.kind = 'news' and public.community_is_admin())
+      or c.kind = 'news'
   ) q;
   return v_rows;
 end
@@ -371,7 +370,7 @@ begin
     where c.id = p_chat_id and c.kind in ('group', 'channel') and c.is_public and not c.is_system
   ) and not exists (
     select 1 from public.community_chats c
-    where c.id = p_chat_id and c.kind = 'news' and public.community_is_admin()
+    where c.id = p_chat_id and c.kind = 'news'
   ) then raise exception 'CHAT_ACCESS_DENIED'; end if;
   select coalesce(jsonb_agg(to_jsonb(q) order by q.created_at), '[]'::jsonb)
   into v_rows
@@ -465,7 +464,7 @@ begin
 end
 $$;
 
--- The News channel is system-owned and visible only to administrators.
+-- The News channel is visible to signed-in users; only admins may publish.
 insert into public.community_chats(kind, title, description, is_public, is_system, system_key)
 values ('news', 'News', 'UpCourse platformasi e’lonlari', false, true, 'news')
 on conflict (system_key) do nothing;
