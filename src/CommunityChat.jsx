@@ -355,25 +355,25 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   const publicRoomsNotJoined = publicChats.filter((chat) => !chat.is_member);
 
   return (
-    <section className="mx-auto max-w-7xl">
+    <section className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden">
       <PinnedAddButton icon={Users} label="Yangi guruh yoki kanal yaratish" onClick={() => { setCreateKind('group'); setCreateOpen(true); }} />
 
       {error && <div role="alert" className="mb-3 rounded-xl border px-3 py-2 text-xs" style={{ ...fontBody, color: C.red, borderColor: C.red, background: C.dangerTint }}>{error}</div>}
-      <div className="grid min-h-[min(72dvh,720px)] gap-5 md:grid-cols-[330px_minmax(0,1fr)]">
-        <aside className={(mobilePane === 'chat' ? 'hidden ' : 'flex ') + 'min-h-[min(72dvh,720px)] flex-col md:flex'} style={{ borderColor: C.rule }}>
+      <div className="grid w-full min-w-0 grid-cols-1 gap-5 md:min-h-[min(72dvh,720px)] md:grid-cols-[330px_minmax(0,1fr)]">
+        <aside className={(mobilePane === 'chat' ? 'hidden ' : 'flex ') + 'min-h-0 min-w-0 w-full flex-col md:min-h-[min(72dvh,720px)] md:flex'} style={{ borderColor: C.rule }}>
           <div className="border-b pb-3" style={{ borderColor: C.rule }}>
             <h2 className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Chatlar</h2>
           </div>
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto py-2">
+          <div className="min-h-0 min-w-0 w-full flex-1 space-y-1 overflow-x-hidden overflow-y-auto py-2">
             {loading && chats.length === 0 ? <SectionLoading label="Chatlar yuklanmoqda…" compact />
               : chats.map((chat) => {
                 const title = chat.kind === 'direct' ? chat.peer_name || '@' + (chat.peer_username || 'foydalanuvchi') : chat.title;
                 const Icon = chat.kind === 'news' ? Megaphone : chat.kind === 'group' ? Users : chat.kind === 'channel' ? Hash : MessageCircle;
-                return <button key={chat.id} type="button" onClick={() => selectChat(chat)} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left" style={{ background: chat.id === selectedId ? C.paperSoft : 'transparent', color: C.ink }}>
+                return <button key={chat.id} type="button" onClick={() => selectChat(chat)} className="flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-left" style={{ background: chat.id === selectedId ? C.paperSoft : 'transparent', color: C.ink }}>
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ color: '#fff', background: CHAT_ACCENTS[chat.kind] }}><Icon size={17} /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-2"><span className="truncate text-xs font-semibold">{title || 'Chat'}</span>{chat.unread_count > 0 && <span className="rounded-full px-1.5 py-0.5 text-[9px]" style={{ color: '#fff', background: C.cover }}>{chat.unread_count}</span>}</span>
-                    <span className="mt-0.5 block truncate text-[10px]" style={{ color: C.inkSoft }}>{chat.last_resource_title || chat.last_body || (chat.kind === 'news' ? 'Rasmiy yangiliklar' : chat.is_public ? 'Ommaviy' : 'Yangi chat')}</span>
+                  <span className="min-w-0 flex-1 overflow-hidden">
+                    <span className="flex min-w-0 items-center justify-between gap-2 overflow-hidden"><span className="truncate text-xs font-semibold">{title || 'Chat'}</span>{chat.unread_count > 0 && <span className="rounded-full px-1.5 py-0.5 text-[9px]" style={{ color: '#fff', background: C.cover }}>{chat.unread_count}</span>}</span>
+                    <span className="mt-0.5 block max-w-full truncate text-[10px]" style={{ color: C.inkSoft }}>{chat.last_resource_title || chat.last_body || (chat.kind === 'news' ? 'Rasmiy yangiliklar' : chat.is_public ? 'Ommaviy' : 'Yangi chat')}</span>
                   </span>
                 </button>;
               })}
