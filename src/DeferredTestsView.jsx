@@ -1536,7 +1536,18 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl border text-[12px] leading-tight text-center transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent, fontWeight: 600 }}
           >
-            <Users size={15} style={{ color: theme === 'dark' ? '#A9C4AF' : '#476554' }} /> Jamoaviy jang
+            <svg aria-hidden="true" viewBox="0 0 32 22" className="h-[18px] w-6 shrink-0">
+              <path d="M2 16c0-3.8 7.5-3.8 7.5 0v1.2H2z" fill="#38A879" stroke="#FFF9EC" strokeWidth=".7" />
+              <circle cx="5.7" cy="6.1" r="2.5" fill="#91CC72" stroke="#FFF9EC" strokeWidth=".7" />
+              <path d="M8.4 16c0-3 5.2-3 5.2 0v1.2H8.4z" fill="#3D83C7" stroke="#FFF9EC" strokeWidth=".7" />
+              <circle cx="11" cy="7" r="1.9" fill="#58B9C1" stroke="#FFF9EC" strokeWidth=".7" />
+              <path d="M22.5 16c0-3.8 7.5-3.8 7.5 0v1.2h-7.5z" fill="#D94F45" stroke="#FFF9EC" strokeWidth=".7" />
+              <circle cx="26.2" cy="6.1" r="2.5" fill="#EA704F" stroke="#FFF9EC" strokeWidth=".7" />
+              <path d="M18.4 16c0-3 5.2-3 5.2 0v1.2h-5.2z" fill="#E2A834" stroke="#FFF9EC" strokeWidth=".7" />
+              <circle cx="21" cy="7" r="1.9" fill="#F1C84B" stroke="#FFF9EC" strokeWidth=".7" />
+              <circle cx="16" cy="11.5" r="5.1" fill="#29372F" stroke="#FFF9EC" strokeWidth="1" />
+              <text x="16" y="13.2" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="5.2" fontWeight="800" fill="#FFF9EC">VS</text>
+            </svg> Jamoaviy jang
           </button>
           <button
             onClick={goLuckyWheel}
