@@ -4588,6 +4588,7 @@ export default function App() {
     if (!userId || (session?.user?.id && userId === session.user.id)) return;
     setPendingChatShare(null);
     if (session?.user?.id) setCommunityDirectRequest({ userId, nonce: Date.now() });
+    setViewingUsername(null);
     setTab('yangiliklar');
   }
 
