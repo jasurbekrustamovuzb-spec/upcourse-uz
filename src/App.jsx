@@ -1977,7 +1977,7 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, isAdmin, userId, featuredCategoryId, shareParam }) {
+export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, isAdmin, userId, featuredCategoryId, shareParam, onShareCategory }) {
   const { theme } = useContext(ThemeContext);
   const [renaming, setRenaming] = useState(null);
 
@@ -2018,7 +2018,7 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
                   <ChevronRight size={16} style={{ color: C.gold }} />
                 </div>
                 {shareParam && (
-                  <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={(event) => { event.stopPropagation(); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="absolute bottom-2 right-2 inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, outlineColor: C.gold }}><Share2 size={12} /></button>
+                  <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={(event) => { event.stopPropagation(); if (onShareCategory) onShareCategory(cat); else shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="absolute bottom-2 right-2 inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, outlineColor: C.gold }}><Share2 size={12} /></button>
                 )}
               </div>
             );
@@ -2446,6 +2446,7 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             userId={session?.user?.id}
             featuredCategoryId={null}
             shareParam="courseCategory"
+            onShareCategory={onShareToFollowers ? (cat) => onShareToFollowers('course_category', cat) : undefined}
           />
           </>
         )}
@@ -3208,9 +3209,13 @@ export default function App() {
   useEffect(() => {
     // Kurslar bo‘limi initialOpenId orqali mount vaqtida so‘rovni qabul qiladi.
     // Test so‘rovi esa DeferredTestsView yuklanib, uni ochguncha saqlanishi kerak.
-    if (openRequest?.type === 'course') setOpenRequest(null);
+    if (openRequest?.type === 'course' || openRequest?.type === 'courseCategory') setOpenRequest(null);
   }, [openRequest]);
   const [testOpenRequest, setTestOpenRequest] = useState(null);
+  const [testCategoryOpenRequest, setTestCategoryOpenRequest] = useState(null);
+  useEffect(() => {
+    if (tab === 'testlar' && testCategoryOpenRequest) setTestCategoryOpenRequest(null);
+  }, [tab, testCategoryOpenRequest]);
   const testOpenRequestSeq = useRef(0);
   const [testAuthIntent, setTestAuthIntent] = useState(() => pendingTestAuthAtBootRef.current);
   const [testAuthBusy, setTestAuthBusy] = useState(false);
@@ -4542,10 +4547,12 @@ export default function App() {
     setGlobalSearchOpen(false);
     if (kind === 'test') {
       setTestOpenRequest({ id, requestId: ++testOpenRequestSeq.current });
+    } else if (kind === 'testCategory') {
+      setTestCategoryOpenRequest(id);
     } else {
       setOpenRequest({ type: kind, id });
     }
-    goTo(kind === 'course' ? 'kurslar' : 'testlar');
+    goTo(kind === 'course' || kind === 'courseCategory' ? 'kurslar' : 'testlar');
   }
 
   function consumeTestOpenRequest(requestId) {
@@ -4862,7 +4869,7 @@ export default function App() {
               {viewingUsername && (
                 <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} onOpenChat={openCommunityDirect} session={session} /></Suspense>
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={shareResourceToChat} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={shareResourceToChat} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={openRequest?.type === 'courseCategory' ? openRequest.id : initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && (initialDeepLink?.type === 'test' && sharedTestEntryActive && !session?.user?.id ? (
                 authLoading ? <SectionLoading label="Akkaunt tekshirilmoqda…" compact /> : <TestAccountPrompt
                   busy={testAuthBusy}
@@ -4872,7 +4879,7 @@ export default function App() {
                 />
               ) : (
                 <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}>
-                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} onHostAccountRequired={() => setTab('profil')} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} initialTeamBattle={teamBattleRequest} onInitialTeamBattleHandled={() => setTeamBattleRequest(false)} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
+                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} onHostAccountRequired={() => setTab('profil')} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} onShareToFollowers={shareResourceToChat} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : testCategoryOpenRequest || (initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null))} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} initialTeamBattle={teamBattleRequest} onInitialTeamBattleHandled={() => setTeamBattleRequest(false)} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
                 </Suspense>
               ))}
               {!viewingUsername && tab === 'arena' && (
