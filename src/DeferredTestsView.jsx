@@ -1533,24 +1533,18 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           </button>
           <button
             onClick={goTeamBattle}
-            className="flex items-center justify-center gap-1 min-w-0 min-h-11 px-2 py-2 rounded-xl border text-[11px] leading-tight text-center transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2"
+            className="flex items-center justify-center gap-0.5 min-w-0 min-h-11 px-2 py-2 rounded-xl border text-[10px] leading-tight text-center transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent, fontWeight: 600 }}
           >
-            <svg aria-hidden="true" viewBox="0 0 36 24" className="h-6 w-7 shrink-0">
-              <path d="M1.7 17c0-4.2 8.8-4.2 8.8 0v1.6H1.7z" fill="#28A876" stroke="#FFF9EC" strokeWidth=".65" />
-              <circle cx="6.1" cy="5.2" r="2.7" fill="#9BD66D" stroke="#FFF9EC" strokeWidth=".65" />
-              <path d="M0 18c0-2.8 3.7-4 6.2-2.6V19H0z" fill="#3998A5" stroke="#FFF9EC" strokeWidth=".65" />
-              <circle cx="2.5" cy="10.2" r="1.9" fill="#65B8C0" stroke="#FFF9EC" strokeWidth=".65" />
-              <path d="M7.5 18v-2.6c2.4-1.3 6.1-.2 6.1 2.6v1H7.5z" fill="#3D83C7" stroke="#FFF9EC" strokeWidth=".65" />
-              <circle cx="10.2" cy="10.2" r="1.9" fill="#68A7DE" stroke="#FFF9EC" strokeWidth=".65" />
-              <path d="M25.5 17c0-4.2 8.8-4.2 8.8 0v1.6h-8.8z" fill="#D94F45" stroke="#FFF9EC" strokeWidth=".65" />
-              <circle cx="29.9" cy="5.2" r="2.7" fill="#EA704F" stroke="#FFF9EC" strokeWidth=".65" />
-              <path d="M29.8 18v-2.6c2.5-1.4 6.2-.2 6.2 2.6h-6.2z" fill="#E2A834" stroke="#FFF9EC" strokeWidth=".65" />
-              <circle cx="33.5" cy="10.2" r="1.9" fill="#F1C84B" stroke="#FFF9EC" strokeWidth=".65" />
-              <path d="M22.4 18v-2.6c2.4-1.3 6.1-.2 6.1 2.6h-6.1z" fill="#CB6559" stroke="#FFF9EC" strokeWidth=".65" />
-              <circle cx="25.8" cy="10.2" r="1.9" fill="#EF9A69" stroke="#FFF9EC" strokeWidth=".65" />
-              <circle cx="18" cy="12" r="4.8" fill="#29372F" stroke="#FFF9EC" strokeWidth="1.1" />
-              <text x="18" y="14" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="5.7" fontWeight="800" fill="#FFF9EC">VS</text>
+            <svg aria-hidden="true" viewBox="0 0 36 22" className="h-5 w-8 shrink-0">
+              <path d="M1.5 2h11v9.2c0 3.1-3.1 5.5-5.5 7.2-2.4-1.7-5.5-4.1-5.5-7.2z" fill="#3AA56B" stroke="#205D42" strokeWidth="1" strokeLinejoin="round" />
+              <path d="M3 4h8" stroke="#A9DD83" strokeWidth="1.6" strokeLinecap="round" />
+              <text x="7" y="11.2" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="7" fontWeight="800" fill="#FFFDF3">A</text>
+              <path d="M23.5 2h11v9.2c0 3.1-3.1 5.5-5.5 7.2-2.4-1.7-5.5-4.1-5.5-7.2z" fill="#D94F45" stroke="#91362F" strokeWidth="1" strokeLinejoin="round" />
+              <path d="M25 4h8" stroke="#FFC15B" strokeWidth="1.6" strokeLinecap="round" />
+              <text x="29" y="11.2" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="7" fontWeight="800" fill="#FFFDF3">B</text>
+              <circle cx="18" cy="10.5" r="5.4" fill="#F2C44E" stroke="#FFF9E9" strokeWidth="1.2" />
+              <text x="18" y="12.1" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="5.3" fontWeight="900" fill="#28352C">VS</text>
             </svg> Jamoaviy jang
           </button>
           <button
