@@ -412,7 +412,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
 
   return (
     <section className="mx-auto w-full min-w-0 max-w-7xl overflow-x-hidden">
-      {!selectedChat && <PinnedAddButton icon={Users} label="Yangi guruh yoki kanal yaratish" onClick={() => { setCreateKind('group'); setCreateOpen(true); }} />}
+      {mobilePane !== 'chat' && <PinnedAddButton icon={Users} label="Yangi guruh yoki kanal yaratish" onClick={() => { setCreateKind('group'); setCreateOpen(true); }} />}
 
       {error && <div role="alert" className="mb-3 rounded-xl border px-3 py-2 text-xs" style={{ ...fontBody, color: C.red, borderColor: C.red, background: C.dangerTint }}>{error}</div>}
       <div className="grid w-full min-w-0 grid-cols-1 gap-5 md:min-h-[min(72dvh,720px)] md:grid-cols-[330px_minmax(0,1fr)]">
