@@ -36,6 +36,8 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   const [chats, setChats] = useState([]);
   const [publicChats, setPublicChats] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const selectedIdRef = useRef(null);
+  const messageRequestRef = useRef(0);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
@@ -60,6 +62,13 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   const bottomRef = useRef(null);
   const messageListRef = useRef(null);
   const readMessagesRef = useRef({ userId: null, byChat: new Map() });
+  const setActiveChat = useCallback((chatId) => {
+    if (selectedIdRef.current === chatId) return;
+    selectedIdRef.current = chatId;
+    setSelectedId(chatId);
+    setMessages([]);
+  }, []);
+
   const handledDirectRef = useRef('');
   const handledInviteRef = useRef('');
 
@@ -84,7 +93,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
       setPublicChats(asArray(publicResult.data));
       if (!selectedId && nextChats.length) {
         const news = nextChats.find((chat) => chat.kind === 'news');
-        if (news) setSelectedId(news.id);
+        if (news) setActiveChat(news.id);
       }
       setError('');
     } catch (requestError) {
@@ -93,22 +102,25 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id, selectedId]);
+  }, [session?.user?.id, selectedId, setActiveChat]);
 
   const loadMessages = useCallback(async (chatId) => {
-    if (!session?.user?.id || !chatId) return;
+    if (!session?.user?.id || !chatId || chatId !== selectedIdRef.current) return;
+    const requestId = ++messageRequestRef.current;
     setMessageLoading(true);
     try {
       const { data, error: requestError } = await supabase.rpc('community_chat_history', { p_chat_id: chatId, p_limit: 100 });
       if (requestError) throw requestError;
-      setMessages(asArray(data));
+      if (requestId !== messageRequestRef.current || chatId !== selectedIdRef.current) return;
+      setMessages(asArray(data).filter((message) => message.chat_id === chatId));
       setError('');
     } catch (requestError) {
+      if (requestId !== messageRequestRef.current || chatId !== selectedIdRef.current) return;
       console.error('Chat xabarlarini yuklab bo‘lmadi:', requestError);
       setMessages([]);
       setError('Xabarlarni yuklab bo‘lmadi. Chatga a’zo ekaningizni tekshiring.');
     } finally {
-      setMessageLoading(false);
+      if (requestId === messageRequestRef.current && chatId === selectedIdRef.current) setMessageLoading(false);
     }
   }, [session?.user?.id]);
 
@@ -145,6 +157,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
 
   useEffect(() => {
     if (!selectedId || !session?.user?.id) { setMessages([]); return undefined; }
+    setMessages([]);
     void loadMessages(selectedId);
     const channel = supabase.channel('community-messages:' + selectedId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'community_messages', filter: 'chat_id=eq.' + selectedId }, () => {
@@ -186,7 +199,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
       const { data, error: requestError } = await supabase.rpc('community_start_direct', { p_user_id: directUserId });
       if (requestError) { setError('Shaxsiy chatni ochib bo‘lmadi.'); onDirectHandled?.(); return; }
       await loadChats();
-      setSelectedId(data);
+      setActiveChat(data);
       setMobilePane('chat');
       onDirectHandled?.();
     })();
@@ -202,7 +215,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
       }
       await loadChats();
       if (cancelled) return;
-      setSelectedId(chatRequest.chatId);
+      setActiveChat(chatRequest.chatId);
       setMobilePane('chat');
       onChatHandled?.();
     })();
@@ -216,7 +229,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
       const { data, error: requestError } = await supabase.rpc('community_accept_invite', { p_token: initialInviteToken });
       if (requestError) { setError('Taklif havolasi eskirgan yoki bekor qilingan.'); return; }
       await loadChats();
-      setSelectedId(data);
+      setActiveChat(data);
       setMobilePane('chat');
     })();
   }, [initialInviteToken, session?.user?.id, loadChats]);
@@ -242,7 +255,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   }, [peopleQuery, peopleOpen, session?.user?.id]);
 
   const selectChat = (chat) => {
-    setSelectedId(chat.id);
+    setActiveChat(chat.id);
     setMobilePane('chat');
     setPeopleOpen(false);
   };
@@ -254,7 +267,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
     if (requestError) setError('Shaxsiy chatni ochib bo‘lmadi.');
     else {
       await loadChats();
-      setSelectedId(data);
+      setActiveChat(data);
       setMobilePane('chat');
       setPeopleOpen(false);
       setPeopleQuery('');
@@ -275,7 +288,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
       setCreateTitle('');
       setCreateDescription('');
       await loadChats();
-      setSelectedId(data);
+      setActiveChat(data);
       setMobilePane('chat');
     }
     setBusy(false);
@@ -287,7 +300,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
     if (requestError) setError('Ommaviy guruhga qo‘shilib bo‘lmadi.');
     else {
       await loadChats();
-      setSelectedId(chatId);
+      setActiveChat(chatId);
       setMobilePane('chat');
     }
     setBusy(false);
@@ -318,7 +331,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   };
 
   const shareToChat = async (chat) => {
-    setSelectedId(chat.id);
+    setActiveChat(chat.id);
     setMobilePane('chat');
     const resource = {
       kind: shareResource.kind,
