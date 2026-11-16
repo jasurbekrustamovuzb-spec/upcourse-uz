@@ -1518,7 +1518,17 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.math, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
           >
-            <ListChecks size={14} /> Moslik testi
+            <svg aria-hidden="true" viewBox="0 0 28 24" className="h-5 w-5 shrink-0">
+              <path d="M6 4 C12 4 16 20 22 20" fill="none" stroke="#D4554B" strokeWidth="2" strokeLinecap="round" />
+              <path d="M6 12 C12 12 16 4 22 4" fill="none" stroke="#4778C8" strokeWidth="2" strokeLinecap="round" />
+              <path d="M6 20 C12 20 16 12 22 12" fill="none" stroke="#41956A" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="4" cy="4" r="3" fill="#D4554B" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="4" cy="12" r="3" fill="#4778C8" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="4" cy="20" r="3" fill="#41956A" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="24" cy="4" r="3" fill="#4778C8" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="24" cy="12" r="3" fill="#41956A" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="24" cy="20" r="3" fill="#D4554B" stroke="#FFF" strokeWidth="1.2" />
+            </svg> Moslik testi
           </button>
           <button
             onClick={goTeamBattle}
