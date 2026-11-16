@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Dices, Eye, FileCheck2, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Eye, FileCheck2, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
 import { signInWithGoogle, supabase } from './supabaseClient.js';
 import { AuthorLine, BrowseHeading, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, getBrowseCardStyle, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
@@ -1532,7 +1532,17 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl border text-[12px] leading-tight text-center transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2"
              style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent, fontWeight: 600 }}
           >
-             <span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full border" style={{ color: '#fff', borderColor: theme === 'dark' ? '#65756A' : '#CAD6CA', background: 'conic-gradient(#c9534d 0deg 90deg,#d8a92d 90deg 180deg,#42865e 180deg 270deg,#457caf 270deg 360deg)' }}><Dices size={14} /></span> Omad charxpalagi
+             <svg aria-hidden="true" viewBox="0 0 32 32" className="h-7 w-7 shrink-0 drop-shadow-sm">
+              <path d="M16 17 L16 4 A13 13 0 0 1 27.26 10.5 Z" fill="#D94F45" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L27.26 10.5 A13 13 0 0 1 27.26 23.5 Z" fill="#416EC4" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L27.26 23.5 A13 13 0 0 1 16 30 Z" fill="#3F9862" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L16 30 A13 13 0 0 1 4.74 23.5 Z" fill="#E99A32" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L4.74 23.5 A13 13 0 0 1 4.74 10.5 Z" fill="#8055A8" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L4.74 10.5 A13 13 0 0 1 16 4 Z" fill="#269A98" stroke="#FFF9EC" strokeWidth="1.1" />
+              <circle cx="16" cy="17" r="2.8" fill="#FFF9EC" stroke="#27352E" strokeWidth="1.2" />
+              <path d="M12.2 4.8 16 1.5l3.8 3.3H17.6l-1.6 2.4-1.6-2.4z" fill="#27352E" stroke="#FFF9EC" strokeWidth=".7" strokeLinejoin="round" />
+              <circle cx="16" cy="17" r="12.8" fill="none" stroke="#27352E" strokeWidth="1.2" />
+            </svg> Omad charxpalagi
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
