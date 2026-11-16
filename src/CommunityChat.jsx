@@ -58,6 +58,8 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   const [invitePrompt, setInvitePrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const bottomRef = useRef(null);
+  const messageListRef = useRef(null);
+  const readMessagesRef = useRef({ userId: null, byChat: new Map() });
   const handledDirectRef = useRef('');
   const handledInviteRef = useRef('');
 
@@ -69,6 +71,8 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
     if (!session?.user?.id) return;
     setLoading(true);
     try {
+      const ensureNews = await supabase.rpc('community_ensure_news_membership');
+      if (ensureNews.error) console.info('News kanal a’zoligi yangilanishi kutilmoqda.');
       const [listResult, publicResult] = await Promise.all([
         supabase.rpc('community_chat_list'),
         supabase.rpc('community_public_list'),
@@ -98,7 +102,6 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
       const { data, error: requestError } = await supabase.rpc('community_chat_history', { p_chat_id: chatId, p_limit: 100 });
       if (requestError) throw requestError;
       setMessages(asArray(data));
-      await supabase.rpc('community_mark_read', { p_chat_id: chatId });
       setError('');
     } catch (requestError) {
       console.error('Chat xabarlarini yuklab bo‘lmadi:', requestError);
@@ -107,6 +110,27 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
     } finally {
       setMessageLoading(false);
     }
+  }, [session?.user?.id]);
+
+  const markVisibleMessages = useCallback(async (chatId, messageIds) => {
+    if (!session?.user?.id || !chatId || !messageIds?.length) return;
+    if (readMessagesRef.current.userId !== session.user.id) {
+      readMessagesRef.current = { userId: session.user.id, byChat: new Map() };
+    }
+    const byChat = readMessagesRef.current.byChat;
+    const marked = byChat.get(chatId) || new Set();
+    byChat.set(chatId, marked);
+    const pending = [...new Set(messageIds)].filter((id) => id && !marked.has(id));
+    if (!pending.length) return;
+    pending.forEach((id) => marked.add(id));
+    const { error: markError } = await supabase.rpc('community_mark_messages_read', { p_chat_id: chatId, p_message_ids: pending });
+    if (markError) {
+      pending.forEach((id) => marked.delete(id));
+      console.info('Xabarlarning o‘qilgan holati saqlanmadi:', markError.message);
+      return;
+    }
+    const { data, error: listError } = await supabase.rpc('community_chat_list');
+    if (!listError) setChats(asArray(data));
   }, [session?.user?.id]);
 
   useEffect(() => { void loadChats(); }, [loadChats]);
@@ -132,8 +156,27 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   }, [selectedId, session?.user?.id, loadMessages, loadChats]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    const list = messageListRef.current;
+    const nearBottom = !list || list.scrollHeight - list.scrollTop - list.clientHeight < 140;
+    if (nearBottom) bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const root = messageListRef.current;
+    if (!root || !selectedId || !session?.user?.id || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(() => {
+      const bounds = root.getBoundingClientRect();
+      const visible = [...root.querySelectorAll('[data-community-message]')].filter((node) => {
+        const rect = node.getBoundingClientRect();
+        const overlap = Math.max(0, Math.min(rect.bottom, bounds.bottom) - Math.max(rect.top, bounds.top));
+        return overlap / Math.max(rect.height, 1) >= 0.35;
+      });
+      const visibleIds = visible.map((node) => node.dataset.messageId).filter(Boolean);
+      if (visibleIds.length) void markVisibleMessages(selectedId, visibleIds);
+    }, { root, threshold: [0.25, 0.6, 1] });
+    root.querySelectorAll('[data-community-message]').forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [messages, selectedId, session?.user?.id, markVisibleMessages]);
 
   useEffect(() => {
     if (!directUserId) { handledDirectRef.current = ''; return; }
@@ -372,7 +415,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
                 return <button key={chat.id} type="button" onClick={() => selectChat(chat)} className="flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-left" style={{ background: chat.id === selectedId ? C.paperSoft : 'transparent', color: C.ink }}>
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ color: '#fff', background: CHAT_ACCENTS[chat.kind] }}><Icon size={17} /></span>
                   <span className="min-w-0 flex-1 overflow-hidden">
-                    <span className="flex min-w-0 items-center justify-between gap-2 overflow-hidden"><span className="truncate text-xs font-semibold">{title || 'Chat'}</span>{chat.unread_count > 0 && <span className="rounded-full px-1.5 py-0.5 text-[9px]" style={{ color: '#fff', background: C.cover }}>{chat.unread_count}</span>}</span>
+                    <span className="flex min-w-0 items-center justify-between gap-2 overflow-hidden"><span className="truncate text-xs font-semibold">{title || 'Chat'}</span><span className="ml-2 inline-flex shrink-0 items-center gap-1.5">{chat.last_message_at && <time className="text-[9px]" style={{ ...fontMono, color: C.inkSoft }}>{shortTime(chat.last_message_at)}</time>}{chat.unread_count > 0 && <span className="min-w-[18px] rounded-full px-1.5 py-0.5 text-center text-[9px]" style={{ color: '#fff', background: C.cover }}>{chat.unread_count > 99 ? '99+' : chat.unread_count}</span>}</span></span>
                     <span className="mt-0.5 block max-w-full truncate text-[10px]" style={{ color: C.inkSoft }}>{chat.last_resource_title || chat.last_body || (chat.kind === 'news' ? 'Rasmiy yangiliklar' : chat.is_public ? 'Ommaviy' : 'Yangi chat')}</span>
                   </span>
                 </button>;
@@ -405,13 +448,13 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
 
             {invitePrompt && <button type="button" onClick={() => setInvitePrompt('')} className="mx-3 mt-2 break-all rounded-lg p-2 text-left text-[10px]" style={{ ...fontBody, color: C.accent, background: C.paperSoft }}>{invitePrompt}</button>}
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
+            <div ref={messageListRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
               {messageLoading ? <SectionLoading label="Xabarlar yuklanmoqda…" compact />
                 : messages.map((message) => {
                   const own = message.sender_id === session.user.id;
                   const attached = !!message.resource_kind;
                   return <div key={message.id} className={'flex ' + (own ? 'justify-end' : 'justify-start')}>
-                    <article className="max-w-[88%] rounded-2xl border px-3 py-2" style={{ background: own ? C.paperSoft : C.surface, borderColor: C.rule }}>
+                    <article data-community-message data-message-id={message.id} className="max-w-[88%] rounded-2xl border px-3 py-2" style={{ background: own ? C.paperSoft : C.surface, borderColor: C.rule }}>
                       {!own && message.sender_name && <div className="mb-1 text-[10px] font-semibold" style={{ ...fontBody, color: C.accent }}>{message.sender_name}</div>}
                       {message.body && <p className="whitespace-pre-wrap break-words text-sm" style={{ ...fontBody, color: C.ink }}>{message.body}</p>}
                       {attached && <button type="button" onClick={() => onOpenResource?.(message.resource_kind, message)} className="mt-1 flex min-w-[180px] items-center gap-2 rounded-xl border p-2 text-left" style={{ background: C.paper, borderColor: C.rule }}>
