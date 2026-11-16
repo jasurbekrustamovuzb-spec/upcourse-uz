@@ -1253,7 +1253,8 @@ export function getBrowseCardStyle(theme = 'light', kind = 'area') {
 export function EntryNumber({ icon: Icon = Tag, kind }) {
   const { theme } = useContext(ThemeContext);
   const resolvedKind = kind || (Icon === BookOpen ? 'course' : Icon === ListChecks ? 'test' : 'area');
-  const tone = getBrowseTone(resolvedKind, theme);
+  const baseTone = getBrowseTone(resolvedKind, theme);
+  const tone = Icon === BookOpen ? (theme === 'dark' ? { color: '#C4A6D3', soft: '#3A3040', line: '#685574' } : { color: '#765185', soft: '#F0EAF3', line: '#CDBFD5' }) : baseTone;
   return <span aria-hidden="true" className="mr-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ color: tone.color, background: tone.soft, border: `1px solid ${tone.line}` }}><Icon size={19} strokeWidth={1.9} /></span>;
 }
 
@@ -1711,7 +1712,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? '#263845' : '#E8F0F6', border: `1px solid ${dark ? '#536B7B' : '#829AAA'}`, boxShadow: dark ? '0 6px 18px rgba(0,0,0,.16)' : '0 5px 16px rgba(31,57,76,.08)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? '#29232F' : '#F1ECF3', border: `1px solid ${dark ? '#66566E' : '#CDBFD5'}`, boxShadow: dark ? '0 8px 22px rgba(0,0,0,.20)' : '0 7px 20px rgba(65,44,73,.10)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
@@ -1721,7 +1722,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
-      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#A8CBE0' : '#315A78', background: dark ? '#304858' : '#D8E7F0', border: `1px solid ${dark ? '#536B7B' : '#829AAA'}`, outlineColor: C.accent }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#C4A6D3' : '#765185', background: dark ? '#3A3040' : '#E6DAEB', border: `1px solid ${dark ? '#685574' : '#CDBFD5'}`, outlineColor: '#9B78AA' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
       {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
         <>
           <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Kursni tanlang</div>
@@ -1731,25 +1732,25 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
               setPreferredId(entry.id);
               try { window.localStorage.setItem(`upcourse_recommendation:${userId || 'guest'}`, entry.id); } catch { /* local storage ixtiyoriy */ }
               setMenuOpen(false);
-            }} className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs" style={{ ...fontBody, color: entry.id === activeCategoryId ? (dark ? '#A8CBE0' : '#315A78') : C.ink, background: entry.id === activeCategoryId ? (dark ? '#304858' : '#D8E7F0') : 'transparent' }}>
+            }} className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs" style={{ ...fontBody, color: entry.id === activeCategoryId ? (dark ? '#D1B9DC' : '#684579') : C.ink, background: entry.id === activeCategoryId ? (dark ? '#3A3040' : '#E6DAEB') : 'transparent' }}>
               <span className="min-w-0 truncate">{entry.name}</span>{entry.id === activeCategoryId && <Check size={14} className="shrink-0" />}
             </button>)}
           </div>
         </>
       </div>}
       <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
-        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-xl sm:w-[96px]" aria-hidden="true" style={{ background: dark ? '#304858' : '#D8E7F0' }}>
+        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-xl sm:w-[96px]" aria-hidden="true" style={{ background: dark ? '#3A3040' : '#E6DAEB' }}>
           <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: dark ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.28)' }} />
-          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#A8CBE0' : '#315A78' }} />
-          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: dark ? '#9CC4DC' : '#83A9C1' }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#C4A6D3' : '#765185' }} />
+          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: dark ? '#A98BB8' : '#AA8BB6' }} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#A8CBE0' : '#315A78' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: C.inkSoft }}>{index + 1}/{count}</span>}</div>
+          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#D1B9DC' : '#684579' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: C.inkSoft }}>{index + 1}/{count}</span>}</div>
           <div className="truncate text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>{category}</div>
           <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: C.ink }}>{item.title}</div>
-          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#E7F1F7' : '#163D59', background: dark ? '#35566D' : '#D4E4EF', outlineColor: C.accent }}>Mavzuni ochish <ChevronRight size={13} /></button>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#F2EAF5' : '#FFFFFF', background: dark ? '#765F80' : '#765185', outlineColor: '#9B78AA' }}>Mavzuni ochish <ChevronRight size={13} /></button>
         </div>
-        {count > 1 && <div className="flex shrink-0 flex-col items-center justify-center gap-2"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#A8CBE0' : '#315A78', border: `1px solid ${dark ? '#536B7B' : '#829AAA'}`, background: dark ? '#304858' : '#D8E7F0' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#E7F1F7' : '#163D59', border: `1px solid ${dark ? '#536B7B' : '#829AAA'}`, background: dark ? '#35566D' : '#D4E4EF' }}><ChevronRight size={16} /></button></div>}
+        {count > 1 && <div className="flex shrink-0 flex-col items-center justify-center gap-2"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#D1B9DC' : '#765185', border: `1px solid ${dark ? '#685574' : '#CDBFD5'}`, background: dark ? '#3A3040' : '#E6DAEB' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#F2EAF5' : '#684579', border: `1px solid ${dark ? '#685574' : '#CDBFD5'}`, background: dark ? '#55425E' : '#E6DAEB' }}><ChevronRight size={16} /></button></div>}
       </div>
       {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#A9C4AF' : '#789481') : (dark ? '#58665B' : '#CCD7CC') }} />)}</div>}
     </section>
