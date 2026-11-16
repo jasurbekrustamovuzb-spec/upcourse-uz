@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bell, Check, ChevronRight, Compass, Hash, Link2, Loader2, LockKeyhole, Megaphone, MessageCircle, Plus, Search, Send, Share2, UserPlus, Users, X } from 'lucide-react';
-import { C, EmptyState, SectionHeading, SectionLoading, fontBody, fontDisplay, fontMono } from './App';
+import { ArrowLeft, Check, ChevronRight, Compass, Hash, Link2, Loader2, LockKeyhole, Megaphone, MessageCircle, Send, Share2, UserPlus, Users, X } from 'lucide-react';
+import { C, EmptyState, PinnedAddButton, SectionLoading, fontBody, fontDisplay, fontMono } from './App';
 import { signInWithGoogle, supabase } from './supabaseClient';
 
 const CHAT_ACCENTS = {
@@ -32,7 +32,7 @@ function Dialog({ title, children, onClose, wide = false }) {
   );
 }
 
-export default function CommunityChatView({ session, isAdmin, onOpenProfile, directUserId, onDirectHandled, shareResource, onShareHandled, onOpenResource, initialInviteToken }) {
+export default function CommunityChatView({ session, isAdmin, onOpenProfile, directUserId, onDirectHandled, chatRequest, onChatHandled, shareResource, onShareHandled, onOpenResource, initialInviteToken }) {
   const [chats, setChats] = useState([]);
   const [publicChats, setPublicChats] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -136,7 +136,8 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   }, [messages]);
 
   useEffect(() => {
-    if (!directUserId || !session?.user?.id || handledDirectRef.current === directUserId) return;
+    if (!directUserId) { handledDirectRef.current = ''; return; }
+    if (!session?.user?.id || handledDirectRef.current === directUserId) return;
     handledDirectRef.current = directUserId;
     (async () => {
       const { data, error: requestError } = await supabase.rpc('community_start_direct', { p_user_id: directUserId });
@@ -147,6 +148,23 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
       onDirectHandled?.();
     })();
   }, [directUserId, session?.user?.id, loadChats, onDirectHandled]);
+
+  useEffect(() => {
+    if (!chatRequest?.chatId || !session?.user?.id) return;
+    let cancelled = false;
+    (async () => {
+      if (!chatRequest.isMember && ['group', 'channel'].includes(chatRequest.kind)) {
+        const { error: joinError } = await supabase.rpc('community_join_public_chat', { p_chat_id: chatRequest.chatId });
+        if (joinError) { setError('Guruhga kirib bo‘lmadi.'); onChatHandled?.(); return; }
+      }
+      await loadChats();
+      if (cancelled) return;
+      setSelectedId(chatRequest.chatId);
+      setMobilePane('chat');
+      onChatHandled?.();
+    })();
+    return () => { cancelled = true; };
+  }, [chatRequest?.nonce, chatRequest?.chatId, chatRequest?.isMember, session?.user?.id, loadChats, onChatHandled]);
 
   useEffect(() => {
     if (!initialInviteToken || !session?.user?.id || handledInviteRef.current === initialInviteToken) return;
@@ -337,25 +355,16 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
   const publicRoomsNotJoined = publicChats.filter((chat) => !chat.is_member);
 
   return (
-    <section className="mx-auto max-w-6xl">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <SectionHeading eyebrow="Xabarlar · Guruhlar · Kanallar" title="Hamjamiyat" />
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => { setCreateKind('group'); setCreateOpen(true); }} className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold" style={{ ...fontBody, color: C.accent, borderColor: C.rule, background: C.surface }}><Plus size={15} /> Yangi guruh / kanal</button>
-          <button type="button" onClick={() => { setPeopleOpen(true); setPeopleQuery(''); }} className="grid h-9 w-9 place-items-center rounded-xl border" style={{ color: C.inkSoft, background: C.surface, borderColor: C.rule }} title="Odam topish" aria-label="Odam topish"><Search size={16} /></button>
-        </div>
-      </div>
+    <section className="mx-auto max-w-7xl">
+      <PinnedAddButton icon={Users} label="Yangi guruh yoki kanal yaratish" onClick={() => { setCreateKind('group'); setCreateOpen(true); }} />
 
       {error && <div role="alert" className="mb-3 rounded-xl border px-3 py-2 text-xs" style={{ ...fontBody, color: C.red, borderColor: C.red, background: C.dangerTint }}>{error}</div>}
-      <div className="grid min-h-[min(72dvh,680px)] overflow-hidden rounded-2xl border md:grid-cols-[290px_minmax(0,1fr)]" style={{ background: C.surface, borderColor: C.rule }}>
-        <aside className={(mobilePane === 'chat' ? 'hidden ' : 'flex ') + 'min-h-[min(72dvh,680px)] flex-col border-r md:flex'} style={{ borderColor: C.rule }}>
-          <div className="border-b p-3" style={{ borderColor: C.rule }}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Chatlar</h2>
-              <button type="button" onClick={() => void loadChats()} title="Yangilash" className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.inkSoft }}><Bell size={15} /></button>
-            </div>
+      <div className="grid min-h-[min(72dvh,720px)] gap-5 md:grid-cols-[330px_minmax(0,1fr)]">
+        <aside className={(mobilePane === 'chat' ? 'hidden ' : 'flex ') + 'min-h-[min(72dvh,720px)] flex-col md:flex'} style={{ borderColor: C.rule }}>
+          <div className="border-b pb-3" style={{ borderColor: C.rule }}>
+            <h2 className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Chatlar</h2>
           </div>
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto py-2">
             {loading && chats.length === 0 ? <SectionLoading label="Chatlar yuklanmoqda…" compact />
               : chats.map((chat) => {
                 const title = chat.kind === 'direct' ? chat.peer_name || '@' + (chat.peer_username || 'foydalanuvchi') : chat.title;
@@ -380,7 +389,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
           </div>
         </aside>
 
-        <div className={(mobilePane === 'list' ? 'hidden ' : 'flex ') + 'min-h-[min(72dvh,680px)] min-w-0 flex-col md:flex'}>
+        <div className={(mobilePane === 'list' ? 'hidden ' : 'flex ') + 'min-h-[min(72dvh,720px)] min-w-0 flex-col md:flex'}>
           {selectedChat ? <>
             <header className="flex flex-wrap items-center gap-2 border-b px-3 py-2.5 sm:px-4" style={{ borderColor: C.rule }}>
               <button type="button" onClick={() => setMobilePane('list')} className="grid h-8 w-8 place-items-center rounded-lg md:hidden" style={{ color: C.inkSoft }} aria-label="Chatlar ro‘yxatiga qaytish"><ArrowLeft size={16} /></button>
