@@ -1972,14 +1972,14 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId, shareParam }) {
+export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, isAdmin, userId, featuredCategoryId, shareParam }) {
   const { theme } = useContext(ThemeContext);
   const [renaming, setRenaming] = useState(null);
 
   return (
     <div>
       {categories.length === 0 ? (
-        <EmptyState text="Hozircha soha qoʻshilmagan." cta="Quyidagi tugma orqali birinchi sohani qoʻshing." />
+        <EmptyState text="Hozircha soha qoʻshilmagan." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
           {categories.map((cat, i) => {
@@ -2021,9 +2021,6 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
         </div>
       )}
 
-      <div className="mt-6">
-        <GhostButton onClick={onGoToCommunity} icon={Plus}>Yangi soha qoʻshish</GhostButton>
-      </div>
 
       {renaming && (
         <RenameCategoryModal
@@ -2440,7 +2437,6 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             onSelect={goCategory}
             renameCategory={renameCategory}
             deleteCategory={deleteCategory}
-            onGoToCommunity={() => onGoToCommunity('kurslar')}
             isAdmin={isAdmin}
             userId={session?.user?.id}
             featuredCategoryId={null}
