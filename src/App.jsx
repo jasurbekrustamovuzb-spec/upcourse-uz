@@ -1712,7 +1712,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? '#29232F' : '#F1ECF3', border: `1px solid ${dark ? '#66566E' : '#CDBFD5'}`, boxShadow: dark ? '0 8px 22px rgba(0,0,0,.20)' : '0 7px 20px rgba(65,44,73,.10)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className={`relative mb-4 rounded-[28px] ${menuOpen ? "z-40 overflow-visible" : "overflow-hidden"}`} style={{ background: dark ? '#29232F' : '#F1ECF3', border: `1px solid ${dark ? '#66566E' : '#CDBFD5'}`, boxShadow: dark ? '0 8px 22px rgba(0,0,0,.20)' : '0 7px 20px rgba(65,44,73,.10)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
