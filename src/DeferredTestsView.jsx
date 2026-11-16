@@ -1229,7 +1229,7 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onHostAccountRequired, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onHostAccountRequired, onRequireTestAccount, onExitInitialLive, onExitInitialTest, onShareToFollowers }) {
   const { theme } = useContext(ThemeContext);
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
@@ -1644,6 +1644,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             isAdmin={isAdmin}
             userId={session?.user?.id}
             shareParam="testCategory"
+            onShareCategory={onShareToFollowers ? (cat) => onShareToFollowers('test_category', cat) : undefined}
           />
           </>
         )}
