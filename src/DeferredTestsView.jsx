@@ -1508,8 +1508,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           </div>
           <ChevronRight size={16} style={{ color: C.live, flexShrink: 0, marginLeft: 'auto' }} />
         </button>
-        <button type="button" onClick={goCertificateCenter} className="group mb-3 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2" style={{ background: C.surface, borderColor: theme === 'dark' ? '#536D7E' : '#879EAD', outlineColor: C.accent }}>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: theme === 'dark' ? '#A8CBE0' : '#315A78', background: theme === 'dark' ? '#293C4A' : '#E3EDF4' }}><FileCheck2 size={20} /></span>
+        <button type="button" onClick={goCertificateCenter} className="group mb-3 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2" style={{ background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent }}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: theme === 'dark' ? '#A9C4AF' : '#476554', background: theme === 'dark' ? '#35453A' : '#E8EFE9' }}><FileCheck2 size={20} /></span>
           <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold" style={{ ...fontBody, color: C.ink }}>Milliy sertifikat mock testlari</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Fan bo‘yicha sinov, natija va sertifikat</span></span><ChevronRight className="transition-transform group-hover:translate-x-0.5" size={17} style={{ color: theme === 'dark' ? '#A8CBE0' : '#315A78' }} />
         </button>
         <div className="grid grid-cols-3 gap-1.5 mb-3">
