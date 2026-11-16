@@ -1508,9 +1508,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           </div>
           <ChevronRight size={16} style={{ color: C.live, flexShrink: 0, marginLeft: 'auto' }} />
         </button>
-        <button type="button" onClick={goCertificateCenter} className="group mb-3 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md" style={{ background: 'linear-gradient(120deg,#f8f6f1,#f1f0f6)', borderColor: '#ddd8e6' }}>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: '#675382', background: '#e8e3ef' }}><FileCheck2 size={20} /></span>
-          <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold" style={{ ...fontBody, color: C.ink }}>Milliy sertifikat mock testlari</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Fan bo‘yicha sinov, natija va sertifikat</span></span><ChevronRight className="transition-transform group-hover:translate-x-0.5" size={17} style={{ color: '#766589' }} />
+        <button type="button" onClick={goCertificateCenter} className="group mb-3 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2" style={{ background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent }}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: theme === 'dark' ? '#A9C4AF' : '#476554', background: theme === 'dark' ? '#35453A' : '#E8EFE9' }}><FileCheck2 size={20} /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold" style={{ ...fontBody, color: C.ink }}>Milliy sertifikat mock testlari</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Fan bo‘yicha sinov, natija va sertifikat</span></span><ChevronRight className="transition-transform group-hover:translate-x-0.5" size={17} style={{ color: theme === 'dark' ? '#A9C4AF' : '#63806A' }} />
         </button>
         <div className="grid grid-cols-3 gap-1.5 mb-3">
           <button
@@ -1522,17 +1522,17 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           </button>
           <button
             onClick={goTeamBattle}
-            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.coverLine}`, outlineColor: C.gold, fontWeight: 600 }}
+            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl border text-[12px] leading-tight text-center transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2"
+            style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent, fontWeight: 600 }}
           >
-            <Users size={14} /> Jamoaviy jang
+            <Users size={15} style={{ color: theme === 'dark' ? '#A9C4AF' : '#476554' }} /> Jamoaviy jang
           </button>
           <button
             onClick={goLuckyWheel}
-            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-             style={{ ...fontBody, color: '#fff', background: 'linear-gradient(110deg,#e2545d,#e9ad35 42%,#3fa77a 72%,#438ed0)', border: '1px solid #ffffff88', outlineColor: C.gold, fontWeight: 700, boxShadow: '0 6px 16px #5483a533' }}
+            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl border text-[12px] leading-tight text-center transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2"
+             style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent, fontWeight: 600 }}
           >
-             <Dices size={16} /> Omad charxpalagi
+             <span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full border" style={{ color: '#fff', borderColor: theme === 'dark' ? '#65756A' : '#CAD6CA', background: 'conic-gradient(#c9534d 0deg 90deg,#d8a92d 90deg 180deg,#42865e 180deg 270deg,#457caf 270deg 360deg)' }}><Dices size={14} /></span> Omad charxpalagi
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
@@ -1563,7 +1563,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                         >
                           <div className="min-w-0">
                             <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                            <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta test</div>
+                            <div className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{count} ta test</div>
                             <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
                           </div>
                           <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
@@ -1584,7 +1584,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                             {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
                           </div>
                           <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                          <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
+                          <div className="mt-2 inline-flex items-center gap-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}><ListChecks size={13} style={{ color: theme === 'dark' ? '#D2AA8C' : '#8A553F' }} />{t.questionCount ?? t.questions?.length ?? 0} savol</div>
                         </div>
                         <button
                           onClick={() => goTest(t.id)}
@@ -1650,7 +1650,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                 <div className="min-w-0">
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
-                  <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
+                  <div className="mt-2 inline-flex items-center gap-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}><ListChecks size={13} style={{ color: theme === 'dark' ? '#D2AA8C' : '#8A553F' }} />{t.questionCount ?? t.questions?.length ?? 0} savol</div>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
