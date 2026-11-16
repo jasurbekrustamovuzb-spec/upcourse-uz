@@ -89,7 +89,7 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
     } finally {
       setLoading(false);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, selectedId]);
 
   const loadMessages = useCallback(async (chatId) => {
     if (!session?.user?.id || !chatId) return;
