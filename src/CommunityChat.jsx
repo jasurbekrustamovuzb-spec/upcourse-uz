@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Compass, Hash, Link2, Loader2, LockKeyhole, Megaphone, MessageCircle, Send, Share2, UserPlus, Users, X } from 'lucide-react';
-import { C, EmptyState, PinnedAddButton, SectionLoading, fontBody, fontDisplay, fontMono } from './App';
+import { ArrowLeft, Check, ChevronRight, Hash, Link2, Loader2, LockKeyhole, Megaphone, MessageCircle, Send, Share2, UserPlus, Users, X } from 'lucide-react';
+import { C, CollectibleThumb, EmptyState, PinnedAddButton, SectionLoading, fontBody, fontDisplay, fontMono, useAuthorBadge } from './App';
 import { signInWithGoogle, supabase } from './supabaseClient';
 
 const CHAT_ACCENTS = {
@@ -17,6 +17,18 @@ const shortTime = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
 };
+
+function ChatName({ chat, title, className = '' }) {
+  const badge = useAuthorBadge(chat?.kind === 'direct' ? chat.peer_id : null);
+  const rawTitle = String(title || '');
+  const cleanTitle = (chat?.kind === 'direct' ? rawTitle.replace(/\s*⚡\s*$/u, '') : rawTitle).trim();
+  return (
+    <span className={'flex min-w-0 items-center gap-1.5 ' + className}>
+      <span className="min-w-0 truncate">{cleanTitle || 'Chat'}</span>
+      {badge && chat?.kind === 'direct' && <CollectibleThumb collectibleId={badge} size={14} inline />}
+    </span>
+  );
+}
 
 function Dialog({ title, children, onClose, wide = false }) {
   return (
@@ -425,10 +437,10 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
               : chats.map((chat) => {
                 const title = chat.kind === 'direct' ? chat.peer_name || '@' + (chat.peer_username || 'foydalanuvchi') : chat.title;
                 const Icon = chat.kind === 'news' ? Megaphone : chat.kind === 'group' ? Users : chat.kind === 'channel' ? Hash : MessageCircle;
-                return <button key={chat.id} type="button" onClick={() => selectChat(chat)} className="flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-left" style={{ background: chat.id === selectedId ? C.paperSoft : 'transparent', color: C.ink }}>
+                return <button key={chat.id} type="button" onClick={() => selectChat(chat)} className="flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2 text-left" style={{ background: chat.id === selectedId ? C.paperSoft : 'transparent', color: C.ink }}>
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ color: '#fff', background: CHAT_ACCENTS[chat.kind] }}><Icon size={17} /></span>
                   <span className="min-w-0 flex-1 overflow-hidden">
-                    <span className="block min-w-0 truncate text-xs font-semibold">{title || 'Chat'}</span>
+                    <ChatName chat={chat} title={title} className="text-xs font-semibold" />
                     <span className="mt-1 block max-w-full truncate text-[10px]" style={{ color: C.inkSoft }}>{chat.last_resource_title || chat.last_body || (chat.kind === 'news' ? 'Rasmiy yangiliklar' : chat.is_public ? 'Ommaviy' : 'Yangi chat')}</span>
                     <span className="mt-1.5 flex items-center justify-between gap-2">
                       {chat.last_message_at ? <time className="text-[9px]" style={{ ...fontMono, color: C.inkSoft }}>{shortTime(chat.last_message_at)}</time> : <span />}
@@ -449,16 +461,22 @@ export default function CommunityChatView({ session, isAdmin, onOpenProfile, dir
           </div>
         </aside>
 
-        <div className={(mobilePane === 'list' ? 'hidden ' : 'flex ') + 'min-h-[min(72dvh,720px)] min-w-0 flex-col md:flex'}>
+        <div className={(mobilePane === 'list' ? 'hidden ' : 'flex ') + 'h-[calc(100dvh-10.5rem)] min-h-[360px] max-h-[900px] min-w-0 flex-col md:h-[min(72dvh,720px)] md:min-h-[min(72dvh,720px)] md:flex'}>
           {selectedChat ? <>
-            <header className="flex flex-wrap items-center gap-2 border-b px-3 py-2.5 sm:px-4" style={{ borderColor: C.rule }}>
+            <header className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b px-3 py-2.5 sm:px-4" style={{ borderColor: C.rule, background: C.paper }}>
               <button type="button" onClick={() => setMobilePane('list')} className="grid h-8 w-8 place-items-center rounded-lg md:hidden" style={{ color: C.inkSoft }} aria-label="Chatlar ro‘yxatiga qaytish"><ArrowLeft size={16} /></button>
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ color: '#fff', background: CHAT_ACCENTS[selectedChat.kind] }}>{selectedChat.kind === 'news' ? <Megaphone size={16} /> : selectedChat.kind === 'group' ? <Users size={16} /> : selectedChat.kind === 'channel' ? <Hash size={16} /> : <MessageCircle size={16} />}</span>
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{selectedChat.kind === 'direct' ? selectedChat.peer_name || '@' + (selectedChat.peer_username || 'foydalanuvchi') : selectedChat.title}</h2>
-                <p className="truncate text-[10px]" style={{ ...fontBody, color: C.inkSoft }}>{selectedChat.kind === 'news' ? 'Official UpCourse page' : selectedChat.kind === 'direct' ? '@' + (selectedChat.peer_username || '') : (selectedChat.is_public ? 'Ommaviy' : 'Maxfiy') + ' · ' + (selectedChat.my_role === 'owner' ? 'egasi' : selectedChat.my_role === 'admin' ? 'admin' : 'a’zo')}</p>
-              </div>
-              {selectedChat.kind === 'direct' && selectedChat.peer_username && <button type="button" onClick={() => onOpenProfile?.(selectedChat.peer_username)} title="Profilni ochish" className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.inkSoft }}><Compass size={16} /></button>}
+              {selectedChat.kind === 'direct' ? (
+                <button type="button" onClick={() => selectedChat.peer_username && onOpenProfile?.(selectedChat.peer_username)} disabled={!selectedChat.peer_username} title="Ommaviy profilni ochish" className="min-w-0 flex-1 text-left disabled:cursor-default">
+                  <ChatName chat={selectedChat} title={selectedChat.peer_name || '@' + (selectedChat.peer_username || 'foydalanuvchi')} className="text-sm font-semibold" />
+                  <span className="mt-0.5 block truncate text-[10px]" style={{ ...fontBody, color: C.inkSoft }}>@{selectedChat.peer_username || ''}</span>
+                </button>
+              ) : (
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>{selectedChat.title}</h2>
+                  <p className="truncate text-[10px]" style={{ ...fontBody, color: C.inkSoft }}>{selectedChat.kind === 'news' ? 'Official UpCourse page' : (selectedChat.is_public ? 'Ommaviy' : 'Maxfiy') + ' · ' + (selectedChat.my_role === 'owner' ? 'egasi' : selectedChat.my_role === 'admin' ? 'admin' : 'a’zo')}</p>
+                </div>
+              )}
               {['group', 'channel'].includes(selectedChat.kind) && <button type="button" onClick={() => void loadMembers()} title="A’zolar va taklif" className="inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[10px]" style={{ ...fontBody, color: C.inkSoft, background: C.surface, borderColor: C.rule }}><Users size={13} /> A’zolar</button>}
               {canManage && <button type="button" onClick={() => void createInvite()} disabled={inviteBusy} title="Taklif havolasini nusxalash" className="grid h-8 w-8 place-items-center rounded-lg" style={{ color: C.accent }}><Link2 size={16} /></button>}
             </header>
