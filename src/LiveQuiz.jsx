@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import {
-  ArrowLeft, Award, Check, Clock3, Loader2, Search, Users, X, Trophy, Medal, BookOpen, SkipForward,
+  ArrowLeft, Award, Check, ChevronRight, Clock3, Loader2, LogIn, Search, Users, X, Trophy, Medal, BookOpen, SkipForward,
 } from 'lucide-react';
 import {
   C, fontBody, fontMono, fontDisplay, SectionHeading, EmptyState, GhostButton, SolidButton, TextField, SectionLoading,
@@ -845,7 +845,8 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
     <div>
       <button onClick={onBack} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Ortga</button>
       <SectionHeading eyebrow="Xona ochish" title="Testni tanlang" />
-      <div className="max-w-md">
+      <div className="max-w-2xl rounded-3xl p-4 shadow-sm sm:p-6" style={{ background: C.surface, border: "1px solid " + C.rule, boxShadow: "0 10px 28px rgba(31,61,43,.06)" }}>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.accent }}>1 · Testni tanlang</div>
         <div className="flex gap-1 p-1 rounded-full mb-3 w-fit" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
           <button
             onClick={() => setScope('mine')}
@@ -902,6 +903,7 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
           )}
         </div>
 
+        <div className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.live }}>2 · Oʻyin sozlamalari</div>
         <label className="block text-xs mb-1.5" style={{ ...fontMono, color: C.inkSoft }}>Rejim</label>
         <div className="flex gap-1 p-1 rounded-full mb-4 w-fit" style={{ background: C.paperSoft, border: `1px solid ${C.rule}` }}>
           <button
@@ -1634,7 +1636,7 @@ function LiveJoinForm({ initialCode, onJoined, onBack, session }) {
       <button type="button" onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 40, marginBottom: 14, padding: '0 12px', border: `1px solid ${C.rule}`, borderRadius: 12, color: C.inkSoft, background: C.surface, font: `500 14px ${fontBody.fontFamily}`, cursor: 'pointer' }}><ArrowLeft size={16} /> Ortga</button>
       <section style={{ padding: 'clamp(20px, 5vw, 30px)', borderRadius: 24, background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 14px 40px rgba(31,61,43,.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
-          <span style={{ width: 46, height: 46, flex: '0 0 auto', display: 'grid', placeItems: 'center', borderRadius: 15, color: C.cover, background: C.goldSoft }} aria-hidden="true"><Users size={22} /></span>
+          <span style={{ width: 46, height: 46, flex: '0 0 auto', display: 'grid', placeItems: 'center', borderRadius: 15, color: C.live, background: C.liveTint, border: '1px solid ' + C.liveSoft }} aria-hidden="true"><LogIn size={22} /></span>
           <div>
             <div style={{ ...fontMono, color: C.gold, fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase' }}>Jonli test</div>
             <h1 style={{ ...fontDisplay, margin: '3px 0 0', color: C.ink, fontWeight: 600, fontSize: 'clamp(21px, 5vw, 27px)', lineHeight: 1.2 }}>Xonaga qoʻshilish</h1>
@@ -1644,7 +1646,7 @@ function LiveJoinForm({ initialCode, onJoined, onBack, session }) {
         <form onSubmit={(event) => { event.preventDefault(); void join(); }}>
           <label style={{ display: 'block', marginBottom: 16 }}>
             <span style={{ ...fontMono, display: 'block', marginBottom: 6, color: C.inkSoft, fontSize: 11, letterSpacing: '.08em' }}>XONA KODI</span>
-            <input type="text" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="MASALAN: A1B2C3" autoCapitalize="characters" autoComplete="off" spellCheck="false" style={{ boxSizing: 'border-box', width: '100%', minHeight: 50, padding: '0 14px', border: `1px solid ${C.rule}`, borderRadius: 12, outlineColor: C.gold, color: C.ink, background: C.paperSoft, font: `600 16px ${fontMono.fontFamily}`, letterSpacing: '.08em' }} />
+            <input type="text" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" inputMode="numeric" maxLength={6} autoComplete="one-time-code" spellCheck="false" style={{ boxSizing: 'border-box', width: '100%', minHeight: 50, padding: '0 14px', border: `1px solid ${C.rule}`, borderRadius: 12, outlineColor: C.gold, color: C.ink, background: C.paperSoft, font: `600 16px ${fontMono.fontFamily}`, letterSpacing: '.08em' }} />
           </label>
           <label style={{ display: 'block', marginBottom: 16 }}>
             <span style={{ ...fontMono, display: 'block', marginBottom: 6, color: C.inkSoft, fontSize: 11, letterSpacing: '.08em' }}>ISMINGIZ</span>
@@ -2056,7 +2058,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
   );
 }
 
-function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests, session, onExit, initialCode, restoreSession, onSessionChange, ensureTestContent }) {
+function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests, session, onExit, onRequireAccount, initialCode, restoreSession, onSessionChange, ensureTestContent }) {
   const [mode, setMode] = useState(initialCode ? 'join-form' : null);
   const [room, setRoom] = useState(null);
   const [participant, setParticipant] = useState(null);
@@ -2118,22 +2120,34 @@ function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests,
         <p className="text-[15px] mb-6 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>
           Bir nechta odam bitta testni bir vaqtda ishlashi uchun xona oching, yoki mavjud xona kodi bilan qoʻshiling.
         </p>
-        <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
-          {session ? (
-            <button onClick={() => setMode('host-setup')} className="min-w-0 p-5 rounded-2xl text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <Users size={20} style={{ color: C.live }} className="mb-2" />
-              <div className="font-medium" style={{ ...fontBody, color: C.ink }}>Xona ochish</div>
-              <div className="text-[13px] mt-1" style={{ ...fontBody, color: C.inkSoft }}>Testni tanlang, kod yarating, qatnashchilarni kuting.</div>
-            </button>
-          ) : (
-            <div className="p-5 rounded-2xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-              <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Xona ochish uchun tizimga kiring.</div>
-            </div>
-          )}
-          <button onClick={() => setMode('join-form')} className="min-w-0 p-5 rounded-2xl text-left transition-transform hover:-translate-y-0.5" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-            <Award size={20} style={{ color: C.live }} className="mb-2" />
-            <div className="font-medium" style={{ ...fontBody, color: C.ink }}>Xonaga qoʻshilish</div>
-            <div className="text-[13px] mt-1" style={{ ...fontBody, color: C.inkSoft }}>6 xonali kodni kiriting, ismingizni yozing — hisob shart emas.</div>
+        <div className="grid gap-3 sm:grid-cols-2 max-w-3xl">
+          <button type="button" onClick={session ? () => setMode('host-setup') : onRequireAccount} className="group flex min-h-[88px] min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition-colors hover:shadow-md focus-visible:outline focus-visible:outline-2 disabled:cursor-wait disabled:opacity-70" style={{ background: C.surface, borderColor: C.rule, borderLeft: '3px solid ' + C.accent, outlineColor: C.accent }}>
+            <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ color: C.accent, background: C.paperSoft, border: '1px solid ' + C.rule }}>
+              <Users size={17} />
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2" style={{ background: C.live, borderColor: C.surface }} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Xona ochish</span>
+                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.accent }}>Tashkilotchi</span>
+              </span>
+              <span className="mt-0.5 block text-xs leading-4" style={{ ...fontBody, color: C.inkSoft }}>{session ? 'Testni tanlang va xonani sozlang.' : 'Akkaunt kerak — Profil bo‘limiga o‘ting.'}</span>
+            </span>
+            <ChevronRight size={17} className="shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: C.accent }} />
+          </button>
+          <button type="button" onClick={() => setMode('join-form')} className="group flex min-h-[88px] min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition-colors hover:shadow-md focus-visible:outline focus-visible:outline-2" style={{ background: C.surface, borderColor: C.rule, borderLeft: '3px solid ' + C.live, outlineColor: C.live }}>
+            <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ color: C.live, background: C.liveTint, border: '1px solid ' + C.liveSoft }}>
+              <LogIn size={17} />
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2" style={{ background: C.accent, borderColor: C.surface }} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Xonaga qoʻshilish</span>
+                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.live }}>Ishtirokchi</span>
+              </span>
+              <span className="mt-0.5 block text-xs leading-4" style={{ ...fontBody, color: C.inkSoft }}>6 xonali kodni kiriting. Akkaunt shart emas.</span>
+            </span>
+            <ChevronRight size={17} className="shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: C.live }} />
           </button>
         </div>
       </div>

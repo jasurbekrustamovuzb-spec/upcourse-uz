@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Dices, Eye, FileCheck2, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Eye, FileCheck2, FileText, ListChecks, LogIn, LogOut, Moon, PanelTopClose, PanelTopOpen, Pause, Pencil, RotateCcw, Save, Settings, Share2, Sparkles, Sun, Trash2, Type, Users, X } from 'lucide-react';
 import { signInWithGoogle, supabase } from './supabaseClient.js';
 import { AuthorLine, BrowseHeading, C, CategoryGrid, DEFAULT_TEST_PREFS, EmptyState, EntryNumber, GhostButton, ItemMenu, LiveQuizHub, MatchingTestQuestion, MiniLearningBadge, NavContext, ThemeContext, PinnedAddButton, SearchBox, SectionHeading, SectionLoading, SettingChip, SolidButton, TeamBattleHub, buildShareUrl, computeQuizQuestions, fontBody, fontDisplay, fontMono, formatDuration, getQuestionCount, getQuestionScore, isQuestionCorrect, shareItem, getBrowseCardStyle, writePosition } from './App.jsx';
 const MathInput = lazy(() => import('./MathInput.jsx'));
@@ -1229,7 +1229,7 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onHostAccountRequired, onRequireTestAccount, onExitInitialLive, onExitInitialTest, onShareToFollowers }) {
   const { theme } = useContext(ThemeContext);
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
@@ -1244,6 +1244,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
   const [liveOpen, setLiveOpen] = useState(Boolean(initialLiveCode || initialLiveSession));
+  const [liveEntryDirect, setLiveEntryDirect] = useState(Boolean(initialLiveCode || initialLiveSession));
   const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken || initialTeamBattle));
   const [luckyWheelOpen, setLuckyWheelOpen] = useState(false);
   const [certificateOpen, setCertificateOpen] = useState(Boolean(initialCertificateId || new URLSearchParams(window.location.search).get('verifyCertificate')));
@@ -1308,7 +1309,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   };
   const goTest = (id, forceSetup, resumeState = null, onLeave = null, startConfig = null) => openTest(id, forceSetup, resumeState, onLeave, startConfig, true);
   const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
-  const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
+  const goLive = () => { setLiveEntryDirect(false); setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTeamBattle = () => { setTeamBattleOpen(true); pushNav(() => setTeamBattleOpen(false)); };
   const goLuckyWheel = () => { setLuckyWheelOpen(true); pushNav(() => setLuckyWheelOpen(false)); };
   const goCertificateCenter = () => { setCertificateOpen(true); pushNav(() => setCertificateOpen(false)); };
@@ -1446,7 +1447,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
 
   if (liveOpen) return (
     <Suspense fallback={initialLiveCode ? <LiveEntryLoading /> : <SectionLoading label="Jonli test yuklanmoqda…" />}>
-      <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={back} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
+      <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={() => { if (liveEntryDirect) { setLiveOpen(false); onExitInitialLive?.(); } else back(); }} onRequireAccount={onHostAccountRequired} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
     </Suspense>
   );
 
@@ -1508,9 +1509,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
           </div>
           <ChevronRight size={16} style={{ color: C.live, flexShrink: 0, marginLeft: 'auto' }} />
         </button>
-        <button type="button" onClick={goCertificateCenter} className="group mb-3 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md" style={{ background: 'linear-gradient(120deg,#f8f6f1,#f1f0f6)', borderColor: '#ddd8e6' }}>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: '#675382', background: '#e8e3ef' }}><FileCheck2 size={20} /></span>
-          <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold" style={{ ...fontBody, color: C.ink }}>Milliy sertifikat mock testlari</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Fan bo‘yicha sinov, natija va sertifikat</span></span><ChevronRight className="transition-transform group-hover:translate-x-0.5" size={17} style={{ color: '#766589' }} />
+        <button type="button" onClick={goCertificateCenter} className="group mb-3 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2" style={{ background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent }}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: theme === 'dark' ? '#A9C4AF' : '#476554', background: theme === 'dark' ? '#35453A' : '#E8EFE9' }}><FileCheck2 size={20} /></span>
+          <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold" style={{ ...fontBody, color: C.ink }}>Milliy sertifikat mock testlari</span><span className="mt-0.5 block text-xs" style={{ ...fontBody, color: C.inkSoft }}>Fan bo‘yicha sinov, natija va sertifikat</span></span><ChevronRight className="transition-transform group-hover:translate-x-0.5" size={17} style={{ color: theme === 'dark' ? '#A8CBE0' : '#315A78' }} />
         </button>
         <div className="grid grid-cols-3 gap-1.5 mb-3">
           <button
@@ -1518,21 +1519,50 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
             style={{ ...fontBody, color: C.math, background: C.mathTint, border: `1px solid ${C.mathSoft}`, outlineColor: C.mathSoft, fontWeight: 600 }}
           >
-            <ListChecks size={14} /> Moslik testi
+            <svg aria-hidden="true" viewBox="0 0 28 24" className="h-5 w-5 shrink-0">
+              <path d="M6 4 C12 4 16 20 22 20" fill="none" stroke="#D4554B" strokeWidth="2" strokeLinecap="round" />
+              <path d="M6 12 C12 12 16 4 22 4" fill="none" stroke="#4778C8" strokeWidth="2" strokeLinecap="round" />
+              <path d="M6 20 C12 20 16 12 22 12" fill="none" stroke="#41956A" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="4" cy="4" r="3" fill="#D4554B" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="4" cy="12" r="3" fill="#4778C8" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="4" cy="20" r="3" fill="#41956A" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="24" cy="4" r="3" fill="#4778C8" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="24" cy="12" r="3" fill="#41956A" stroke="#FFF" strokeWidth="1.2" />
+              <circle cx="24" cy="20" r="3" fill="#D4554B" stroke="#FFF" strokeWidth="1.2" />
+            </svg> Moslik testi
           </button>
           <button
             onClick={goTeamBattle}
-            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-            style={{ ...fontBody, color: C.cover, background: C.goldSoft, border: `1px solid ${C.coverLine}`, outlineColor: C.gold, fontWeight: 600 }}
+            className="flex items-center justify-center gap-0.5 min-w-0 min-h-11 px-2 py-2 rounded-xl border text-[10px] leading-tight text-center transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2"
+            style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent, fontWeight: 600 }}
           >
-            <Users size={14} /> Jamoaviy jang
+            <svg aria-hidden="true" viewBox="0 0 36 22" className="h-5 w-8 shrink-0">
+              <path d="M1.5 2h11v9.2c0 3.1-3.1 5.5-5.5 7.2-2.4-1.7-5.5-4.1-5.5-7.2z" fill="#3AA56B" stroke="#205D42" strokeWidth="1" strokeLinejoin="round" />
+              <path d="M3 4h8" stroke="#A9DD83" strokeWidth="1.6" strokeLinecap="round" />
+              <text x="7" y="11.2" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="7" fontWeight="800" fill="#FFFDF3">A</text>
+              <path d="M23.5 2h11v9.2c0 3.1-3.1 5.5-5.5 7.2-2.4-1.7-5.5-4.1-5.5-7.2z" fill="#D94F45" stroke="#91362F" strokeWidth="1" strokeLinejoin="round" />
+              <path d="M25 4h8" stroke="#FFC15B" strokeWidth="1.6" strokeLinecap="round" />
+              <text x="29" y="11.2" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="7" fontWeight="800" fill="#FFFDF3">B</text>
+              <circle cx="18" cy="10.5" r="5.4" fill="#F2C44E" stroke="#FFF9E9" strokeWidth="1.2" />
+              <text x="18" y="12.1" textAnchor="middle" fontFamily="system-ui,sans-serif" fontSize="5.3" fontWeight="900" fill="#28352C">VS</text>
+            </svg> Jamoaviy jang
           </button>
           <button
             onClick={goLuckyWheel}
-            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl text-[12px] leading-tight text-center focus-visible:outline focus-visible:outline-2"
-             style={{ ...fontBody, color: '#fff', background: 'linear-gradient(110deg,#e2545d,#e9ad35 42%,#3fa77a 72%,#438ed0)', border: '1px solid #ffffff88', outlineColor: C.gold, fontWeight: 700, boxShadow: '0 6px 16px #5483a533' }}
+            className="flex items-center justify-center gap-1.5 min-w-0 min-h-11 px-2 py-2 rounded-xl border text-[12px] leading-tight text-center transition-colors hover:shadow-sm focus-visible:outline focus-visible:outline-2"
+             style={{ ...fontBody, color: C.ink, background: C.surface, borderColor: theme === 'dark' ? '#52645A' : '#D2DDD4', outlineColor: C.accent, fontWeight: 600 }}
           >
-             <Dices size={16} /> Omad charxpalagi
+             <svg aria-hidden="true" viewBox="0 0 32 32" className="h-7 w-7 shrink-0 drop-shadow-sm">
+              <path d="M16 17 L16 4 A13 13 0 0 1 27.26 10.5 Z" fill="#D94F45" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L27.26 10.5 A13 13 0 0 1 27.26 23.5 Z" fill="#416EC4" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L27.26 23.5 A13 13 0 0 1 16 30 Z" fill="#3F9862" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L16 30 A13 13 0 0 1 4.74 23.5 Z" fill="#E99A32" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L4.74 23.5 A13 13 0 0 1 4.74 10.5 Z" fill="#8055A8" stroke="#FFF9EC" strokeWidth="1.1" />
+              <path d="M16 17 L4.74 10.5 A13 13 0 0 1 16 4 Z" fill="#269A98" stroke="#FFF9EC" strokeWidth="1.1" />
+              <circle cx="16" cy="17" r="2.8" fill="#FFF9EC" stroke="#27352E" strokeWidth="1.2" />
+              <path d="M12.2 4.8 16 1.5l3.8 3.3H17.6l-1.6 2.4-1.6-2.4z" fill="#27352E" stroke="#FFF9EC" strokeWidth=".7" strokeLinejoin="round" />
+              <circle cx="16" cy="17" r="12.8" fill="none" stroke="#27352E" strokeWidth="1.2" />
+            </svg> Omad charxpalagi
           </button>
         </div>
         <SearchBox value={query} onChange={setQuery} placeholder="Test yoki soha nomi boʻyicha qidirish..." />
@@ -1563,7 +1593,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                         >
                           <div className="min-w-0">
                             <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
-                            <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{count} ta test</div>
+                            <div className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{count} ta test</div>
                             <AuthorLine authorId={cat.authorId} authorName={cat.author} className="text-xs mt-1" />
                           </div>
                           <ChevronRight size={16} style={{ color: C.gold, flexShrink: 0 }} />
@@ -1584,7 +1614,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                             {categories.find((cat) => cat.id === t.categoryId)?.name || ''}
                           </div>
                           <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
-                          <div className="text-xs mt-1" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
+                          <div className="mt-2 inline-flex items-center gap-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}><ListChecks size={13} style={{ color: theme === 'dark' ? '#D2AA8C' : '#8A553F' }} />{t.questionCount ?? t.questions?.length ?? 0} savol</div>
                         </div>
                         <button
                           onClick={() => goTest(t.id)}
@@ -1614,6 +1644,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
             isAdmin={isAdmin}
             userId={session?.user?.id}
             shareParam="testCategory"
+            onShareCategory={onShareToFollowers ? (cat) => onShareToFollowers('test_category', cat) : undefined}
           />
           </>
         )}
@@ -1650,7 +1681,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
                 <div className="min-w-0">
                   <div className="font-medium text-base" style={{ ...fontBody, color: C.ink }}>{t.title}</div>
                   {t.description && <div className="text-[15px] mt-1 line-clamp-2" style={{ ...fontBody, color: C.inkSoft }}>{t.description}</div>}
-                  <div className="text-xs mt-2" style={{ ...fontMono, color: C.gold }}>{t.questionCount ?? t.questions?.length ?? 0} ta savol</div>
+                  <div className="mt-2 inline-flex items-center gap-1.5 text-xs" style={{ ...fontBody, color: C.inkSoft }}><ListChecks size={13} style={{ color: theme === 'dark' ? '#D2AA8C' : '#8A553F' }} />{t.questionCount ?? t.questions?.length ?? 0} savol</div>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">

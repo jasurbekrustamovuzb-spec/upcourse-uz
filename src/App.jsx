@@ -23,7 +23,7 @@ const DailyArenaView = lazy(() => import('./DailyArena.jsx'));
 const GlobalSearchView = lazy(() => import('./GlobalSearch.jsx'));
 export const ProfileFollowView = lazy(() => import('./ProfileFollow.jsx'));
 const DeferredSharedResourcesPanel = lazy(() => import('./DeferredSharedResources.jsx').then((module) => ({ default: module.SharedResourcesPanel })));
-const DeferredFollowerShareDialog = lazy(() => import('./DeferredSharedResources.jsx').then((module) => ({ default: module.FollowerShareDialog })));
+const CommunityChatView = lazy(() => import('./CommunityChat.jsx'));
 export const PublicCollectionsView = lazy(() => import('./PublicCollections.jsx'));
 const CourseLinkedTestsView = lazy(() => import('./CourseLinkedTests.jsx'));
 const LearningTasksModal = lazy(() => import('./LearningTasks.jsx'));
@@ -81,31 +81,29 @@ function LiveEntryLoading() {
 /* ------------------------------------------------------------------ */
 const LIGHT_PALETTE = {
   cover: '#1F3D2B',
-  coverDeep: '#142A1B',
-  coverLine: 'rgba(184,134,59,0.35)',
-  paper: '#EFE9D6',
-  paperSoft: '#F7F3E7',
-  rule: '#B7C4AE',
+  coverDeep: '#153020',
+  coverLine: 'rgba(184,134,59,0.42)',
+  paper: '#F0EDE0',
+  paperSoft: '#F7F5EA',
+  rule: '#C7C5B2',
   red: '#A8433A',
-  gold: '#B8863B',
+  gold: '#A97931',
   goldSoft: '#DCC28F',
-  ink: '#262A1E',
+  ink: '#222A24',
   inkSoft: '#5C6152',
   white: '#FBFAF3',
   surface: '#FBFAF3',
-  successTint: 'rgba(31,61,43,0.10)',
+  successTint: 'rgba(49,91,62,0.10)',
   dangerTint: 'rgba(168,67,58,0.10)',
   selectedTint: 'rgba(184,134,59,0.08)',
   dangerBannerTint: 'rgba(168,67,58,0.08)',
-  accent: '#1F3D2B',
-  /* Faqat "Jonli test" bo'limi uchun — iliq, quvnoq aksent */
+  accent: '#42627A',
   live: '#C9622A',
   liveSoft: '#E8A874',
   liveDeep: '#7A3A16',
   liveTint: 'rgba(201,98,42,0.10)',
   silver: '#8B8F86',
   bronze: '#A9713F',
-  /* Faqat "Matematik test" yaratish tugmasi uchun — aniq, "ilmiy" aksent */
   math: '#2C5F7C',
   mathSoft: '#5C90AC',
   mathDeep: '#173544',
@@ -113,32 +111,30 @@ const LIGHT_PALETTE = {
 };
 
 const DARK_PALETTE = {
-  cover: '#1F3D2B',
-  coverDeep: '#17271C',
-  coverLine: 'rgba(184,134,59,0.35)',
-  paper: '#20241F',
-  paperSoft: '#262B25',
-  rule: '#485047',
+  cover: '#234B35',
+  coverDeep: '#173624',
+  coverLine: 'rgba(184,194,160,0.30)',
+  paper: '#171E19',
+  paperSoft: '#202922',
+  rule: '#526256',
   red: '#E08A7D',
-  gold: '#D4AC6E',
-  goldSoft: '#E4CC9C',
-  ink: '#E5E1D7',
-  inkSoft: '#B9BBB2',
-  white: '#F0EDE4',
-  surface: '#2A3029',
+  gold: '#D1AE6C',
+  goldSoft: '#D8C08D',
+  ink: '#E8EDE8',
+  inkSoft: '#BAC6BC',
+  white: '#F0F4F0',
+  surface: '#252F28',
   successTint: 'rgba(94,168,118,0.17)',
   dangerTint: 'rgba(224,138,125,0.17)',
   selectedTint: 'rgba(212,172,110,0.13)',
   dangerBannerTint: 'rgba(224,138,125,0.12)',
-  accent: '#A7C9AA',
-  /* Faqat "Jonli test" bo'limi uchun — iliq, quvnoq aksent */
+  accent: '#91B9D0',
   live: '#E8965A',
   liveSoft: '#F0B888',
   liveDeep: '#3D2411',
   liveTint: 'rgba(232,150,90,0.18)',
   silver: '#AEB3A8',
   bronze: '#C89566',
-  /* Faqat "Matematik test" yaratish tugmasi uchun — aniq, "ilmiy" aksent */
   math: '#6FA8CC',
   mathSoft: '#9CC5E0',
   mathDeep: '#12222C',
@@ -361,6 +357,11 @@ function parseDeepLink() {
     if (p.get('battle')) return { type: 'battle', value: p.get('battle') };
     if (p.get('teamBattle') === '1') return { type: 'teamBattle' };
     if (p.get('u')) return { type: 'profile', value: p.get('u') };
+    if (p.get('chatInvite')) return { type: 'chatInvite', value: p.get('chatInvite') };
+    try {
+      const pendingInvite = sessionStorage.getItem('upcourse-pending-chat-invite');
+      if (pendingInvite) { sessionStorage.removeItem('upcourse-pending-chat-invite'); return { type: 'chatInvite', value: pendingInvite }; }
+    } catch (e) { /* taklif bo‘lmasa oddiy kirish */ }
   } catch (e) { /* URL o'qib bo'lmasa, oddiy holatda ochiladi */ }
   return null;
 }
@@ -1237,26 +1238,28 @@ export function LinkedUsernameText({ text, className, style }) {
 
 export function getBrowseTone(kind = 'area', theme = 'light') {
   const tones = {
-    area: { light: { color: '#926C31', soft: '#F1E8D4', line: '#E1D2B1' }, dark: { color: '#C9ADC9', soft: '#403542', line: '#615163' } },
-    course: { light: { color: '#4C7290', soft: '#E6EEF5', line: '#C9D9E7' }, dark: { color: '#A9C5DE', soft: '#303A48', line: '#526278' } },
-    test: { light: { color: '#9A668B', soft: '#F0E7F0', line: '#DCCBDD' }, dark: { color: '#D2A8C9', soft: '#473747', line: '#68526A' } },
+    area: { light: { color: '#476554', soft: '#E8EFE9', line: '#CAD8CE' }, dark: { color: '#A9C4AF', soft: '#303D34', line: '#4E6655' } },
+    course: { light: { color: '#42627A', soft: '#E9EFF3', line: '#CDD9E1' }, dark: { color: '#A8C0D0', soft: '#303B43', line: '#506473' } },
+    test: { light: { color: '#8A553F', soft: '#F3ECE6', line: '#DDCFC2' }, dark: { color: '#D2AA8C', soft: '#42372F', line: '#6D5949' } },
   };
   return tones[tones[kind] ? kind : 'area'][theme === 'dark' ? 'dark' : 'light'];
 }
 export function getBrowseCardStyle(theme = 'light', kind = 'area') {
   const backgrounds = {
-    area: ['linear-gradient(145deg,#F5EFE5,#F4EDF2)', 'linear-gradient(145deg,#322D36,#3A323D)'],
-    course: ['linear-gradient(145deg,#EFF4F8,#E8EFF5)', 'linear-gradient(145deg,#2C3541,#333E4C)'],
-    test: ['radial-gradient(ellipse at 0% 0%,rgba(141,112,158,.13),transparent 58%),linear-gradient(145deg,#F2EBF5,#F5EEE8 68%,#EEF0F2)', 'radial-gradient(ellipse at 0% 0%,rgba(173,139,192,.16),transparent 58%),linear-gradient(145deg,#382E3D,#34313F 68%,#2E3541)'],
+    area: ['#FBFAF6', '#2A302B'],
+    course: ['#F7FAFB', '#293139'],
+    test: ['#FBF8F5', '#332E29'],
   };
   const dark = theme === 'dark';
   const palette = backgrounds[kind] || backgrounds.area;
-  return { background: palette[dark ? 1 : 0], border: `1px solid ${kind === 'test' ? (dark ? '#68576E' : '#DED1E4') : dark ? (kind === 'course' ? '#536177' : '#5B505F') : '#DCD6D7'}`, borderRadius: kind === 'test' ? '27px 20px 27px 20px' : '28px', boxShadow: kind === 'test' ? (dark ? 'inset 3px 0 0 rgba(183,151,199,.65),0 8px 20px rgba(0,0,0,.20)' : 'inset 3px 0 0 rgba(151,116,170,.52),0 8px 20px rgba(90,70,99,.10)') : dark ? '0 6px 16px rgba(0,0,0,.14)' : '0 5px 16px rgba(74,82,68,.07)' };
+  const tone = getBrowseTone(kind, theme);
+  return { background: palette[dark ? 1 : 0], border: `1px solid ${tone.line}`, borderRadius: '18px', boxShadow: dark ? '0 5px 16px rgba(0,0,0,.14)' : '0 4px 14px rgba(39,54,45,.055)' };
 }
 export function EntryNumber({ icon: Icon = Tag, kind }) {
   const { theme } = useContext(ThemeContext);
   const resolvedKind = kind || (Icon === BookOpen ? 'course' : Icon === ListChecks ? 'test' : 'area');
-  const tone = getBrowseTone(resolvedKind, theme);
+  const baseTone = getBrowseTone(resolvedKind, theme);
+  const tone = Icon === BookOpen ? (theme === 'dark' ? { color: '#E3A18B', soft: '#49332F', line: '#765347' } : { color: '#A9533D', soft: '#F5E8E1', line: '#DFC2B5' }) : baseTone;
   return <span aria-hidden="true" className="mr-3 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ color: tone.color, background: tone.soft, border: `1px solid ${tone.line}` }}><Icon size={19} strokeWidth={1.9} /></span>;
 }
 
@@ -1654,7 +1657,7 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
   const dark = theme === 'dark';
   return (
     <div className={`relative mb-5 min-w-0 ${className}`}>
-      <Search size={28} className="absolute top-1/2 -translate-y-1/2 left-2.5 rounded-full p-1.5" style={{ color: dark ? '#C7B5D8' : '#725A88', background: dark ? '#3B3443' : '#EEE7F3' }} />
+      <Search size={28} className="absolute top-1/2 -translate-y-1/2 left-2.5 rounded-full p-1.5" style={{ color: dark ? '#A9C4AF' : '#476554', background: dark ? '#303D34' : '#E8EFE9' }} />
       <input
         id="upcourse-search"
         name="search"
@@ -1664,7 +1667,7 @@ export function SearchBox({ value, onChange, placeholder, className = '' }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className="w-full pl-12 pr-4 py-3 rounded-2xl text-base outline-none transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-        style={{ ...fontBody, color: C.ink, background: dark ? '#292630' : '#FBF8FD', border: `1px solid ${dark ? '#65556F' : '#D9CEE0'}`, boxShadow: dark ? '0 5px 16px rgba(0,0,0,.18)' : '0 5px 16px rgba(99,75,112,.08)', outlineColor: dark ? '#A88CB9' : '#AC93BB' }}
+        style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${dark ? '#536D7E' : '#829AAA'}`, boxShadow: dark ? '0 4px 14px rgba(0,0,0,.14)' : '0 4px 14px rgba(31,57,76,.06)', outlineColor: dark ? '#A8CBE0' : '#286B9C' }}
       />
       {value && (
         <button
@@ -1691,8 +1694,7 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
   const availableCategories = useMemo(() => categories.filter((entry) => items.some((item) => item.categoryId === entry.id)), [categories, items]);
   const defaultCategoryId = items.find((entry) => entry.categoryId)?.categoryId || null;
   useEffect(() => {
-    if (!userId) { setPreferredId(null); return; }
-    try { setPreferredId(window.localStorage.getItem(`upcourse_recommendation:${userId}`)); }
+    try { setPreferredId(window.localStorage.getItem(`upcourse_recommendation:${userId || 'guest'}`)); }
     catch { setPreferredId(null); }
   }, [userId]);
   useEffect(() => {
@@ -1706,16 +1708,16 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
     : items.filter((entry) => !entry.categoryId).slice(0, 1);
   const count = categoryItems.length;
   useEffect(() => {
-    if (count < 2) return undefined;
+    if (count < 2 || menuOpen) return undefined;
     const timer = window.setInterval(() => setIndex((current) => (current + 1) % count), 6500);
     return () => window.clearInterval(timer);
-  }, [count, activeCategoryId]);
+  }, [count, activeCategoryId, menuOpen]);
   if (!count) return null;
   const item = categoryItems[index % count];
   const category = categories.find((entry) => entry.id === activeCategoryId)?.name || item.category || 'Tavsiya etilgan kurs';
   const move = (direction) => setIndex((current) => (current + direction + count) % count);
   return (
-    <section aria-label="Tavsiya etilgan kurslar" className="relative mb-4 overflow-hidden rounded-[28px]" style={{ background: dark ? 'linear-gradient(118deg,#223D64 0%,#2D5477 48%,#693F4A 100%)' : 'linear-gradient(118deg,#3767A5 0%,#3B79A5 48%,#B96655 100%)', border: `1px solid ${dark ? '#6683A1' : '#D78B70'}`, boxShadow: dark ? '0 9px 24px rgba(0,0,0,.18)' : '0 9px 24px rgba(74,82,68,.09)' }}
+    <section aria-label="Tavsiya etilgan kurslar" className={`relative mb-4 rounded-[28px] ${menuOpen ? "z-40 overflow-visible" : "overflow-hidden"}`} style={{ background: dark ? '#29232F' : '#F1ECF3', border: `1px solid ${dark ? '#66566E' : '#CDBFD5'}`, boxShadow: dark ? '0 8px 22px rgba(0,0,0,.20)' : '0 7px 20px rgba(65,44,73,.10)' }}
       onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }}
       onTouchEnd={(event) => {
         if (touchStartX.current == null) return;
@@ -1725,40 +1727,37 @@ function CourseRecommendationCarousel({ items, categories, onOpen, session, onRe
       }}
       onKeyDown={(event) => { if (event.key === 'ArrowLeft') move(-1); if (event.key === 'ArrowRight') move(1); }}
     >
-      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full shadow-sm focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#2E4C72' : '#2E4C72', background: 'rgba(255,255,255,.94)', border: '1px solid rgba(255,255,255,.68)', outlineColor: '#F4C875' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
+      <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Tavsiya kursini almashtirish" aria-expanded={menuOpen} aria-controls="recommendation-picker" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2" style={{ color: dark ? '#C4A6D3' : '#765185', background: dark ? '#3A3040' : '#E6DAEB', border: `1px solid ${dark ? '#685574' : '#CDBFD5'}`, outlineColor: '#9B78AA' }} title="Tavsiya kursini almashtirish"><Repeat2 size={13} /></button>
       {menuOpen && <div id="recommendation-picker" className="absolute right-2 top-11 z-30 w-[min(310px,calc(100%-16px))] rounded-lg p-3 shadow-xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
-        {userId ? <>
+        <>
           <div className="mb-2 text-[10px] uppercase tracking-wider" style={{ ...fontMono, color: C.gold }}>Kursni tanlang</div>
           <div className="max-h-56 space-y-1 overflow-y-auto">
             {availableCategories.map((entry) => <button key={entry.id} type="button" onClick={() => {
               setIndex(0);
               setPreferredId(entry.id);
-              try { window.localStorage.setItem(`upcourse_recommendation:${userId}`, entry.id); } catch { /* local storage ixtiyoriy */ }
+              try { window.localStorage.setItem(`upcourse_recommendation:${userId || 'guest'}`, entry.id); } catch { /* local storage ixtiyoriy */ }
               setMenuOpen(false);
-            }} className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs" style={{ ...fontBody, color: entry.id === activeCategoryId ? C.cover : C.ink, background: entry.id === activeCategoryId ? C.goldSoft + '55' : 'transparent' }}>
+            }} className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-xs" style={{ ...fontBody, color: entry.id === activeCategoryId ? (dark ? '#D1B9DC' : '#684579') : C.ink, background: entry.id === activeCategoryId ? (dark ? '#3A3040' : '#E6DAEB') : 'transparent' }}>
               <span className="min-w-0 truncate">{entry.name}</span>{entry.id === activeCategoryId && <Check size={14} className="shrink-0" />}
             </button>)}
           </div>
-        </> : <>
-          <div className="text-[13px] font-medium" style={{ ...fontBody, color: C.ink }}>Tavsiyani tanlash uchun akkauntga kiring.</div>
-          <button type="button" onClick={onRequireAccount} className="mt-2 rounded-full px-3 py-1.5 text-xs font-medium" style={{ ...fontBody, color: C.white, background: C.cover }}>Akkauntga kirish</button>
-        </>}
+        </>
       </div>}
       <div className="flex min-h-[126px] items-stretch gap-3 p-3 sm:gap-4 sm:p-4">
-        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-[22px] sm:w-[96px]" aria-hidden="true" style={{ background: dark ? 'linear-gradient(145deg,#D9A65F,#CA735D 58%,#7788B1)' : 'linear-gradient(145deg,#F2C56E,#DD8564 58%,#8798C2)' }}>
+        <div className="relative flex w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-xl sm:w-[96px]" aria-hidden="true" style={{ background: dark ? '#3A3040' : '#E6DAEB' }}>
           <span className="absolute -right-5 -top-6 h-16 w-16 rounded-full" style={{ background: dark ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.28)' }} />
-          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#263F62' : '#29466E' }} />
-          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: dark ? '#F0C36D' : '#F1BD5E' }} />
+          <BookOpen size={34} strokeWidth={1.8} style={{ color: dark ? '#C4A6D3' : '#765185' }} />
+          <span className="absolute bottom-2 left-2 right-2 h-1 rounded-full" style={{ background: dark ? '#A98BB8' : '#AA8BB6' }} />
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#FFE09A' : '#FFE29A' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: dark ? '#F5E9D7' : '#F7EBDD' }}>{index + 1}/{count}</span>}</div>
-          <div className="truncate text-[11px]" style={{ ...fontBody, color: dark ? '#E2EDF7' : '#EAF1F8' }}>{category}</div>
-          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: dark ? '#FFFFFF' : '#FFFFFF' }}>{item.title}</div>
-          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition-transform hover:translate-x-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#263F62' : '#29466E', background: dark ? '#F0BD62' : '#F2C46E', outlineColor: '#FFF0C0' }}>Mavzuni ochish <ChevronRight size={13} /></button>
+          <div className="mb-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[.17em]" style={{ ...fontMono, color: dark ? '#D1B9DC' : '#684579' }}>Siz uchun tavsiya</span>{count > 1 && <span className="text-[10px]" style={{ ...fontMono, color: C.inkSoft }}>{index + 1}/{count}</span>}</div>
+          <div className="truncate text-[11px]" style={{ ...fontBody, color: C.inkSoft }}>{category}</div>
+          <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-snug sm:text-[15px]" style={{ ...fontBody, color: C.ink }}>{item.title}</div>
+          <button type="button" onClick={() => onOpen(item.id)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: dark ? '#F2EAF5' : '#FFFFFF', background: dark ? '#765F80' : '#765185', outlineColor: '#9B78AA' }}>Mavzuni ochish <ChevronRight size={13} /></button>
         </div>
-        {count > 1 && <div className="hidden shrink-0 flex-col items-center justify-center gap-2 md:flex"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#2E4C72', border: '1px solid rgba(255,255,255,.68)', background: 'rgba(255,255,255,.92)' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: '#FFFFFF', background: dark ? '#C86B5D' : '#D9795D' }}><ChevronRight size={16} /></button></div>}
+        {count > 1 && <div className="flex shrink-0 flex-col items-center justify-center gap-2"><button type="button" onClick={() => move(-1)} aria-label="Oldingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#D1B9DC' : '#765185', border: `1px solid ${dark ? '#685574' : '#CDBFD5'}`, background: dark ? '#3A3040' : '#E6DAEB' }}><ChevronRight size={16} className="rotate-180" /></button><button type="button" onClick={() => move(1)} aria-label="Keyingi tavsiya" className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: dark ? '#F2EAF5' : '#684579', border: `1px solid ${dark ? '#685574' : '#CDBFD5'}`, background: dark ? '#55425E' : '#E6DAEB' }}><ChevronRight size={16} /></button></div>}
       </div>
-      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#FFE09A' : '#FFD77A') : (dark ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.55)') }} />)}</div>}
+      {count > 1 && <div className="flex justify-center gap-1.5 pb-2.5" aria-hidden="true">{categoryItems.map((entry, dot) => <span key={entry.id} className="h-1 rounded-full transition-all" style={{ width: dot === index ? 18 : 5, background: dot === index ? (dark ? '#A9C4AF' : '#789481') : (dark ? '#58665B' : '#CCD7CC') }} />)}</div>}
     </section>
   );
 }
@@ -1978,33 +1977,34 @@ export function RenameCategoryModal({ category, onSave, onCancel }) {
   );
 }
 
-export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, onGoToCommunity, isAdmin, userId, featuredCategoryId, shareParam }) {
+export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect, renameCategory, deleteCategory, isAdmin, userId, featuredCategoryId, shareParam, onShareCategory }) {
   const { theme } = useContext(ThemeContext);
   const [renaming, setRenaming] = useState(null);
 
   return (
     <div>
       {categories.length === 0 ? (
-        <EmptyState text="Hozircha soha qoʻshilmagan." cta="Quyidagi tugma orqali birinchi sohani qoʻshing." />
+        <EmptyState text="Hozircha soha qoʻshilmagan." />
       ) : (
         <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
           {categories.map((cat, i) => {
             const count = itemsByCategory[cat.id] || 0;
+            const cardKind = itemLabel === 'mavzu' ? 'area' : ['area', 'test', 'course'][i % 3];
             return (
               <div
                 key={cat.id}
                 className="relative min-w-0 group flex items-start justify-between gap-2 p-3.5 sm:p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
-                style={getBrowseCardStyle(theme, 'area')}
+                style={getBrowseCardStyle(theme, cardKind)}
                 onClick={() => onSelect(cat.id)}
               >
                 <div className="flex items-start min-w-0">
-                  <EntryNumber icon={itemLabel === 'mavzu' ? BookOpen : ListChecks} kind="area" />
+                  <EntryNumber icon={itemLabel === 'mavzu' ? BookOpen : ListChecks} kind={cardKind} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
                       {cat.id === featuredCategoryId && <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] uppercase tracking-wide" style={{ ...fontMono, color: C.cover, background: C.goldSoft }}>Tavsiya</span>}
                     </div>
-                    <div className="mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium" style={{ ...fontBody, color: '#64749A', background: '#F0F4FC' }}>{count} ta {itemLabel}</div>
+                    <div className="mt-1 text-xs" style={{ ...fontBody, color: C.inkSoft }}>{count} ta {itemLabel}</div>
                     <AuthorLine authorId={cat.authorId} authorName={cat.author} className={shareParam ? "text-xs mt-1 pr-8" : "text-xs mt-1"} />
                   </div>
                 </div>
@@ -2018,7 +2018,7 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
                   <ChevronRight size={16} style={{ color: C.gold }} />
                 </div>
                 {shareParam && (
-                  <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={(event) => { event.stopPropagation(); shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="absolute bottom-2 right-2 inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, outlineColor: C.gold }}><Share2 size={12} /></button>
+                  <button type="button" aria-label={`${cat.name} sohasini ulashish`} title="Sohani ulashish" onClick={(event) => { event.stopPropagation(); if (onShareCategory) onShareCategory(cat); else shareItem(buildShareUrl({ [shareParam]: cat.id }), cat.name); }} className="absolute bottom-2 right-2 inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-black/5 focus-visible:outline focus-visible:outline-2" style={{ color: C.inkSoft, outlineColor: C.gold }}><Share2 size={12} /></button>
                 )}
               </div>
             );
@@ -2026,9 +2026,6 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
         </div>
       )}
 
-      <div className="mt-6">
-        <GhostButton onClick={onGoToCommunity} icon={Plus}>Yangi soha qoʻshish</GhostButton>
-      </div>
 
       {renaming && (
         <RenameCategoryModal
@@ -2172,8 +2169,8 @@ export function PinnedAddButton({ icon: Icon, label, onClick }) {
   const tone = getBrowseTone(kind, theme);
   return (
     <div className="pointer-events-none fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-5">
-      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-11 items-center gap-2.5 rounded-full border border-white/80 px-4 text-xs font-semibold shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: theme === 'dark' ? '#F0EEE7' : '#283B3E', background: theme === 'dark' ? (kind === 'course' ? '#3B4655' : '#47394B') : tone.soft, borderColor: tone.line, outlineColor: tone.color, boxShadow: theme === 'dark' ? '0 6px 16px rgba(0,0,0,.22)' : '0 6px 16px rgba(74,82,68,.12)' }}>
-        <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-full" style={{ background: theme === 'dark' ? '#56475D' : '#F9F8FC', color: tone.color }}><Icon size={15} /><Plus size={9} className="absolute -right-0.5 -top-0.5 rounded-full" style={{ background: theme === 'dark' ? '#342B3A' : '#F9F8FC', color: tone.color }} /></span>
+      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-12 items-center gap-2.5 rounded-xl border px-4 text-xs font-semibold transition-colors hover:brightness-105 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: tone.color, background: tone.soft, borderColor: tone.line, outlineColor: C.gold, boxShadow: theme === 'dark' ? '0 5px 14px rgba(0,0,0,.18)' : '0 4px 12px rgba(31,61,43,.10)' }}>
+        <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: theme === 'dark' ? '#25352B' : '#FBFAF3', color: tone.color }}><Icon size={15} /><Plus size={9} className="absolute -right-0.5 -top-0.5 rounded-full" style={{ background: tone.soft, color: tone.color }} /></span>
         {label}
       </button>
     </div>
@@ -2445,11 +2442,11 @@ function CoursesView({ courses, categories, updateCourse, deleteCourse, renameCa
             onSelect={goCategory}
             renameCategory={renameCategory}
             deleteCategory={deleteCategory}
-            onGoToCommunity={() => onGoToCommunity('kurslar')}
             isAdmin={isAdmin}
             userId={session?.user?.id}
             featuredCategoryId={null}
             shareParam="courseCategory"
+            onShareCategory={onShareToFollowers ? (cat) => onShareToFollowers('course_category', cat) : undefined}
           />
           </>
         )}
@@ -3154,6 +3151,7 @@ export default function App() {
       if (initialDeepLink.type === 'course' || initialDeepLink.type === 'courseCategory') return 'kurslar';
       if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle' || initialDeepLink.type === 'teamBattle' || initialDeepLink.type === 'certificate') return 'testlar';
       if (initialDeepLink.type === 'profile') return 'profil';
+      if (initialDeepLink.type === 'chatInvite') return 'yangiliklar';
       return 'kurslar';
     }
     if (pendingTestAuthAtBootRef.current) return 'testlar';
@@ -3175,7 +3173,9 @@ export default function App() {
   const testsLoadRef = useRef({ generation: 0, loadedKey: null, requestKey: null, promise: null });
   const [news, setNews] = useState([]);
   const [newsLoading, setNewsLoading] = useState(false);
-  const [followerShareResource, setFollowerShareResource] = useState(null);
+  const [pendingChatShare, setPendingChatShare] = useState(null);
+  const [communityDirectRequest, setCommunityDirectRequest] = useState(null);
+  const [communityChatRequest, setCommunityChatRequest] = useState(null);
   const newsLoadRef = useRef({ loaded: false, promise: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -3210,9 +3210,13 @@ export default function App() {
   useEffect(() => {
     // Kurslar bo‘limi initialOpenId orqali mount vaqtida so‘rovni qabul qiladi.
     // Test so‘rovi esa DeferredTestsView yuklanib, uni ochguncha saqlanishi kerak.
-    if (openRequest?.type === 'course') setOpenRequest(null);
+    if (openRequest?.type === 'course' || openRequest?.type === 'courseCategory') setOpenRequest(null);
   }, [openRequest]);
   const [testOpenRequest, setTestOpenRequest] = useState(null);
+  const [testCategoryOpenRequest, setTestCategoryOpenRequest] = useState(null);
+  useEffect(() => {
+    if (tab === 'testlar' && testCategoryOpenRequest) setTestCategoryOpenRequest(null);
+  }, [tab, testCategoryOpenRequest]);
   const testOpenRequestSeq = useRef(0);
   const [testAuthIntent, setTestAuthIntent] = useState(() => pendingTestAuthAtBootRef.current);
   const [testAuthBusy, setTestAuthBusy] = useState(false);
@@ -4544,10 +4548,12 @@ export default function App() {
     setGlobalSearchOpen(false);
     if (kind === 'test') {
       setTestOpenRequest({ id, requestId: ++testOpenRequestSeq.current });
+    } else if (kind === 'testCategory') {
+      setTestCategoryOpenRequest(id);
     } else {
       setOpenRequest({ type: kind, id });
     }
-    goTo(kind === 'course' ? 'kurslar' : 'testlar');
+    goTo(kind === 'course' || kind === 'courseCategory' ? 'kurslar' : 'testlar');
   }
 
   function consumeTestOpenRequest(requestId) {
@@ -4569,6 +4575,29 @@ export default function App() {
 
   function openSearchProfile(username) {
     openPublicProfile(username, 'kurslar');
+  }
+
+  function shareResourceToChat(type, item) {
+    if (!item?.id) return;
+    setCommunityDirectRequest(null);
+    setPendingChatShare({ kind: type, id: item.id, title: item.title || 'Ulashilgan material', data: item });
+    setTab('yangiliklar');
+  }
+
+  function openCommunityDirect(userId) {
+    if (!userId || (session?.user?.id && userId === session.user.id)) return;
+    setPendingChatShare(null);
+    if (session?.user?.id) setCommunityDirectRequest({ userId, nonce: Date.now() });
+    setViewingUsername(null);
+    setTab('yangiliklar');
+  }
+
+  function openCommunityChatFromSearch(chat) {
+    if (!chat?.id) return;
+    setCommunityDirectRequest(null);
+    setCommunityChatRequest({ chatId: chat.id, kind: chat.kind, isMember: chat.is_member, nonce: Date.now() });
+    setGlobalSearchOpen(false);
+    setTab('yangiliklar');
   }
 
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
@@ -4848,9 +4877,9 @@ export default function App() {
             <PaperPanel key={viewingUsername ? `profile:${viewingUsername}` : tab} className="app-fade-slide">
               <RouteErrorBoundary onHome={() => goTo('kurslar')}>
               {viewingUsername && (
-                <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} session={session} /></Suspense>
+                <Suspense fallback={<SectionLoading label="Profil yuklanmoqda…" compact />}><DeferredPublicProfileView username={viewingUsername} courses={courses} tests={tests} onBack={nav.back} onOpenItem={openFromProfile} onOpenProfile={openSearchProfile} onOpenChat={openCommunityDirect} session={session} /></Suspense>
               )}
-              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
+              {!viewingUsername && tab === 'kurslar' && <CoursesView pausedTests={pausedTests} onResumePausedTest={resumePausedTest} onPausedTestVisibilityChange={setPausedTestHomeVisibility} onOpenTasks={() => setLearningTasksOpen(true)} learningTaskComplete={learningTaskComplete} isLoading={loading && !skipMainLoadingGate} courses={courses} categories={categories} updateCourse={updateCourse} deleteCourse={deleteCourse} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} onShareToFollowers={shareResourceToChat} onRequireAccount={() => setTab('profil')} initialOpenId={openRequest?.type === 'course' ? openRequest.id : (initialDeepLink?.type === 'course' ? initialDeepLink.value : (initialPosition.kurslar?.openId || null))} initialCategoryId={openRequest?.type === 'courseCategory' ? openRequest.id : initialDeepLink?.type === 'courseCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.kurslar?.categoryId || null)} ensureCourseContent={ensureCourseContent} onOpenTest={(id) => openSearchItem('test', id)} />}
               {!viewingUsername && tab === 'testlar' && (initialDeepLink?.type === 'test' && sharedTestEntryActive && !session?.user?.id ? (
                 authLoading ? <SectionLoading label="Akkaunt tekshirilmoqda…" compact /> : <TestAccountPrompt
                   busy={testAuthBusy}
@@ -4860,7 +4889,7 @@ export default function App() {
                 />
               ) : (
                 <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}>
-                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} initialTeamBattle={teamBattleRequest} onInitialTeamBattleHandled={() => setTeamBattleRequest(false)} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
+                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} onHostAccountRequired={() => setTab('profil')} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} onShareToFollowers={shareResourceToChat} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : testCategoryOpenRequest || (initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null))} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} initialTeamBattle={teamBattleRequest} onInitialTeamBattleHandled={() => setTeamBattleRequest(false)} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
                 </Suspense>
               ))}
               {!viewingUsername && tab === 'arena' && (
@@ -4907,7 +4936,7 @@ export default function App() {
                   onOpenAdmin={() => goTo('admin')}
                   onOpenProfile={openSearchProfile}
                   onOpenArena={() => goTo('arena')}
-                  onShareToFollowers={(type, item) => setFollowerShareResource({ type, id: item.id, title: item.title })}
+                  onShareToFollowers={shareResourceToChat}
                   onOpenSharedResource={openSharedResource}
                 /></Suspense>
               )}
@@ -4936,7 +4965,7 @@ export default function App() {
                   />
                 </Suspense>
               )}
-              {!viewingUsername && tab === 'yangiliklar' && <NewsView news={news} isLoading={newsLoading} session={session} onOpenSharedResource={openSharedResource} onOpenArena={() => goTo('arena')} onOpenBattle={() => { setTeamBattleRequest(true); goTo('testlar'); }} />}
+              {!viewingUsername && tab === 'yangiliklar' && <Suspense fallback={<SectionLoading label="Hamjamiyat yuklanmoqda…" compact />}><CommunityChatView session={session} isAdmin={isAdmin} onOpenProfile={openSearchProfile} directUserId={communityDirectRequest?.userId} onDirectHandled={() => setCommunityDirectRequest(null)} chatRequest={communityChatRequest} onChatHandled={() => setCommunityChatRequest(null)} shareResource={pendingChatShare} onShareHandled={() => setPendingChatShare(null)} initialInviteToken={initialDeepLink?.type === 'chatInvite' ? initialDeepLink.value : null} onOpenResource={(kind, message) => { const data = message.resource_data || {}; const resource = { ...data, id: message.resource_id, title: message.resource_title || data.title, category_id: data.categoryId || data.category_id, video_url: data.videoUrl || data.video_url, author_id: data.authorId || data.author_id }; if (kind === 'course' || kind === 'test') openSharedResource(kind, resource); else if (kind === 'course_category') openSearchItem('courseCategory', message.resource_id); else if (kind === 'test_category') openSearchItem('testCategory', message.resource_id); }} /></Suspense>}
               {!viewingUsername && tab === 'about' && <AboutView />}
               </RouteErrorBoundary>
             </PaperPanel>
@@ -4982,10 +5011,8 @@ export default function App() {
         </nav>
       )}
 
-      {followerShareResource && <Suspense fallback={null}><DeferredFollowerShareDialog resource={followerShareResource} session={session} onClose={() => setFollowerShareResource(null)} /></Suspense>}
-
       {globalSearchOpen && <Suspense fallback={<div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" style={{ background: 'rgba(12,24,17,.45)' }}><Loader2 size={22} className="animate-spin" style={{ color: C.goldSoft }} /></div>}>
-        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} registerOverlayBackHandler={nav.registerOverlayBackHandler} />
+        <GlobalSearchView onClose={() => setGlobalSearchOpen(false)} onOpenItem={openSearchItem} onOpenProfile={openSearchProfile} categories={categories} registerOverlayBackHandler={nav.registerOverlayBackHandler} communityMode={tab === 'yangiliklar'} isAuthenticated={!!session?.user?.id} onOpenCommunityPerson={openCommunityDirect} onOpenCommunityChat={openCommunityChatFromSearch} />
       </Suspense>}
 
       {learningTasksOpen && (
