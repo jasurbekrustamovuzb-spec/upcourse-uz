@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { signInWithGoogle } from './supabaseClient.js';
 import {
   ArrowLeft, Award, Check, ChevronRight, Clock3, Loader2, LogIn, Search, Users, X, Trophy, Medal, BookOpen, SkipForward,
 } from 'lucide-react';
@@ -2058,11 +2059,33 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
   );
 }
 
-function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests, session, onExit, initialCode, restoreSession, onSessionChange, ensureTestContent }) {
-  const [mode, setMode] = useState(initialCode ? 'join-form' : null);
+function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests, session, onExit, initialCode, initialHostSetup, restoreSession, onSessionChange, ensureTestContent }) {
+  const [mode, setMode] = useState(initialCode ? 'join-form' : initialHostSetup && session?.user?.id ? 'host-setup' : null);
+  const [hostAuthBusy, setHostAuthBusy] = useState(false);
+  const [hostAuthError, setHostAuthError] = useState('');
   const [room, setRoom] = useState(null);
   const [participant, setParticipant] = useState(null);
   const [restoring, setRestoring] = useState(!!(restoreSession && !initialCode));
+
+  useEffect(() => {
+    if (initialHostSetup && session?.user?.id) setMode('host-setup');
+  }, [initialHostSetup, session?.user?.id]);
+
+  async function beginHostSignIn() {
+    if (hostAuthBusy) return;
+    setHostAuthBusy(true);
+    setHostAuthError('');
+    try {
+      sessionStorage.setItem('upcourse-pending-live-host', '1');
+      const { error } = await signInWithGoogle();
+      if (error) throw error;
+    } catch (error) {
+      try { sessionStorage.removeItem('upcourse-pending-live-host'); } catch { /* saqlash ixtiyoriy */ }
+      console.error('Jonli xona uchun kirishni ochib boʻlmadi:', error);
+      setHostAuthError('Google orqali kirish oynasini ochib boʻlmadi. Qayta urinib koʻring.');
+      setHostAuthBusy(false);
+    }
+  }
 
   /* Sahifa yangilanganda (refresh, internet uzilib qolgan bo'lsa ham)
      avvalgi xonaga avtomatik qaytib ulanish. Aniq havola (?live=KOD)
@@ -2120,38 +2143,37 @@ function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests,
         <p className="text-[15px] mb-6 max-w-md" style={{ ...fontBody, color: C.inkSoft }}>
           Bir nechta odam bitta testni bir vaqtda ishlashi uchun xona oching, yoki mavjud xona kodi bilan qoʻshiling.
         </p>
-        <div className="grid sm:grid-cols-2 gap-4 max-w-3xl">
-          {session ? (
-            <button type="button" onClick={() => setMode('host-setup')} className="group min-w-0 rounded-3xl border-l-4 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline focus-visible:outline-2" style={{ background: C.surface, border: '1px solid ' + C.rule, borderLeft: '4px solid ' + C.accent, outlineColor: C.accent, boxShadow: '0 8px 24px rgba(25,50,70,.06)' }}>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <span className="grid h-12 w-12 place-items-center rounded-2xl" style={{ color: C.accent, background: C.paperSoft, border: '1px solid ' + C.rule }}><Users size={23} /></span>
-                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.accent, background: C.paperSoft }}>Tashkilotchi</span>
-              </div>
-              <h3 className="text-lg font-semibold" style={{ ...fontBody, color: C.ink }}>Xona ochish</h3>
-              <p className="mt-1.5 min-h-10 text-[13px] leading-5" style={{ ...fontBody, color: C.inkSoft }}>Testni tanlang, sozlamalarni belgilang va qatnashchilar uchun kod oling.</p>
-              <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ ...fontBody, color: C.accent }}>Testni tanlash <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" /></span>
-            </button>
-          ) : (
-            <div className="min-w-0 rounded-3xl border-l-4 p-5" style={{ background: C.surface, border: '1px solid ' + C.rule, borderLeft: '4px solid ' + C.accent, opacity: .88 }}>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <span className="grid h-12 w-12 place-items-center rounded-2xl" style={{ color: C.accent, background: C.paperSoft, border: '1px solid ' + C.rule }}><Users size={23} /></span>
-                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.inkSoft, background: C.paperSoft }}>Akkaunt kerak</span>
-              </div>
-              <h3 className="text-lg font-semibold" style={{ ...fontBody, color: C.ink }}>Xona ochish</h3>
-              <p className="mt-1.5 min-h-10 text-[13px] leading-5" style={{ ...fontBody, color: C.inkSoft }}>Jonli testni boshlash va xonani boshqarish uchun akkauntga kiring.</p>
-              <span className="mt-4 inline-flex items-center text-sm font-semibold" style={{ ...fontBody, color: C.inkSoft }}>Kirish uchun Profil bo‘limini oching</span>
-            </div>
-          )}
-          <button type="button" onClick={() => setMode('join-form')} className="group min-w-0 rounded-3xl border-l-4 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline focus-visible:outline-2" style={{ background: C.surface, border: '1px solid ' + C.rule, borderLeft: '4px solid ' + C.live, outlineColor: C.live, boxShadow: '0 8px 24px rgba(70,45,30,.06)' }}>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl" style={{ color: C.live, background: C.liveTint, border: '1px solid ' + C.liveSoft }}><LogIn size={23} /></span>
-              <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.live, background: C.liveTint }}>Ishtirokchi</span>
-            </div>
-            <h3 className="text-lg font-semibold" style={{ ...fontBody, color: C.ink }}>Xonaga qoʻshilish</h3>
-            <p className="mt-1.5 min-h-10 text-[13px] leading-5" style={{ ...fontBody, color: C.inkSoft }}>Tashkilotchidan olingan 6 xonali kodni kiriting. Hisob ochish shart emas.</p>
-            <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ ...fontBody, color: C.live }}>Kod bilan kirish <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" /></span>
+        <div className="grid gap-3 sm:grid-cols-2 max-w-3xl">
+          <button type="button" onClick={session ? () => setMode('host-setup') : beginHostSignIn} disabled={hostAuthBusy} className="group flex min-h-[88px] min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition-colors hover:shadow-md focus-visible:outline focus-visible:outline-2 disabled:cursor-wait disabled:opacity-70" style={{ background: C.surface, borderColor: C.rule, borderLeft: '3px solid ' + C.accent, outlineColor: C.accent }}>
+            <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ color: C.accent, background: C.paperSoft, border: '1px solid ' + C.rule }}>
+              {hostAuthBusy ? <Loader2 size={17} className="animate-spin" /> : <Users size={17} />}
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2" style={{ background: C.live, borderColor: C.surface }} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Xona ochish</span>
+                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.accent }}>Tashkilotchi</span>
+              </span>
+              <span className="mt-0.5 block text-xs leading-4" style={{ ...fontBody, color: C.inkSoft }}>{session ? 'Testni tanlang va xonani sozlang.' : hostAuthBusy ? 'Google orqali ulanish…' : 'Google orqali kirib, xona yarating.'}</span>
+            </span>
+            <ChevronRight size={17} className="shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: C.accent }} />
+          </button>
+          <button type="button" onClick={() => setMode('join-form')} className="group flex min-h-[88px] min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition-colors hover:shadow-md focus-visible:outline focus-visible:outline-2" style={{ background: C.surface, borderColor: C.rule, borderLeft: '3px solid ' + C.live, outlineColor: C.live }}>
+            <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ color: C.live, background: C.liveTint, border: '1px solid ' + C.liveSoft }}>
+              <LogIn size={17} />
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2" style={{ background: C.accent, borderColor: C.surface }} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-sm font-semibold" style={{ ...fontBody, color: C.ink }}>Xonaga qoʻshilish</span>
+                <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ ...fontMono, color: C.live }}>Ishtirokchi</span>
+              </span>
+              <span className="mt-0.5 block text-xs leading-4" style={{ ...fontBody, color: C.inkSoft }}>6 xonali kodni kiriting. Akkaunt shart emas.</span>
+            </span>
+            <ChevronRight size={17} className="shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: C.live }} />
           </button>
         </div>
+        {hostAuthError && <div role="alert" className="mt-3 max-w-3xl rounded-xl px-3 py-2 text-xs" style={{ ...fontBody, color: C.red, background: C.dangerTint }}>{hostAuthError}</div>}
       </div>
     );
   }
