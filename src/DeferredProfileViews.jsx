@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef, Suspense, lazy } from 'react';
-import { ArrowLeft, Award, BookOpen, Check, CheckCircle2, ChevronRight, Coins, Gift, Inbox, ListChecks, Loader2, Lock, LogIn, LogOut, Medal, Settings, ShieldCheck, ShoppingBag, Tag, UserCircle2, Users, X } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, Check, CheckCircle2, ChevronRight, Coins, Gift, Inbox, ListChecks, Loader2, Lock, LogIn, LogOut, Medal, MessageCircle, Settings, ShieldCheck, ShoppingBag, Tag, UserCircle2, Users, X } from 'lucide-react';
 import { BANNER_PRESETS, C, CollectibleThumb, EmptyState, GhostButton, GoogleBrandMark, LinkedUsernameText, ProfileFollowView, PublicCollectionsView, RatingBadgeCollection, SectionLoading, SectionHeading, ShareButton, SolidButton, TextField, bannerGradient, buildShareUrl, checkUsernameAvailable, collectibleFromRow, fontBody, fontDisplay, fontMono, GIFT_CONTENT, GIFT_ID, isReservedUsername, isValidUsername, normalizeUsername, profileFromRow, sbInsert, sbSelect, sbSelectAuthorContent, sbUpdate, setAuthorBadgeCache, suggestAvailableUsername, unequipOtherCollectibles, useAuthorBadge, userCollectibleFromRow, usernameChangeDaysLeft, NavContext } from './App.jsx';
 import { supabase } from './supabaseClient.js';
 import { signInWithGoogle, switchGoogleAccount } from './supabaseClient.js';
@@ -7,7 +7,7 @@ import TeamBattleLibrary from './TeamBattleLibrary.jsx';
 
 const PausedTestsPanel = lazy(() => import('./PausedTestsPanel.jsx'));
 const SharedResourcesPanel = lazy(() => import('./DeferredSharedResources.jsx').then((module) => ({ default: module.SharedResourcesPanel })));
-export function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, session }) {
+export function PublicProfileView({ username, courses, tests, onBack, onOpenItem, onOpenProfile, onOpenChat, session }) {
   const [loading, setLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
   const [row, setRow] = useState(null);
@@ -163,6 +163,11 @@ export function PublicProfileView({ username, courses, tests, onBack, onOpenItem
             </div>
             <Suspense fallback={<div className="h-9 w-24 rounded-full animate-pulse" style={{ background: C.paper }} />}>
               <ProfileFollowView userId={row.id} session={session} onOpenProfile={onOpenProfile} />
+            {session?.user?.id && session.user.id !== row.id && (
+              <button type="button" onClick={() => onOpenChat?.(row.id)} className="inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-black/5" style={{ ...fontBody, color: C.accent, borderColor: C.rule }} aria-label="Xabar yuborish">
+                <MessageCircle size={15} /> Xabar
+              </button>
+            )}
             </Suspense>
           </div>
         </div>
