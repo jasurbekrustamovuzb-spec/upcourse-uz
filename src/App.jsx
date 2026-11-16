@@ -1237,9 +1237,9 @@ export function LinkedUsernameText({ text, className, style }) {
 
 export function getBrowseTone(kind = 'area', theme = 'light') {
   const tones = {
-    area: { light: { color: '#315A78', soft: '#E3EDF4', line: '#879EAD' }, dark: { color: '#A7CBE0', soft: '#293C4A', line: '#536D7E' } },
-    course: { light: { color: '#397251', soft: '#E4F0E6', line: '#8CA995' }, dark: { color: '#A8D1B0', soft: '#293C31', line: '#53715C' } },
-    test: { light: { color: '#8A5A39', soft: '#F3ECE4', line: '#AA9582' }, dark: { color: '#D7B38E', soft: '#40362E', line: '#6E5948' } },
+    area: { light: { color: '#315A78', soft: '#E3EDF4', line: '#657D8C' }, dark: { color: '#A7CBE0', soft: '#293C4A', line: '#536D7E' } },
+    course: { light: { color: '#397251', soft: '#E4F0E6', line: '#708B77' }, dark: { color: '#A8D1B0', soft: '#293C31', line: '#53715C' } },
+    test: { light: { color: '#8A5A39', soft: '#F3ECE4', line: '#897563' }, dark: { color: '#D7B38E', soft: '#40362E', line: '#6E5948' } },
   };
   return tones[tones[kind] ? kind : 'area'][theme === 'dark' ? 'dark' : 'light'];
 }
@@ -1987,15 +1987,16 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
         <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
           {categories.map((cat, i) => {
             const count = itemsByCategory[cat.id] || 0;
+            const cardKind = itemLabel === 'mavzu' ? (i % 2 === 0 ? 'area' : 'course') : ['area', 'test', 'course'][i % 3];
             return (
               <div
                 key={cat.id}
                 className="relative min-w-0 group flex items-start justify-between gap-2 p-3.5 sm:p-4 rounded-3xl cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
-                style={getBrowseCardStyle(theme, 'area')}
+                style={getBrowseCardStyle(theme, cardKind)}
                 onClick={() => onSelect(cat.id)}
               >
                 <div className="flex items-start min-w-0">
-                  <EntryNumber icon={itemLabel === 'mavzu' ? BookOpen : ListChecks} kind="area" />
+                  <EntryNumber icon={itemLabel === 'mavzu' ? BookOpen : ListChecks} kind={cardKind} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="font-medium text-base truncate" style={{ ...fontBody, color: C.ink }}>{cat.name}</div>
