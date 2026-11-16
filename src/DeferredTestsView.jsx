@@ -1229,7 +1229,7 @@ function LiveEntryLoading() {
   );
 }
 
-export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveHost = false, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
+export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, categories, updateTest, deleteTest, renameCategory, deleteCategory, onGoToCommunity, onReadingChange, isAdmin, session, profile, saveTestPrefs, initialOpenId, openRequest, onOpenRequestHandled, initialCategoryId, initialLiveCode, initialLiveSession, initialBattleToken, initialTeamBattle = false, onInitialTeamBattleHandled, initialCertificateId, ensureTestContent, loadTestForOpening, onTestComplete, onBadgeClaim, badgeClaimBusy, badgeClaimError, onPauseAttempt, onClearPaused, onRequireAccount, onHostAccountRequired, onRequireTestAccount, onExitInitialLive, onExitInitialTest }) {
   const { theme } = useContext(ThemeContext);
   const [categoryId, setCategoryId] = useState(null);
   const [activeId, setActiveId] = useState(null);
@@ -1243,7 +1243,8 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const [setupMode, setSetupMode] = useState(false);
   const [editId, setEditId] = useState(null);
   const [query, setQuery] = useState('');
-  const [liveOpen, setLiveOpen] = useState(Boolean(initialLiveCode || initialLiveHost || initialLiveSession));
+  const [liveOpen, setLiveOpen] = useState(Boolean(initialLiveCode || initialLiveSession));
+  const [liveEntryDirect, setLiveEntryDirect] = useState(Boolean(initialLiveCode || initialLiveSession));
   const [teamBattleOpen, setTeamBattleOpen] = useState(Boolean(initialBattleToken || initialTeamBattle));
   const [luckyWheelOpen, setLuckyWheelOpen] = useState(false);
   const [certificateOpen, setCertificateOpen] = useState(Boolean(initialCertificateId || new URLSearchParams(window.location.search).get('verifyCertificate')));
@@ -1308,7 +1309,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   };
   const goTest = (id, forceSetup, resumeState = null, onLeave = null, startConfig = null) => openTest(id, forceSetup, resumeState, onLeave, startConfig, true);
   const goEdit = (id) => { if (ensureTestContent) ensureTestContent(id); setEditId(id); pushNav(() => setEditId(null)); };
-  const goLive = () => { setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
+  const goLive = () => { setLiveEntryDirect(false); setLiveOpen(true); pushNav(() => setLiveOpen(false)); };
   const goTeamBattle = () => { setTeamBattleOpen(true); pushNav(() => setTeamBattleOpen(false)); };
   const goLuckyWheel = () => { setLuckyWheelOpen(true); pushNav(() => setLuckyWheelOpen(false)); };
   const goCertificateCenter = () => { setCertificateOpen(true); pushNav(() => setCertificateOpen(false)); };
@@ -1446,7 +1447,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
 
   if (liveOpen) return (
     <Suspense fallback={initialLiveCode ? <LiveEntryLoading /> : <SectionLoading label="Jonli test yuklanmoqda…" />}>
-      <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={back} initialCode={initialLiveCode} initialHostSetup={initialLiveHost} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
+      <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={() => { if (liveEntryDirect) { setLiveOpen(false); onExitInitialLive?.(); } else back(); }} onRequireAccount={onHostAccountRequired} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
     </Suspense>
   );
 
