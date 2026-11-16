@@ -80,32 +80,30 @@ function LiveEntryLoading() {
 /*  qo'llaniladi.                                                     */
 /* ------------------------------------------------------------------ */
 const LIGHT_PALETTE = {
-  cover: '#183B5B',
-  coverDeep: '#102A43',
-  coverLine: 'rgba(49,99,143,0.42)',
-  paper: '#EAF0F4',
-  paperSoft: '#F4F7F9',
-  rule: '#9AAAB4',
+  cover: '#1F3D2B',
+  coverDeep: '#153020',
+  coverLine: 'rgba(184,134,59,0.42)',
+  paper: '#F0EDE0',
+  paperSoft: '#F7F5EA',
+  rule: '#C7C5B2',
   red: '#A8433A',
   gold: '#A97931',
-  goldSoft: '#E4D2AA',
-  ink: '#1D2B36',
-  inkSoft: '#4E5D68',
-  white: '#FCFDFE',
-  surface: '#FCFDFE',
-  successTint: 'rgba(31,61,43,0.10)',
+  goldSoft: '#DCC28F',
+  ink: '#222A24',
+  inkSoft: '#5C6152',
+  white: '#FBFAF3',
+  surface: '#FBFAF3',
+  successTint: 'rgba(49,91,62,0.10)',
   dangerTint: 'rgba(168,67,58,0.10)',
   selectedTint: 'rgba(184,134,59,0.08)',
   dangerBannerTint: 'rgba(168,67,58,0.08)',
-  accent: '#286B9C',
-  /* Faqat "Jonli test" bo'limi uchun — iliq, quvnoq aksent */
+  accent: '#42627A',
   live: '#C9622A',
   liveSoft: '#E8A874',
   liveDeep: '#7A3A16',
   liveTint: 'rgba(201,98,42,0.10)',
   silver: '#8B8F86',
   bronze: '#A9713F',
-  /* Faqat "Matematik test" yaratish tugmasi uchun — aniq, "ilmiy" aksent */
   math: '#2C5F7C',
   mathSoft: '#5C90AC',
   mathDeep: '#173544',
@@ -113,32 +111,30 @@ const LIGHT_PALETTE = {
 };
 
 const DARK_PALETTE = {
-  cover: '#234F73',
-  coverDeep: '#142F47',
-  coverLine: 'rgba(120,166,198,0.35)',
-  paper: '#171F27',
-  paperSoft: '#202B35',
-  rule: '#50616E',
+  cover: '#234B35',
+  coverDeep: '#173624',
+  coverLine: 'rgba(184,194,160,0.30)',
+  paper: '#171E19',
+  paperSoft: '#202922',
+  rule: '#526256',
   red: '#E08A7D',
   gold: '#D1AE6C',
   goldSoft: '#D8C08D',
-  ink: '#E8EDF1',
-  inkSoft: '#BAC6CE',
-  white: '#F0F4F6',
-  surface: '#222C35',
+  ink: '#E8EDE8',
+  inkSoft: '#BAC6BC',
+  white: '#F0F4F0',
+  surface: '#252F28',
   successTint: 'rgba(94,168,118,0.17)',
   dangerTint: 'rgba(224,138,125,0.17)',
   selectedTint: 'rgba(212,172,110,0.13)',
   dangerBannerTint: 'rgba(224,138,125,0.12)',
-  accent: '#78AFD1',
-  /* Faqat "Jonli test" bo'limi uchun — iliq, quvnoq aksent */
+  accent: '#91B9D0',
   live: '#E8965A',
   liveSoft: '#F0B888',
   liveDeep: '#3D2411',
   liveTint: 'rgba(232,150,90,0.18)',
   silver: '#AEB3A8',
   bronze: '#C89566',
-  /* Faqat "Matematik test" yaratish tugmasi uchun — aniq, "ilmiy" aksent */
   math: '#6FA8CC',
   mathSoft: '#9CC5E0',
   mathDeep: '#12222C',
@@ -1237,17 +1233,17 @@ export function LinkedUsernameText({ text, className, style }) {
 
 export function getBrowseTone(kind = 'area', theme = 'light') {
   const tones = {
-    area: { light: { color: '#315A78', soft: '#E3EDF4', line: '#657D8C' }, dark: { color: '#A7CBE0', soft: '#293C4A', line: '#536D7E' } },
-    course: { light: { color: '#397251', soft: '#E4F0E6', line: '#708B77' }, dark: { color: '#A8D1B0', soft: '#293C31', line: '#53715C' } },
-    test: { light: { color: '#8A5A39', soft: '#F3ECE4', line: '#897563' }, dark: { color: '#D7B38E', soft: '#40362E', line: '#6E5948' } },
+    area: { light: { color: '#476554', soft: '#E8EFE9', line: '#CAD8CE' }, dark: { color: '#A9C4AF', soft: '#303D34', line: '#4E6655' } },
+    course: { light: { color: '#42627A', soft: '#E9EFF3', line: '#CDD9E1' }, dark: { color: '#A8C0D0', soft: '#303B43', line: '#506473' } },
+    test: { light: { color: '#8A553F', soft: '#F3ECE6', line: '#DDCFC2' }, dark: { color: '#D2AA8C', soft: '#42372F', line: '#6D5949' } },
   };
   return tones[tones[kind] ? kind : 'area'][theme === 'dark' ? 'dark' : 'light'];
 }
 export function getBrowseCardStyle(theme = 'light', kind = 'area') {
   const backgrounds = {
-    area: ['#F9FBFC', '#293541'],
-    course: ['#F1F7F1', '#29382F'],
-    test: ['#FAF6F1', '#342F2A'],
+    area: ['#FBFAF6', '#2A302B'],
+    course: ['#F7FAFB', '#293139'],
+    test: ['#FBF8F5', '#332E29'],
   };
   const dark = theme === 'dark';
   const palette = backgrounds[kind] || backgrounds.area;
@@ -1987,7 +1983,7 @@ export function CategoryGrid({ categories, itemsByCategory, itemLabel, onSelect,
         <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
           {categories.map((cat, i) => {
             const count = itemsByCategory[cat.id] || 0;
-            const cardKind = itemLabel === 'mavzu' ? (i % 2 === 0 ? 'area' : 'course') : ['area', 'test', 'course'][i % 3];
+            const cardKind = itemLabel === 'mavzu' ? 'area' : ['area', 'test', 'course'][i % 3];
             return (
               <div
                 key={cat.id}
@@ -2170,8 +2166,8 @@ export function PinnedAddButton({ icon: Icon, label, onClick }) {
   const tone = getBrowseTone(kind, theme);
   return (
     <div className="pointer-events-none fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 md:bottom-5">
-      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-12 items-center gap-2.5 rounded-xl border px-4 text-xs font-semibold transition-colors hover:brightness-105 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: '#FFFFFF', background: theme === 'dark' ? '#316DA0' : '#276FA8', borderColor: theme === 'dark' ? '#76A9CA' : '#174E78', outlineColor: theme === 'dark' ? '#A9D4EE' : '#123D5E', boxShadow: theme === 'dark' ? '0 5px 14px rgba(0,0,0,.22)' : '0 4px 12px rgba(25,63,91,.22)' }}>
-        <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: 'rgba(255,255,255,.16)', color: '#FFFFFF' }}><Icon size={15} /><Plus size={9} className="absolute -right-0.5 -top-0.5 rounded-full" style={{ background: '#276FA8', color: '#FFFFFF' }} /></span>
+      <button type="button" onClick={onClick} aria-label={label} title={label} className="pointer-events-auto inline-flex h-12 items-center gap-2.5 rounded-xl border px-4 text-xs font-semibold transition-colors hover:brightness-105 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: tone.color, background: tone.soft, borderColor: tone.line, outlineColor: C.gold, boxShadow: theme === 'dark' ? '0 5px 14px rgba(0,0,0,.18)' : '0 4px 12px rgba(31,61,43,.10)' }}>
+        <span className="relative inline-flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: theme === 'dark' ? '#25352B' : '#FBFAF3', color: tone.color }}><Icon size={15} /><Plus size={9} className="absolute -right-0.5 -top-0.5 rounded-full" style={{ background: tone.soft, color: tone.color }} /></span>
         {label}
       </button>
     </div>
