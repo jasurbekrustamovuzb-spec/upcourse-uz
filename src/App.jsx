@@ -357,6 +357,12 @@ function parseDeepLink() {
     if (p.get('battle')) return { type: 'battle', value: p.get('battle') };
     if (p.get('teamBattle') === '1') return { type: 'teamBattle' };
     if (p.get('u')) return { type: 'profile', value: p.get('u') };
+    try {
+      if (sessionStorage.getItem('upcourse-pending-live-host') === '1') {
+        sessionStorage.removeItem('upcourse-pending-live-host');
+        return { type: 'liveHost' };
+      }
+    } catch (e) { /* sessionStorage ixtiyoriy */ }
   } catch (e) { /* URL o'qib bo'lmasa, oddiy holatda ochiladi */ }
   return null;
 }
@@ -3143,7 +3149,7 @@ export default function App() {
   const initialTab = (() => {
     if (initialDeepLink) {
       if (initialDeepLink.type === 'course' || initialDeepLink.type === 'courseCategory') return 'kurslar';
-      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'battle' || initialDeepLink.type === 'teamBattle' || initialDeepLink.type === 'certificate') return 'testlar';
+      if (initialDeepLink.type === 'test' || initialDeepLink.type === 'testCategory' || initialDeepLink.type === 'live' || initialDeepLink.type === 'liveHost' || initialDeepLink.type === 'battle' || initialDeepLink.type === 'teamBattle' || initialDeepLink.type === 'certificate') return 'testlar';
       if (initialDeepLink.type === 'profile') return 'profil';
       return 'kurslar';
     }
@@ -4851,7 +4857,7 @@ export default function App() {
                 />
               ) : (
                 <Suspense fallback={liveEntryActive ? <LiveEntryLoading /> : sharedTestEntryActive ? <SectionLoading label="Test ochilmoqda…" compact /> : <SectionLoading label="Testlar yuklanmoqda…" compact />}>
-                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} initialTeamBattle={teamBattleRequest} onInitialTeamBattleHandled={() => setTeamBattleRequest(false)} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
+                  <DeferredTestsView tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={() => loadTests(true)} categories={categories} updateTest={updateTest} deleteTest={deleteTest} renameCategory={renameCategory} deleteCategory={deleteCategory} onGoToCommunity={goToCommunity} onReadingChange={handleReadingChange} isAdmin={isAdmin} session={session} profile={profile} saveTestPrefs={saveTestPrefs} onPauseAttempt={savePausedTest} onClearPaused={clearPausedTest} onRequireAccount={requireAccountForPausedTest} onRequireTestAccount={requireAccountForTest} onExitInitialLive={finishLiveEntry} onExitInitialTest={finishSharedTestEntry} initialCertificateId={initialDeepLink?.type === 'certificate' ? initialDeepLink.value : ''} initialOpenId={testOpenRequest ? null : initialDeepLink?.type === 'test' ? (session?.user?.id ? initialDeepLink.value : null) : (session?.user?.id ? initialPosition.testlar?.openId || null : null)} openRequest={testOpenRequest} onOpenRequestHandled={consumeTestOpenRequest} initialCategoryId={testOpenRequest ? null : initialDeepLink?.type === 'testCategory' ? initialDeepLink.value : initialDeepLink ? null : (initialPosition.testlar?.categoryId || null)} initialLiveCode={testOpenRequest || !liveEntryActive ? null : (initialDeepLink?.type === 'live' ? initialDeepLink.value : null)} initialLiveHost={initialDeepLink?.type === 'liveHost'} initialLiveSession={testOpenRequest || initialDeepLink ? null : (initialPosition.testlar?.live || null)} initialBattleToken={initialDeepLink?.type === 'battle' ? initialDeepLink.value : null} initialTeamBattle={teamBattleRequest} onInitialTeamBattleHandled={() => setTeamBattleRequest(false)} ensureTestContent={ensureTestContent} loadTestForOpening={loadTestForOpening} onTestComplete={handleTestCompletion} onBadgeClaim={claimLearningBadge} badgeClaimBusy={learningBadgeBusy} badgeClaimError={learningBadgeError} />
                 </Suspense>
               ))}
               {!viewingUsername && tab === 'arena' && (
