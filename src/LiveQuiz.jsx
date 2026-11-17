@@ -378,6 +378,23 @@ function LiveLeaderboardList({ participants, showAsPoints }) {
   );
 }
 
+function LiveExitConfirmation({ open, message, onStay, onLeave }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[9999] grid place-items-center bg-black/45 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onStay(); }}>
+      <section role="alertdialog" aria-modal="true" aria-labelledby="live-exit-title" className="w-full max-w-sm rounded-3xl p-5 shadow-2xl" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+        <div className="mb-3 grid h-11 w-11 place-items-center rounded-2xl" style={{ color: C.live, background: C.liveTint }}><ArrowLeft size={21} /></div>
+        <h2 id="live-exit-title" className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Chiqishni xohlaysizmi?</h2>
+        <p className="mt-2 text-sm leading-6" style={{ ...fontBody, color: C.inkSoft }}>{message}</p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onStay} className="min-h-11 rounded-xl px-3 text-sm font-semibold" style={{ ...fontBody, color: C.ink, background: C.paperSoft, border: `1px solid ${C.rule}` }}>Qolish</button>
+          <button type="button" onClick={onLeave} className="min-h-11 rounded-xl px-3 text-sm font-semibold" style={{ ...fontBody, color: C.white, background: C.red }}>Chiqish</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 let transientGuestParticipantKey = null;
 
 function getLiveGuestParticipantKey() {
@@ -473,7 +490,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const totalQuestions = test.questions.length;
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
   const INTERMISSION_SECONDS = 6;
-  const REVEAL_SECONDS = 3; // birinchi 3s — to'g'ri/xato javob, keyingi 3s — reyting
+  const REVEAL_SECONDS = 3; // oxirgi savoldan keyin faqat javobni ko'rsatamiz, so'ng yakuniy natija chiqadi.
 
   useEffect(() => {
     const t = setInterval(() => setNow(estimatedServerNow()), 500);
@@ -488,6 +505,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
   const elapsedMs = now - phaseStartedMs;
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
+  const isFinalQuestion = room.currentIndex >= totalQuestions - 1;
   const showingReveal = room.phase === 'intermission' && elapsedMs < REVEAL_SECONDS * 1000;
 
   const answeredCount = currentQuestion
@@ -515,7 +533,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
     if (room.status === 'finished') return;
     if (advancingRef.current) return;
     const shouldAdvance = (room.phase === 'question' && (secondsLeft <= 0 || allAnswered))
-      || (room.phase === 'intermission' && secondsLeft <= 0);
+      || (room.phase === 'intermission' && (secondsLeft <= 0 || (isFinalQuestion && elapsedMs >= REVEAL_SECONDS * 1000)));
     if (!shouldAdvance) return;
 
     advancingRef.current = true;
@@ -523,7 +541,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
       .then((updated) => { if (updated) setRoom(updated); })
       .finally(() => { advancingRef.current = false; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, allAnswered, room.phase, room.status]);
+  }, [secondsLeft, allAnswered, room.phase, room.status, isFinalQuestion, elapsedMs]);
 
   useEffect(() => {
     if (room.status !== 'finished') { setRevealStage(0); return; }
@@ -555,13 +573,19 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
 
   if (room.status === 'finished') {
     const sorted = [...participants].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-    const podium = [sorted[1], sorted[0], sorted[2]]; // 2-1-3 tartibida (o'rtada 1-o'rin)
-    const podiumHeights = ['h-24', 'h-32', 'h-16'];
-    const podiumRanks = [2, 1, 3];
+    const podium = [sorted[2], sorted[1], sorted[0]]; // G'oliblar 3-, 2-, 1-o'rin tartibida e'lon qilinadi.
+    const podiumHeights = ['h-16', 'h-24', 'h-32'];
+    const podiumRanks = [3, 2, 1];
     return (
       <div>
         <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
-        <SectionHeading eyebrow="Yakun" title="Test tugadi 🎉" />
+        <div className="relative mb-3 overflow-hidden rounded-3xl p-5 sm:p-6" style={{ background: `linear-gradient(135deg, ${C.coverDeep}, ${C.liveDeep})`, border: `1px solid ${C.live}` }}>
+          <span className="pointer-events-none absolute -right-2 -top-4 text-6xl opacity-25 animate-bounce" aria-hidden="true">🎊</span>
+          <span className="pointer-events-none absolute right-24 top-7 text-3xl animate-pulse" aria-hidden="true">✨</span>
+          <div className="text-xs font-semibold uppercase tracking-[.18em]" style={{ ...fontMono, color: C.liveSoft }}>Yakun</div>
+          <h2 className="mt-1 text-2xl sm:text-3xl font-semibold" style={{ ...fontDisplay, color: C.white }}>Test tugadi!</h2>
+          <p className="mt-1 text-sm" style={{ ...fontBody, color: C.liveSoft }}>Gʻoliblar 3-oʻrindan boshlab eʼlon qilinadi.</p>
+        </div>
 
         <div className="flex items-end justify-center gap-3 mb-8 mt-6" style={{ minHeight: '160px' }}>
           {podium.map((p, i) => {
@@ -689,7 +713,7 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
         </div>
       )}
 
-      {((room.phase === 'intermission' && !showingReveal) || peekLeaderboard) && (
+      {((room.phase === 'intermission' && !showingReveal && !isFinalQuestion) || (peekLeaderboard && !isFinalQuestion)) && (
         <div>
           {room.phase === 'intermission' && !peekLeaderboard && (
             <div className="flex items-center gap-2 text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>
@@ -1040,6 +1064,8 @@ function LiveHostSetup({ tests, testsLoading, testsLoadError, onRetryTests, sess
 
 function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const [participants, setParticipants] = useState([]);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const [exitError, setExitError] = useState('');
   const [starting, setStarting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState(null);
@@ -1048,6 +1074,22 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
   const finishingRef = useRef(false);
   const test = tests.find((t) => t.id === room.testId);
   const testContent = useLiveTestContent(room.testId, test, ensureTestContent);
+
+  async function confirmHostExit() {
+    setExitError('');
+    if (room.status === 'waiting') {
+      try {
+        const [updated] = await sbUpdate('live_rooms', room.id, { status: 'finished', phase: 'finished' });
+        if (!updated) throw new Error('Xona yopilmadi');
+        setRoom(liveRoomFromRow(updated));
+      } catch (e) {
+        setExitError('Xonani yopib boʻlmadi. Internetni tekshirib, qayta urinib koʻring.');
+        return;
+      }
+    }
+    setConfirmExit(false);
+    onExit();
+  }
 
   useEffect(() => {
     if (room.status !== 'waiting' || !room.scheduledAt) return undefined;
@@ -1180,20 +1222,23 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
       return <LiveContentLoadState status={testContent.status === 'ready' ? 'error' : testContent.status} retry={testContent.retry} onExit={onExit} />;
     }
     return (
+      <>
       <LiveHostSyncPlay
         room={room}
         setRoom={setRoom}
         test={test}
         participants={participants}
-        onExit={onExit}
+        onExit={() => room.status === 'finished' ? onExit() : setConfirmExit(true)}
       />
+      <LiveExitConfirmation open={confirmExit} message={room.status === 'waiting' ? 'Kutish xonasi yopiladi va unga boshqa qoʻshilib boʻlmaydi.' : 'Test qatnashchilar uchun davom etadi, siz esa boshqaruvdan chiqasiz.'} onStay={() => setConfirmExit(false)} onLeave={confirmHostExit} />
+      </>
     );
   }
 
   if (room.status === 'active' || room.status === 'finished') {
     return (
       <div>
-        <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+        <button onClick={() => room.status === 'finished' ? onExit() : setConfirmExit(true)} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
         <SectionHeading eyebrow={room.status === 'active' ? 'Test davom etmoqda' : 'Test tugadi'} title="Jonli reyting" />
         {room.status === 'active' && room.mode !== 'sync' && (
           <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -1207,18 +1252,19 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
           </div>
         )}
         <LiveLeaderboardList participants={participants} />
+        <LiveExitConfirmation open={confirmExit} message="Test qatnashchilar uchun davom etadi, siz esa boshqaruvdan chiqasiz." onStay={() => setConfirmExit(false)} onLeave={confirmHostExit} />
       </div>
     );
   }
 
   return (
     <div>
-      <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Bekor qilish</button>
+      <button onClick={() => setConfirmExit(true)} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Bekor qilish</button>
       <SectionHeading eyebrow="Kutish zali" title="Qatnashchilarni kuting" />
-      <div className="p-6 rounded-3xl mb-6 text-center max-w-xs" style={{ background: `linear-gradient(135deg, ${C.coverDeep} 0%, ${C.liveDeep} 100%)`, border: `1px solid ${C.live}` }}>
-        <div className="text-xs uppercase tracking-widest mb-2" style={{ ...fontMono, color: C.liveSoft }}>Xona kodi</div>
-        <div className="text-4xl mb-4" style={{ ...fontMono, color: C.live, fontWeight: 700, letterSpacing: '0.16em' }}>{room.code}</div>
-        <div className="w-32 h-32 sm:w-56 sm:h-56 mx-auto mb-4 p-2" style={{ background: '#fff', borderRadius: 12 }}>
+      <div className="p-6 sm:p-8 rounded-3xl mb-6 text-center max-w-md" style={{ background: `linear-gradient(135deg, ${C.coverDeep} 0%, ${C.liveDeep} 100%)`, border: `1px solid ${C.live}`, boxShadow: '0 18px 42px rgba(20,48,34,.14)' }}>
+        <div className="text-xs uppercase tracking-widest mb-2" style={{ ...fontMono, color: C.liveSoft }}>XONA KODI</div>
+        <div className="text-5xl sm:text-6xl mb-5" style={{ ...fontMono, color: C.live, fontWeight: 700, letterSpacing: '0.18em' }}>{room.code}</div>
+        <div className="w-40 h-40 sm:w-64 sm:h-64 mx-auto mb-4 p-3 shadow-lg" style={{ background: '#fff', borderRadius: 20 }}>
           <QRCodeSVG value={buildShareUrl({ live: room.code })} />
         </div>
         <p className="text-[11px] mb-3" style={{ ...fontBody, color: 'rgba(251,250,243,0.6)' }}>
@@ -1238,11 +1284,15 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
       <p className="text-[13px] mb-4 max-w-sm" style={{ ...fontBody, color: C.inkSoft }}>
         Havolani Telegram yoki boshqa ilovaga yuboring — bosgan odam toʻgʻridan-toʻgʻri shu xonaga tushadi, kod kiritish shart emas.
       </p>
-      <div className="text-[14px] mb-3" style={{ ...fontMono, color: C.inkSoft }}>{participants.length} kishi qoʻshildi</div>
-      <div className="space-y-2 mb-6 max-w-sm">
+      <section className="mb-6 max-w-4xl rounded-3xl p-4 sm:p-5" aria-label="Kutish zalidagi qatnashchilar" style={{ background: C.surface, border: `1px solid ${C.rule}` }}>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="text-lg font-semibold" style={{ ...fontDisplay, color: C.ink }}>Qatnashchilar</div>
+        <div className="rounded-full px-3 py-1.5 text-sm font-semibold" style={{ ...fontMono, color: C.live, background: C.liveTint }}>{participants.length} kishi</div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-2">
         {participants.map((p) => (
-          <div key={p.id} className="app-fade-slide flex items-center justify-between gap-2 px-3 py-2 rounded-2xl text-[14px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>
-            <span className="min-w-0 truncate">{p.name}</span>
+          <div key={p.id} className="app-fade-slide flex items-center justify-between gap-2 px-3 py-3 rounded-2xl text-[14px]" style={{ ...fontBody, background: C.paperSoft, border: `1px solid ${C.rule}`, color: C.ink }}>
+            <span className="flex min-w-0 items-center gap-2 truncate"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl" style={{ background: C.liveTint, color: C.live }}><Users size={15} /></span><span className="truncate">{p.name}</span></span>
             <button
               onClick={() => removeParticipant(p.id)}
               disabled={removingId === p.id}
@@ -1255,11 +1305,13 @@ function LiveHostLobby({ room, setRoom, tests, onExit, ensureTestContent }) {
             </button>
           </div>
         ))}
-        {participants.length === 0 && <div className="text-[14px]" style={{ ...fontBody, color: C.inkSoft }}>Hali hech kim qoʻshilmadi. Kodni ulashing...</div>}
+        {participants.length === 0 && <div className="col-span-full rounded-2xl p-4 text-sm" style={{ ...fontBody, color: C.inkSoft, background: C.paperSoft }}>Hali hech kim qoʻshilmadi. Xona kodini ulashing.</div>}
       </div>
+      </section>
       {testContent.status === 'error' && <LiveContentLoadState status={testContent.status} retry={testContent.retry} onExit={onExit} />}
       {testContent.status === 'loading' && <div className="mb-3"><SectionLoading label="Savollar tekshirilmoqda…" compact /></div>}
       <SolidButton onClick={start} icon={Award} disabled={starting || participants.length === 0 || testContent.status !== 'ready'}>{starting ? 'Boshlanmoqda...' : room.scheduledAt ? 'Hozir boshlash' : 'Testni boshlash'}</SolidButton>
+      <LiveExitConfirmation open={confirmExit} message={exitError || 'Kutish xonasi yopiladi va unga boshqa qoʻshilib boʻlmaydi.'} onStay={() => { setConfirmExit(false); setExitError(''); }} onLeave={confirmHostExit} />
     </div>
   );
 }
@@ -1297,7 +1349,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     ) : (Array.isArray(currentQuestion.options) ? currentQuestion.options.map((_, i) => i) : [])
     : [];
   const INTERMISSION_SECONDS = 6;
-  const REVEAL_SECONDS = 3; // birinchi 3s — to'g'ri/xato javob, keyingi 3s — reyting
+  const REVEAL_SECONDS = 3; // oxirgi savoldan keyin faqat javobni ko'rsatamiz, so'ng yakuniy natija chiqadi.
   const totalQuestions = test.questions.length;
 
   function saveDraft(questionId, patch) {
@@ -1338,6 +1390,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
   const phaseLimitMs = room.phase === 'question' ? room.perQuestionSeconds * 1000 : INTERMISSION_SECONDS * 1000;
   const elapsedMs = now - phaseStartedMs;
   const secondsLeft = Math.max(0, Math.ceil((phaseLimitMs - elapsedMs) / 1000));
+  const isFinalQuestion = room.currentIndex >= totalQuestions - 1;
   const showingReveal = room.phase === 'intermission' && elapsedMs < REVEAL_SECONDS * 1000;
   const hasAnswered = currentQuestion ? myAnswers[currentQuestion.id] !== undefined : false;
 
@@ -1423,7 +1476,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
     if (room.status === 'finished') return;
     if (advancingRef.current) return;
     const shouldAdvance = (room.phase === 'question' && secondsLeft <= 0)
-      || (room.phase === 'intermission' && secondsLeft <= 0);
+      || (room.phase === 'intermission' && (secondsLeft <= 0 || (isFinalQuestion && elapsedMs >= REVEAL_SECONDS * 1000)));
     if (!shouldAdvance) return;
 
     advancingRef.current = true;
@@ -1431,7 +1484,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
       .then((updated) => { if (updated) setRoom(updated); })
       .finally(() => { advancingRef.current = false; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, room.phase, room.status]);
+  }, [secondsLeft, room.phase, room.status, isFinalQuestion, elapsedMs]);
 
   if (room.status === 'finished') {
     return <LiveSyncFinished participants={participants} myId={participant.id} onExit={onExit} />;
@@ -1453,14 +1506,16 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
       </div>
 
       {room.phase === 'question' && currentQuestion && (
-        <div className="max-w-2xl">
-          {currentQuestion.type !== 'matching' && !currentQuestion.pdfSourceImageOnly && <div className="text-lg mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>{currentQuestion.text}{currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact /></Suspense>}</div>}
+        <div className="flex min-h-[68svh] flex-col max-w-3xl">
+          <div className="rounded-3xl p-4 sm:p-6" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 14px 36px rgba(31,61,43,.06)' }}>
+          {currentQuestion.type !== 'matching' && !currentQuestion.pdfSourceImageOnly && <div className="text-lg sm:text-xl mb-4 leading-relaxed" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>{currentQuestion.text}{currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact /></Suspense>}</div>}
           {currentQuestion.imageUrl && (currentQuestion.pdfSourceImageOnly
-            ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-xl bg-[#e8e2d2]" />}><PdfQuestionImage src={currentQuestion.imageUrl} alt="PDFdagi savolning asl ko‘rinishi" /></Suspense>
-            : <img src={currentQuestion.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-2xl sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
+            ? <div className="mb-4 overflow-hidden rounded-2xl" style={{ border: `1px solid ${C.rule}`, background: C.paperSoft }}><Suspense fallback={<div className="h-36 animate-pulse bg-[#e8e2d2]" />}><PdfQuestionImage src={currentQuestion.imageUrl} alt="PDFdagi savolning asl ko‘rinishi" /></Suspense></div>
+            : <img src={currentQuestion.imageUrl} alt="" loading="lazy" className="mb-4 max-h-[42svh] max-w-full rounded-2xl object-contain object-left" style={{ border: `1px solid ${C.rule}`, background: C.paperSoft }} />)}
+          </div>
 
           {hasAnswered ? (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.liveTint, border: `1px solid ${C.live}`, color: C.ink }}>
+            <div className="mt-auto flex items-center gap-2 px-4 py-4 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.liveTint, border: `1px solid ${C.live}`, color: C.ink }}>
               <Check size={16} style={{ color: C.live }} /> Javobingiz qabul qilindi. Kuting...
             </div>
           ) : currentQuestion.type === 'matching' ? (
@@ -1487,25 +1542,31 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
               <SolidButton onClick={() => submitAnswer(openText)} icon={Check} disabled={!openText.trim()}>Yuborish</SolidButton>
             </div>
           ) : (
-            <div className="space-y-2">
-              {currentOptionOrder.map((originalIndex, displayIndex) => {
-                const opt = currentQuestion.options[originalIndex];
-                return (
+            <>
+            <div className="mt-auto grid grid-cols-1 gap-3 pt-5 sm:grid-cols-2">
+              {(() => {
+                const optionColors = [C.liveTint, C.successTint, C.paperSoft, C.dangerTint];
+                const optionBorders = [C.liveSoft, C.accent, C.rule, C.red];
+                return currentOptionOrder.map((originalIndex, displayIndex) => {
+                  const opt = currentQuestion.options[originalIndex];
+                  return (
                 <button
                   key={originalIndex}
                   onClick={() => submitAnswer(originalIndex)}
-                  className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
-                  style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink, outlineColor: C.live }}
+                  className="w-full min-h-[68px] text-left flex items-center gap-3 px-4 py-3 rounded-2xl text-[16px] font-medium transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 active:scale-[.99]"
+                  style={{ ...fontBody, background: optionColors[displayIndex % optionColors.length], border: `1px solid ${optionBorders[displayIndex % optionBorders.length]}`, color: C.ink, outlineColor: C.live, boxShadow: '0 3px 10px rgba(31,61,43,.05)' }}
                 >
-                  <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + displayIndex)}</span>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold" style={{ ...fontMono, color: C.cover, background: C.surface, border: `1px solid ${C.rule}` }}>{String.fromCharCode(65 + displayIndex)}</span>
                   {!currentQuestion.pdfSourceImageOnly && (currentQuestion.optionsAreMath
                     ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense>
-                    : <span>{opt}</span>)}
+                    : <span className="min-w-0 break-words">{opt}</span>)}
                 </button>
                 );
-              })}
-              {!Array.isArray(currentQuestion.options) || currentQuestion.options.length === 0 ? <div className="text-sm" style={{ ...fontBody, color: C.red }}>Bu savolning javob variantlari topilmadi.</div> : null}
+                });
+              })()}
             </div>
+              {!Array.isArray(currentQuestion.options) || currentQuestion.options.length === 0 ? <div className="text-sm" style={{ ...fontBody, color: C.red }}>Bu savolning javob variantlari topilmadi.</div> : null}
+            </>
           )}
         </div>
       )}
@@ -1554,7 +1615,7 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
         </div>
       )}
 
-      {room.phase === 'intermission' && !showingReveal && (
+      {room.phase === 'intermission' && !showingReveal && !isFinalQuestion && (
         <div>
           <div className="text-sm mb-3" style={{ ...fontBody, color: C.inkSoft }}>Joriy reyting — keyingi savol tez orada...</div>
           <LiveLeaderboardList participants={participants} showAsPoints />
@@ -1566,13 +1627,43 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
 
 function LiveSyncFinished({ participants, myId, onExit }) {
   const [showFull, setShowFull] = useState(false);
+  const [revealedWinners, setRevealedWinners] = useState(0);
   const sorted = [...participants].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const winners = [sorted[2], sorted[1], sorted[0]].filter(Boolean);
   const myIndex = sorted.findIndex((p) => p.id === myId);
   const me = sorted[myIndex];
+  useEffect(() => {
+    setRevealedWinners(0);
+    const timers = [
+      setTimeout(() => setRevealedWinners(1), 450),
+      setTimeout(() => setRevealedWinners(2), 1500),
+      setTimeout(() => setRevealedWinners(3), 2550),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
   return (
     <div>
       <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
-      <SectionHeading eyebrow="Yakun" title="Test tugadi 🎉" />
+      <div className="relative mb-5 overflow-hidden rounded-3xl p-5 sm:p-7" style={{ background: `linear-gradient(135deg, ${C.coverDeep}, ${C.liveDeep})`, border: `1px solid ${C.live}` }}>
+        <div className="pointer-events-none absolute -right-4 -top-7 text-7xl opacity-20 animate-bounce" aria-hidden="true">🎉</div>
+        <div className="pointer-events-none absolute right-20 top-10 text-3xl opacity-70" aria-hidden="true">✨</div>
+        <div className="text-xs font-semibold uppercase tracking-[.18em]" style={{ ...fontMono, color: C.liveSoft }}>Yakun</div>
+        <h2 className="mt-1 text-2xl sm:text-3xl font-semibold" style={{ ...fontDisplay, color: C.white }}>Test tugadi!</h2>
+        <div className="mt-5 grid gap-2 sm:grid-cols-3" aria-live="polite">
+          {winners.map((winner, index) => {
+            const place = sorted.indexOf(winner) + 1;
+            const shown = revealedWinners > index;
+            const tint = place === 1 ? C.live : place === 2 ? C.silver : C.bronze;
+            return (
+              <div key={winner.id} className={`rounded-2xl p-4 transition-all duration-500 ${shown ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`} style={{ background: 'rgba(251,250,243,.10)', border: `1px solid ${tint}` }}>
+                <div className="text-xs font-semibold uppercase tracking-wider" style={{ ...fontMono, color: tint }}>{place}-oʻrin {place === 1 ? '🏆' : place === 2 ? '🥈' : '🥉'}</div>
+                <div className="mt-2 truncate text-lg font-semibold" style={{ ...fontBody, color: C.white }}>{winner.name}</div>
+                <div className="mt-1 text-sm" style={{ ...fontMono, color: C.liveSoft }}>{winner.score ?? 0} ball</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       {me && (
         <div className="p-5 rounded-2xl mb-5 max-w-xs text-center" style={{ background: C.cover, border: `1px solid ${C.live}` }}>
           <div className="text-xs uppercase tracking-widest mb-1" style={{ ...fontMono, color: C.liveSoft }}>Sizning oʻringiz</div>
@@ -1663,7 +1754,7 @@ function LiveJoinForm({ initialCode, onJoined, onBack, session }) {
   );
 }
 
-function LiveQuizPlayer({ room, test, participant, onDone }) {
+function LiveQuizPlayer({ room, test, participant, onDone, onExit }) {
   const draftKey = `upcourse_live_answers:${room.id}:${participant.id}`;
   const [answers, setAnswers] = useState(() => {
     try {
@@ -1781,6 +1872,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
     const total = getQuestionCount(test.questions);
     return (
       <div>
+        {onExit && <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Chiqish</button>}
         <SectionHeading eyebrow="Natijalar" title={`${score} / ${total} ball`} />
         {submitError && <div role="alert" className="mt-3 rounded-xl p-3 text-sm" style={{ ...fontBody, color: C.red, background: C.dangerTint }}>{submitError}</div>}
         <div className="space-y-4 max-w-2xl mt-5">
@@ -1827,6 +1919,7 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 
   return (
     <div>
+      {onExit && <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5" style={{ ...fontBody, color: C.inkSoft }}><ArrowLeft size={15} /> Chiqish</button>}
       <div className="flex items-center justify-between mb-5 gap-3">
         <h3 className="text-xl sm:text-2xl min-w-0 truncate" style={{ ...fontDisplay, color: C.ink, fontWeight: 600 }}>{test.title}</h3>
         <div
@@ -1842,13 +1935,13 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
             ? room.shuffleOptions ? liveShuffledOptionIndices(q, room.id, participant.id, `free:${qi}`) : (Array.isArray(q.options) ? q.options.map((_, i) => i) : [])
             : [];
           return (
-          <div key={q.id}>
-            {q.type !== 'matching' && !q.pdfSourceImageOnly && <div className="text-base mb-3" style={{ ...fontBody, color: C.ink, fontWeight: 500 }}>
+          <div key={q.id} className="rounded-3xl border p-4 sm:p-5" style={{ background: C.surface, borderColor: C.rule, boxShadow: '0 10px 28px rgba(31,61,43,.04)' }}>
+            {q.type !== 'matching' && !q.pdfSourceImageOnly && <div className="text-base sm:text-lg mb-4 leading-relaxed" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>
               <span style={{ ...fontMono, color: C.live }}>{qi + 1}.</span> {q.text}{q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
             </div>}
           {q.imageUrl && (q.pdfSourceImageOnly
             ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-xl bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
-            : <img src={q.imageUrl} alt="" loading="lazy" className="mb-3 max-w-full rounded-2xl sm:max-w-md" style={{ border: `1px solid ${C.rule}` }} />)}
+            : <img src={q.imageUrl} alt="" loading="lazy" className="mb-4 max-h-[42svh] max-w-full rounded-2xl object-contain object-left" style={{ border: `1px solid ${C.rule}`, background: C.paperSoft }} />)}
             {q.type === 'matching' ? (
               <MatchingTestQuestion question={q} answer={answers[q.id] || {}} onChange={(pairId, optionIndex) => setMatchingAnswer(q.id, pairId, optionIndex)} disabled={submitted} accent="live" />
             ) : q.type === 'open' ? (
@@ -1862,20 +1955,22 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
                 style={{ ...fontBody, color: C.ink, background: C.surface, border: `1px solid ${C.rule}` }}
               />
             ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {liveOptionOrder.map((originalIndex, displayIndex) => {
                 const opt = q.options[originalIndex];
                 const isSelected = answers[q.id] === originalIndex;
+                const optionColors = [C.liveTint, C.successTint, C.paperSoft, C.dangerTint];
+                const optionBorders = [C.liveSoft, C.accent, C.rule, C.red];
                 return (
                   <button
                     key={originalIndex}
                     onClick={() => select(q.id, originalIndex)}
                     disabled={submitted}
-                    className="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px] transition-colors focus-visible:outline focus-visible:outline-2"
-                    style={{ ...fontBody, background: isSelected ? C.liveTint : C.surface, border: `1px solid ${isSelected ? C.live : C.rule}`, color: C.ink, outlineColor: C.live }}
+                    className="w-full min-h-[62px] text-left flex items-center gap-3 px-4 py-3 rounded-2xl text-[15px] transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 disabled:cursor-default"
+                    style={{ ...fontBody, background: isSelected ? C.liveTint : optionColors[displayIndex % optionColors.length], border: `1px solid ${isSelected ? C.live : optionBorders[displayIndex % optionBorders.length]}`, color: C.ink, outlineColor: C.live }}
                   >
-                    <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + displayIndex)}</span>
-                    {q.pdfSourceImageOnly ? null : q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold" style={{ ...fontMono, color: C.cover, background: C.surface, border: `1px solid ${C.rule}` }}>{String.fromCharCode(65 + displayIndex)}</span>
+                    {q.pdfSourceImageOnly ? null : q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span className="min-w-0 break-words">{opt}</span>}
                   </button>
                 );
               })}
@@ -1920,10 +2015,27 @@ function LiveQuizPlayer({ room, test, participant, onDone }) {
 function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionChange, ensureTestContent }) {
   const [phase, setPhase] = useState(room.status === 'waiting' ? 'waiting' : 'quiz');
   const [participants, setParticipants] = useState([]);
+  const [confirmExit, setConfirmExit] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   const previousStatusRef = useRef(room.status);
   const test = tests.find((t) => t.id === room.testId);
   const testContent = useLiveTestContent(room.testId, test, ensureTestContent);
+
+  function requestExit() {
+    if (room.status === 'finished') {
+      if (onSessionChange) onSessionChange(null);
+      onExit();
+      return;
+    }
+    setConfirmExit(true);
+  }
+
+  async function confirmParticipantExit() {
+    try { await sbDelete('live_participants', participant.id); } catch (e) { /* sessiya tozalanadi, qaytadan ulanish foydalanuvchi tanlovi bo'ladi */ }
+    if (onSessionChange) onSessionChange(null);
+    setConfirmExit(false);
+    onExit();
+  }
 
   useEffect(() => {
     if (previousStatusRef.current === 'waiting' && room.status === 'active' && notificationPermission === 'granted') {
@@ -2001,7 +2113,7 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
   if (phase === 'waiting') {
     return (
       <div>
-        <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+        <button onClick={requestExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
         <SectionHeading eyebrow="Xonadasiz" title={`Xona: ${room.code}`} />
         <div className="flex items-center gap-2 text-[15px]" style={{ ...fontBody, color: C.inkSoft }}>
           <Loader2 className="animate-spin" size={16} />
@@ -2033,27 +2145,29 @@ function LiveParticipant({ room, setRoom, participant, tests, onExit, onSessionC
           </button>
         )}
         {room.scheduledAt && notificationPermission === 'granted' && <div className="mt-3 text-xs" style={{ ...fontBody, color: C.inkSoft }}>Boshlanish haqida bildirishnoma yoqilgan.</div>}
+        <LiveExitConfirmation open={confirmExit} message="Xonadan chiqsangiz, kutish roʻyxatidan olib tashlanasiz. Keyin kod bilan qayta qoʻshilishingiz mumkin." onStay={() => setConfirmExit(false)} onLeave={confirmParticipantExit} />
       </div>
     );
   }
 
   if (phase === 'quiz' && !test) {
-    return <LiveContentLoadState status={testContent.status === 'ready' ? 'error' : testContent.status} retry={testContent.retry} onExit={onExit} />;
+    return <><LiveContentLoadState status={testContent.status === 'ready' ? 'error' : testContent.status} retry={testContent.retry} onExit={requestExit} /><LiveExitConfirmation open={confirmExit} message="Chiqsangiz, ishtirokingiz yakunlanadi." onStay={() => setConfirmExit(false)} onLeave={confirmParticipantExit} /></>;
   }
 
   if (phase === 'quiz' && test) {
-    if (testContent.status !== 'ready') return <LiveContentLoadState status={testContent.status} retry={testContent.retry} onExit={onExit} />;
+    if (testContent.status !== 'ready') return <><LiveContentLoadState status={testContent.status} retry={testContent.retry} onExit={requestExit} /><LiveExitConfirmation open={confirmExit} message="Chiqsangiz, ishtirokingiz yakunlanadi." onStay={() => setConfirmExit(false)} onLeave={confirmParticipantExit} /></>;
     if (room.mode === 'sync') {
-      return <LiveSyncPlayer room={room} setRoom={setRoom} test={test} participant={participant} onExit={onExit} />;
+      return <><LiveSyncPlayer room={room} setRoom={setRoom} test={test} participant={participant} onExit={requestExit} /><LiveExitConfirmation open={confirmExit} message="Chiqsangiz, joriy testdagi ishtirokingiz va ballaringiz toʻxtatiladi." onStay={() => setConfirmExit(false)} onLeave={confirmParticipantExit} /></>;
     }
-    return <LiveQuizPlayer room={room} test={test} participant={participant} onDone={() => { if (onSessionChange) onSessionChange(null); setPhase('results'); }} />;
+    return <><LiveQuizPlayer room={room} test={test} participant={participant} onExit={requestExit} onDone={() => setPhase('results')} /><LiveExitConfirmation open={confirmExit} message="Chiqsangiz, hozirgacha kiritgan javoblaringiz yakuniy natija sifatida yuborilmaydi." onStay={() => setConfirmExit(false)} onLeave={confirmParticipantExit} /></>;
   }
 
   return (
     <div>
-      <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
+        <button onClick={requestExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
       <SectionHeading eyebrow="Yakun" title="Natijalar" />
       <LiveLeaderboardList participants={participants} />
+      <LiveExitConfirmation open={confirmExit} message="Chiqsangiz, xonadagi ishtirokingiz tugaydi va roʻyxatdan olib tashlanasiz." onStay={() => setConfirmExit(false)} onLeave={confirmParticipantExit} />
     </div>
   );
 }
@@ -2158,13 +2272,13 @@ function LiveQuizHubContent({ tests, testsLoading, testsLoadError, onRetryTests,
     return <LiveHostSetup tests={tests} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onCreated={(r) => { setRoom(r); setMode('host-lobby'); if (onSessionChange) onSessionChange({ role: 'host', code: r.code }); }} onBack={() => setMode(null)} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'host-lobby' && room) {
-    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); if (room.status === 'finished' && onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
+    return <LiveHostLobby room={room} setRoom={setRoom} tests={tests} onExit={() => { setMode(null); setRoom(null); if (onSessionChange) onSessionChange(null); }} ensureTestContent={ensureTestContent} />;
   }
   if (mode === 'join-form') {
     return <LiveJoinForm initialCode={initialCode} session={session} onJoined={(r, p, participantKey) => { setRoom(r); setParticipant(p); setMode('participant'); if (onSessionChange) onSessionChange({ role: 'participant', code: r.code, participantKey }); }} onBack={() => setMode(null)} />;
   }
   if (mode === 'participant' && room && participant) {
-    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); if (room.status === 'finished' && onSessionChange) onSessionChange(null); }} onSessionChange={onSessionChange} ensureTestContent={ensureTestContent} />;
+    return <LiveParticipant room={room} setRoom={setRoom} participant={participant} tests={tests} onExit={() => { setMode(null); setRoom(null); setParticipant(null); if (onSessionChange) onSessionChange(null); }} onSessionChange={onSessionChange} ensureTestContent={ensureTestContent} />;
   }
   return null;
 }

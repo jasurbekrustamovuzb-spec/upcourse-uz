@@ -1387,9 +1387,9 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   const noSearchResults = isSearching && matchedCategories.length === 0 && matchedTests.length === 0;
 
   useEffect(() => {
-    if (onReadingChange) onReadingChange(!!active || (Boolean(initialOpenId) && (openingInitialTest || Boolean(activeId))) || (Boolean(initialLiveCode) && liveOpen));
+    if (onReadingChange) onReadingChange(!!active || (Boolean(initialOpenId) && (openingInitialTest || Boolean(activeId))) || ((Boolean(initialLiveCode) || Boolean(initialLiveSession)) && liveOpen));
     return () => { if (onReadingChange) onReadingChange(false); };
-  }, [active, activeId, initialOpenId, initialLiveCode, liveOpen, onReadingChange, openingInitialTest]);
+  }, [active, activeId, initialOpenId, initialLiveCode, initialLiveSession, liveOpen, onReadingChange, openingInitialTest]);
 
   if (certificateOpen) return <Suspense fallback={<SectionLoading label="Milliy sertifikat markazi yuklanmoqda…" />}><NationalCertificate tests={approved} session={session} profile={profile} isAdmin={isAdmin} initialVerifyId={initialCertificateId || new URLSearchParams(window.location.search).get('verifyCertificate') || ''} onBack={() => setCertificateOpen(false)} /></Suspense>;
 
@@ -1446,7 +1446,7 @@ export function TestsView({ tests, testsLoading, testsLoadError, onRetryTests, c
   }
 
   if (liveOpen) return (
-    <Suspense fallback={initialLiveCode ? <LiveEntryLoading /> : <SectionLoading label="Jonli test yuklanmoqda…" />}>
+    <Suspense fallback={(initialLiveCode || initialLiveSession) ? <LiveEntryLoading /> : <SectionLoading label="Jonli test yuklanmoqda…" />}>
       <LiveQuizHub tests={viewable} testsLoading={testsLoading} testsLoadError={testsLoadError} onRetryTests={onRetryTests} session={session} onExit={() => { if (liveEntryDirect) { setLiveOpen(false); onExitInitialLive?.(); } else back(); }} onRequireAccount={onHostAccountRequired} initialCode={initialLiveCode} restoreSession={liveSession} onSessionChange={setLiveSession} ensureTestContent={ensureTestContent} />
     </Suspense>
   );
