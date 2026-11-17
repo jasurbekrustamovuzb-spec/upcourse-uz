@@ -378,6 +378,55 @@ function LiveLeaderboardList({ participants, showAsPoints }) {
   );
 }
 
+const LIVE_OPTION_COLORS = [
+  { background: '#FFF2B3', border: '#E6B733', accent: '#9A6B00' },
+  { background: '#DDF3D7', border: '#75B86C', accent: '#347B3C' },
+  { background: '#DDEBFF', border: '#6C9FE4', accent: '#315F9F' },
+  { background: '#FFE0E0', border: '#E47C7C', accent: '#A83E43' },
+];
+
+function LiveWinnerPodium({ participants, revealStage }) {
+  const sorted = [...participants].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const places = [
+    { participant: sorted[1], rank: 2, revealAt: 2, label: '🥈', color: '#D6E0EA', border: '#A8B8C9', height: 'clamp(88px, 18vw, 132px)' },
+    { participant: sorted[0], rank: 1, revealAt: 3, label: '🏆', color: '#FFD34E', border: '#E1A900', height: 'clamp(116px, 25vw, 180px)' },
+    { participant: sorted[2], rank: 3, revealAt: 1, label: '🥉', color: '#FFB184', border: '#E58B5B', height: 'clamp(70px, 14vw, 108px)' },
+  ];
+  return (
+    <section className="relative mb-6 overflow-hidden rounded-[30px] border p-4 sm:p-7" aria-label="Gʻoliblar shohsupasi" aria-live="polite" style={{ background: 'linear-gradient(140deg, #F0F8FF 0%, #FFFFFF 48%, #F8F2FF 100%)', borderColor: '#C9D9F0', boxShadow: '0 20px 48px rgba(61,95,150,.12)' }}>
+      <span className="pointer-events-none absolute -left-2 top-7 text-4xl animate-pulse" aria-hidden="true">🎆</span>
+      <span className="pointer-events-none absolute right-4 top-2 text-5xl animate-bounce" aria-hidden="true">🎇</span>
+      <span className="pointer-events-none absolute right-[22%] top-14 text-2xl animate-ping" aria-hidden="true">✨</span>
+      <div className="relative z-10 text-center">
+        <div className="text-xs font-bold uppercase tracking-[.2em]" style={{ ...fontMono, color: '#5576B8' }}>Yakuniy natija</div>
+        <h2 className="mt-1 text-2xl sm:text-3xl font-bold" style={{ ...fontDisplay, color: '#20385F' }}>Gʻoliblar shohsupasi</h2>
+        <p className="mt-1 text-sm" style={{ ...fontBody, color: '#60718D' }}>Avval 3-oʻrin, soʻng 2- va 1-oʻrin.</p>
+      </div>
+      <div className="relative z-10 mt-7 flex min-h-[230px] items-end justify-center gap-2 sm:gap-4">
+        {places.map(({ participant, rank, revealAt, label, color, border, height }) => {
+          if (!participant) return <div key={rank} className="w-[31%] max-w-[168px]" aria-hidden="true" />;
+          const shown = revealStage >= revealAt;
+          return (
+            <div key={participant.id} className={`w-[31%] max-w-[168px] text-center transition-all duration-700 ease-out ${shown ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-7 scale-90 opacity-0'}`}>
+              <div className="mb-2 min-h-[88px] rounded-2xl border bg-white/90 p-2 shadow-sm sm:p-3" style={{ borderColor: `${border}99` }}>
+                <div className="text-xl leading-none sm:text-2xl" aria-hidden="true">{label}</div>
+                <div className="mt-1 text-[10px] font-extrabold uppercase tracking-wide sm:text-xs" style={{ ...fontMono, color: rank === 1 ? '#A56A00' : rank === 2 ? '#53667B' : '#A85328' }}>{rank}-oʻrin</div>
+                <div className="mt-1 truncate text-xs font-bold sm:text-sm" style={{ ...fontBody, color: '#253852' }}>{participant.name}</div>
+                <div className="text-[10px] sm:text-xs" style={{ ...fontMono, color: '#66758A' }}>{participant.score ?? 0} ball</div>
+              </div>
+              <div className="flex items-center justify-center gap-1 rounded-t-2xl border-x-2 border-t-2 text-2xl font-black text-white shadow-inner sm:text-3xl" style={{ height, background: `linear-gradient(145deg, ${color}, ${border})`, borderColor: border, textShadow: '0 2px 5px rgba(35,50,75,.32)' }}>
+                {rank}
+              </div>
+              <div className="h-3 rounded-b-lg" style={{ background: border }} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="pointer-events-none absolute inset-x-4 bottom-3 z-20 flex justify-between text-lg" aria-hidden="true"><span>🎉</span><span>🎊</span><span>✨</span><span>🎉</span><span>🎊</span></div>
+    </section>
+  );
+}
+
 function LiveExitConfirmation({ open, message, onStay, onLeave }) {
   if (!open) return null;
   return (
@@ -572,39 +621,10 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
   }, [room.status, room.phase, room.currentIndex, room.id, currentQuestion, setRoom]);
 
   if (room.status === 'finished') {
-    const sorted = [...participants].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-    const podium = [sorted[2], sorted[1], sorted[0]]; // G'oliblar 3-, 2-, 1-o'rin tartibida e'lon qilinadi.
-    const podiumHeights = ['h-16', 'h-24', 'h-32'];
-    const podiumRanks = [3, 2, 1];
     return (
       <div>
         <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
-        <div className="relative mb-3 overflow-hidden rounded-3xl p-5 sm:p-6" style={{ background: `linear-gradient(135deg, ${C.coverDeep}, ${C.liveDeep})`, border: `1px solid ${C.live}` }}>
-          <span className="pointer-events-none absolute -right-2 -top-4 text-6xl opacity-25 animate-bounce" aria-hidden="true">🎊</span>
-          <span className="pointer-events-none absolute right-24 top-7 text-3xl animate-pulse" aria-hidden="true">✨</span>
-          <div className="text-xs font-semibold uppercase tracking-[.18em]" style={{ ...fontMono, color: C.liveSoft }}>Yakun</div>
-          <h2 className="mt-1 text-2xl sm:text-3xl font-semibold" style={{ ...fontDisplay, color: C.white }}>Test tugadi!</h2>
-          <p className="mt-1 text-sm" style={{ ...fontBody, color: C.liveSoft }}>Gʻoliblar 3-oʻrindan boshlab eʼlon qilinadi.</p>
-        </div>
-
-        <div className="flex items-end justify-center gap-3 mb-8 mt-6" style={{ minHeight: '160px' }}>
-          {podium.map((p, i) => {
-            const shown = revealStage > i;
-            if (!p) return <div key={i} className="w-24" />;
-            return (
-              <div key={p.id} className={`flex flex-col items-center transition-all duration-500 ${shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                <div className="text-sm mb-1 truncate max-w-[90px] text-center" style={{ ...fontBody, color: C.ink }}>{p.name}</div>
-                <div className="text-xs mb-2" style={{ ...fontMono, color: C.live }}>{p.score ?? 0} ball</div>
-                <div
-                  className={`w-24 ${podiumHeights[i]} rounded-t-xl flex items-start justify-center pt-2`}
-                  style={{ background: podiumRanks[i] === 1 ? C.live : podiumRanks[i] === 2 ? C.silver : C.bronze }}
-                >
-                  <span className="text-xl" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>{podiumRanks[i]}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <LiveWinnerPodium participants={participants} revealStage={revealStage} />
 
         {revealStage >= 3 && (
           <div className="app-fade-slide">
@@ -1507,11 +1527,22 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
 
       {room.phase === 'question' && currentQuestion && (
         <div className="flex min-h-[68svh] flex-col max-w-3xl">
-          <div className="rounded-3xl p-4 sm:p-6" style={{ background: C.surface, border: `1px solid ${C.rule}`, boxShadow: '0 14px 36px rgba(31,61,43,.06)' }}>
-          {currentQuestion.type !== 'matching' && !currentQuestion.pdfSourceImageOnly && <div className="text-lg sm:text-xl mb-4 leading-relaxed" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>{currentQuestion.text}{currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact /></Suspense>}</div>}
-          {currentQuestion.imageUrl && (currentQuestion.pdfSourceImageOnly
-            ? <div className="mb-4 overflow-hidden rounded-2xl" style={{ border: `1px solid ${C.rule}`, background: C.paperSoft }}><Suspense fallback={<div className="h-36 animate-pulse bg-[#e8e2d2]" />}><PdfQuestionImage src={currentQuestion.imageUrl} alt="PDFdagi savolning asl ko‘rinishi" /></Suspense></div>
-            : <img src={currentQuestion.imageUrl} alt="" loading="lazy" className="mb-4 max-h-[42svh] max-w-full rounded-2xl object-contain object-left" style={{ border: `1px solid ${C.rule}`, background: C.paperSoft }} />)}
+          <div className="relative overflow-hidden rounded-[28px] border p-4 sm:p-6" style={{ background: 'linear-gradient(145deg, #FFFFFF 0%, #F3F8FF 62%, #FFF8EC 100%)', borderColor: '#C7D5E7', boxShadow: '0 16px 38px rgba(51,82,125,.10)' }}>
+            <div className="mb-4 flex items-center gap-3">
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.14em]" style={{ ...fontMono, color: '#365F9C', background: '#E7F0FF', border: '1px solid #CDDEFA' }}><BookOpen size={14} /> Savol</span>
+              <span className="h-px flex-1" style={{ background: 'linear-gradient(90deg, #B9CDEA, transparent)' }} />
+              <span className="text-xs" style={{ ...fontMono, color: '#8492A5' }}>Diqqat bilan tanlang</span>
+            </div>
+            {currentQuestion.type !== 'matching' && !currentQuestion.pdfSourceImageOnly && <div className="mb-4 text-lg sm:text-xl leading-relaxed" style={{ ...fontBody, color: C.ink, fontWeight: 650 }}>{currentQuestion.text}{currentQuestion.mathFormula && <Suspense fallback={null}><MathInput value={currentQuestion.mathFormula} readOnly compact /></Suspense>}</div>}
+            {currentQuestion.imageUrl && (
+              <div className="overflow-hidden rounded-2xl border p-2 sm:p-3" style={{ borderColor: '#D8E3F0', background: 'linear-gradient(135deg, #EAF2FF, #F7F1FF)' }}>
+                <div className="grid min-h-[120px] place-items-center overflow-hidden rounded-xl bg-white p-2 sm:p-3">
+                  {currentQuestion.pdfSourceImageOnly
+                    ? <Suspense fallback={<div className="h-36 w-full animate-pulse rounded-lg bg-slate-100" />}><PdfQuestionImage src={currentQuestion.imageUrl} alt="PDFdagi savolning asl ko‘rinishi" /></Suspense>
+                    : <img src={currentQuestion.imageUrl} alt="Savol rasmi" loading="lazy" className="max-h-[42svh] max-w-full rounded-lg object-contain" />}
+                </div>
+              </div>
+            )}
           </div>
 
           {hasAnswered ? (
@@ -1545,18 +1576,17 @@ function LiveSyncPlayer({ room, setRoom, test, participant, onExit }) {
             <>
             <div className="mt-auto grid grid-cols-1 gap-3 pt-5 sm:grid-cols-2">
               {(() => {
-                const optionColors = [C.liveTint, C.successTint, C.paperSoft, C.dangerTint];
-                const optionBorders = [C.liveSoft, C.accent, C.rule, C.red];
                 return currentOptionOrder.map((originalIndex, displayIndex) => {
                   const opt = currentQuestion.options[originalIndex];
+                  const optionColor = LIVE_OPTION_COLORS[displayIndex % LIVE_OPTION_COLORS.length];
                   return (
                 <button
                   key={originalIndex}
                   onClick={() => submitAnswer(originalIndex)}
                   className="w-full min-h-[68px] text-left flex items-center gap-3 px-4 py-3 rounded-2xl text-[16px] font-medium transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 active:scale-[.99]"
-                  style={{ ...fontBody, background: optionColors[displayIndex % optionColors.length], border: `1px solid ${optionBorders[displayIndex % optionBorders.length]}`, color: C.ink, outlineColor: C.live, boxShadow: '0 3px 10px rgba(31,61,43,.05)' }}
+                  style={{ ...fontBody, background: optionColor.background, border: `1px solid ${optionColor.border}`, color: C.ink, outlineColor: optionColor.border, boxShadow: '0 5px 14px rgba(49,73,103,.09)' }}
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold" style={{ ...fontMono, color: C.cover, background: C.surface, border: `1px solid ${C.rule}` }}>{String.fromCharCode(65 + displayIndex)}</span>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold" style={{ ...fontMono, color: optionColor.accent, background: '#FFFFFFCC', border: `1px solid ${optionColor.border}` }}>{String.fromCharCode(65 + displayIndex)}</span>
                   {!currentQuestion.pdfSourceImageOnly && (currentQuestion.optionsAreMath
                     ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense>
                     : <span className="min-w-0 break-words">{opt}</span>)}
@@ -1629,7 +1659,6 @@ function LiveSyncFinished({ participants, myId, onExit }) {
   const [showFull, setShowFull] = useState(false);
   const [revealedWinners, setRevealedWinners] = useState(0);
   const sorted = [...participants].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-  const winners = [sorted[2], sorted[1], sorted[0]].filter(Boolean);
   const myIndex = sorted.findIndex((p) => p.id === myId);
   const me = sorted[myIndex];
   useEffect(() => {
@@ -1644,31 +1673,12 @@ function LiveSyncFinished({ participants, myId, onExit }) {
   return (
     <div>
       <button onClick={onExit} className="inline-flex items-center gap-1 text-[15px] mb-5 focus-visible:outline focus-visible:outline-2" style={{ ...fontBody, color: C.inkSoft, outlineColor: C.gold }}><ArrowLeft size={15} /> Chiqish</button>
-      <div className="relative mb-5 overflow-hidden rounded-3xl p-5 sm:p-7" style={{ background: `linear-gradient(135deg, ${C.coverDeep}, ${C.liveDeep})`, border: `1px solid ${C.live}` }}>
-        <div className="pointer-events-none absolute -right-4 -top-7 text-7xl opacity-20 animate-bounce" aria-hidden="true">🎉</div>
-        <div className="pointer-events-none absolute right-20 top-10 text-3xl opacity-70" aria-hidden="true">✨</div>
-        <div className="text-xs font-semibold uppercase tracking-[.18em]" style={{ ...fontMono, color: C.liveSoft }}>Yakun</div>
-        <h2 className="mt-1 text-2xl sm:text-3xl font-semibold" style={{ ...fontDisplay, color: C.white }}>Test tugadi!</h2>
-        <div className="mt-5 grid gap-2 sm:grid-cols-3" aria-live="polite">
-          {winners.map((winner, index) => {
-            const place = sorted.indexOf(winner) + 1;
-            const shown = revealedWinners > index;
-            const tint = place === 1 ? C.live : place === 2 ? C.silver : C.bronze;
-            return (
-              <div key={winner.id} className={`rounded-2xl p-4 transition-all duration-500 ${shown ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`} style={{ background: 'rgba(251,250,243,.10)', border: `1px solid ${tint}` }}>
-                <div className="text-xs font-semibold uppercase tracking-wider" style={{ ...fontMono, color: tint }}>{place}-oʻrin {place === 1 ? '🏆' : place === 2 ? '🥈' : '🥉'}</div>
-                <div className="mt-2 truncate text-lg font-semibold" style={{ ...fontBody, color: C.white }}>{winner.name}</div>
-                <div className="mt-1 text-sm" style={{ ...fontMono, color: C.liveSoft }}>{winner.score ?? 0} ball</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <LiveWinnerPodium participants={participants} revealStage={revealedWinners} />
       {me && (
-        <div className="p-5 rounded-2xl mb-5 max-w-xs text-center" style={{ background: C.cover, border: `1px solid ${C.live}` }}>
-          <div className="text-xs uppercase tracking-widest mb-1" style={{ ...fontMono, color: C.liveSoft }}>Sizning oʻringiz</div>
-          <div className="text-3xl mb-1" style={{ ...fontDisplay, color: C.white, fontWeight: 700 }}>{myIndex + 1}-oʻrin</div>
-          <div className="text-sm" style={{ ...fontMono, color: C.liveSoft }}>{me.score ?? 0} ball</div>
+        <div className="p-5 rounded-2xl mb-5 max-w-xs text-center" style={{ background: '#EEF4FF', border: '1px solid #B9CDEA' }}>
+          <div className="text-xs uppercase tracking-widest mb-1" style={{ ...fontMono, color: '#5576B8' }}>Sizning oʻrningiz</div>
+          <div className="text-3xl mb-1" style={{ ...fontDisplay, color: '#20385F', fontWeight: 700 }}>{myIndex + 1}-oʻrin</div>
+          <div className="text-sm" style={{ ...fontMono, color: '#60718D' }}>{me.score ?? 0} ball</div>
         </div>
       )}
       <GhostButton onClick={() => setShowFull((v) => !v)} icon={Trophy}>{showFull ? 'Yopish' : "Toʻliq reytingni koʻrish"}</GhostButton>
@@ -1935,13 +1945,23 @@ function LiveQuizPlayer({ room, test, participant, onDone, onExit }) {
             ? room.shuffleOptions ? liveShuffledOptionIndices(q, room.id, participant.id, `free:${qi}`) : (Array.isArray(q.options) ? q.options.map((_, i) => i) : [])
             : [];
           return (
-          <div key={q.id} className="rounded-3xl border p-4 sm:p-5" style={{ background: C.surface, borderColor: C.rule, boxShadow: '0 10px 28px rgba(31,61,43,.04)' }}>
+          <div key={q.id} className="rounded-[28px] border p-4 sm:p-5" style={{ background: 'linear-gradient(145deg, #FFFFFF 0%, #F3F8FF 62%, #FFF8EC 100%)', borderColor: '#C7D5E7', boxShadow: '0 14px 34px rgba(51,82,125,.08)' }}>
+            <div className="mb-4 flex items-center gap-3">
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.14em]" style={{ ...fontMono, color: '#365F9C', background: '#E7F0FF', border: '1px solid #CDDEFA' }}><BookOpen size={14} /> Savol {qi + 1}</span>
+              <span className="h-px flex-1" style={{ background: 'linear-gradient(90deg, #B9CDEA, transparent)' }} />
+            </div>
             {q.type !== 'matching' && !q.pdfSourceImageOnly && <div className="text-base sm:text-lg mb-4 leading-relaxed" style={{ ...fontBody, color: C.ink, fontWeight: 600 }}>
-              <span style={{ ...fontMono, color: C.live }}>{qi + 1}.</span> {q.text}{q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
+              {q.text}{q.mathFormula && <Suspense fallback={null}><MathInput value={q.mathFormula} readOnly compact /></Suspense>}
             </div>}
-          {q.imageUrl && (q.pdfSourceImageOnly
-            ? <Suspense fallback={<div className="mb-3 h-28 animate-pulse rounded-xl bg-[#e8e2d2]" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
-            : <img src={q.imageUrl} alt="" loading="lazy" className="mb-4 max-h-[42svh] max-w-full rounded-2xl object-contain object-left" style={{ border: `1px solid ${C.rule}`, background: C.paperSoft }} />)}
+          {q.imageUrl && (
+            <div className="mb-4 overflow-hidden rounded-2xl border p-2 sm:p-3" style={{ borderColor: '#D8E3F0', background: 'linear-gradient(135deg, #EAF2FF, #F7F1FF)' }}>
+              <div className="grid min-h-[120px] place-items-center overflow-hidden rounded-xl bg-white p-2 sm:p-3">
+                {q.pdfSourceImageOnly
+                  ? <Suspense fallback={<div className="h-36 w-full animate-pulse rounded-lg bg-slate-100" />}><PdfQuestionImage src={q.imageUrl} alt={q.text || 'PDFdagi savol'} /></Suspense>
+                  : <img src={q.imageUrl} alt="Savol rasmi" loading="lazy" className="max-h-[42svh] max-w-full rounded-lg object-contain" />}
+              </div>
+            </div>
+          )}
             {q.type === 'matching' ? (
               <MatchingTestQuestion question={q} answer={answers[q.id] || {}} onChange={(pairId, optionIndex) => setMatchingAnswer(q.id, pairId, optionIndex)} disabled={submitted} accent="live" />
             ) : q.type === 'open' ? (
@@ -1959,17 +1979,16 @@ function LiveQuizPlayer({ room, test, participant, onDone, onExit }) {
               {liveOptionOrder.map((originalIndex, displayIndex) => {
                 const opt = q.options[originalIndex];
                 const isSelected = answers[q.id] === originalIndex;
-                const optionColors = [C.liveTint, C.successTint, C.paperSoft, C.dangerTint];
-                const optionBorders = [C.liveSoft, C.accent, C.rule, C.red];
+                const optionColor = LIVE_OPTION_COLORS[displayIndex % LIVE_OPTION_COLORS.length];
                 return (
                   <button
                     key={originalIndex}
                     onClick={() => select(q.id, originalIndex)}
                     disabled={submitted}
                     className="w-full min-h-[62px] text-left flex items-center gap-3 px-4 py-3 rounded-2xl text-[15px] transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 disabled:cursor-default"
-                    style={{ ...fontBody, background: isSelected ? C.liveTint : optionColors[displayIndex % optionColors.length], border: `1px solid ${isSelected ? C.live : optionBorders[displayIndex % optionBorders.length]}`, color: C.ink, outlineColor: C.live }}
+                    style={{ ...fontBody, background: optionColor.background, border: `${isSelected ? 2 : 1}px solid ${isSelected ? optionColor.accent : optionColor.border}`, color: C.ink, outlineColor: optionColor.border, boxShadow: isSelected ? `0 0 0 3px ${optionColor.border}55` : '0 4px 12px rgba(49,73,103,.07)' }}
                   >
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold" style={{ ...fontMono, color: C.cover, background: C.surface, border: `1px solid ${C.rule}` }}>{String.fromCharCode(65 + displayIndex)}</span>
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold" style={{ ...fontMono, color: optionColor.accent, background: '#FFFFFFCC', border: `1px solid ${optionColor.border}` }}>{String.fromCharCode(65 + displayIndex)}</span>
                     {q.pdfSourceImageOnly ? null : q.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span className="min-w-0 break-words">{opt}</span>}
                   </button>
                 );
