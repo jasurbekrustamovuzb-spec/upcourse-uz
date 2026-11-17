@@ -400,7 +400,6 @@ function LiveWinnerPodium({ participants, revealStage }) {
       <div className="relative z-10 text-center">
         <div className="text-xs font-bold uppercase tracking-[.2em]" style={{ ...fontMono, color: '#5576B8' }}>Yakuniy natija</div>
         <h2 className="mt-1 text-2xl sm:text-3xl font-bold" style={{ ...fontDisplay, color: '#20385F' }}>Gʻoliblar shohsupasi</h2>
-        <p className="mt-1 text-sm" style={{ ...fontBody, color: '#60718D' }}>Avval 3-oʻrin, soʻng 2- va 1-oʻrin.</p>
       </div>
       <div className="relative z-10 mt-7 flex min-h-[230px] items-end justify-center gap-2 sm:gap-4">
         {places.map(({ participant, rank, revealAt, label, color, border, height }) => {
@@ -523,6 +522,15 @@ function liveShuffledOptionIndices(question, roomId, participantId, questionKey 
   return alternatives;
 }
 
+function liveHostOptionIndices(question, roomId, questionKey = '') {
+  const order = liveShuffledOptionIndices(question, roomId, 'host-monitor', questionKey);
+  const correctIndex = Number.isInteger(question?.correct) ? question.correct : null;
+  if (order.length > 1 && correctIndex !== null && order[0] === correctIndex) {
+    return [...order.slice(1), order[0]];
+  }
+  return order;
+}
+
 /* "Barchaga bir xil" (Kahoot uslubi) rejimida tuzuvchi ekrani —
    savol/reyting almashtirish, avtomatik keyingi savolga o'tish,
    yakunda podium (3-2-1 o'rin) ko'rsatish. */
@@ -538,6 +546,11 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
     : test.questions.map((_, i) => i);
   const totalQuestions = test.questions.length;
   const currentQuestion = test.questions[order[room.currentIndex]] || null;
+  const hostOptionOrder = currentQuestion && currentQuestion.type !== 'matching' && currentQuestion.type !== 'open'
+    ? room.shuffleOptions
+      ? liveHostOptionIndices(currentQuestion, room.id, `${room.currentIndex}:${order[room.currentIndex]}`)
+      : (Array.isArray(currentQuestion.options) ? currentQuestion.options.map((_, i) => i) : [])
+    : [];
   const INTERMISSION_SECONDS = 6;
   const REVEAL_SECONDS = 3; // oxirgi savoldan keyin faqat javobni ko'rsatamiz, so'ng yakuniy natija chiqadi.
 
@@ -690,12 +703,16 @@ function LiveHostSyncPlay({ room, setRoom, test, participants, onExit }) {
             <div className="text-sm" style={{ ...fontBody, color: C.inkSoft }}>Yozma javobli savol — ishtirokchilar o'z ekranida javob yozmoqda.</div>
           ) : (
             <div className="space-y-2">
-              {(Array.isArray(currentQuestion.options) ? currentQuestion.options : []).map((opt, oi) => (
-                <div key={oi} className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[15px]" style={{ ...fontBody, background: C.surface, border: `1px solid ${C.rule}`, color: C.ink }}>
-                  <span style={{ ...fontMono, color: C.inkSoft }}>{String.fromCharCode(65 + oi)}</span>
-                  {currentQuestion.pdfSourceImageOnly ? null : currentQuestion.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span>{opt}</span>}
-                </div>
-              ))}
+              {hostOptionOrder.map((originalIndex, displayIndex) => {
+                const opt = currentQuestion.options[originalIndex];
+                const optionColor = LIVE_OPTION_COLORS[displayIndex % LIVE_OPTION_COLORS.length];
+                return (
+                  <div key={originalIndex} className="flex min-h-[62px] items-center gap-3 rounded-2xl px-4 py-3 text-[15px] shadow-sm" style={{ ...fontBody, background: optionColor.background, border: `1px solid ${optionColor.border}`, color: C.ink, boxShadow: '0 4px 12px rgba(49,73,103,.07)' }}>
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold" style={{ ...fontMono, color: optionColor.accent, background: '#FFFFFFCC', border: `1px solid ${optionColor.border}` }}>{String.fromCharCode(65 + displayIndex)}</span>
+                    {currentQuestion.pdfSourceImageOnly ? null : currentQuestion.optionsAreMath ? <Suspense fallback={<span>{opt}</span>}><MathInput value={opt} readOnly compact /></Suspense> : <span className="min-w-0 break-words">{opt}</span>}
+                  </div>
+                );
+              })}
               {!Array.isArray(currentQuestion.options) || currentQuestion.options.length === 0 ? <div className="text-sm" style={{ ...fontBody, color: C.red }}>Bu savolning javob variantlari topilmadi.</div> : null}
             </div>
           )}
