@@ -24,8 +24,8 @@ function YouTubeEmbed({ url }) {
   const [playerState, setPlayerState] = useState('poster');
   const [fullscreen, setFullscreen] = useState(false);
   const shellRef = useRef(null);
-  const embedUrl = `https://www.youtube.com/embed/${encodeURIComponent(videoId || '')}?autoplay=1&playsinline=1&fs=0&rel=0`;
   const videoId = extractYouTubeId(typeof url === 'string' ? url : '');
+  const embedUrl = `https://www.youtube.com/embed/${encodeURIComponent(videoId || '')}?autoplay=1&playsinline=1&fs=0&rel=0`;
 
   useEffect(() => {
     if (!videoId) return undefined;
