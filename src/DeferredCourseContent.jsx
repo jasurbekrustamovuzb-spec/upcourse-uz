@@ -20,57 +20,15 @@ function extractYouTubeId(url) {
   return null;
 }
 
-let youtubeIframeApiPromise = null;
-
-function loadYouTubeIframeApi() {
-  if (window.YT?.Player) return Promise.resolve(window.YT);
-  if (youtubeIframeApiPromise) return youtubeIframeApiPromise;
-
-  youtubeIframeApiPromise = new Promise((resolve, reject) => {
-    let script;
-    const finish = (error) => {
-      clearTimeout(timeoutId);
-      if (error) {
-        script?.remove();
-        reject(error);
-      }
-      else if (window.YT?.Player) resolve(window.YT);
-      else reject(new Error('YouTube player is unavailable'));
-    };
-    let timeoutId;
-    const previousCallback = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      try { previousCallback?.(); } catch { /* boshqa embed callback'i ixtiyoriy */ }
-      finish();
-    };
-    timeoutId = window.setTimeout(() => finish(new Error('YouTube player timed out')), 15000);
-    script = document.createElement('script');
-    script.dataset.upcourseYouTubeApi = 'true';
-    script.src = 'https://www.youtube.com/iframe_api';
-    script.async = true;
-    script.onerror = () => finish(new Error('YouTube player failed to load'));
-    document.head.appendChild(script);
-  }).catch((error) => {
-    youtubeIframeApiPromise = null;
-    throw error;
-  });
-
-  return youtubeIframeApiPromise;
-}
-
 function YouTubeEmbed({ url }) {
   const [playerState, setPlayerState] = useState('poster');
   const [fullscreen, setFullscreen] = useState(false);
   const shellRef = useRef(null);
-  const playerMountRef = useRef(null);
-  const playerRef = useRef(null);
-  const mountedRef = useRef(true);
-  const playRequestedRef = useRef(false);
+  const embedUrl = `https://www.youtube.com/embed/${encodeURIComponent(videoId || '')}?autoplay=1&playsinline=1&fs=0&rel=0`;
   const videoId = extractYouTubeId(typeof url === 'string' ? url : '');
 
   useEffect(() => {
     if (!videoId) return undefined;
-    mountedRef.current = true;
     const updateFullscreen = () => {
       const active = document.fullscreenElement === shellRef.current || document.webkitFullscreenElement === shellRef.current;
       setFullscreen(active);
@@ -78,15 +36,9 @@ function YouTubeEmbed({ url }) {
     };
     document.addEventListener('fullscreenchange', updateFullscreen);
     document.addEventListener('webkitfullscreenchange', updateFullscreen);
-    // Lesson content is already open at this point, so warm up the player
-    // behind its poster. Clicking Play can then start playback immediately.
-    loadYouTubeIframeApi().then(initializePlayer).catch(() => {});
     return () => {
-      mountedRef.current = false;
       document.removeEventListener('fullscreenchange', updateFullscreen);
       document.removeEventListener('webkitfullscreenchange', updateFullscreen);
-      try { playerRef.current?.destroy(); } catch { /* player allaqachon yopilgan bo‘lishi mumkin */ }
-      playerRef.current = null;
     };
   }, [videoId]);
 
@@ -112,45 +64,9 @@ function YouTubeEmbed({ url }) {
     }
   }
 
-  function initializePlayer(YT) {
-    if (!mountedRef.current || !playerMountRef.current || playerRef.current) return;
-    playerRef.current = new YT.Player(playerMountRef.current, {
-      width: '100%',
-      height: '100%',
-      videoId,
-      playerVars: { autoplay: 0, playsinline: 1, fs: 0, origin: window.location.origin, rel: 0 },
-      events: {
-        onReady: (event) => {
-          if (playRequestedRef.current) event.target.playVideo();
-        },
-        onStateChange: (event) => {
-          if (event.data === YT.PlayerState.PLAYING && mountedRef.current) setPlayerState('playing');
-        },
-        onError: (event) => {
-          try { event.target.destroy(); } catch { /* player allaqachon yopilgan bo‘lishi mumkin */ }
-          playerRef.current = null;
-          if (mountedRef.current && playRequestedRef.current) {
-            playRequestedRef.current = false;
-            setPlayerState('error');
-          }
-        },
-      },
-    });
-  }
-
   function startVideo() {
     if (playerState === 'loading') return;
-    playRequestedRef.current = true;
     setPlayerState('loading');
-    if (playerRef.current) {
-      // Keep the call inside the click gesture so browser autoplay policy
-      // does not block the first frame after the user presses Play.
-      playerRef.current.playVideo();
-      return;
-    }
-    loadYouTubeIframeApi()
-      .then(initializePlayer)
-      .catch(() => { if (mountedRef.current) setPlayerState('error'); });
   }
 
   return (
@@ -197,7 +113,19 @@ function YouTubeEmbed({ url }) {
           className="youtube-embed-frame absolute inset-0 w-full h-full transition-opacity duration-200"
           style={{ opacity: playerState === 'playing' ? 1 : 0, pointerEvents: playerState === 'playing' ? 'auto' : 'none' }}
         >
-          <div ref={playerMountRef} className="w-full h-full" />
+          {(playerState === 'loading' || playerState === 'playing') && (
+            <iframe
+              src={embedUrl}
+              title="Kurs videosi"
+              className="w-full h-full"
+              style={{ border: 0 }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+              onLoad={() => setPlayerState('playing')}
+              onError={() => setPlayerState('error')}
+            />
+          )}
         </div>
         {fullscreen && playerState === 'playing' && (
           <button type="button" onClick={toggleFullscreen} className="absolute left-2 top-2 z-30 inline-flex h-7 w-7 items-center justify-center rounded-full p-0 opacity-75 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2" style={{ color: '#fff', background: 'rgba(0,0,0,.5)', border: '1px solid rgba(255,255,255,.4)', backdropFilter: 'blur(4px)' }} aria-label="Asliga qaytarish" title="Asliga qaytarish"><Minimize2 size={13} /></button>
